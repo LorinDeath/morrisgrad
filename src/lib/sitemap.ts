@@ -1,5 +1,6 @@
 // Динамические карты сайта: индекс + статические страницы + форум (разделы, темы постранично). Только публичное содержимое.
 import { SITE, STATIC_PAGES, xmlEsc, iso } from "./seo";
+import { loropediaPaths } from "./loropedia";
 
 export const TOPICS_PER_SITEMAP = 5000;
 const VISIBLE = "t.deleted = 0 AND t.hidden = 0";
@@ -37,6 +38,8 @@ export async function buildPages(db: any) {
   const urls: U[] = STATIC_PAGES.map((p) => ({ loc: SITE + p.path, changefreq: p.changefreq, priority: p.priority }));
   const stories = await safe(async () => (await db.prepare("SELECT rowid AS id, created_at FROM konkurs ORDER BY rowid LIMIT 5000").all()).results || [], [] as any[]);
   for (const s of stories) urls.push({ loc: `${SITE}/allkonrass/${s.id}`, lastmod: parseDate(s.created_at), priority: 0.4 });
+  // Лоропедия — адреса известны на этапе сборки (src/data/loropedia/data.json)
+  for (const p of loropediaPaths()) urls.push({ loc: SITE + encodeURI(p.path), changefreq: "weekly", priority: p.priority });
   return urlset(urls);
 }
 

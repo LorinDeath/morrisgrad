@@ -1,0 +1,28 @@
+---
+import LpShell from '../../components/loropedia/LpShell.astro';
+import { LP } from '../../lib/loropedia';
+const arts = LP.images.filter((i) => !/^cover/.test(i.id));
+const covers = LP.images.filter((i) => /^cover/.test(i.id));
+const groups = [{ name: 'Персонажи и места', items: arts }, { name: 'Обложки глав', items: covers }].filter((g) => g.items.length);
+---
+<LpShell title="Галерея — Лоропедия МоррисГрада" description="Галерея Лоропедии МоррисГрада: арты персонажей, локаций и обложки глав летописи." active="gallery" crumbs={[['Галерея', '/loropedia/galereya']]}>
+  <header class="lp-page-head">
+    <span class="lp-page-icon" aria-hidden="true">🖼</span>
+    <div><h1 class="lp-page-title">Галерея</h1><p class="lp-page-sub">{LP.images.length} изображений из летописи. Нажмите на арт — откроется статья.</p></div>
+  </header>
+  {groups.map((g) => (
+    <section class="lp-section">
+      <h2 class="lp-h2 small"><span>{g.name}</span><em>{g.items.length}</em></h2>
+      <div class="lp-masonry">
+        {g.items.map((im) => (
+          <figure class="lp-masonry-item">
+            <a href={im.notes?.[0] ? `/loropedia/${im.notes[0].slug}` : im.jpg}>
+              <img src={im.thumb} srcset={im.srcset} sizes="(max-width: 720px) 50vw, 300px" alt={im.notes?.[0]?.caption || im.notes?.[0]?.title || ''} loading="lazy" decoding="async" width={im.w} height={im.h} />
+            </a>
+            <figcaption>{(im.notes || []).map((n, i) => <>{i > 0 && ' · '}<a class="lp-link" href={`/loropedia/${n.slug}`}>{n.title}</a></>)}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  ))}
+</LpShell>

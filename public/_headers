@@ -15,3 +15,8 @@
   Cache-Control: no-cache
 /mc-sw.js
   Cache-Control: no-cache
+# Лоропедия: арты (имена стабильные, меняются только при переимпорте) — неделя; индекс поиска — час.
+/loropedia/img/*
+  Cache-Control: public, max-age=604800
+/loropedia/search.json
+  Cache-Control: public, max-age=3600

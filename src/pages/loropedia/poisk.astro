@@ -1,0 +1,77 @@
+---
+import LpShell from '../../components/loropedia/LpShell.astro';
+import { LP } from '../../lib/loropedia';
+const q = (Astro.url.searchParams.get('q') || '').slice(0, 80);
+const tags = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(0, 24);
+---
+<LpShell title={q ? `«${q}» — поиск по Лоропедии МоррисГрада` : 'Поиск — Лоропедия МоррисГрада'} description="Поиск по Лоропедии МоррисГрада: персонажи, прозвища, локации, предметы и термины летописи."
+  active="search" crumbs={[['Поиск', '/loropedia/poisk']]} noindex={!!q}>
+  <header class="lp-page-head">
+    <span class="lp-page-icon" aria-hidden="true">⌕</span>
+    <div><h1 class="lp-page-title">Поиск по летописи</h1><p class="lp-page-sub">Ищет по названиям, прозвищам и другим именам, тегам и тексту статей.</p></div>
+  </header>
+  <form class="lp-hero-search lp-search-page" action="/loropedia/poisk" method="get" role="search" data-lp-search>
+    <input type="search" name="q" value={q} placeholder="Например: Лорин, Фрактал, некромант…" aria-label="Что найти" autocomplete="off" autofocus />
+    <button type="submit">Искать</button>
+  </form>
+  <div class="lp-filter lp-search-filter" role="group" aria-label="Фильтр по статусу" data-lp-sfilter>
+    <button type="button" class="active" data-f="all">Все</button>
+    <button type="button" data-f="canon">✅ Канон</button>
+    <button type="button" data-f="idea">💡 Не канон</button>
+    <button type="button" data-f="disputed">⚠️ Спорно</button>
+  </div>
+  <p class="lp-search-count lp-muted" data-lp-count aria-live="polite"></p>
+  <ol class="lp-results" data-lp-results></ol>
+  <noscript><p class="lp-muted">Для поиска нужен JavaScript. Можно пройтись по <a class="lp-link" href="/loropedia">разделам</a>.</p></noscript>
+  <section class="lp-section">
+    <h2 class="lp-h2 small"><span>Популярные теги</span></h2>
+    <div class="lp-tagcloud">{tags.map((t) => <a class="lp-tag" href={`/loropedia/tag/${t.slug}`}>#{t.name} <small>{t.slugs.length}</small></a>)}</div>
+  </section>
+</LpShell>
+<script>
+  type Row = { s: string; t: string; a: string[]; g: string[]; c: string; st: string; e: string; i?: string; x?: string };
+  let index: Row[] | null = null;
+  const CAT: Record<string, string> = { personazhi: 'Персонаж', klany: 'Клан', lokatsii: 'Локация', predmety: 'Предмет', magiya: 'Магия', sobytiya: 'Событие', glavy: 'Глава', 'khronologiya-razdel': 'Хронология', yazyk: 'Термин', spravka: 'Справка' };
+  const ST: Record<string, string> = { idea: '💡 Не канон', disputed: '⚠️ Спорно', ref: '📎 Справка' };
+  const norm = (s: string) => s.toLowerCase().replace(/ё/g, 'е').replace(/[«»"'.,!?()\-–—:;]/g, ' ').replace(/\s+/g, ' ').trim();
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+  function score(r: Row, q: string, words: string[]) {
+    const t = norm(r.t), al = r.a.map(norm), tg = r.g.map(norm), body = norm(r.e + ' ' + (r.x || ''));
+    let sc = 0, via = '';
+    if (t === q) sc += 100; else if (t.startsWith(q)) sc += 60; else if (t.includes(q)) sc += 40;
+    const am = al.find((a) => a === q || a.includes(q)); if (am) { sc += am === q ? 80 : 35; via = r.a[al.indexOf(am)]; }
+    if (tg.some((g) => g === q)) sc += 20;
+    for (const w of words) { if (w.length < 2) continue; if (t.includes(w)) sc += 8; if (al.some((a) => a.includes(w))) sc += 6; if (tg.some((g) => g.includes(w))) sc += 4; if (body.includes(w)) sc += 2; }
+    if (words.length > 1 && !words.every((w) => (t + ' ' + al.join(' ') + ' ' + tg.join(' ') + ' ' + body).includes(w))) sc = Math.min(sc, 5);
+    return { sc, via };
+  }
+  async function initLpSearch() {
+    const form = document.querySelector<HTMLFormElement>('[data-lp-search]');
+    if (!form || form.dataset.ready) return; form.dataset.ready = '1';
+    const input = form.querySelector('input')!, list = document.querySelector<HTMLOListElement>('[data-lp-results]')!, count = document.querySelector<HTMLElement>('[data-lp-count]')!;
+    const fbar = document.querySelector<HTMLElement>('[data-lp-sfilter]')!;
+    let filter = 'all';
+    if (!index) { try { index = await (await fetch('/loropedia/search.json')).json(); } catch { count.textContent = 'Не удалось загрузить индекс поиска.'; return; } }
+    const run = () => {
+      const q = norm(input.value);
+      const url = new URL(location.href); if (q) url.searchParams.set('q', input.value); else url.searchParams.delete('q'); history.replaceState(history.state, '', url);
+      if (!q) { list.innerHTML = ''; count.textContent = `В Лоропедии ${index!.length} статей — начните вводить имя, прозвище или термин.`; return; }
+      const words = q.split(' ');
+      const res = index!.map((r) => ({ r, ...score(r, q, words) })).filter((x) => x.sc > 0 && (filter === 'all' || x.r.st === filter)).sort((a, b) => b.sc - a.sc || a.r.t.localeCompare(b.r.t, 'ru')).slice(0, 60);
+      count.textContent = res.length ? `Найдено: ${res.length}` : 'Ничего не нашлось. Попробуйте другое имя или часть слова.';
+      list.innerHTML = res.map(({ r, via }) => `<li><a class="lp-result" href="/loropedia/${r.s}" data-status="${r.st}">
+        ${r.i ? `<img src="${r.i}" alt="" loading="lazy">` : `<span class="lp-result-glyph" aria-hidden="true">❖</span>`}
+        <span class="lp-result-body"><span class="lp-result-top"><b>${esc(r.t)}</b><span class="lp-result-cat">${CAT[r.c] || ''}</span>${ST[r.st] ? `<span class="lp-pill lp-pill-${r.st}">${ST[r.st]}</span>` : ''}</span>
+        ${via ? `<span class="lp-result-via">также известен как «${esc(via)}»</span>` : ''}
+        <span class="lp-result-ex">${esc(r.e)}</span></span></a></li>`).join('');
+    };
+    let tmr = 0;
+    input.addEventListener('input', () => { clearTimeout(tmr); tmr = window.setTimeout(run, 120); });
+    form.addEventListener('submit', (e) => { e.preventDefault(); run(); });
+    fbar.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.addEventListener('click', () => {
+      fbar.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b)); filter = b.dataset.f!; run();
+    }));
+    run();
+  }
+  document.addEventListener('astro:page-load', initLpSearch);
+</script>

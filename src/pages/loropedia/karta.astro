@@ -1,0 +1,68 @@
+---
+import LpShell from '../../components/loropedia/LpShell.astro';
+import { LP, CAT_COLORS } from '../../lib/loropedia';
+const g = LP.graph;
+const r = (deg: number) => Math.min(14, 3.5 + Math.sqrt(deg) * 1.6);
+const cats = LP.categories.filter((c) => g.nodes.some((n) => n.cat === c.slug));
+---
+<LpShell title="Карта связей — Лоропедия МоррисГрада" description="Карта связей Лоропедии МоррисГрада: как связаны герои, кланы, места и события летописи." active="map" crumbs={[['Карта связей', '/loropedia/karta']]}>
+  <header class="lp-page-head">
+    <span class="lp-page-icon" aria-hidden="true">✶</span>
+    <div><h1 class="lp-page-title">Карта связей</h1><p class="lp-page-sub">{g.nodes.length} статей и {g.edges.length} связей. Наведите на точку — подсветятся соседи; нажмите — откроется статья.</p></div>
+  </header>
+  <div class="lp-map-legend" data-lp-legend>
+    {cats.map((c) => <button type="button" data-cat={c.slug} style={`--cat:${CAT_COLORS[c.slug]}`}><i></i>{c.name}</button>)}
+  </div>
+  <div class="lp-map-wrap">
+    <svg class="lp-map" viewBox={`-20 -20 ${g.w + 40} ${g.h + 40}`} role="img" aria-label="Граф связей статей Лоропедии" data-lp-map>
+      <g class="edges">
+        {g.edges.map(([s, t]) => <line x1={g.nodes[s].x} y1={g.nodes[s].y} x2={g.nodes[t].x} y2={g.nodes[t].y} data-s={s} data-t={t} />)}
+      </g>
+      <g class="nodes">
+        {g.nodes.map((n, i) => (
+          <a href={`/loropedia/${n.slug}`} data-i={i} data-cat={n.cat}>
+            <title>{n.title} — связей: {n.deg}</title>
+            <circle cx={n.x} cy={n.y} r={r(n.deg)} fill={CAT_COLORS[n.cat]} />
+            {n.deg >= 12 && <text x={n.x} y={n.y - r(n.deg) - 4} text-anchor="middle">{n.title}</text>}
+            <text class="hover-label" x={n.x} y={n.y - r(n.deg) - 4} text-anchor="middle">{n.title}</text>
+          </a>
+        ))}
+      </g>
+    </svg>
+  </div>
+</LpShell>
+<script>
+  function initLpMap() {
+    const svg = document.querySelector<SVGSVGElement>('[data-lp-map]');
+    if (!svg || svg.dataset.ready) return; svg.dataset.ready = '1';
+    const lines = [...svg.querySelectorAll<SVGLineElement>('.edges line')];
+    const nodes = [...svg.querySelectorAll<SVGAElement>('.nodes a')];
+    const adj = new Map<string, Set<string>>();
+    lines.forEach((l) => {
+      const s = l.dataset.s!, t = l.dataset.t!;
+      (adj.get(s) || adj.set(s, new Set()).get(s)!).add(t);
+      (adj.get(t) || adj.set(t, new Set()).get(t)!).add(s);
+    });
+    const clear = () => { svg.classList.remove('focus'); nodes.forEach((n) => n.classList.remove('on', 'hub')); lines.forEach((l) => l.classList.remove('on')); };
+    nodes.forEach((n) => {
+      const i = n.dataset.i!;
+      const on = () => {
+        clear(); svg.classList.add('focus'); n.classList.add('on', 'hub');
+        const nb = adj.get(i) || new Set();
+        nodes.forEach((m) => { if (nb.has(m.dataset.i!)) m.classList.add('on'); });
+        lines.forEach((l) => { if (l.dataset.s === i || l.dataset.t === i) l.classList.add('on'); });
+      };
+      n.addEventListener('mouseenter', on); n.addEventListener('focus', on);
+      n.addEventListener('mouseleave', clear); n.addEventListener('blur', clear);
+    });
+    const legend = document.querySelector<HTMLElement>('[data-lp-legend]');
+    legend?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.addEventListener('click', () => {
+      const was = b.classList.contains('active');
+      legend.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+      if (was) { svg.classList.remove('catfocus'); nodes.forEach((n) => n.classList.remove('cat-on')); return; }
+      b.classList.add('active'); svg.classList.add('catfocus');
+      nodes.forEach((n) => n.classList.toggle('cat-on', n.dataset.cat === b.dataset.cat));
+    }));
+  }
+  document.addEventListener('astro:page-load', initLpMap);
+</script>

@@ -1,0 +1,35 @@
+---
+// Мини-карта связей статьи: сама статья в центре, соседи (ссылки и обратные ссылки) по кругу.
+import { article, CAT_COLORS, type LpArticle } from '../../lib/loropedia';
+interface Props { a: LpArticle }
+const { a } = Astro.props;
+const ids = [...new Set([...a.links, ...a.backlinks])].map(article).filter((x): x is LpArticle => !!x)
+  .sort((x, y) => (y.backlinks.length + y.links.length) - (x.backlinks.length + x.links.length)).slice(0, 18);
+const W = 420, H = 300, cx = W / 2, cy = H / 2;
+const nodes = ids.map((n, i) => {
+  const ang = (i / ids.length) * Math.PI * 2 - Math.PI / 2;
+  const r = i % 2 ? 118 : 100;
+  return { n, x: cx + Math.cos(ang) * r * 1.45, y: cy + Math.sin(ang) * r, both: a.links.includes(n.slug) && a.backlinks.includes(n.slug) };
+});
+const short = (s: string) => (s.length > 16 ? s.slice(0, 15) + '…' : s);
+---
+{nodes.length > 0 && (
+  <figure class="lp-ego">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Связи статьи «${a.title}»`}>
+      <defs>
+        <radialGradient id="lpEgoGlow"><stop offset="0" stop-color="#c9a86c" stop-opacity=".35" /><stop offset="1" stop-color="#c9a86c" stop-opacity="0" /></radialGradient>
+      </defs>
+      <circle cx={cx} cy={cy} r="80" fill="url(#lpEgoGlow)" />
+      {nodes.map((p) => <line x1={cx} y1={cy} x2={p.x} y2={p.y} class:list={['lp-ego-edge', { both: p.both }]} />)}
+      {nodes.map((p) => (
+        <a href={`/loropedia/${p.n.slug}`}>
+          <title>{p.n.title}</title>
+          <circle cx={p.x} cy={p.y} r="6" fill={CAT_COLORS[p.n.cat] || '#c9a86c'} class="lp-ego-dot" />
+          <text x={p.x} y={p.y + (p.y < cy ? -11 : 18)} text-anchor="middle" class="lp-ego-label">{short(p.n.title)}</text>
+        </a>
+      ))}
+      <polygon points={`${cx},${cy - 14} ${cx + 14},${cy} ${cx},${cy + 14} ${cx - 14},${cy}`} class="lp-ego-center" />
+    </svg>
+    <figcaption>Золотая линия — ссылаются друг на друга. Точки окрашены по разделам.</figcaption>
+  </figure>
+)}

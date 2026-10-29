@@ -1,0 +1,46 @@
+---
+import LpShell from '../../../components/loropedia/LpShell.astro';
+import LpCard from '../../../components/loropedia/LpCard.astro';
+import StatusFilter from '../../../components/loropedia/StatusFilter.astro';
+import { LP, category, inCategory, article, CAT_COLORS } from '../../../lib/loropedia';
+
+const c = category(Astro.params.cat || '');
+if (!c) return new Response(null, { status: 404, statusText: 'Not found' });
+if (c.slug === 'khronologiya-razdel') return Astro.redirect('/loropedia/khronologiya', 301);
+let items = inCategory(c.slug).sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+let groups: { name: string; href?: string; items: typeof items }[];
+if (c.slug === 'personazhi') {
+  groups = LP.clans.map((cl) => ({ name: cl.name, href: cl.slug ? `/loropedia/${cl.slug}` : undefined, items: cl.slugs.map(article).filter((x) => x && x.cat === 'personazhi') as typeof items }));
+  const seen = new Set(groups.flatMap((g) => g.items.map((x) => x.slug)));
+  const rest = items.filter((x) => !seen.has(x.slug));
+  if (rest.length) groups.push({ name: 'Прочие', items: rest });
+} else if (c.slug === 'glavy') {
+  items = LP.chapters.map(article).filter((x) => x && x.cat === 'glavy') as typeof items;
+  const rest = inCategory('glavy').filter((x) => !LP.chapters.includes(x.slug));
+  groups = [{ name: 'По порядку', items: [...items, ...rest] }];
+} else groups = [{ name: '', items }];
+const desc = `${c.name} летописи «Обитель смерти» — ${c.count} статей Лоропедии МоррисГрада. ${c.desc}.`;
+---
+<LpShell title={`${c.name} — Лоропедия МоррисГрада`} description={desc} crumbs={[[c.name, `/loropedia/c/${c.slug}`]]}>
+  <header class="lp-page-head" style={`--cat:${CAT_COLORS[c.slug]}`}>
+    <span class="lp-page-icon" aria-hidden="true">{c.icon}</span>
+    <div>
+      <h1 class="lp-page-title">{c.name}</h1>
+      <p class="lp-page-sub">{c.desc} · {c.count} статей</p>
+    </div>
+  </header>
+  <div class="lp-cat-tools">
+    <StatusFilter target="#lp-cat-list" />
+    <nav class="lp-cat-jump" aria-label="Другие разделы">
+      {LP.categories.filter((x) => x.slug !== c.slug).map((x) => <a href={x.slug === 'khronologiya-razdel' ? '/loropedia/khronologiya' : `/loropedia/c/${x.slug}`} class="lp-chip"><span aria-hidden="true">{x.icon}</span> {x.name}</a>)}
+    </nav>
+  </div>
+  <div id="lp-cat-list">
+    {groups.filter((g) => g.items.length).map((g) => (
+      <section class="lp-group" data-lp-group>
+        {g.name && <h2 class="lp-h2 small"><span>{g.href ? <a href={g.href}>{g.name}</a> : g.name}</span><em>{g.items.length}</em></h2>}
+        <div class="lp-grid">{g.items.map((a) => <LpCard a={a} />)}</div>
+      </section>
+    ))}
+  </div>
+</LpShell>

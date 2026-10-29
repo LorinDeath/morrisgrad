@@ -1,0 +1,154 @@
+---
+import LpShell from '../../components/loropedia/LpShell.astro';
+import StatusBadge from '../../components/loropedia/StatusBadge.astro';
+import EgoMap from '../../components/loropedia/EgoMap.astro';
+import { LP, article, category, CAT_COLORS } from '../../lib/loropedia';
+import { clip } from '../../lib/seo';
+
+const a = article(Astro.params.slug || '');
+if (!a) return new Response(null, { status: 404, statusText: 'Not found' });
+const cat = category(a.cat)!;
+const isTimeline = a.type === 'хронология';
+const nonCanon = a.status === 'idea' || a.invented;
+// обратные ссылки — по разделам
+const back = LP.categories.map((c) => ({ c, items: a.backlinks.map(article).filter((x) => x && x.cat === c.slug) })).filter((g) => g.items.length);
+// соседние главы
+const ci = a.order != null ? LP.chapters.indexOf(a.slug) : -1;
+const prev = ci > 0 ? article(LP.chapters[ci - 1]) : null;
+const next = ci >= 0 && ci < LP.chapters.length - 1 ? article(LP.chapters[ci + 1]) : null;
+const desc = clip(`${a.title} — ${cat.name.toLowerCase()} летописи «Обитель смерти»${nonCanon ? ' (не канон)' : ''}. ${a.excerpt}`, 190);
+const crumbs: [string, string][] = isTimeline ? [['Хронология', '/loropedia/khronologiya']] : [[cat.name, `/loropedia/c/${cat.slug}`], [a.title, `/loropedia/${a.slug}`]];
+const ld = { '@context': 'https://schema.org', '@type': 'Article', headline: a.title, description: desc, inLanguage: 'ru-RU',
+  url: `https://morrisgrad.com/loropedia/${a.slug}`, ...(a.image ? { image: `https://morrisgrad.com${a.image.jpg}` } : {}),
+  isPartOf: { '@type': 'CollectionPage', name: 'Лоропедия МоррисГрада', url: 'https://morrisgrad.com/loropedia' }, keywords: [...a.tags, ...a.aliases].join(', ') };
+const showToc = a.toc.length >= 2 || isTimeline;
+---
+<LpShell title={`${a.title} — Лоропедия МоррисГрада`} description={desc} image={a.image?.jpg} type="article" crumbs={crumbs}
+  active={isTimeline ? 'timeline' : undefined} jsonLd={[ld]}>
+  <article class="lp-article" style={`--cat:${CAT_COLORS[a.cat] || '#c9a86c'}`} data-pagefind-body>
+    <header class="lp-art-head">
+      <a class="lp-art-cat" href={isTimeline ? '/loropedia' : `/loropedia/c/${cat.slug}`}><span aria-hidden="true">{cat.icon}</span> {cat.name}</a>
+      <h1 class="lp-art-title">{a.title}</h1>
+      {a.aliases.length > 0 && <p class="lp-art-aliases">Также: {a.aliases.join(' · ')}</p>}
+      <div class="lp-art-badges">
+        <StatusBadge status={nonCanon ? 'idea' : a.status} label={a.invented ? 'Не канон · додумано' : a.statusLabel} icon={nonCanon ? '💡' : a.statusIcon} big />
+        {a.tags.map((t) => <a class="lp-tag" href={`/loropedia/tag/${LP.tags.find((x) => x.name === t)?.slug}`}>#{t}</a>)}
+      </div>
+    </header>
+
+    {nonCanon && (
+      <div class="lp-banner lp-banner-idea" role="note">
+        <span class="lp-banner-icon" aria-hidden="true">💡</span>
+        <div><b>Не канон.</b> Этого нет в тексте книги: замысел или додумка автора. Может измениться или так и не появиться в летописи.</div>
+      </div>
+    )}
+    {a.status === 'disputed' && (
+      <div class="lp-banner lp-banner-disputed" role="note">
+        <span class="lp-banner-icon" aria-hidden="true">⚠️</span>
+        <div><b>Спорно.</b> Текст книги не подтверждает это однозначно — версии расходятся.</div>
+      </div>
+    )}
+
+    <div class="lp-art-grid">
+      <div class="lp-art-main">
+        {showToc && !isTimeline && (
+          <details class="lp-toc" open>
+            <summary>Содержание</summary>
+            <ol>{a.toc.map((t) => <li class={`lvl${t.level}`}><a href={`#${t.id}`}>{t.text}</a></li>)}</ol>
+          </details>
+        )}
+
+        {isTimeline ? (
+          <>
+            <p class="lp-lead">Порядок относительный: точных дат в летописи почти нет. Пункты с ⚠️ — спорные.</p>
+            <div class="lp-timeline">
+              {(() => { let n = 0; return LP.timeline.map((era) => (
+                <section class="lp-era">
+                  <h2 class="lp-era-title" id={era.title}><span>{era.title}</span></h2>
+                  <ol class="lp-tl-list">
+                    {era.items.map((it) => { n++; return (
+                      <li class:list={['lp-tl-item', { disputed: it.disputed }]}>
+                        <span class="lp-tl-n">{String(n).padStart(2, '0')}</span>
+                        <div class="lp-tl-card"><span set:html={it.html} />{it.disputed && <> <span class="lp-pill lp-pill-disputed">⚠️ Спорно</span></>}</div>
+                      </li>
+                    ); })}
+                  </ol>
+                </section>
+              )); })()}
+            </div>
+            <h2 class="lp-h2 small" id="sobytiya"><span>События и когда они были</span></h2>
+            <div class="lp-table-wrap"><table class="lp-table">
+              <thead><tr><th>Событие</th><th>Когда</th><th>Статус</th></tr></thead>
+              <tbody>{LP.events.map((e) => (
+                <tr><td><a class="lp-link" href={`/loropedia/${e.slug}`}>{e.title}</a></td><td>{e.when || '—'}</td>
+                  <td>{e.status === 'canon' ? <span class="lp-muted">канон</span> : <span class={`lp-pill lp-pill-${e.status}`}>{e.statusLabel}</span>}</td></tr>
+              ))}</tbody>
+            </table></div>
+          </>
+        ) : (
+          <div class="lp-prose" set:html={a.html} />
+        )}
+
+        {a.gallery.length > 1 && (
+          <section class="lp-gallery-sec">
+            <h2 class="lp-h2 small" id="galereya"><span>Галерея</span></h2>
+            <div class="lp-gallery">
+              {a.gallery.map((im) => (
+                <figure>
+                  <a href={im.jpg} target="_blank" rel="noopener"><img src={im.thumb} srcset={im.srcset} sizes="(max-width: 720px) 100vw, 360px" alt={im.caption || a.title} loading="lazy" decoding="async" width={im.w} height={im.h} /></a>
+                  {im.caption && <figcaption>{im.caption}</figcaption>}
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {(prev || next) && (
+          <nav class="lp-pager" aria-label="Соседние главы">
+            {prev ? <a href={`/loropedia/${prev.slug}`} class="prev"><small>← Предыдущая</small>{prev.title}</a> : <span></span>}
+            {next ? <a href={`/loropedia/${next.slug}`} class="next"><small>Следующая →</small>{next.title}</a> : <span></span>}
+          </nav>
+        )}
+
+        <section class="lp-backlinks">
+          <h2 class="lp-h2 small" id="upominaetsya"><span>Упоминается в</span></h2>
+          {back.length ? back.map((g) => (
+            <div class="lp-back-group">
+              <span class="lp-back-cat"><span aria-hidden="true">{g.c.icon}</span> {g.c.name}</span>
+              <div class="lp-back-items">{g.items.map((b) => <a class="lp-chip" href={`/loropedia/${b!.slug}`}>{b!.title}</a>)}</div>
+            </div>
+          )) : <p class="lp-muted">Пока ни одна статья не ссылается сюда.</p>}
+        </section>
+      </div>
+
+      <aside class="lp-art-side">
+        <div class="lp-infobox">
+          <span class="lp-ib-corner tl" aria-hidden="true"></span><span class="lp-ib-corner tr" aria-hidden="true"></span>
+          <span class="lp-ib-corner bl" aria-hidden="true"></span><span class="lp-ib-corner br" aria-hidden="true"></span>
+          <div class="lp-ib-title">{a.title}</div>
+          {a.image && (
+            <figure class="lp-ib-img">
+              <a href={a.image.jpg} target="_blank" rel="noopener">
+                <img src={a.image.src} srcset={a.image.srcset} sizes="(max-width: 900px) 100vw, 320px" alt={a.image.caption || a.title} width={a.image.w} height={a.image.h} decoding="async" />
+              </a>
+              {a.image.caption && <figcaption>{a.image.caption}</figcaption>}
+            </figure>
+          )}
+          <dl class="lp-ib-fields">
+            <dt>Статус</dt><dd><StatusBadge status={nonCanon ? 'idea' : a.status} label={a.invented ? 'Не канон · додумано' : a.statusLabel} icon={nonCanon ? '💡' : a.statusIcon} /></dd>
+            {a.fields.map((f) => <><dt>{f.label}</dt><dd set:html={f.html} /></>)}
+            {a.aliases.length > 0 && <><dt>Также</dt><dd>{a.aliases.join(', ')}</dd></>}
+            <dt>Связи</dt><dd>{a.links.length} исх. · {a.backlinks.length} вх.</dd>
+          </dl>
+        </div>
+        {isTimeline && (
+          <details class="lp-toc" open>
+            <summary>Эпохи</summary>
+            <ol>{LP.timeline.map((e) => <li><a href={`#${e.title}`}>{e.title}</a></li>)}<li><a href="#sobytiya">События</a></li></ol>
+          </details>
+        )}
+        {!isTimeline && <EgoMap a={a} />}
+      </aside>
+    </div>
+  </article>
+</LpShell>
