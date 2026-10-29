@@ -102,9 +102,8 @@ export const BMA_CFG = {
   bmMinDmg: 1,                     // мин. урон удара по «чёрной» цели после чёрной брони (0 — разрешить 0); только если удар был > 0
   elemColor: { ...ELEM_DEF_COLOR } as Record<string, string>, // цвета стихий (цифры чистого урона, мобы, дуги, превью); правятся в админке
   // этап 2: большой взмах ближнего лезвия со следом воздуха (клиент рисует; хитбокс — прежняя дуга)
-  bigSwing: true, swingTrail: 1, swingScale: 1.25, swingAirMs: 260,
+  bigSwing: true, swingTrail: 1, swingScale: 1.25, swingAirMs: 260, swingH: 1.1, // swingTrail — длина ленты (×0.8 дуги), swingScale — толщина, swingAirMs — сколько лента висит в воздухе, swingH — высота, м
   // этап 2: типы снарядов дальних лезвий (поле shot у детали): множители по умолчанию
-  swingTrail: true, swingTrailLen: 0.8, swingH: 1.1, swingLife: 0.5, // ЭТАП 2: большой взмах ближнего лезвия — след в воздухе (длина — доля дуги, высота, м; жизнь, с)
   shotOn: true, shotExplodeR: 80, shotExplodeK: 0.6, shotRicochetN: 2, shotRicochetK: 0.7, shotRicochetR: 260, shotPierceN: 3, shotSplitN: 3, shotSplitK: 0.5, shotSplitR: 160,
   // этап 2: камень — замедление-оглушение (плеть/кольцо), как iceSlow у льда; яд природы — в чертах навыков, отбрасывание воды — в форме
   stoneSlow: true,
@@ -131,9 +130,10 @@ export const SHOT_NAMES: Record<string, string> = { "": "Обычный", explod
 export type ShotInfo = { t: string; n: number; r: number; k: number };
 /** ЭТАП 2: параметры большого взмаха для событий shot/marc (клиент рисует след в воздухе; по умолчанию — без полей) */
 export function swingEv(): Record<string, number> {
-  const C: any = BMA_CFG; if (C.swingTrail === false) return { stl: 0 };
-  const o: Record<string, number> = {}, L = Number(C.swingTrailLen), H = Number(C.swingH), F = Number(C.swingLife);
-  if (Number.isFinite(L) && L !== 0.8) o.stl = Math.max(0, Math.min(2, L)); if (Number.isFinite(H) && H !== 1.1) o.sth = Math.max(0, Math.min(4, H)); if (Number.isFinite(F) && F !== 0.5) o.slf = Math.max(0.1, Math.min(2, F));
+  const C: any = BMA_CFG; if (C.bigSwing === false || !(Number(C.swingTrail) > 0)) return { stl: 0 };
+  const o: Record<string, number> = {}, L = Number(C.swingTrail), S = Number(C.swingScale), A = Number(C.swingAirMs), H = Number(C.swingH);
+  if (L !== 1) o.stl = +Math.min(2, 0.8 * L).toFixed(3); if (Number.isFinite(S) && S !== 1.25) o.ssc = Math.max(0.2, Math.min(4, S));
+  if (Number.isFinite(A) && A !== 260) o.slf = +Math.max(0.15, Math.min(2.5, 0.24 + A / 1000)).toFixed(3); if (Number.isFinite(H) && H !== 1.1) o.sth = Math.max(0, Math.min(4, H));
   return o;
 }
 export function shotOf(b: BmPart | null | undefined): ShotInfo | null {

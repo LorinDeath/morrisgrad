@@ -304,7 +304,7 @@ export class ZoneView {
   // wtype — тип оружия (WEAPON_TYPES): копьё, кинжалы, посох, лук, секира, меч, лапки-лезвия…
   // mob — цель (летит за ней), иначе в точку (tx,ty); у дуговых ударов — короткий «серп» в сторону удара
   /** 🜏 огненная дуга удара: (x,y) — откуда, (dx,dy) — куда, r — дальность, a — ПОЛУугол (как inArc сервера), fr — доля заряда */
-  fslash(x, y, dx, dy, r, a, fr = 0, el = 'fire', e = {}) { if (this.teles.length < 200) this.teles.push({ kind: 'fslash', x, y, dx, dy, len: r, arc: Math.min(Math.PI * 0.45, a), full: fr >= 1, el: el || 'fire', t: 0, life: e.slf || 0.5, stl: e.stl ?? 0.8, sth: e.sth ?? 1.1 }); } // ЭТАП 2: большой взмах — след в воздухе (админка: «Большой взмах»)
+  fslash(x, y, dx, dy, r, a, fr = 0, el = 'fire', e = {}) { if (this.teles.length < 200) this.teles.push({ kind: 'fslash', x, y, dx, dy, len: r, arc: Math.min(Math.PI * 0.45, a), full: fr >= 1, el: el || 'fire', t: 0, life: e.slf || 0.5, stl: e.stl ?? 0.8, sth: e.sth ?? 1.1, ssc: e.ssc || 1.25 }); } // ЭТАП 2: большой взмах — след в воздухе (админка: «Большой взмах»)
   /** ICE: разовый эффект стихии из атласа bm-art/fx (ice_hit / ice_crit / ice_zero / ice_release) */
   efx(key, anim, x, y, life = 0.45, S = 1.6, h = 0.9) { if (this.teles.length < 200) this.teles.push({ kind: 'efx', key, anim, x, y, S, h, t: 0, life }); }
   nearMe(x, y, R = 700) { const p = this.myPos; return !p || Math.hypot(p.x - x, p.y - y) < R; }

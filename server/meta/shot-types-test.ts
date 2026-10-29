@@ -1,7 +1,7 @@
 // ЭТАП 2: типы снарядов дальних лезвий — взрыв, рикошет, насквозь, раскол (zone.shotFx), стихия в событии proj; выключатель shotOn.
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
 import { Zone } from "./zone";
-import { BM_PARTS, BMA_CFG, shotOf } from "./blackArt";
+import { BM_PARTS, BMA_CFG, shotOf, swingEv } from "./blackArt";
 import { BM_MOBS, registerBlackMobs, mobAtk } from "./blackMobs";
 let P = 0, F = 0; const ok = (c: any, m: string) => { if (c) { P++; console.log("PASS " + m); } else { F++; console.log("FAIL " + m); } };
 registerBlackMobs(ITEM_BY_ID as any);
@@ -47,4 +47,8 @@ void mobAtk;
 (BMA_CFG as any).shotOn = false; ok(shotOf(rb[0][1] as any) === null, "админка: «Типы снарядов» выкл — обычные"); (BMA_CFG as any).shotOn = true;
 const C: any = BMA_CFG, old = C.shotRicochetN; C.shotRicochetN = 5; const ricB = rb.find(([, b]: any) => b.shot === "ricochet" && b.shotN == null);
 ok(!ricB || shotOf(ricB[1] as any)!.n === 5, "админка: число отскоков по умолчанию"); C.shotRicochetN = old;
+// большой взмах: умолчания — без полей; админка меняет длину/толщину/время/высоту; выкл — без ленты
+ok(JSON.stringify(swingEv()) === "{}", "взмах: по умолчанию событие без лишних полей");
+C.swingTrail = 2; C.swingAirMs = 760; { const e = swingEv(); ok(e.stl === 1.6 && e.slf === 1, `взмах: длина и время из админки (${JSON.stringify(e)})`); } C.swingTrail = 1; C.swingAirMs = 260;
+C.bigSwing = false; ok(swingEv().stl === 0, "взмах: «Большой взмах» выкл — без ленты"); C.bigSwing = true;
 console.log(`${P} PASS / ${F} FAIL`); if (F) process.exitCode = 1;
