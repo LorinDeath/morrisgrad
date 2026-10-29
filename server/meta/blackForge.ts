@@ -4,7 +4,7 @@
 //  • Сборка: рукоять + лезвие обязательны, второе/третье лезвие и кристалл — по желанию. Имя — строгая очистка + мат-фильтр форума.
 //  • Разбор артефакта — обычный «разбор» предмета: даёт базовые осколки bm_shard_<стихия> (salvageYield → artSalvage).
 //  • Лимит: BMA_CFG.maxArtifacts (30) на аккаунт, BMA_CFG.craftPerMin сборок в минуту.
-import { BM_PARTS, BMA_CFG, BP_TYPES, BP_TYPE_NAMES, pieceId, shardId, partCost, computeArtifact, type BmPart } from "./blackArt";
+import { BM_PARTS, BMA_CFG, BP_TYPES, BP_TYPE_NAMES, pieceId, shardId, partCost, computeArtifact, isStaff, type BmPart } from "./blackArt";
 import { compileWords, filterText, DEFAULT_WORDS } from "../../src/lib/forum/profanity";
 
 export type ForgeR = { ok: boolean; msg?: string; err?: string; [k: string]: any };
@@ -31,14 +31,15 @@ export const partOpen = (p: BmPart | undefined): p is BmPart => !!p && !p.hidden
 export function forgeState(a: any, heroLvl: number) {
   const res = a.res || {}, own = a.bmParts || {};
   const parts = Object.values(BM_PARTS).filter(partOpen).map((p) => ({
-    id: p.id, name: p.name, type: p.type, elem: p.elem, rarity: p.rarity, icon: p.icon, color: p.color, img: p.img || "", desc: p.desc || "",
+    id: p.id, name: p.name, type: p.type, elem: p.elem, rarity: p.rarity, icon: p.icon, color: p.color, img: p.img || "", desc: p.desc || "", form: isStaff(p, p.type) ? "staff" : "blade",
     stats: p.stats, skill: p.skill || "", ranged: !!p.ranged, rangeTiles: p.rangeTiles || 0, reach: p.reach || 0, arc: p.arc || 0, width: p.width || 0, cd: p.cd || 0,
     cost: partCost(p), piece: pieceId(p.elem, p.type), reqLvl: p.reqLvl || 0, have: Math.max(0, Number(own[p.id]) || 0), can: (res[pieceId(p.elem, p.type)] || 0) >= partCost(p) && heroLvl >= (p.reqLvl || 0),
   }));
   const arts = (a.inv || []).filter((i: any) => /^art_/.test(i.id)).length;
   const pieces: Record<string, number> = {};
   for (const t of BP_TYPES) { const k = pieceId("fire", t); pieces[k] = Math.max(0, Number(res[k]) || 0); }
-  return { parts, pieces, shards: Math.max(0, Number(res[shardId("fire")]) || 0), arts, max: BMA_CFG.maxArtifacts, salvage: { base: BMA_CFG.salvageBase, per: BMA_CFG.salvagePerPart } };
+  return { parts, pieces, shards: Math.max(0, Number(res[shardId("fire")]) || 0), arts, max: BMA_CFG.maxArtifacts, salvage: { base: BMA_CFG.salvageBase, per: BMA_CFG.salvagePerPart },
+    cfg: { staffStatsAdd: !!BMA_CFG.staffStatsAdd, staffRangeTiles: BMA_CFG.staffRangeTiles, staffSpread: BMA_CFG.staffSpread, maxRangeTiles: BMA_CFG.maxRangeTiles, tile: BMA_CFG.tile } }; // превью кузни = расчёт сервера
 }
 
 /** создать деталь из кусочков чертежа */

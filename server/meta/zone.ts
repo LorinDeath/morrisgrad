@@ -24,7 +24,7 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
-import { BMA_CFG, bmSkillPct } from "./blackArt";
+import { BMA_CFG, bmSkillPct, staffDirs, shotOrigins } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
@@ -155,12 +155,24 @@ const segDist = (px: number, py: number, x: number, y: number, dx: number, dy: n
   return Math.hypot(px - (x + dx * t), py - (y + dy * t));
 };
 
+/** точка (x,y) с телом радиуса r — внутри дуги удара (ox,oy → dx,dy; радиус range, полуугол arc)? Одна формула для
+ *  ударов игрока по мобам и игрокам и для чёрных мобов — визуал дуги (конус range × 2·arc) совпадает с хитбоксом. */
+export function inArc(ox: number, oy: number, dx: number, dy: number, range: number, arc: number, x: number, y: number, r: number) {
+  const ex = x - ox, ey = y - oy, along = ex * dx + ey * dy;
+  if (along < -r || along > range + r) return false;
+  const dist = Math.hypot(ex, ey);
+  if (dist > range + r) return false;
+  if (dist <= r + 10) return true;
+  return Math.acos(Math.max(-1, Math.min(1, along / (dist || 1)))) <= (arc || 1);
+}
 // Снаряды — сущности сервера: летят со скоростью, урон в момент попадания (не мгновенно), столкновения считает сервер.
 // owner "p" — снаряд игрока (бьёт мобов), "m" — снаряд моба (бьёт игроков, от него можно увернуться).
 export interface Proj {
   id: number; o: "p" | "m"; sid?: string; mob?: number; t: string; x: number; y: number; dx: number; dy: number; spd: number; range: number; w: number;
   max: number; flown: number; hit: Set<number | string>; n: number; arc?: boolean; delay?: number; born: number;
   onHit?: (target: any, i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void;
+  /** 🜏 артефакт/чёрный моб: bm — флаг, bf — доля заряда при выстреле, sz — размер спрайта (ширина/20); vm — снаряд моба по мобам (foe — кто враг, onMob — попадание) */
+  bm?: number; bf?: number; sz?: number; vm?: number; foe?: (m: any) => boolean; onMob?: (m: any, i: number) => void;
 }
 export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420, bm_arrow_small: 620, bm_arrow_big: 620 };
 
@@ -193,7 +205,7 @@ export class Zone {
     const L = Math.hypot(o.dx, o.dy) || 1;
     const p: Proj = { spd: PROJ_SPEED[o.t] || PROJ_SPEED.default, flown: 0, hit: new Set(), n: 0, born: this.now || Date.now(), id: this.nextProj++, ...o, dx: o.dx / L, dy: o.dy / L } as Proj;
     this.projs.push(p);
-    this.events.push({ k: "proj", _b: p.born, cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, cz: (p as any).cz ? 1 : undefined });
+    this.events.push({ k: "proj", _b: p.born, cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, cz: (p as any).cz ? 1 : undefined, sz: (p as any).sz, bm: (p as any).bm, mob: p.o === "m" ? p.mob : undefined });
     return p;
   }
   /** движение и столкновения снарядов: шаги не длиннее ширины снаряда (быстрый снаряд не «перепрыгивает» моба) */
@@ -228,6 +240,14 @@ export class Zone {
             if (!pl.alive || pl.sid === p.sid || p.hit.has(pl.sid) || Math.hypot(pl.x - p.x, pl.y - p.y) > 14 + p.w / 2) continue;
             if (!this.guard.blackHit(p, pl)) continue;
             p.hit.add(pl.sid); const k = p.n++; void k;
+            if (p.n >= p.max) { done = true; break; }
+          }
+        } else if ((p as any).vm) { // снаряд чёрного моба в драке с мобами: бьёт враждебных мобов на пути (от него тоже можно уйти)
+          const foe = (p as any).foe as ((m: ZMob) => boolean) | undefined;
+          for (const m of this.near(p.x, p.y, p.w + 60)) {
+            if (m.dead || m.reset || m.id === p.mob || p.hit.has(m.id) || (foe && !foe(m))) continue;
+            if (Math.hypot(m.x - p.x, m.y - p.y) > ZONE_MOBS[m.type].radius + p.w / 2) continue;
+            p.hit.add(m.id); const k = p.n++; (p as any).onMob?.(m, k);
             if (p.n >= p.max) { done = true; break; }
           }
         } else {
@@ -517,12 +537,82 @@ export class Zone {
     return this.campCache.list;
   }
   rally(m: ZMob, foe: number) { if (m.camp) for (const o of this.near(m.x, m.y, 360)) if (o.camp === m.camp && !o.targetSid && !o.mobTarget && !o.reset) o.mobTarget = foe; }
+  /** чёрный моб: враг для его удара — живой моб другой (враждебной) фракции, не он сам */
+  bmFoe(m: ZMob) { const f = factionOf(m.type); return (t: ZMob) => t !== m && !t.dead && !t.reset && factionOf(t.type) !== f && (hostile(m.type, t.type) || hostile(t.type, m.type) || t.mobTarget === m.id || m.mobTarget === t.id); }
+  /** взмах чёрного моба: событие marc (клиент рисует огненную дугу ровно range × 2·arc) и урон КАЖДОМУ внутри дуги, по разу:
+   *  игрокам (onHit) и враждебным мобам (mobHit). Возвращает число задетых. */
+  bmSwing(m: ZMob, d: any, ux: number, uy: number, dmgP: number, dmgM: number, players: Map<string, ZPlayer> | null, onHit: ((sid: string, dmg: number, src: string, mob?: ZMob) => void) | null, onKill: (m: ZMob) => void) {
+    const A = d.bmAtk, R = A.range, arc = A.arc || 1, max = Math.max(1, BMA_CFG.arcMax | 0), seen = new Set<number | string>();
+    this.events.push({ k: "marc", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), r: R, a: +arc.toFixed(3) });
+    if (players && onHit) for (const p of players.values()) {
+      if (seen.size >= max) break;
+      if (!p.alive || seen.has(p.sid) || !inArc(m.x, m.y, ux, uy, R, arc, p.x, p.y, 14)) continue;
+      seen.add(p.sid); onHit(p.sid, dmgP, m.type, m);
+    }
+    const foe = this.bmFoe(m);
+    for (const t of this.near(m.x, m.y, R + 80)) {
+      if (seen.size >= max) break;
+      if (seen.has(t.id) || !foe(t) || !inArc(m.x, m.y, ux, uy, R, arc, t.x, t.y, ZONE_MOBS[t.type].radius)) continue;
+      seen.add(t.id); this.mobHit(m, t, dmgM, onKill);
+    }
+    return seen.size;
+  }
+  /** выстрел чёрного моба по мобу: настоящий снаряд (урон при попадании, увернуться можно) */
+  bmShootMob(m: ZMob, d: any, ux: number, uy: number, dmg: number, onKill: (m: ZMob) => void) {
+    const A = d.bmAtk, w = A.width || 20; let last: any = null;
+    const D = staffDirs(A.count || 1, ux, uy), O = shotOrigins(d.bmMz || [], D.length, m.x, m.y, ux, uy); // из дула каждого посоха
+    for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i]; // посохи во 2/3 слоте: по снаряду на каждый, у каждого полный урон
+      last = this.fire({ o: "m", mob: m.id, t: "fire_spark", x: O[i][0], y: O[i][1], dx: vx, dy: vy, range: A.range, w, max: 1, spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2), bm: 1,
+        vm: 1, foe: this.bmFoe(m), onMob: (t: ZMob) => this.mobHit(m, t, dmg, onKill) } as any); }
+    return last;
+  }
+  /** чёрный моб против игрока: держит дистанцию своего лезвия; ближнее — взмах-дуга, дальнее — прицел (телеграф) и снаряд */
+  bmMobVsPlayer(m: ZMob, d: any, best: ZPlayer, players: Map<string, ZPlayer>, now: number, mul: number, dist: number, ux: number, uy: number, sp: number, dt: number,
+    onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void, onKill: (m: ZMob) => void) {
+    const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1);
+    if (A.kind === "proj") {
+      const want = Math.min(A.range * 0.6, 220);
+      if (dist > want) { m.x += ux * sp * dt; m.y += uy * sp * dt; this.solid(m); }
+      else if (dist < want - 60) { m.x -= ux * sp * 0.6 * dt; m.y -= uy * sp * 0.6 * dt; this.solid(m); }
+      if (dist <= A.range * 0.95 && m.atkCd <= 0) {
+        const w = A.width || 20;
+        const D = staffDirs(A.count || 1, ux, uy), O = shotOrigins(d.bmMz || [], D.length, m.x, m.y, ux, uy); // из дула каждого посоха
+        for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i];
+          this.cast(m, { kind: "line", at: now + Math.round(Math.max(0, Number(BMA_CFG.mobAimMs) || 0)), x: O[i][0], y: O[i][1], dx: vx, dy: vy, len: A.range, w, dmg: d.dmg * 1.2 * mul, proj: "fire_spark", spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2) } as any); }
+        m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); // без windup: он у мобов запускает рывок
+      }
+      return;
+    }
+    const want = Math.max(d.radius + 10, A.range * 0.55);
+    if (dist > want) { m.x += ux * sp * dt; m.y += uy * sp * dt; this.solid(m); }
+    if (dist <= A.range + 14 - 4 && m.atkCd <= 0) {
+      const tank = d.role === "tank", dmg = d.dmg * mul * (tank ? 1.25 : 1);
+      this.bmSwing(m, d, ux, uy, dmg, dmg, players, onHit, onKill);
+      m.atkCd = Math.max(0.5, A.cd / 1000 * 1.5 * cdK);
+    }
+  }
+  /** чёрный моб в драке с мобом — то же оружие, что против игроков */
+  bmMobFight(m: ZMob, d: any, t: ZMob, dist: number, ux: number, uy: number, dt: number, onKill: (m: ZMob) => void, mul: number): boolean {
+    const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1), td = ZONE_MOBS[t.type], sp = d.speed * (m.slowUntil > this.now ? 0.55 : 1) * dt;
+    const dmg = d.dmg * mul * (d.role === "tank" ? 1.25 : 1);
+    if (A.kind === "proj") {
+      const want = Math.min(A.range * 0.6, 220);
+      if (dist > want) { m.x += ux * sp; m.y += uy * sp; this.solid(m); }
+      if (dist <= A.range * 0.95 && m.atkCd <= 0) { this.bmShootMob(m, d, ux, uy, dmg * 1.2, onKill); m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); }
+      return true;
+    }
+    const want = Math.max(d.radius + td.radius + 6, A.range * 0.55);
+    if (dist > want) { m.x += ux * sp; m.y += uy * sp; this.solid(m); }
+    if (dist <= A.range + td.radius - 4 && m.atkCd <= 0) { this.bmSwing(m, d, ux, uy, dmg, dmg, null, null, onKill); m.atkCd = Math.max(0.5, A.cd / 1000 * 1.5 * cdK); }
+    return true;
+  }
   /** такт драки с мобом: true — моб занят боем */
   mobFight(m: ZMob, d: any, dt: number, onKill: (m: ZMob) => void, mul: number): boolean {
     const t = m.mobTarget ? this.byId.get(m.mobTarget) : null;
     if (!t || t.dead || t.reset || Math.hypot(t.x - m.x, t.y - m.y) > d.aggro * 2.2) { m.mobTarget = 0; return false; }
     const dx = t.x - m.x, dy = t.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
     const td = ZONE_MOBS[t.type];
+    if (d.black && d.bmAtk) return this.bmMobFight(m, d, t, dist, ux, uy, dt, onKill, mul);
     const ranged = d.role === "ranged" || d.role === "caster", want = ranged ? 160 : d.radius + td.radius + 6;
     if (dist > want) { const sp = d.speed * (m.slowUntil > this.now ? 0.55 : 1) * dt; m.x += ux * sp; m.y += uy * sp; this.solid(m); }
     if (dist <= want + 12 && m.atkCd <= 0) {
@@ -941,7 +1031,7 @@ export class Zone {
       m.casts.splice(i, 1);
       if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); this.solid(m); }
       if (c.kind === "line" && c.proj) { // настоящий снаряд моба: летит от моба, от него можно отойти
-        this.fire({ o: "m", mob: m.id, t: c.proj, x: m.x, y: m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: c.proj === "fireball" ? 480 : PROJ_SPEED.mob,
+        this.fire({ o: "m", mob: m.id, t: c.proj, x: (c as any).sz ? c.x : m.x, y: (c as any).sz ? c.y : m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: (c as any).spd || (c.proj === "fireball" ? 480 : PROJ_SPEED.mob), ...((c as any).sz ? { sz: (c as any).sz, bm: 1 } : {}),
           onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type, m, c.bm) });
         continue;
       }
@@ -1164,6 +1254,7 @@ export class Zone {
           const k = m.skills.find((x) => m.skCd[x] <= 0);
           if (k) { this.useSkill(m, d, k, best, players, now, eliteDmg); m.skCd[k] = MOB_SKILLS[k].cd * (m.enraged ? 0.75 : 1); continue; }
         }
+        if (d.black && d.bmAtk) { this.bmMobVsPlayer(m, d, best, players, now, eliteDmg, dist, ux, uy, sp, dt, onHit, onKill); continue; } // чёрный моб: удар своим лезвием, как у игрока
         if (d.size !== "s") {
           // Анти-kite: если герой далеко — рывок к нему (проклятый/обычный мировой босс)
           if (dist > 200 && m.leapCd <= 0) {
@@ -1294,11 +1385,8 @@ export class Zone {
       const along = ex * dx + ey * dy;
       if (along < -r || along > atk.range + r) continue;
       if (atk.kind === "arc") {
-        const dist = Math.hypot(ex, ey);
-        if (dist > atk.range + r) continue;
-        const ang = Math.acos(Math.max(-1, Math.min(1, along / (dist || 1))));
-        if (dist > r + 10 && ang > (atk.arc || 1)) continue;
-        out.push({ m, d: dist });
+        if (m.dead || !inArc(p.x, p.y, dx, dy, atk.range, atk.arc || 1, m.x, m.y, r)) continue;
+        out.push({ m, d: Math.hypot(ex, ey) });
       } else {
         const perp = Math.abs(ex * dy - ey * dx);
         if (perp > (atk.width || 20) + r) continue;
@@ -1328,7 +1416,7 @@ export class Zone {
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
-    this.events.push({ k: "hit", id: m.id, d: real, by: sid }); // by — для счётчика DPS у клиента
+    this.events.push({ k: "hit", id: m.id, d: real, by: sid, bm: pen?.black ? 1 : undefined }); // bm — чёрный удар (вспышка/звук у клиента); by — для счётчика DPS у клиента
     if (this.guard && sid) this.guard.noteFight(m, sid); // «рядом идёт бой» — Чёрный маг идёт защищать
     if (m.hp <= 0) { (m as any).killer = sid; m.k1 = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);

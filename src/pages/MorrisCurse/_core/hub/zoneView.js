@@ -1,4 +1,5 @@
 import { ChestSprites } from '../engine/chestSprite.js';
+import { uiSfx } from '../ui/atmoUi.js';
 import { BmView } from './bmView.js';
 import { BmMobLayer } from './bmMobView.js'; // 👹 чёрные мобы конструктора (части тела Художника + оружие в руке)
 import { bmxTypeAt, BMX_BASE } from '../../../../../server/meta/blackMobs.ts';
@@ -177,13 +178,24 @@ export class ZoneView {
     for (const e of s.ev || []) {
       if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
-      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = 0.15; o.hitN = true; out.push({ k: 'float', x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d)), color: e.evade ? '#94a3b8' : '#fff' }); } }
+      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d)), color: e.evade ? '#94a3b8' : e.bm ? '#ffb347' : '#fff' }); if (e.bm && e.d > 0 && (e.by === myId || this.nearMe(o.x, o.y, 400))) uiSfx('bm_hit'); } }
       else if (e.k === 'dome_repel') out.push({ k: 'dome_repel', x: e.x, y: e.y }); // купол города вытолкнул моба — вспышка на ободе
       else if (e.k === 'evade') out.push({ k: 'float', x: e.x, y: e.y, text: '↩ сброс', color: '#94a3b8' });
       else if (e.k === 'mskill') out.push({ k: 'float', x: e.x, y: e.y - 20, text: `✦ ${e.name}`, color: '#f0abfc' });
+      else if (e.k === 'shot' && e.bm) { // 🜏 ближнее лезвие: огненная дуга ровно по хитбоксу сервера (r — дальность, a — полуугол); свой взмах тоже по эху сервера
+        if (e.r && e.a && e.dx != null) this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, e.fr || 0);
+        if (e.sid === myId) uiSfx('bm_swing');
+      }
+      else if (e.k === 'marc') { // взмах чёрного моба — та же дуга, что у игрока
+        const o = this.mobs.get(e.id); if (o) { o.bmAtk = 0.45; o.flash = Math.max(o.flash || 0, 0.06); }
+        this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, 0);
+        if (this.nearMe(e.x, e.y)) uiSfx('bm_swing');
+      }
       else if (e.k === 'shot') { if (e.sid !== myId) this.shoot(e.x, e.y, null, e.w, e.tx, e.ty); }
       else if (e.k === 'announce') out.push({ k: 'toast', text: e.text, color: e.color });
-      else if (e.k === 'crit') out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' });
+      else if (e.k === 'crit') { // число урона этого удара — крит-стилем, плюс метка «КРИТ»
+        for (let j = out.length - 1; j >= 0; j--) if (out[j].k === 'float' && out[j].mid === e.id) { out[j].crit = 1; out[j].text = `✦${out[j].text}`; break; }
+        out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' }); const o = this.mobs.get(e.id); if (o) o.flash = 0.25; uiSfx('bm_crit'); }
       else if (e.k === 'die' && ZONE_MOBS[e.type]?.black) { this.bmm.die(this.mobs.get(e.id), e); this.mobs.delete(e.id); }
       else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: !!this.mobs.get(e.id)?.flip, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
       else if (e.k === 'slam') {
@@ -202,7 +214,7 @@ export class ZoneView {
       else if (e.k === 'acone') { const id = String(e.id || '').replace(/^rs:/, ''); this.teles.push({ kind: 'cone', fx: CONE_FX[id] || 'gear_spin_cone', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: 0, life: 0.45 }); }
       else if (e.k === 'tele_circle') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (e.fx === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.35 + 0.6 }); if (e.fx === 'meteor' || e.fx === 'spear_rain') this.pax.fall(e.fx, e.x, e.y, e.t || 1.2, e.fdx || 1, e.fx === 'meteor' ? Math.max(1, e.r / 70) : 1); }
       // снаряды сервера: вылет / попадание; лужа фляги; удары навыков мобов спрайтами атласа
-      else if (e.k === 'proj') this.pax.spawn(e);
+      else if (e.k === 'proj') { this.pax.spawn(e); if (e.bm) { if (e.o === 'm') { const o = this.mobs.get(e.mob); if (o) o.bmAtk = 0.4; } if (e.sid === myId || (e.o === 'm' && this.nearMe(e.x, e.y))) uiSfx('bm_shot'); } }
       else if (e.k === 'pend') this.pax.end(e);
       else if (e.k === 'puddle') this.pax.puddle(e.x, e.y, e.r, e.t);
       else if (e.k === 'ability') { const cz = !!e.cz, col = cz ? curseRGB() : null; const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60), cz }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70), cz }); const id = String(e.id || '').replace(/^rs:/, ''); if (NOVA_FX[id]) this.teles.push({ kind: 'nova', fx: NOVA_FX[id], x: e.x, y: e.y, r: e.r || 120, t: 0, life: 0.6, col }); else this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: a ? 0.25 : 0.4, color: cz ? curseHex() : 0xfde68a }); }
@@ -264,6 +276,9 @@ export class ZoneView {
 
   // wtype — тип оружия (WEAPON_TYPES): копьё, кинжалы, посох, лук, секира, меч, лапки-лезвия…
   // mob — цель (летит за ней), иначе в точку (tx,ty); у дуговых ударов — короткий «серп» в сторону удара
+  /** 🜏 огненная дуга удара: (x,y) — откуда, (dx,dy) — куда, r — дальность, a — ПОЛУугол (как inArc сервера), fr — доля заряда */
+  fslash(x, y, dx, dy, r, a, fr = 0) { if (this.teles.length < 200) this.teles.push({ kind: 'fslash', x, y, dx, dy, len: r, arc: Math.min(Math.PI * 0.45, a), full: fr >= 1, t: 0, life: 0.42 }); }
+  nearMe(x, y, R = 700) { const p = this.myPos; return !p || Math.hypot(p.x - x, p.y - y) < R; }
   shoot(fromX, fromY, mob, wtype, tx, ty) {
     if (this.bolts.length >= 128) return; // залпы по 5 снарядов
     const W = WEAPON_TYPES[wtype] || WEAPON_TYPES.book;
@@ -497,6 +512,12 @@ export class ZoneView {
       const kk = t.t / t.life, X = toX(t.x), Z = toZ(t.y);
       if (t.kind === 'line') P.teleLine(X, Z, t.dx, t.dy, (t.len / PX) * (0.3 + 0.7 * kk), Math.max(1.1, (t.w || 0) / PX), t.cz ? curseRGB() : [1, 0.3, 0.3], 0.85);
       else if (t.kind === 'circle') P.teleCircle(X, Z, t.r / PX, kk, [1, 0.35, 0.65], 0.9);
+      else if (t.kind === 'fslash') { // огненный взмах: зона урона (= хитбокс) + яркий след лезвия, проходящий от края до края
+        const L = t.len / PX, fade = 1 - kk, sw = Math.min(1, kk * 2.4), th = -t.arc + 2 * t.arc * sw, c = Math.cos(th), sn = Math.sin(th);
+        P.teleCone(X, Z, t.dx, t.dy, L, t.arc * 2, t.full ? [1, 0.75, 0.25] : [1, 0.42, 0.08], 0.9 * fade); // контур = край хитбокса
+        P.fireArc(X, Z, t.dx, t.dy, L, t.arc, kk, t.full); // заливка зоны + огненное лезвие + угли по ободу
+        if (kk < 0.55) P.teleCone(X, Z, t.dx * c - t.dy * sn, t.dx * sn + t.dy * c, L * 1.02, Math.min(0.55, t.arc * 0.6), [1, 0.92, 0.55], 1 - kk / 0.55);
+      }
       else if (t.kind === 'tcone') P.teleCone(X, Z, t.dx, t.dy, t.len / PX, t.arc, [1, 0.35, 0.3], 0.8);
       else if (t.kind === 'cone') P.cone(t.fx, X, Z, t.dx, t.dy, t.len / PX, t.arc, kk);
       else if (t.kind === 'nova') P.nova(t.fx, X, Z, t.r / PX, kk, t.col || null);

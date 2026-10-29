@@ -155,6 +155,12 @@ export function uiSfx(kind) {
   else if (kind === 'open') { hiss(300, 1400, 0.18, 0.32, 0.9); tone(150, 230, 0.16, 'sine', 0.3); }
   else if (kind === 'close') { hiss(1200, 260, 0.14, 0.26, 0.9); tone(210, 130, 0.12, 'sine', 0.25); }
   else if (kind === 'deny') { tone(140, 110, 0.12, 'square', 0.12); }
+  // 🜏 чёрные атаки артефакта: взмах огненного лезвия, выстрел, попадание, крит, полный заряд
+  else if (kind === 'bm_swing') { hiss(2200, 380, 0.17, 0.34, 0.8); tone(230, 90, 0.15, 'sawtooth', 0.08); }
+  else if (kind === 'bm_shot') { hiss(500, 2600, 0.13, 0.3, 1.4); tone(320, 540, 0.09, 'triangle', 0.14); }
+  else if (kind === 'bm_hit') { tone(170, 70, 0.1, 'square', 0.14); hiss(1000, 280, 0.09, 0.24, 1); }
+  else if (kind === 'bm_crit') { tone(900, 1400, 0.12, 'triangle', 0.22); tone(150, 55, 0.16, 'square', 0.16); }
+  else if (kind === 'bm_full') { tone(660, 990, 0.1, 'sine', 0.2); }
 }
 const CLICKABLE = 'button, .mc3d-tbtn, .mc-btn, [data-act], .mc3d-choice, .mc3d-class, .mc-aslot, .mc-abil, .mc-tal';
 function initSfx() {

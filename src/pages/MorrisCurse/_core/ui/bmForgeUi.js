@@ -1,6 +1,6 @@
 // «Чёрная магия», этап Б — окно «🔥 Кузня Знахаря» (Альказак): Детали (из кусочков чертежа) · Сборка (живое превью, имя) · Разбор.
 // Всё решает сервер (bm_forge_*, salvage): клиент показывает витрину из ответа bm_forge и просит. Огненный стиль; арт — заглушки.
-import { BM_PARTS, BM_KEYS, BM_NAMES, BP_TYPES, BP_TYPE_NAMES, computeArtifact } from '../../../../../server/meta/blackArt.ts';
+import { BM_PARTS, BM_KEYS, BM_NAMES, BP_TYPES, BP_TYPE_NAMES, BMA_CFG, computeArtifact } from '../../../../../server/meta/blackArt.ts';
 import { RESOURCES } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { esc } from './overlay.js';
@@ -104,7 +104,7 @@ export class BmForgeWin {
     const st = this.st; if (!st) return '<p class="mc-dim">Знахарь раскладывает инструменты…</p>';
     return BP_TYPES.map((t) => { const L = st.parts.filter((p) => p.type === t); if (!L.length) return '';
       return `<div class="bmf-h">${esc(BP_TYPE_NAMES[t])}</div><div class="bmf-grid">${L.map((p) => { const have = st.pieces[p.piece] || 0;
-        return `<div class="bmf-part ${p.can ? 'can' : ''}" data-part="${esc(p.id)}"><span class="have" title="Создано деталей">×${p.have}</span><h5>${esc(p.icon || '•')} ${esc(p.name)}${p.ranged ? ' 🏹' : ''}</h5>
+        return `<div class="bmf-part ${p.can ? 'can' : ''}" data-part="${esc(p.id)}"><span class="have" title="Создано деталей">×${p.have}</span><h5>${esc(p.icon || '•')} ${esc(p.name)}${p.form === 'staff' ? ' 🪄' : p.ranged ? ' 🏹' : ''}</h5>
           <div class="st">${statLine(p.stats) || '—'}</div>${p.desc ? `<div class="st mc-dim">${esc(p.desc)}</div>` : ''}
           <div class="cost ${have >= p.cost ? 'ok' : 'no'}">${RESOURCES[p.piece]?.icon || '📜'} ${esc(RESOURCES[p.piece]?.name || p.piece)}: <b>${have}/${p.cost}</b>${p.reqLvl ? ` · ур. ${p.reqLvl}+` : ''}</div>
           <button class="bmf-btn sm" data-f="craft" data-v="${esc(p.id)}" ${p.can ? '' : 'disabled'}>🔥 Создать</button></div>`; }).join('')}</div>`; }).join('');
@@ -115,9 +115,10 @@ export class BmForgeWin {
     const slots = BP_TYPES.map((t) => `<label class="bmf-slot ${t === 'handle' || t === 'blade' ? 'req' : ''}"><span>${esc(BP_TYPE_NAMES[t])}</span>
       <select data-slot="${t}"><option value="">${t === 'handle' || t === 'blade' ? '— выберите —' : '— нет —'}</option>${this.owned(t).map((p) => `<option value="${esc(p.id)}" ${this.sel[t] === p.id ? 'selected' : ''}>${esc(p.name)} ×${p.have}</option>`).join('')}</select></label>`).join('');
     const parts = Object.fromEntries(BP_TYPES.filter((k) => this.sel[k]).map((k) => [k, this.sel[k]]));
+    if (st.cfg) Object.assign(BMA_CFG, st.cfg, { staffTest: false }); // посохи: правила сервера (тип детали уже решён сервером — form)
     const A = parts.handle && parts.blade ? computeArtifact(parts, Object.fromEntries(st.parts.map((p) => [p.id, p]))) : null;
     const stats = A ? BM_KEYS.map((k) => `<div class="bm-row"><span>${BM_NAMES[k].icon} ${esc(BM_NAMES[k].name)}</span><b>${fmtBm(k, A.stats[k] || 0)}</b></div>`).join('')
-      + `<div class="bm-row"><span>Удар</span><b>${A.ranged ? `дальний · ${Math.round(A.atk.range)} px` : `ближний · дуга ${Math.round(((A.atk.arc || 0) * 180) / Math.PI)}° · ${Math.round(A.atk.range)} px`}</b></div><div class="bm-row"><span>Навыки артефакта</span><b>${(A.skills || []).length}</b></div>` : '<p class="mc-dim">Выберите рукоять и лезвие — появятся чёрные параметры.</p>';
+      + `<div class="bm-row"><span>Удар</span><b>${A.ranged ? `дальний · ${Math.round(A.atk.range)} px` : `ближний · дуга ${Math.round(((A.atk.arc || 0) * 180) / Math.PI)}° · ${Math.round(A.atk.range)} px`}</b></div>${A.staff ? `<div class="bm-row"><span>🪄 Посох</span><b>дальний по умолчанию · переключается на ближний</b></div>` : ''}<div class="bm-row" data-shots="${A.ranged ? A.shots || 1 : 1}"><span>Снарядов за выстрел</span><b>${A.ranged ? `${A.shots || 1}${(A.shots || 1) > 1 ? ` (посохи во 2/3 слоте, веер ${Math.round(Number(st.cfg?.staffSpread ?? 12))}°)` : ''}` : (A.shots || 1) > 1 ? `ближний — 1 удар (посохи стреляют только в дальнем)` : '—'}</b></div><div class="bm-row"><span>Навыки артефакта</span><b>${(A.skills || []).length}</b></div>` : '<p class="mc-dim">Выберите рукоять и лезвие — появятся чёрные параметры.</p>';
     const none = !this.owned('handle').length || !this.owned('blade').length;
     return `<div class="bmf-asm"><div><canvas class="bmf-cv" width="260" height="260"></canvas></div><div>
       <div class="bmf-slots">${slots}</div>

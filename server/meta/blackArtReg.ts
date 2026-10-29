@@ -55,7 +55,18 @@ export const ARTIFACT_RENAME = "UPDATE items SET name = ? WHERE id = ?";
 /** чёрные статы артефакта (с капами): снимок или живой пересчёт (BMA_CFG.liveParts) */
 export function artInfo(itemId: string | null | undefined): ArtInfo | null {
   const d: any = itemId ? ITEM_BY_ID[itemId] : null; if (!d?.bm) return null;
-  const src: ArtInfo = BMA_CFG.liveParts ? computeArtifact(d.bm.parts) || d.bm : d.bm;
+  let src: ArtInfo = BMA_CFG.liveParts ? computeArtifact(d.bm.parts) || d.bm : d.bm;
+  // посохи (форма удара, число снарядов, режим) — всегда по текущим деталям: админ-тип детали и тестовый флаг действуют сразу.
+  // Доп. посохи без сложения боевых статов — статы тоже по текущим деталям (иначе в снимке остались бы сложенные)
+  const live = src === d.bm ? computeArtifact(d.bm.parts) : src;
+  if (live && live !== src) {
+    const multi = (live.shots || 1) > 1;
+    if (live.staff || src.staff || multi || src.shots) {
+      const { staff: _s, alt: _a, shots: _n, ...rest } = src as any;
+      src = { ...rest, atk: live.atk, ranged: live.ranged, ...(live.staff ? { staff: true, alt: live.alt } : {}), ...(multi ? { shots: live.shots } : {}),
+        ...(multi && !BMA_CFG.staffStatsAdd ? { stats: live.stats } : {}) };
+    }
+  }
   return { ...src, stats: capBm(src.stats) };
 }
 /** админка «Пересчитать все»: снимки всех загруженных артефактов заново из текущих частей; вернуть изменённые */

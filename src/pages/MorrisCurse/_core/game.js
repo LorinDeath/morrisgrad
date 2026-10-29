@@ -680,7 +680,8 @@ async function boot(canvasId, username, userId, api) {
   net.on('pvp_state', (d) => {
     duel.state(d);
     for (const e of d.ev || []) {
-      if (e.k === 'shot' && e.sid !== myId) zone.shoot(e.x, e.y, null, e.w, e.tx, e.ty);
+      if (e.k === 'shot' && e.bm) zone.applyState({ w: zone.world, m: [], ev: [e] }, myId); // 🜏 дуэль: огненная дуга лезвия (как в мире)
+      else if (e.k === 'shot' && e.sid !== myId) zone.shoot(e.x, e.y, null, e.w, e.tx, e.ty);
       else if (['ability', 'aline', 'aproj', 'amark', 'proj', 'pend', 'puddle'].includes(e.k)) zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
       else if (e.k === 'pstatus') { // статусы дуэли (сервер): замедление/заморозка ощущаются в движении; DoT — подпись
         const T = { slow: ['Замедление', '#7dd3fc'], freeze: ['Заморозка', '#bae6fd'], burn: ['Поджог', '#fb923c'], poison: ['Яд', '#a3e635'], bleed: ['Кровотечение', '#f87171'], swift: ['Порыв', '#86efac'] }[e.s] || [e.s, '#fff'];
@@ -691,8 +692,8 @@ async function boot(canvasId, username, userId, api) {
       else if (e.k === 'phit' && e.immune) { const me = e.to === myId, o = me ? player : others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), 'неуязвим', '#c4b5fd'); }
       else if (e.k === 'phit') {
         if (e.by === myId) dpsMeter.add(e.d);
-        if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171'); }
-        else { const o = others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), `${e.crit ? '✦' : ''}${e.d}`, e.crit ? '#fde047' : '#fca5a5'); }
+        if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171', !!e.crit); }
+        else { const o = others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), `${e.crit ? '✦' : ''}${e.d}`, e.crit ? '#fde047' : '#fca5a5', !!e.crit); }
       }
     }
   });
@@ -933,6 +934,7 @@ async function boot(canvasId, username, userId, api) {
     for (const e of d.ev || []) if (e.k === 'hit' && e.by === myId && e.d > 0) dpsMeter.add(e.d); // мировые боссы: жив / таймер — на карте и мини-карте
     if (d.fp !== undefined || world === 'arinar') syncForeignPortals(world === 'arinar' ? d.fp : []);
     if (mode !== 'hub') return;
+    zone.myPos = player; // звуки чужих ударов — только рядом с героем
     const evs = zone.applyState(d, myId) || [];
     const ct = hud.currentTarget;
     if (ct?.kind === 'bmage' && !zone.bmv?.mage) hud.clearTarget(); // маг ушёл (телепорт) — цель снята
@@ -942,7 +944,7 @@ async function boot(canvasId, username, userId, api) {
       else hud.setTarget(mobTarget(o, d.tg && d.tg.id === ct.id ? d.tg : null));
     }
     for (const e of evs) {
-      if (e.k === 'float') overlay.float(toX(e.x), 2.4, toZ(e.y), e.text, e.color);
+      if (e.k === 'float') overlay.float(toX(e.x), 2.4, toZ(e.y), e.text, e.color, !!e.crit);
       else if (e.k === 'toast') overlay.toast(e.text, e.color);
       else if (e.k === 'dome_repel') cityView.repel(e.x, e.y); // тот же эффект, что у игрока (сервер: не чаще раза в 3 с на моба)
       else if (e.k === 'hurt') { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, '#f87171'); }
@@ -2041,10 +2043,13 @@ async function boot(canvasId, username, userId, api) {
       if (aim.held) {
         if (!bmChg.at) { bmChg.at = now2; bmChg.sent = false; }
         if (!bmChg.sent && now2 - bmChg.at > 180 && now - zoneSt.lastAtk >= atkMs) { bmChg.sent = true; bmChg.at = now2; send({ type: 'bm_hold', on: true }); }
-        if (bmChg.sent) return;
+        if (bmChg.sent || now2 - bmChg.at <= 180) return; // зажато: ждём — короткий клик ударит при отпускании, долгий станет зарядом (без лишнего удара при нажатии)
       } else if (bmChg.at) {
         const wasSent = bmChg.sent; bmChg.at = 0; bmChg.sent = false;
-        if (wasSent) { const d0 = aimDir() || { x: player.dirX || 0, y: player.dirY || 1 }; zoneSt.lastAtk = now; send({ type: 'bm_hold', on: false, ...shotMsg(d0) }); return; }
+        const d0 = aimDir() || { x: player.dirX || 0, y: player.dirY || 1 };
+        if (wasSent) { zoneSt.lastAtk = now; send({ type: 'bm_hold', on: false, ...shotMsg(d0) }); return; }
+        if (now - zoneSt.lastAtk >= atkMs) { zoneSt.lastAtk = now; send({ type: 'zone_attack', ...shotMsg(d0, {}) }); } // короткий клик: обычный удар без заряда
+        return;
       }
     } else if (bmChg.at) { if (bmChg.sent) send({ type: 'bm_hold', on: false }); bmChg.at = 0; bmChg.sent = false; }
     if (now - zoneSt.lastAtk < atkMs) return;
@@ -2079,6 +2084,8 @@ async function boot(canvasId, username, userId, api) {
     }
     // залп (кинжалы ×2, лапки-лезвия ×5) — та же раскладка направлений, что на сервере (shared.volleyDirs)
     let anyHit = false; zoneSt.lastVolley = 0;
+    // 🜏 артефакт: дугу (shot bm: r/a) и снаряд (proj bm: sz) рисует эхо сервера — ровно его хитбокс; оружие класса тут не при чём
+    if (artE) { anyHit = true; zoneSt.lastVolley = 1; if (!player.moving) { player.dirX = dir.x; player.dirY = dir.y; } hub.attackMe?.(); return; }
     for (const [vx, vy] of volleyDirs((WEAPON_TYPES[wt] || WEAPON_TYPES.book).atk, dir.x, dir.y)) {
       const pred = zone.aimTargets(player.x, player.y, vx, vy, wt);
       const first = pred.list[0]; if (first) anyHit = true; zoneSt.lastVolley++;
@@ -2156,6 +2163,8 @@ async function boot(canvasId, username, userId, api) {
   if (showDebug) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
+      w2s: (x, y, h = 0) => { const q = stage.project(toX(x), h, toZ(y)), r = stage.canvas.getBoundingClientRect(); return q && { x: r.left + q.x * r.width / stage.width, y: r.top + q.y * r.height / stage.height }; }, // плейтест: мир → экран (наведение мышью; точка на земле)
+      me: () => ({ x: player.x, y: player.y }),
       inspect: (sid) => inspectPlayer(sid), charSheet: () => toggleCharSheet(),
       // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
       charsBlk: () => !/^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? null : Object.fromEntries([...hub.chars].map(([k, c]) => [k, { bk: c.bk | 0, on: !!c.ch?.blk?.visible }])), // очернение героев на экране (плейтест)

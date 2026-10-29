@@ -20,7 +20,8 @@ export class BmMobLayer {
   heightOf(o) { const m = BM_MOBS[o.type]; return (MCELL / PX_PER_M) * (BMM_CFG.mobVis || 0.6) * (m?.scale || 1) * (o.chief ? 1.3 : o.elite ? 1.12 : 1); }
   frameOf(o, dt) {
     if (o.hitN) o.bmHurt = 0.25; o.bmHurt = Math.max(0, (o.bmHurt || 0) - dt);
-    let a = o.flag === 2 ? 'atk' : o.moving ? 'walk' : 'idle'; if (o.bmHurt > 0 && a !== 'atk') a = 'hurt';
+    o.bmAtk = Math.max(0, (o.bmAtk || 0) - dt); // взмах/выстрел оружием (событие marc / свой снаряд)
+    let a = o.flag === 2 || o.bmAtk > 0 ? 'atk' : o.moving ? 'walk' : 'idle'; if (o.bmHurt > 0 && a !== 'atk') a = 'hurt';
     if (a !== o.bmA) { o.bmA = a; o.bmT = 0; } o.bmT = (o.bmT || 0) + dt;
     const A = BANIM[a]; let k = Math.floor(o.bmT * A.fps); k = A.loop || a === 'atk' ? k % A.n : Math.min(A.n - 1, k);
     return A.off + k;

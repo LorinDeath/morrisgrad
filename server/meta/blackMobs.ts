@@ -7,7 +7,7 @@
 // Снятие с публикации — hidden:1 (никогда не удаление: живые мобы и записи бестиария остаются целы).
 import { ZONE_MOBS, MONSTER_LOOT } from "./defs";
 import { RESOURCES } from "./shared";
-import { BM_PARTS, BP_TYPES, pieceId, CUSTOM_BP } from "./blackArt";
+import { BM_PARTS, BP_TYPES, pieceId, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles } from "./blackArt";
 import { mobXp, tierOf } from "./balance";
 
 export const BODY_SLOTS = ["tail", "armL", "legL", "torso", "legR", "head", "armR"] as const;
@@ -81,6 +81,7 @@ export function makeMob(id: string, lvl = 5, cls = "warrior"): BmMob {
 const BUILTIN: [string, string, string, number, Partial<Record<BodySlot, number>>, Record<string, string>, BmDrop[]][] = [
   ["bmx_ash_warden", "Пепельный страж", "warrior", 8, { tail: 1, armL: 1, legL: 1, torso: 1, legR: 1, head: 1, armR: 1 }, { handle: "fire_handle", blade: "fire_blade" }, [{ res: pieceId("fire", "handle"), chance: 18, qty: [1, 2] }, { res: pieceId("fire", "blade"), chance: 12, qty: [1, 1] }]],
   ["bmx_ember_archer", "Угольный стрелок", "archer", 10, { armL: 4, legL: 4, torso: 4, legR: 4, head: 5, armR: 4 }, { handle: "fire_handle", blade: "fire_blade_r", crystal: "fire_crystal" }, [{ res: pieceId("fire", "crystal"), chance: 10, qty: [1, 1] }, { res: pieceId("fire", "blade"), chance: 10, qty: [1, 2] }]],
+  ["bmx_staff_seer", "Трёхпосохий жрец", "archer", 14, { armL: 3, legL: 3, torso: 3, legR: 3, head: 3, armR: 3 }, { handle: "fire_handle", blade: "fire_staff_arch", blade2: "fire_b2staff_1", blade3: "fire_b3staff_1", crystal: "fire_crystal" }, [{ res: pieceId("fire", "blade"), chance: 12, qty: [1, 2] }, { res: pieceId("fire", "crystal"), chance: 8, qty: [1, 1] }]], // три посоха Художника — веер из 3 снарядов
   ["bmx_forge_brute", "Горновой громила", "brute", 12, { tail: 3, armL: 2, legL: 2, torso: 5, legR: 2, head: 4, armR: 2 }, { handle: "fire_handle", blade: "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3" }, [{ res: pieceId("fire", "blade2"), chance: 15, qty: [1, 2] }, { res: pieceId("fire", "blade3"), chance: 15, qty: [1, 2] }]],
 ];
 export const BM_MOBS: Record<string, BmMob> = {};
@@ -143,16 +144,27 @@ export function mobFinal(m: BmMob, items?: Record<string, any>) {
   let hp = 0, dmg = 0, ar = 0, sp = 0;
   for (const id of Object.values(m.body || {})) { const b = id && BM_BODY[id]; if (b) { hp += b.hp; dmg += b.dmg; ar += b.armor; sp += b.speed; } }
   const C = BMM_CFG.cls[m.cls] || { hp: 1, dmg: 1, speed: 1 }, w = mobWeapon(m, items), armed = !!w.blade;
-  const ranged = m.cls === "archer" || m.cls === "mage" || !!(w.blade && BM_PARTS[w.blade]?.ranged);
+  const ranged = m.cls === "archer" || m.cls === "mage" || !!(w.blade && (BM_PARTS[w.blade]?.ranged || isStaff(BM_PARTS[w.blade], "blade"))); // посох — дальний, как у игрока
   return { hp: Math.max(1, Math.round(m.hp * (1 + hp / 100) * C.hp)), dmg: Math.max(0, Math.round(m.dmg * (1 + dmg / 100) * C.dmg * (armed ? 1 + (BMM_CFG.weaponDmgPct || 0) / 100 : 1) * 10) / 10),
     armor: Math.max(0, Math.round(m.armor + ar)), speed: Math.max(10, Math.round(m.speed * (1 + sp / 100) * C.speed)), weapon: w, ranged };
+}
+/** удар чёрного моба — как у игрока с этим лезвием: ближнее — дуга (радиус = досягаемость лезвия, полуугол = arc),
+ *  дальнее — настоящий снаряд (дальность лезвия в клетках, не дальше maxRangeTiles; ширина лезвия). Лучник/маг без
+ *  дальнего лезвия — снаряд на 8 клеток; без лезвия — короткая дуга «кулаком». cd — рукоять (мс). */
+export function mobAtk(w: Record<string, string>, ranged: boolean): { kind: "arc" | "proj"; range: number; arc?: number; width?: number; cd: number; count?: number } {
+  const b: any = w.blade && BM_PARTS[w.blade], h: any = w.handle && BM_PARTS[w.handle], T = BMA_CFG.tile, rm = Math.max(0.1, Number(BMA_CFG.mobRangeMul) || 1);
+  const cd = Math.max(200, h?.cd || 900), st = isStaff(b, "blade"), sb = !!b && (b.ranged || st);
+  // посохи во 2/3 слоте — по снаряду на каждый (как у игрока); разброс — BMA_CFG.staffSpread (читается при выстреле)
+  const n = 1 + (["blade2", "blade3"] as const).filter((k) => w[k] && isStaff(BM_PARTS[w[k]], k)).length;
+  if (ranged) return { kind: "proj", range: Math.round(Math.min(BMA_CFG.maxRangeTiles * T, (sb ? Math.max(1, b.rangeTiles || (st ? BMA_CFG.staffRangeTiles : 6)) : 8) * T * rm)), width: sb ? b.width || 20 : 20, cd, ...(n > 1 ? { count: n } : {}) };
+  return { kind: "arc", range: Math.round(Math.max(40, (b && !b.ranged ? b.reach || 110 : 80) * rm)), arc: Math.min(ARC_MAX, b && !b.ranged ? b.arc || 1.1 : 0.9), cd };
 }
 /** живая регистрация: ZONE_MOBS[bmx_…] и MONSTER_LOOT (правка «на месте» — ссылки у живых мобов остаются верными) */
 export function registerBlackMobs(items?: Record<string, any>) {
   for (const [id, m] of Object.entries(BM_MOBS)) {
     const f = mobFinal(m, items), role = f.ranged ? (m.cls === "mage" ? "caster" : "ranged") : CLASS_ROLE[m.cls] || "melee";
     const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: "#ff5a1a", lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
-      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden };
+      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]) }; // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));

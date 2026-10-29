@@ -137,6 +137,33 @@ export class ProjFx {
     this.fx.draw('tele_circle_fill', 'loop', this.time, x, 0.05, z, R * 2 * Math.max(0.05, k), R * 2 * Math.max(0.05, k), 2, 0, 0, 0, col, a * 0.8, 0);
     this.fx.draw('tele_circle_ring', 'loop', this.time, x, 0.055, z, R * 2, R * 2, 2, 0, 0, 0, col, a, 0);
   }
+  // 🜏 Огненный взмах артефакта: заливка сектора (= хитбокс сервера) + огненный край лезвия, проходящий от края до края, и угли по ободу.
+  // (x,z) центр, (dx,dz) направление, L — радиус (м), h — полуугол (рад), k ∈ [0,1) прогресс, full — полный заряд (ярче/золотистее)
+  fireArc(x, z, dx, dz, L, h, k, full = false) {
+    const base = Math.atan2(dz, dx), fade = 1 - k, sw = Math.min(1, k * 2.6), th = -h + 2 * h * sw;
+    const hot = full ? [1, 0.82, 0.35] : [1, 0.5, 0.12], deep = full ? [1, 0.55, 0.12] : [0.95, 0.28, 0.04];
+    // заливка сектора: кольца свечения на земле — видно всю зону урона
+    for (const rr of [0.3, 0.55, 0.8, 0.97]) {
+      const n = Math.max(3, Math.ceil(2 * h * rr * L / 0.55));
+      for (let i = 0; i <= n; i++) {
+        const a = base - h + (2 * h * i) / n, px = x + Math.cos(a) * rr * L, pz = z + Math.sin(a) * rr * L, s = 0.5 + rr * 0.7;
+        this.glow.push(px, 0.05, pz, s, s, 2, 0, 0, 0, GLOW.ball, 0, deep[0], deep[1], deep[2], 0.34 * fade);
+      }
+    }
+    // след: угли по ободу от начала взмаха до лезвия
+    const n2 = Math.max(4, Math.ceil(2 * h * L / 0.45));
+    for (let i = 0; i <= n2; i++) {
+      const a = -h + (2 * h * i) / n2; if (a > th) break;
+      const aa = base + a, px = x + Math.cos(aa) * L * 0.96, pz = z + Math.sin(aa) * L * 0.96, age = (th - a) / (2 * h);
+      this.glow.push(px, 0.25, pz, 0.9, 0.9, 0, 0, 0, 0, GLOW.ball, 0, hot[0], hot[1], hot[2], Math.max(0, 0.9 - age * 1.4) * fade);
+    }
+    // лезвие: яркая огненная полоса вдоль радиуса под текущим углом взмаха
+    if (k < 0.6) {
+      const aa = base + th, ux = Math.cos(aa), uz = Math.sin(aa), a1 = 1 - k / 0.6;
+      this.glow.push(x + ux * L * 0.6, 0.3, z + uz * L * 0.6, L * 0.85, 0.8, 1, 0, ux, uz, GLOW.streak, 0, hot[0], hot[1], hot[2], 0.95 * a1);
+      for (let j = 1; j <= 4; j++) this.fx.draw('fire_spark', 'fly', this.time + j * 0.07, x + ux * L * (0.25 + j * 0.18), 0.35, z + uz * L * (0.25 + j * 0.18), 0.75, 0.75, 1, 0, -uz, ux, null, a1, 0.6);
+    }
+  }
   teleCone(x, z, dx, dz, range, ang, col = [1, 0.3, 0.3], a = 1) { this.fx.cone('tele_cone', 'loop', this.time, x, z, dx, dz, range, ang, col, a); }
   // Навыковые эффекты: конус (ice_fan_cone / dew_splash_cone / gear_spin_cone), нова (nova_burst тинт / frost_nova / level_shockwave),
   // рывок (dash_trail тинт / shadow_step_trail / fly_blade_dash_trail / leap_strike), удар стража (warden_slam: падение + удар)

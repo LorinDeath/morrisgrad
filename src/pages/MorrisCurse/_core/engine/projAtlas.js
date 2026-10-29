@@ -48,11 +48,11 @@ export class ProjAtlasFx {
     if (L?.length) { // подтверждение своего: ближайший по направлению прогноз получает id сервера (позиция не прыгает)
       let bi = 0, bd = -2; L.forEach((q, i) => { const d = q.dx * e.dx + q.dy * e.dy; if (d > bd) { bd = d; bi = i; } });
       const q = L.splice(bi, 1)[0]; if (!L.length) delete this.pred[e.cid];
-      if (this.live.get(q.id) === q) { this.live.delete(q.id); q.cz = !!e.cz; q.id = e.id; q.dx = e.dx; q.dy = e.dy; q.s = e.s || q.s; q.r = e.r || q.r; q.t = e.t; q.info = projInfo(e.t); q.pred = 0; this.live.set(e.id, q); this.confirmed = (this.confirmed || 0) + 1; return; }
+      if (this.live.get(q.id) === q) { this.live.delete(q.id); q.cz = !!e.cz; q.id = e.id; q.dx = e.dx; q.dy = e.dy; q.s = e.s || q.s; q.r = e.r || q.r; q.t = e.t; q.info = projInfo(e.t); q.pred = 0; q.k = e.sz || q.k || 1; this.live.set(e.id, q); this.confirmed = (this.confirmed || 0) + 1; return; }
     }
     if (this.live.size > 500) return;
     // a — мс, которые снаряд уже пролетел на сервере до отправки пачки: догоняем, чтобы он был там, где на самом деле
-    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: Math.min(0.4, (e.a || 0) / 1000), info: projInfo(e.t), o: e.o, cz: !!e.cz });
+    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: Math.min(0.4, (e.a || 0) / 1000), info: projInfo(e.t), o: e.o, cz: !!e.cz, k: Math.max(0.4, Math.min(4, Number(e.sz) || 1)) }); // k — размер снаряда (чёрное лезвие: ширина хитбокса / 20, растёт с Мощностью)
   }
   // сервер: попал / долетел
   end(e) {
@@ -88,7 +88,7 @@ export class ProjAtlasFx {
       const d = Math.min(p.r, p.s * p.age);
       if (p.endE && p.s * p.age >= p.r) { this.live.delete(p.id); const e = p.endE; p.endE = null; this.end(e); continue; }
       if (p.age > p.r / p.s + 1.5) { this.live.delete(p.id); continue; } // 'pend' потерян — не висим
-      const x = p.x0 + p.dx * d, y = p.y0 + p.dy * d, i = p.info, S = i.size;
+      const x = p.x0 + p.dx * d, y = p.y0 + p.dy * d, i = p.info, S = i.size * (p.k || 1);
       const h = p.arc ? 0.6 + Math.sin(Math.min(1, d / p.r) * Math.PI) * Math.min(4, p.r / PX * 0.35) : i.ground ? 0.06 : 1.0;
       const m = this._mode(i), w = i.fall && p.dx < 0 ? -S : S;
       this._put(i, i.fly, p.age, x, y, h, w, S, m, m ? p.dx : 0, m ? p.dy : 0, 1, true, p.cz);

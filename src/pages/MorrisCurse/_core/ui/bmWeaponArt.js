@@ -1,7 +1,7 @@
 // «Чёрная магия»: рисовалка оружия из частей (рукоять, лезвие, 2-е и 3-е лезвие, кристалл) для кузни, конструктора и руки моба.
 // Если у части есть лист Художника (img → /bm-art/weapon/<img>.png) — рисуем его; иначе огненная ЗАГЛУШКА на canvas.
 // Чистая функция кадра: drawWeapon(ctx, parts, t, {x, y, scale, angle}) — t в секундах (огонь «дышит»).
-import { BM_PARTS } from '../../../../../server/meta/blackArt.ts';
+import { BM_PARTS, BMA_CFG } from '../../../../../server/meta/blackArt.ts';
 
 export const BM_ART_BASE = '/bm-art';
 const imgs = new Map();
@@ -37,6 +37,9 @@ export function weaponManifest() {
 }
 export const weaponSheets = () => Object.entries(weaponManifest() || {}).map(([k, v]) => ({ key: k, slot: v.slot, name: v.name, mode: v.mode }));
 const ORDER = ['blade3', 'blade2', 'handle', 'blade', 'crystal'];
+let sheetMz = [];
+/** дула последнего нарисованного оружия (экран canvas, слева направо): из них вылетают снаряды посохов */
+export let lastMuzzles = [];
 /** оружие по листам: все части есть в манифесте и картинки загружены → true (нарисовано) */
 function drawSheets(ctx, P, t, anim, glow) {
   const M = weaponManifest(); if (!M) return false;
@@ -54,6 +57,12 @@ function drawSheets(ctx, P, t, anim, glow) {
       const A = e.m.anims[anim] || e.m.anims.idle, c = e.m.cell || 64; const f = A.loop ? Math.floor(t * A.fps) % A.n : Math.min(A.n - 1, Math.floor(t * A.fps));
       ctx.drawImage(im, f * c, A.row * c, c, c, o[k][0], o[k][1], c, c); } }
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  // дула стреляющих частей (основное лезвие + посохи во 2/3 слоте), покадрово (muzzleFrames) — в координатах оружия от хвата
+  const mz = [];
+  for (const k of ['blade', 'blade2', 'blade3']) { const e = sh[k]; if (!e) continue; const pts = e.m.points; if (k !== 'blade' && e.m.type !== 'staff') continue;
+    const A = e.m.anims[anim] || e.m.anims.idle, f = A.loop ? Math.floor(t * A.fps) % A.n : Math.min(A.n - 1, Math.floor(t * A.fps));
+    const m = e.m.muzzleFrames?.[anim]?.[f] || pts.muzzle || pts.tip; if (m) mz.push([o[k][0] + m[0], o[k][1] + m[1]]); }
+  sheetMz = mz.sort((a, b) => a[0] - b[0]);
   return true;
 }
 /** нарисовать оружие: (x, y) — точка хвата (рука), angle — радианы (0 — вверх), scale — множитель; anim — idle/charge/full/swing/cast (листы) */
@@ -62,7 +71,9 @@ export function drawWeapon(ctx, parts, t = 0, o = {}) {
   const P = (k) => partOf(parts[k]); // id детали или сам объект (черновик админки)
   const { L, ranged } = geom(parts);
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.scale(scale, scale);
-  if (drawSheets(ctx, P, t, anim, glow)) { ctx.restore(); return 'art'; }
+  if (drawSheets(ctx, P, t, anim, glow)) { ctx.restore(); const c = Math.cos(angle), s = Math.sin(angle);
+    lastMuzzles = sheetMz.map(([lx, ly]) => [x + scale * (c * lx - s * ly), y + scale * (s * lx + c * ly)]); return 'art'; }
+  lastMuzzles = [];
   // — ЗАГЛУШКА (нет листа у какой-то части)
   // — рукоять
   const h = P('handle');
@@ -113,10 +124,14 @@ export class WeaponPreview {
     if (!this.parts.handle && !this.parts.blade) { ctx.fillStyle = '#fdba74'; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Выберите рукоять и лезвие', W / 2, H / 2); return; }
     const ang = bl?.ranged ? -0.25 + Math.sin(t * 1.5) * 0.05 : -0.35 + Math.sin(t * 1.5) * 0.06 + sw * 1.9;
     if (sw > 0.05 && bl && !bl.ranged) { const arc = bl.arc || 1.1; ctx.save(); ctx.translate(W / 2, H * 0.72); ctx.strokeStyle = `rgba(255,154,60,${0.6 * sw})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, H * 0.5, -Math.PI / 2 - arc / 2, -Math.PI / 2 + arc / 2); ctx.stroke(); ctx.restore(); }
-    if (bl?.ranged && ph > 0.7) { const k = (ph - 0.7) / 0.3; ctx.fillStyle = '#ffd36a'; ctx.beginPath(); ctx.arc(W / 2 + k * W * 0.45, H * 0.3 - k * 10, 5, 0, 7); ctx.fill(); }
     const anim = ph < 0.35 ? 'idle' : ph < 0.6 ? 'charge' : ph < 0.7 ? 'full' : bl?.ranged ? 'cast' : 'swing';
     const mode = drawWeapon(ctx, this.parts, anim === 'swing' || anim === 'cast' ? (ph - 0.7) * 2.4 : t, { x: W / 2, y: H * 0.72, scale: Math.max(1, Math.floor(Math.min(W, H) / 70)), angle: ang, labels: this.labels, anim });
     this.mode = mode;
+    if (bl?.ranged && ph > 0.7) { // выстрел: по снаряду из дула каждого посоха (веер), как на сервере
+      const k = (ph - 0.7) / 0.3, M = lastMuzzles.length ? lastMuzzles : [[W / 2, H * 0.3]], n = M.length, st = (this.spread ?? BMA_CFG.staffSpread ?? 12) * Math.PI / 180;
+      M.forEach(([mx, my], i) => { const a = -0.25 + st * (i - (n - 1) / 2), d = k * W * 0.5, px = mx + Math.cos(a) * d, py = my + Math.sin(a) * d;
+        const g = ctx.createRadialGradient(px, py, 0, px, py, 9); g.addColorStop(0, '#fff6c8'); g.addColorStop(0.4, '#ffb347'); g.addColorStop(1, '#ff3d0000'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill();
+        if (k < 0.3) { ctx.fillStyle = `rgba(255,230,160,${0.8 * (1 - k / 0.3)})`; ctx.beginPath(); ctx.arc(mx, my, 6, 0, 7); ctx.fill(); } }); }
     if (mode !== 'art') { ctx.fillStyle = '#ffe08a99'; ctx.font = '700 9px system-ui'; ctx.textAlign = 'left'; ctx.fillText('ЗАГЛУШКА · у части нет листа Художника', 6, H - 6); }
   }
 }

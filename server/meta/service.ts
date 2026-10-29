@@ -18,14 +18,14 @@ import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../wo
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { CURSE, curseClient, isCursedTag, untag, skillPowerMult } from "./cursed";
 import { parseTag, tierDef } from "./enchant";
-import { BMA_CFG, bagDraw, bmHit, bmDefend, bmSkillPct, chargeFrac, chargedAtk } from "./blackArt";
+import { BMA_CFG, bagDraw, bmHit, bmDefend, bmSkillPct, chargeFrac, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
 import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob } from "./blackMobs";
 import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
-import { enchDropMult } from "./profile";
+import { enchDropMult, artModeKey } from "./profile";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
 import { CHEST, Chests, CampRuns, recipients, rollChest, type Chest, type CampRun } from "./chests";
 import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
@@ -60,7 +60,7 @@ import {
 } from "./profile";
 import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest } from "./boardChest";
 import { BCHEST, bchestPreview, specView } from "./boardChestCfg";
-import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
+import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, inArc, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { bestiaryRegistry, arenaKey, ARENA_ONLY, TRIAL_BOSS_WAVE } from "./bestiaryReg";
@@ -125,7 +125,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   bchest_list: S({}), bchest_open: S({ id: "n" }), bchest_take: S({ id: "n", lid: "n?", all: "b?" }), bchest_salvage: S({ id: "n", lid: "n" }), bchest_equip: S({ id: "n", lid: "n" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
   ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }),
-  bm_hold: S({ on: "b" }), bm_test_artifact: S({ ranged: "b?" }), admin_bm_recalc: S({}),
+  bm_hold: S({ on: "b" }), bm_mode: S({ melee: "b" }), bm_test_artifact: S({ ranged: "b?", staff: "b?" }), admin_bm_recalc: S({}),
   bm_forge_open: S({}), bm_forge_craft: S({ part: "s", n: "n?" }), bm_forge_build: S({ handle: "s", blade: "s", blade2: "s?", blade3: "s?", crystal: "s?", name: "s" }), // 🔥 кузня Знахаря (этап Б)
   admin_bmm: S({ op: "s", id: "s?", kind: "s?", data: "o?", lvl: "n?", cls: "s?" }), // 👹 конструктор чёрных мобов и лагерей (админка)
   admin_bmf: S({ op: "s", id: "s?", data: "o?", type: "s?", mob: "s?", res: "s?", chance: "n?", qmin: "n?", qmax: "n?", name: "s?" }), // 🔥 конструктор оружия (админка) // 🜏 артефакты чёрной магии: заряд, тестовый артефакт (dev/админ), «Пересчитать все» // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
@@ -686,13 +686,23 @@ export class MetaService {
         if (!this.pvp.inDuel(session.id)) this.zoneAttack(ws, session, msg, frac);
         return true;
       }
+      case "bm_mode": { // 🜏 посох: ближний/дальний бой. Только если основное лезвие — посох (проверяет сервер); флаг аккаунта bmm:<uid>
+        const eff: any = this.effective(session);
+        if (!eff.art?.staff) { this.send(ws, { type: "toast_error", message: "Переключение — только для посоха" }); return true; }
+        const k = artModeKey(eff.art.uid); a.flags = a.flags || {};
+        if (msg.melee) a.flags[k] = true; else delete a.flags[k];
+        ms.dirty = true; this.store.saveAccount(ms.pkey, ms.verified); this.refreshZonePlayer(session);
+        this.push(ws, session, { toast: msg.melee ? "Посох: ближний бой" : "Посох: дальний бой" }); this.bev(session, { type: "equip" }); // push — свежий снимок: книга/рука/кд сразу видят режим
+        return true;
+      }
       case "bm_test_artifact": { // тестовый ОГНЕННЫЙ артефакт: только локальный dev или админ
         if (!(session.dev === true || this.roles.canAdminFull(ms))) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
         if (!needHero()) return true;
         if (Date.now() - ((ms as any).bmtAt || 0) < 1000) return true; (ms as any).bmtAt = Date.now();
         const have = a.inv.filter((i) => isArtifactId(i.id)).length;
         if (have >= BMA_CFG.maxArtifacts) { this.send(ws, { type: "toast_error", message: `Артефактов уже ${have} из ${BMA_CFG.maxArtifacts}` }); return true; }
-        const def = makeArtifact({ handle: "fire_handle", blade: msg.ranged ? "fire_blade_r" : "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3", crystal: "fire_crystal" });
+        const def = makeArtifact(msg.staff ? { handle: "fire_handle", blade: "fire_staff_arch", blade2: "fire_b2staff_1", blade3: "fire_b3staff_1", crystal: "fire_crystal" } // три посоха Художника — тройной выстрел
+          : { handle: "fire_handle", blade: msg.ranged ? "fire_blade_r" : "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3", crystal: "fire_crystal" });
         if (!def) { this.send(ws, { type: "toast_error", message: "Части артефакта не найдены (админка → 🔥 Части оружия)" }); return true; }
         a.inv.push({ uid: newUid(), id: def.id, at: Date.now(), src: "grant:bm_test", n: 1, hero: cls } as any); ms.dirty = true;
         this.store.audit(ms.pkey, "bm_art", `bm_art:${ms.pkey}:${def.id}`, { id: def.id, ranged: !!msg.ranged, by: session.dev === true ? "dev" : "admin" });
@@ -1033,6 +1043,10 @@ export class MetaService {
           if (msg.rareIn != null && z.gen.rares) for (const r of z.gen.rares) { z.rareInit(r, Date.now()); if (!z.rareIds[r.type]) { z.rareAt[r.type] = Date.now() + Math.max(0, +msg.rareIn) * 1000; z.rareDirty = true; } } // тесты: до появления редких — N секунд
           if (msg.killRare) { const id = z.rareIds[msg.killRare], m = id && z.byId.get(id); if (m && !m.dead) z.kill(m, (mm: any) => this.onMobKilled(mm)); }
           if (msg.ambientNow) z.ambNext.set(session.id, 0);
+          if (msg.spawnMob && typeof msg.spawnMob === "object" && ZONE_MOBS[String(msg.spawnMob.type)]) { const v: any = msg.spawnMob; // плейтест атаки (только dev): моб рядом с игроком
+            const m = z.addMob(String(v.type), session.x + (Number(v.dx) || 0), session.y + (Number(v.dy) || 0), { fixed: true, respawn: 1e9 }); if (m && v.calm) (m as any).devCalm = true; // calm — мишень не идёт к игроку
+            if (m) this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, hp: m.hp, maxHp: m.maxHp, x: Math.round(m.x), y: Math.round(m.y), safe: !!(this.bm.playerSafe(session.id, ms.zp.x, ms.zp.y) || this.citySafe(ms)) }); }
+          if (msg.moveMob && typeof msg.moveMob === "object") { const m = z.byId.get(Number(msg.moveMob.id)); if (m && !m.dead) { m.x += Number(msg.moveMob.dx) || 0; m.y += Number(msg.moveMob.dy) || 0; } } // уклонение цели от снаряда
           if (msg.devStats) this.send(ws, { type: "dev_stats", amb: z.ambStats, ambient: z.mobs.filter((m: any) => m.ambient === session.id && !m.dead).map((m: any) => ({ id: m.id, type: m.type, elite: m.elite, x: Math.round(m.x), y: Math.round(m.y), tgt: m.targetSid === session.id })), bosses: z.bossStatus(Date.now()).slice(0, 80).map((x: any, i: number) => [...x, z.gen.bosses[i].x, z.gen.bosses[i].y]) });
         } }
         this.push(ws, session); return true;
@@ -1360,7 +1374,7 @@ export class MetaService {
     ms.wt = wt;
     // ближний бой (дуга) — мгновенно; стрелковое оружие (снаряд/линия) — НАСТОЯЩИЕ снаряды сервера: урон при попадании
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
-    const per = (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1;
+    const per = art ? 1 : (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1; // 🜏 посохи: каждый снаряд — полный урон основного
     const a = this.store.account(ms.pkey);
     const statused = new Set<number>();
     const traits = traitsFor(wt, this.equippedIds(session, a));
@@ -1385,16 +1399,19 @@ export class MetaService {
       if (real) this.traitHit(zone, m, session, ms, real, traits);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
     };
-    for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
+    const dirs = volleyDirs(W.atk, dx, dy), orig = art && W.atk.kind !== "arc" ? shotOrigins(staffMuzzles(art.parts), dirs.length, ox, oy, dx, dy) : null; // 🜏 снаряд — из дула каждого посоха
+    for (let si = 0; si < dirs.length; si++) {
+      const [vx, vy] = dirs[si];
       if (W.atk.kind === "arc") {
         const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
-        zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt, ...(art ? { bm: 1, fr: Math.round(frac * 100) / 100 } : {}) });
+        zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt, ...(art ? { bm: 1, fr: Math.round(frac * 100) / 100, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3) } : {}) }); // 🜏 r/a — ровно хитбокс дуги (клиент рисует огненный взмах)
         targets.forEach((m, i) => applyHit(m, per * (i === 0 ? 1 : 0.8)));
         if ((session.world || "hellfire") === "arinar") this.pvpArc(session, ms, ox, oy, vx, vy, W.atk, per); // PK-режим: удар задевает и игроков
         if (zone.guard === this.guardMux && this.bm.meleeHits(ox, oy, vx, vy, W.atk.range, W.atk.arc, W.atk.width, "arc")) this.bm.hitMage(session.id); // удар по магу — нападение
       } else {
         const line = W.atk.kind === "line";
-        zone.fire({ o: "p", sid: session.id, t: art ? (frac > 0.5 ? "fireball" : "fire_spark") : AUTO_SPRITE[wt] || "auto_staff", x: ox, y: oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1, pv: (session.world || "hellfire") === "arinar" ? 1 : undefined, pvk: per,
+        zone.fire({ o: "p", sid: session.id, t: art ? (frac > 0.5 ? "fireball" : "fire_spark") : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1, pv: (session.world || "hellfire") === "arinar" ? 1 : undefined, pvk: per,
+          ...(art ? { bm: 1, bf: frac, sz: +((W.atk.width || 20) / 20).toFixed(2) } : {}), // 🜏 bf — заряд на момент выстрела (PK-попадание позже), sz — размер снаряда от ширины (Мощность)
           onHit: (m: any, i: number) => applyHit(m, per * (i === 0 ? 1 : line ? 0.7 : 0.8)) });
       }
     }
@@ -1515,6 +1532,7 @@ export class MetaService {
           const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { black: true } as any, "ab") || 0;
           this.noteHit(session, real, m.type);
           if (real) this.traitHit(zone, m, session, ms, real, bmTraits);
+          if (real && bmCritCast) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y }); // крит навыка — та же метка «КРИТ», что у удара
           return real;
         }
         const raw = dmg * mult * (opts?.pierceArmor && d?.armor ? 1 + Math.min(0.5, d.armor / 100) : 1) * levelGapHitMult(d?.lvl || 1, eff.level || 1);
@@ -2066,7 +2084,7 @@ export class MetaService {
     const vbm = (vms.zp as any).bm;
     if (eff.art && eff.bm) { // 🜏 чёрный удар по игроку: % его макс. ОЗ × vsPlayer × pvpMul × PK; обычная броня не действует
       crit = this.bmCrit(this.store.account(ams.pkey), ams, sa.stats?.classId, eff.bm.bcrit, "a");
-      let d = bmHit(vms.zp.maxHp, "mob", eff.bm, (ams as any).bmFrac || 0, crit, (Number(BMA_CFG.vsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0)) * k * Math.max(0, Number(PK_CFG.dmgMult) || 0);
+      let d = bmHit(vms.zp.maxHp, "mob", eff.bm, (proj && (proj as any).bf !== undefined ? (proj as any).bf : (ams as any).bmFrac) || 0, crit, (Number(BMA_CFG.vsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0)) * k * Math.max(0, Number(PK_CFG.dmgMult) || 0);
       if (vbm) d = bmDefend(d, vbm, vms.zp.maxHp);
       real = Math.max(0, Math.round(d));
     } else {
@@ -2098,12 +2116,12 @@ export class MetaService {
   /** PvP-дуга (ближний удар): игроки в секторе — как цели моба */
   pvpArc(session: any, ms: any, ox: number, oy: number, vx: number, vy: number, atk: any, per: number) {
     if (PK_CFG.on === false) return;
-    const R = atk.range + 14, arc = atk.arc || 1;
+    const arc = atk.arc || 1, max = Math.max(1, atk.max || 12); let n = 0; // та же дуга, что по мобам (zone.inArc; тело игрока — 14)
     for (const m2 of this.ms.values()) {
+      if (n >= max) break;
       if (m2.sid === session.id || !m2.zp.alive) continue;
-      const ex = m2.zp.x - ox, ey = m2.zp.y - oy, d = Math.hypot(ex, ey); if (d > R) continue;
-      if (d > 16 && Math.acos(Math.max(-1, Math.min(1, (ex * vx + ey * vy) / (d || 1)))) > arc) continue;
-      this.pvpStrike(session.id, m2.sid, per);
+      if (!inArc(ox, oy, vx, vy, atk.range, arc, m2.zp.x, m2.zp.y, 14)) continue;
+      if (this.pvpStrike(session.id, m2.sid, per)) n++;
     }
   }
   /** 🜏 крит из мешка (ровно bcrit на bagSize вытягиваний); мешок — в аккаунте по герою и виду (a — удар, s — навык) */

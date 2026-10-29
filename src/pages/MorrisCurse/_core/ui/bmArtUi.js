@@ -5,7 +5,8 @@ import { BM_KEYS, BM_NAMES, BM_PARTS } from '../../../../../server/meta/blackArt
 import { ABILITIES_DEF, SLOT_ORDER, SLOTS } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { esc } from './overlay.js';
-import { drawWeapon } from './bmWeaponArt.js';
+import { drawWeapon, lastMuzzles } from './bmWeaponArt.js';
+import { uiSfx } from './atmoUi.js';
 
 const CSS = `
 .bm-wrap{--f1:#ff6a1a;--f2:#ffb347;--f3:#ffe08a;--ch:#1a0d08}
@@ -42,7 +43,7 @@ const CSS = `
 .bm-hand .orb{width:22px;height:30px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:radial-gradient(60% 55% at 50% 70%,#ffe08a 0%,#ffb347 35%,#ff6a1a 65%,#a8320f00 100%);box-shadow:0 0 14px 4px #ff6a1a88;animation:bmFlame .18s infinite alternate,bmBob 1.6s ease-in-out infinite}
 .bm-hand.full .orb{animation:bmFlame .09s infinite alternate;background:radial-gradient(60% 55% at 50% 70%,#fff6c8 0%,#ffd36a 35%,#ff6a1a 65%,#a8320f00 100%)}
 .bm-sklink{margin:6px 0;font-size:12px}.bm-sklink .mc-btn{padding:1px 6px}
-.bm-hand.chg .orb{box-shadow:0 0 calc(10px + var(--c)*26px) calc(3px + var(--c)*10px) #ff3d00cc}
+.bm-hand .cb{display:none;width:46px;height:5px;margin-top:3px;border:1px solid #a8320f;border-radius:3px;background:#1a0d08cc;overflow:hidden}.bm-hand.chg .cb{display:block}.bm-hand .cb b{display:block;height:100%;width:calc(var(--c)*100%);background:linear-gradient(90deg,#ff6a1a,#ffd36a)}.bm-hand.full .cb{border-color:#ffe08a;box-shadow:0 0 8px #ffb347}.bm-hand.full .cb b{background:#fff6c8}\n.bm-hand.chg .orb{box-shadow:0 0 calc(10px + var(--c)*26px) calc(3px + var(--c)*10px) #ff3d00cc}
 .bm-hand canvas{display:none;image-rendering:pixelated;width:72px;height:84px}.bm-hand.art canvas{display:block}.bm-hand.art .orb,.bm-hand.art span{display:none}\n.bm-hand span{margin-top:2px;background:#1a0d08cc;border:1px solid #a8320f;border-radius:3px;padding:1px 3px}
 @keyframes bmFlame{from{transform:scale(1,1) skewX(-3deg)}to{transform:scale(1.06,.94) skewX(3deg)}}
 @keyframes bmBob{0%,100%{margin-top:0}50%{margin-top:-4px}}
@@ -82,9 +83,9 @@ export function rArtifacts(book, st) {
   const cards = arts.map((it) => {
     const d = ITEM_BY_ID[it.id], A = d?.art;
     return `<button class="bm-card ${it.uid === selUid ? 'on' : ''} ${it.uid === handUid ? 'hand' : ''}" data-act="artsel" data-v="${it.uid}">
-      <b>${esc(d?.name || 'Артефакт')}</b><small>${A ? `${A.ranged ? '🏹 дальний' : '🗡️ ближний'} · 🔥 ${fmtBm('bdmg', A.stats.bdmg)} · 🎲 ${A.stats.bcrit}/100` : 'карточка загружается…'}</small></button>`;
+      <b>${esc(d?.name || 'Артефакт')}</b><small>${A ? `${A.staff ? '🪄 посох' : A.ranged ? '🏹 дальний' : '🗡️ ближний'}${(A.shots || 1) > 1 ? ` ×${A.shots}` : ''} · 🔥 ${fmtBm('bdmg', A.stats.bdmg)} · 🎲 ${A.stats.bcrit}/100` : 'карточка загружается…'}</small></button>`;
   }).join('');
-  const testBtns = book.canTestArt ? `<button class="mc-btn sm" data-act="bmtest" data-v="0" title="Только админ/локальная разработка">＋ тест: огненный (ближний)</button><button class="mc-btn sm" data-act="bmtest" data-v="1">＋ тест: огненный (дальний)</button>` : '';
+  const testBtns = book.canTestArt ? `<button class="mc-btn sm" data-act="bmtest" data-v="0" title="Только админ/локальная разработка">＋ тест: огненный (ближний)</button><button class="mc-btn sm" data-act="bmtest" data-v="1">＋ тест: огненный (дальний)</button><button class="mc-btn sm" data-act="bmtest" data-v="2">＋ тест: посох-жаровня</button>` : '';
   let detail = '<p class="mc-dim">Артефактов пока нет. Их собирают из частей чёрного оружия (этап Б). Выбрав артефакт, вы увидите, как обычные параметры глушатся, а чёрные — раскрываются.</p>';
   const it = selUid && arts.find((i) => i.uid === selUid);
   if (it) {
@@ -102,7 +103,9 @@ export function rArtifacts(book, st) {
         <div class="bm-col blk bm-unl"><h4 style="color:#ffb347">🔥 Чёрные параметры ${inHand ? '· раскрыты' : '· раскроются'}</h4>${blkRows}
           <div class="bm-keep">Остаются: параметры души, таланты и навыки талантов (их урон режет чёрная броня).</div></div>
       </div>
-      ${A ? `<p class="mc-dim">Удар: ${A.ranged ? `дальний, ${Math.round(A.atk.range)} px` : `ближний, ${Math.round(A.atk.range)} px`} · перезарядка ${A.cd} мс · зажмите атаку: полный заряд за ${A.stats.charge} с — удар ${fmtBm('force', A.stats.force || 0)}${A.stats.power ? `, размер ${fmtBm('power', A.stats.power)}` : ''}; отпустили раньше — обычный удар.<br>Части: ${parts}</p>
+      ${A?.staff ? (() => { const E = st.hero?.effective?.art, melee = inHand && E?.mode === 'melee';
+        return `<div class="bm-mode" data-mode="${melee ? 'melee' : 'ranged'}">🪄 Посох — режим удара: <button class="mc-btn sm ${!melee ? 'gold' : ''}" data-act="bmmode" data-v="0" ${inHand ? '' : 'disabled'}>🏹 дальний${(A.shots || 1) > 1 ? ` ×${A.shots}` : ''}</button><button class="mc-btn sm ${melee ? 'gold' : ''}" data-act="bmmode" data-v="1" ${inHand ? '' : 'disabled'}>🗡️ ближний</button>${inHand ? '' : ' <small class="mc-dim">(возьмите в руку)</small>'}</div>`; })() : ''}
+      ${A ? `<p class="mc-dim">Удар: ${A.ranged ? `дальний, ${Math.round(A.atk.range)} px${(A.shots || 1) > 1 ? `, снарядов: ${A.shots} (каждый — урон основного лезвия)` : ''}` : `ближний, ${Math.round(A.atk.range)} px`} · перезарядка ${A.cd} мс · зажмите атаку: полный заряд за ${A.stats.charge} с — удар ${fmtBm('force', A.stats.force || 0)}${A.stats.power ? `, размер ${fmtBm('power', A.stats.power)}` : ''}; отпустили раньше — обычный удар.<br>Части: ${parts}</p>
       ${nSk ? `<p class="bm-sklink">🔥 Навыков артефакта: ${nSk} — <button class="mc-btn sm" data-act="codexart">Кодекс навыков → «Навыки артефактов»</button>, в слоты — <button class="mc-btn sm" data-act="tab" data-v="skills">«Навыки»</button>.</p>` : ''}` : ''}
       <div class="acts" style="margin-top:8px">${inHand ? `<button class="mc-btn" data-act="unequip" data-v="weapon">Убрать из руки</button>` : `<button class="mc-btn gold" data-act="equip" data-v="${it.uid}">🔥 Выбрать чёрную магию (взять в руку)</button>`}</div>`;
   }
@@ -126,16 +129,19 @@ export class ArtHand {
   /** p — экранная точка руки; on; chg 0..1 — заряд; art — hero.effective.art (parts) */
   update(p, on, chg = 0, art = null) {
     if (!on || !p) { if (this.el) this.el.style.display = 'none'; this.prevChg = 0; return; }
-    if (!this.el) { bmCss(); this.el = document.createElement('div'); this.el.className = 'bm-hand'; this.el.innerHTML = '<canvas width="96" height="112"></canvas><div class="orb"></div><span>ЗАГЛУШКА</span>'; this.layer.appendChild(this.el); this.cv = this.el.querySelector('canvas'); }
+    if (!this.el) { bmCss(); this.el = document.createElement('div'); this.el.className = 'bm-hand'; this.el.innerHTML = '<canvas width="96" height="112"></canvas><div class="orb"></div><span>ЗАГЛУШКА</span><i class="cb"><b></b></i>'; /* cb — шкала заряда (полная — белая вспышка + звук) */ this.layer.appendChild(this.el); this.cv = this.el.querySelector('canvas'); }
     this.el.style.display = '';
     this.el.style.left = `${p.x + 26}px`; this.el.style.top = `${p.y + 18}px`;
     this.el.classList.toggle('chg', chg > 0); this.el.classList.toggle('full', chg >= 1); this.el.style.setProperty('--c', String(Math.min(1, chg)));
     const now = performance.now(), t = (now - this.t0) / 1000;
+    if ((this.prevChg || 0) < 1 && chg >= 1) uiSfx('bm_full');
     if ((this.prevChg || 0) > 0 && chg === 0) this.swAt = now; this.prevChg = chg; // отпустили заряд — замах/выстрел
     const sw = now - this.swAt < 320, ranged = !!art?.ranged;
     const anim = sw ? (ranged ? 'cast' : 'swing') : chg >= 1 ? 'full' : chg > 0 ? 'charge' : 'idle';
     const ctx = this.cv.getContext('2d'); ctx.clearRect(0, 0, 96, 112);
     const mode = art?.parts ? drawWeapon(ctx, art.parts, sw ? (now - this.swAt) / 1000 : t, { x: 48, y: 92, scale: 1, angle: sw && !ranged ? 0.9 * Math.sin((now - this.swAt) / 320 * Math.PI) : 0.25, anim }) : 'stub';
+    if (sw && ranged && mode === 'art') { const k = (now - this.swAt) / 320; for (const [mx, my] of lastMuzzles) { // вспышка в дуле каждого посоха
+      const g = ctx.createRadialGradient(mx, my, 0, mx, my, 10); g.addColorStop(0, `rgba(255,246,200,${1 - k})`); g.addColorStop(0.5, `rgba(255,150,40,${0.7 * (1 - k)})`); g.addColorStop(1, 'rgba(255,60,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(mx, my, 10, 0, 7); ctx.fill(); } }
     this.el.classList.toggle('art', mode === 'art');
   }
 }

@@ -284,7 +284,8 @@ export class Book {
       case 'unslot': m.setLoadout((m.hero?.loadout || []).map((x) => (x === v ? '' : x))); break;
       case 'equip': m.equip(v); break;
       case 'artsel': this.artSel = v; this.render(); break;
-      case 'bmtest': m.send({ type: 'bm_test_artifact', ranged: v === '1' }); break;
+      case 'bmtest': m.send({ type: 'bm_test_artifact', ranged: v === '1', staff: v === '2' }); break;
+      case 'bmmode': m.send({ type: 'bm_mode', melee: v === '1' }); break; // 🪄 посох: ближний/дальний (сервер проверяет, что в руке посох)
       case 'unequip': m.unequip(v); break;
       case 'salvage': { const it = m.account?.inv.find((i) => i.uid === v), d = it && ITEM_BY_ID[it.id];
         if (it?.lk) break; // закреплённый — кнопка неактивна (и сервер всё равно откажет)

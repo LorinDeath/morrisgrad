@@ -82,7 +82,7 @@ export function itemCard(id: string) {
 // Силуэт закрытого предмета: только слот и ярус (без id, имени, статов) — порядковый номер в пуле
 function artCard(id: string) {
   const i = artInfo(id); if (!i) return null;
-  return { stats: i.stats, atk: i.atk, cd: i.cd, ranged: i.ranged, elem: i.elem, parts: i.parts,
+  return { stats: i.stats, atk: i.atk, cd: i.cd, ranged: i.ranged, elem: i.elem, parts: i.parts, ...(i.staff ? { staff: true, alt: i.alt } : {}), shots: i.ranged ? i.shots || 1 : 1,
     skills: i.skills.map((s) => { const d: any = ABILITY_BY_ID[s]; return d ? { id: s, name: d.name, icon: d.icon, cd: d.cd, desc: d.desc, pct: d.bm?.pct || 0, k: d.bm?.k || 0 } : null; }).filter(Boolean) };
 }
 export function itemSilhouette(idx: number) {

@@ -425,35 +425,100 @@
      "name": "Крюк-шип",
      "image": "weapon/blade2_1.png",
      "glow": "weapon/blade2_1_glow.png",
-     "json": "weapon/blade2_1.json"
+     "json": "weapon/blade2_1.json",
+     "type": "blade"
     },
     {
      "key": "blade2_2",
      "name": "Лезвие-крыло",
      "image": "weapon/blade2_2.png",
      "glow": "weapon/blade2_2_glow.png",
-     "json": "weapon/blade2_2.json"
+     "json": "weapon/blade2_2.json",
+     "type": "blade"
     },
     {
      "key": "blade2_3",
      "name": "Огненный рог",
      "image": "weapon/blade2_3.png",
      "glow": "weapon/blade2_3_glow.png",
-     "json": "weapon/blade2_3.json"
+     "json": "weapon/blade2_3.json",
+     "type": "blade"
     },
     {
      "key": "blade2_4",
      "name": "Зубчатый серп",
      "image": "weapon/blade2_4.png",
      "glow": "weapon/blade2_4_glow.png",
-     "json": "weapon/blade2_4.json"
+     "json": "weapon/blade2_4.json",
+     "type": "blade"
     },
     {
      "key": "blade2_5",
      "name": "Трезубый коготь",
      "image": "weapon/blade2_5.png",
      "glow": "weapon/blade2_5_glow.png",
-     "json": "weapon/blade2_5.json"
+     "json": "weapon/blade2_5.json",
+     "type": "blade"
+    },
+    {
+     "key": "blade2_staff_1",
+     "name": "Обугленная рогулька",
+     "image": "weapon/blade2_staff_1.png",
+     "glow": "weapon/blade2_staff_1_glow.png",
+     "json": "weapon/blade2_staff_1.json",
+     "type": "staff",
+     "muzzle": [
+      38,
+      13
+     ]
+    },
+    {
+     "key": "blade2_staff_2",
+     "name": "Костяной с черепком",
+     "image": "weapon/blade2_staff_2.png",
+     "glow": "weapon/blade2_staff_2_glow.png",
+     "json": "weapon/blade2_staff_2.json",
+     "type": "staff",
+     "muzzle": [
+      40,
+      13
+     ]
+    },
+    {
+     "key": "blade2_staff_3",
+     "name": "Крюк с фонарём",
+     "image": "weapon/blade2_staff_3.png",
+     "glow": "weapon/blade2_staff_3_glow.png",
+     "json": "weapon/blade2_staff_3.json",
+     "type": "staff",
+     "muzzle": [
+      44,
+      25
+     ]
+    },
+    {
+     "key": "blade2_staff_4",
+     "name": "Витой с магмовой сферой",
+     "image": "weapon/blade2_staff_4.png",
+     "glow": "weapon/blade2_staff_4_glow.png",
+     "json": "weapon/blade2_staff_4.json",
+     "type": "staff",
+     "muzzle": [
+      41,
+      14
+     ]
+    },
+    {
+     "key": "blade2_staff_5",
+     "name": "Рогатина",
+     "image": "weapon/blade2_staff_5.png",
+     "glow": "weapon/blade2_staff_5_glow.png",
+     "json": "weapon/blade2_staff_5.json",
+     "type": "staff",
+     "muzzle": [
+      37,
+      18
+     ]
     }
    ],
    "blade3": [
@@ -462,35 +527,100 @@
      "name": "Пила",
      "image": "weapon/blade3_1.png",
      "glow": "weapon/blade3_1_glow.png",
-     "json": "weapon/blade3_1.json"
+     "json": "weapon/blade3_1.json",
+     "type": "blade"
     },
     {
      "key": "blade3_2",
      "name": "Полумесяц",
      "image": "weapon/blade3_2.png",
      "glow": "weapon/blade3_2_glow.png",
-     "json": "weapon/blade3_2.json"
+     "json": "weapon/blade3_2.json",
+     "type": "blade"
     },
     {
      "key": "blade3_3",
      "name": "Осколки обсидиана",
      "image": "weapon/blade3_3.png",
      "glow": "weapon/blade3_3_glow.png",
-     "json": "weapon/blade3_3.json"
+     "json": "weapon/blade3_3.json",
+     "type": "blade"
     },
     {
      "key": "blade3_4",
      "name": "Шип с зазубриной",
      "image": "weapon/blade3_4.png",
      "glow": "weapon/blade3_4_glow.png",
-     "json": "weapon/blade3_4.json"
+     "json": "weapon/blade3_4.json",
+     "type": "blade"
     },
     {
      "key": "blade3_5",
      "name": "Огненное перо",
      "image": "weapon/blade3_5.png",
      "glow": "weapon/blade3_5_glow.png",
-     "json": "weapon/blade3_5.json"
+     "json": "weapon/blade3_5.json",
+     "type": "blade"
+    },
+    {
+     "key": "blade3_staff_1",
+     "name": "Позвоночник с глазом",
+     "image": "weapon/blade3_staff_1.png",
+     "glow": "weapon/blade3_staff_1_glow.png",
+     "json": "weapon/blade3_staff_1.json",
+     "type": "staff",
+     "muzzle": [
+      24,
+      13
+     ]
+    },
+    {
+     "key": "blade3_staff_2",
+     "name": "Огненное кольцо",
+     "image": "weapon/blade3_staff_2.png",
+     "glow": "weapon/blade3_staff_2_glow.png",
+     "json": "weapon/blade3_staff_2.json",
+     "type": "staff",
+     "muzzle": [
+      25,
+      16
+     ]
+    },
+    {
+     "key": "blade3_staff_3",
+     "name": "Корявый корень",
+     "image": "weapon/blade3_staff_3.png",
+     "glow": "weapon/blade3_staff_3_glow.png",
+     "json": "weapon/blade3_staff_3.json",
+     "type": "staff",
+     "muzzle": [
+      23,
+      14
+     ]
+    },
+    {
+     "key": "blade3_staff_4",
+     "name": "Посох-факел",
+     "image": "weapon/blade3_staff_4.png",
+     "glow": "weapon/blade3_staff_4_glow.png",
+     "json": "weapon/blade3_staff_4.json",
+     "type": "staff",
+     "muzzle": [
+      28,
+      11
+     ]
+    },
+    {
+     "key": "blade3_staff_5",
+     "name": "Тройной уголь",
+     "image": "weapon/blade3_staff_5.png",
+     "glow": "weapon/blade3_staff_5_glow.png",
+     "json": "weapon/blade3_staff_5.json",
+     "type": "staff",
+     "muzzle": [
+      25,
+      12
+     ]
     }
    ],
    "blade": [
@@ -500,7 +630,8 @@
      "image": "weapon/blade_1.png",
      "glow": "weapon/blade_1_glow.png",
      "json": "weapon/blade_1.json",
-     "mode": "ближний"
+     "mode": "ближний",
+     "type": "blade"
     },
     {
      "key": "blade_1_ranged",
@@ -508,7 +639,8 @@
      "image": "weapon/blade_1_ranged.png",
      "glow": "weapon/blade_1_ranged_glow.png",
      "json": "weapon/blade_1_ranged.json",
-     "mode": "дальний"
+     "mode": "дальний",
+     "type": "blade"
     },
     {
      "key": "blade_2",
@@ -516,7 +648,8 @@
      "image": "weapon/blade_2.png",
      "glow": "weapon/blade_2_glow.png",
      "json": "weapon/blade_2.json",
-     "mode": "ближний"
+     "mode": "ближний",
+     "type": "blade"
     },
     {
      "key": "blade_2_ranged",
@@ -524,7 +657,8 @@
      "image": "weapon/blade_2_ranged.png",
      "glow": "weapon/blade_2_ranged_glow.png",
      "json": "weapon/blade_2_ranged.json",
-     "mode": "дальний"
+     "mode": "дальний",
+     "type": "blade"
     },
     {
      "key": "blade_3",
@@ -532,7 +666,8 @@
      "image": "weapon/blade_3.png",
      "glow": "weapon/blade_3_glow.png",
      "json": "weapon/blade_3.json",
-     "mode": "ближний"
+     "mode": "ближний",
+     "type": "staff"
     },
     {
      "key": "blade_3_ranged",
@@ -540,7 +675,8 @@
      "image": "weapon/blade_3_ranged.png",
      "glow": "weapon/blade_3_ranged_glow.png",
      "json": "weapon/blade_3_ranged.json",
-     "mode": "дальний"
+     "mode": "дальний",
+     "type": "staff"
     },
     {
      "key": "blade_4",
@@ -548,7 +684,8 @@
      "image": "weapon/blade_4.png",
      "glow": "weapon/blade_4_glow.png",
      "json": "weapon/blade_4.json",
-     "mode": "ближний"
+     "mode": "ближний",
+     "type": "blade"
     },
     {
      "key": "blade_4_ranged",
@@ -556,7 +693,8 @@
      "image": "weapon/blade_4_ranged.png",
      "glow": "weapon/blade_4_ranged_glow.png",
      "json": "weapon/blade_4_ranged.json",
-     "mode": "дальний"
+     "mode": "дальний",
+     "type": "blade"
     },
     {
      "key": "blade_5",
@@ -564,7 +702,8 @@
      "image": "weapon/blade_5.png",
      "glow": "weapon/blade_5_glow.png",
      "json": "weapon/blade_5.json",
-     "mode": "ближний"
+     "mode": "ближний",
+     "type": "blade"
     },
     {
      "key": "blade_5_ranged",
@@ -572,7 +711,47 @@
      "image": "weapon/blade_5_ranged.png",
      "glow": "weapon/blade_5_ranged_glow.png",
      "json": "weapon/blade_5_ranged.json",
-     "mode": "дальний"
+     "mode": "дальний",
+     "type": "blade"
+    },
+    {
+     "key": "blade_staff_1",
+     "name": "Посох архимага Пекла",
+     "image": "weapon/blade_staff_1.png",
+     "glow": "weapon/blade_staff_1_glow.png",
+     "json": "weapon/blade_staff_1.json",
+     "mode": "посох",
+     "type": "staff",
+     "muzzle": [
+      32,
+      14
+     ]
+    },
+    {
+     "key": "blade_staff_2",
+     "name": "Рогатый череп на кости",
+     "image": "weapon/blade_staff_2.png",
+     "glow": "weapon/blade_staff_2_glow.png",
+     "json": "weapon/blade_staff_2.json",
+     "mode": "посох",
+     "type": "staff",
+     "muzzle": [
+      32,
+      11
+     ]
+    },
+    {
+     "key": "blade_staff_3",
+     "name": "Древо-посох",
+     "image": "weapon/blade_staff_3.png",
+     "glow": "weapon/blade_staff_3_glow.png",
+     "json": "weapon/blade_staff_3.json",
+     "mode": "посох",
+     "type": "staff",
+     "muzzle": [
+      32,
+      13
+     ]
     }
    ],
    "crystal": [
@@ -649,6 +828,11 @@
      "json": "weapon/handle_5.json"
     }
    ]
+  },
+  "staffs": {
+   "note": "посохи (type=staff) — обычные части слотов blade/blade2/blade3, ставятся по той же цепочке; снаряд вылетает из muzzle",
+   "muzzle": "points.muzzle — статичная точка; muzzleFrames[anim][i] и frames[k].muzzle — покадрово, px клетки 64×64 (part-local)",
+   "sheet": "previews/staffs_x4.png"
   }
  },
  "previews": [
@@ -659,6 +843,10 @@
   "mob_30.gif",
   "mob_31.gif",
   "mood_embers.gif",
+  "staff_triple_1.gif",
+  "staff_triple_2.gif",
+  "staff_triple_3.gif",
+  "staffs_x4.png",
   "weapon_40.gif",
   "weapon_41.gif",
   "weapon_50.gif",

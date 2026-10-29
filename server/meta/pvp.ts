@@ -15,6 +15,7 @@ import { traitsFor, applyTraits } from "./admin";
 import { cryptoRand } from "./profile";
 import { castShape, AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { PROJ_SPEED } from "./zone";
+import { BMA_CFG, bmHit, bmDefend, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
 import { tryRevive } from "./revive";
 const W_ARENA = WORLD_SIZES.arena;
 import { WORLD_SIZES, worldBounds } from "../worlds/sizes";
@@ -45,6 +46,7 @@ export type DuelProj = { id: number; owner: 0 | 1; t: string; x: number; y: numb
 
 export interface PvpHost {
   ms: Map<string, any>;
+  store?: any; bmCrit?(a: any, ms: any, cls: string | null | undefined, bcrit: number, kind: "a" | "s"): boolean; // 🜏 мешок крита артефакта
   ally?(a: string, b: string): boolean; // члены одного отряда — не бьют друг друга
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null;
   effective(session: any): any;
@@ -195,7 +197,7 @@ export class Pvp {
     const L = Math.hypot(o.dx, o.dy) || 1;
     const p: DuelProj = { id: (d.nextProj = (d.nextProj || 0) + 1), owner, n: 0, flown: 0, spd: o.spd || PROJ_SPEED[o.t] || PROJ_SPEED.default, ...o, dx: o.dx / L, dy: o.dy / L };
     d.projs.push(p);
-    d.ev.push({ k: "proj", cid: (o as any).cid, id: p.id, o: "p", sid: d.sids[owner], t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
+    d.ev.push({ k: "proj", cid: (o as any).cid, id: p.id, o: "p", sid: d.sids[owner], t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, sz: (o as any).sz, bm: (o as any).bm });
     return p;
   }
   /** шаги не длиннее половины ширины снаряда: попадание по текущей позиции соперника */
@@ -242,12 +244,12 @@ export class Pvp {
     return Math.abs(ex * dy - ey * dx) <= (atk.width || 20) / 2 + r;
   }
 
-  private deal(c: any, session: any, dmg: number, crit: boolean, eff: any) {
+  private deal(c: any, session: any, dmg: number, crit: boolean, eff: any, black = false) {
     if (this.host.ally?.(session.id, c.os.id)) return; // союзники по отряду не наносят друг другу урон
     if (isInvuln(c.op)) { c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: 0, immune: 1, x: Math.round(c.os.x), y: Math.round(c.os.y) }); return 0; } // неуязвимость рывка/навыка — по часам сервера
     // пробитие брони атакующего (% затем плоское) снижает броню цели → её снижение урона пересчитывается
-    let red = c.op.zp.armorRed || 0;
-    if ((eff.armorPen || eff.armorPenPct) && typeof (c.op.zp as any).armor === "number") red = armorToReduction(effectiveArmor((c.op.zp as any).armor, eff.armorPen || 0, eff.armorPenPct || 0));
+    let red = black ? 0 : c.op.zp.armorRed || 0; // 🜏 чёрный удар: обычная броня не действует (своя защита — bmDefend)
+    if (!black && (eff.armorPen || eff.armorPenPct) && typeof (c.op.zp as any).armor === "number") red = armorToReduction(effectiveArmor((c.op.zp as any).armor, eff.armorPen || 0, eff.armorPenPct || 0));
     const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, red))));
     c.op.zp.hp = Math.max(0, c.op.zp.hp - real);
     { const t = Date.now(); (c.op as any).hurtAt = t; (c.me as any).hitAt = t; } // бой → регенерация ×regenCombat
@@ -315,9 +317,16 @@ export class Pvp {
     const eff = this.host.effective(session);
     const now = Date.now();
     const wt = eff.wtype || "book";
-    const W = WEAPON_TYPES[wt] || WEAPON_TYPES.book;
+    const art = eff.art && eff.bm ? eff.art : null; // 🜏 артефакт и в дуэли: форма удара из лезвия, урон — чёрный (% макс. ОЗ соперника × vsPlayer × pvpMul)
+    const W: any = art ? { cd: art.cd, atk: chargedAtk(art.atk, eff.bm.power, 0), status: {} } : WEAPON_TYPES[wt] || WEAPON_TYPES.book;
     const atkCd = W.cd / (1 + Math.max(0, eff.atkSpeedPct || 0) / 100);
     if (now < c.me.lastAtk - atkCd * 0.15) return;
+    const artHit = (cc: any, k: number) => { // крит — из мешка, как в мире
+      const crit = this.host.bmCrit && this.host.store ? this.host.bmCrit(this.host.store.account(cc.me.pkey), cc.me, session.stats?.classId, eff.bm.bcrit, "a") : cryptoRand() * 100 < (eff.bm.bcrit || 0);
+      let dm = bmHit(cc.op.zp.maxHp, "mob", eff.bm, 0, crit, (Number(BMA_CFG.vsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0)) * k;
+      const vbm = (cc.op.zp as any).bm; if (vbm) dm = bmDefend(dm, vbm, cc.op.zp.maxHp);
+      const real = this.deal(cc, session, dm, crit, eff, true); this.traits(cc, session, real, wt); return real;
+    };
     // вылет из отрисованного центра героя (допуск SHOT_TOL), прицел — курсор; автоатака по сопернику (mob = -1) — точно в него
     const [blo, bhi] = worldBounds("arena"), A = shotAim(session.x, session.y, msg, blo, bhi), ox = A.x, oy = A.y;
     let dx = A.dx, dy = A.dy;
@@ -325,13 +334,15 @@ export class Pvp {
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     c.me.lastAtk = Math.max(now, c.me.lastAtk) + atkCd;
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
-    const per = (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1;
+    const per = art ? 1 : (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1; // 🜏 посохи: каждый снаряд — полный удар
     if (W.atk.kind !== "arc") { // стрелковое оружие: настоящие снаряды, урон при касании (можно увернуться)
       const c0 = c, d0 = c.d;
-      for (const [vx, vy] of volleyDirs(W.atk, dx, dy))
-        this.fire(d0, c.i as 0 | 1, { t: AUTO_SPRITE[wt] || "auto_staff", x: ox, y: oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: 1,
-          onHit: () => { if (!this.duels.has(d0.id) || c0.op.zp.hp <= 0) return; const crit = cryptoRand() * 100 < eff.critPct; const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
-            const real = this.deal(c0, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per, crit, eff); this.traits(c0, session, real, wt); this.weaponStatus(c0, session, W, real); } });
+      const dirs = volleyDirs(W.atk, dx, dy), orig = art ? shotOrigins(staffMuzzles(art.parts), dirs.length, ox, oy, dx, dy) : null; // 🜏 из дула каждого посоха
+      for (let si = 0; si < dirs.length; si++) { const [vx, vy] = dirs[si];
+        this.fire(d0, c.i as 0 | 1, { t: art ? "fire_spark" : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: 1,
+          ...(art ? { bm: 1, sz: +((W.atk.width || 20) / 20).toFixed(2) } : {}),
+          onHit: () => { if (!this.duels.has(d0.id) || c0.op.zp.hp <= 0) return; if (art) { artHit(c0, per); return; } const crit = cryptoRand() * 100 < eff.critPct; const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
+            const real = this.deal(c0, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per, crit, eff); this.traits(c0, session, real, wt); this.weaponStatus(c0, session, W, real); } }); }
       return;
     }
     let n = 0; // залп: сколько снарядов попало в соперника
@@ -339,9 +350,10 @@ export class Pvp {
       const hit = this.hitTest(session.x, session.y, c.os.x, c.os.y, vx, vy, W.atk);
       if (hit) n++;
       const tx = hit && W.atk.kind === "proj" ? c.os.x : session.x + vx * reach, ty = hit && W.atk.kind === "proj" ? c.os.y : session.y + vy * reach;
-      c.d.ev.push({ k: "shot", sid: session.id, x: Math.round(session.x), y: Math.round(session.y), tx: Math.round(tx), ty: Math.round(ty), w: wt });
+      c.d.ev.push({ k: "shot", sid: session.id, x: Math.round(session.x), y: Math.round(session.y), tx: Math.round(tx), ty: Math.round(ty), w: wt, ...(art ? { bm: 1, fr: 0, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3) } : {}) });
     }
     if (!n) return;
+    if (art) { artHit(c, per); return; } // одна дуга — один удар по сопернику (без двойного счёта)
     const crit = cryptoRand() * 100 < eff.critPct;
     const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
     const real = this.deal(c, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per * n, crit, eff);

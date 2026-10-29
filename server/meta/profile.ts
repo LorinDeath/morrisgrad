@@ -1,6 +1,6 @@
 import { isRs, rsCodexId } from "./rsAny";
 import { artInfo, isArtifactId } from "./blackArtReg";
-import { BMA_CFG, isBmSkill } from "./blackArt";
+import { BMA_CFG, isBmSkill, artModeAtk } from "./blackArt";
 import { CHEST } from "./chests";
 import { UPG, upgCost, upgClient } from "./upgrade";
 import { BM_CFG, charBlk, charBlkVis, blkVisClient } from "./bmCfg";
@@ -98,6 +98,14 @@ export function activeLook(a: Account, h: Hero): string | null {
 }
 
 // Итоговые статы героя — то, что ОДНОСТОРОННЕ передаётся в забег/мини-игру/открытый мир.
+/** режим посоха (флаг аккаунта bmm:<uid> — ближний; нет — дальний по умолчанию). Только для основного лезвия-посоха. */
+export const artModeKey = (uid: any) => `bmm:${uid}`;
+function artEff(a: Account, e: { id: string; uid: any }, art: any) {
+  const melee = !!art.staff && !!a.flags?.[artModeKey(e.uid)];
+  const atk = artModeAtk(art, melee);
+  return { id: e.id, uid: e.uid, parts: art.parts, atk, cd: art.cd, skills: art.skills, ranged: atk.kind === "proj", elem: art.elem,
+    ...(art.staff ? { staff: true, mode: melee ? "melee" : "ranged" } : {}), shots: atk.kind === "proj" ? Math.max(1, atk.count || 1) : 1 };
+}
 export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: number; armor: number; minAtk: number; maxAtk: number }, opt?: { dark?: boolean }) {
   const dark = !!opt?.dark; // проклятая земля Чёрного мага: у вещей работают только очернённые статы (игроку не сообщается)
   const raw: Record<string, number> = { hp: 0, armor: 0, dmgPct: 0, speedPct: 0, regen: 0, magnetPct: 0, cdrPct: 0, critPct: 0, lifestealPct: 0, atkSpeedPct: 0, revive: 0, armorPen: 0, armorPenPct: 0 };
@@ -141,7 +149,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     revive: raw.revive > 0 ? 1 : 0,
     weaponMin: base.minAtk + wMin, weaponMax: base.maxAtk + wMax, itemDmgMin: wMin, itemDmgMax: wMax,
     look, weaponId, wtype: art ? "artifact" : weaponType(weaponId, cls),
-    bm: art ? art.stats : null, art: art ? { id: artE!.id, uid: artE!.uid, parts: art.parts, atk: art.atk, cd: art.cd, skills: art.skills, ranged: art.ranged, elem: art.elem } : null,
+    bm: art ? art.stats : null, art: art ? artEff(a, artE!, art) : null,
     cursedGlow: glowLevel(items.filter((e) => e.cursed).length), weaponCursed: items.some((e) => e.cursed && e.slot === "weapon") ? 1 : 0,
     blkAvg: charBlk(items), blkVis: charBlkVis(items), // очернение героя: % по надетому (режим админки) и сила затемнения 0…100 (видно всем)
   };
