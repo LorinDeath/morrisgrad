@@ -93,6 +93,18 @@ ok(!z.mobs.some((m: any) => m.bmc === "bcx_test" && m.respawnAt !== -1) && !z.ca
 const city = { ...cp, x: -10, y: 5 }; ok(!!z.bmCampErr({ ...(BM_CAMPS.bcx_test as any), ...city }), "лагерь за краем/у города не ставится");
 applyOverride("bmcamp" as any, "bcx_test", null); applyOverride("bmmob" as any, "bmx_probe", null);
 ok(!BM_MOBS.bmx_probe && (ZONE_MOBS as any).bmx_probe, "сброс своего моба: из конструктора убран, вид для живых остаётся");
+// логово: не-вожаки элитные и после возрождения (а не по шансу региона)
+{ const lp = validatePatch("bmcamp" as any, "bcx_lair", { name: "Тест-логово", world: "arinar", x: cx, y: cy, r: 120, chief: "bmx_forge_brute", lair: true, mobs: [{ mob: "bmx_ash_warden", n: 3 }], respawnMin: 30, respawnMax: 40 });
+  ok(typeof lp !== "string", "логово: правка принята", lp); applyOverride("bmcamp" as any, "bcx_lair", lp);
+  const z3 = new Zone("arinar", [], [], { proc: true }); const p3 = new Map<string, ZPlayer>([["p3", { sid: "p3", x: cx + 900, y: cy + 900, hp: 1e9, maxHp: 1e9, armorRed: 0, alive: true, respawnAt: 0, lvl: 10 }]]); // рядом — чанк бодрствует
+  let t3 = 60_000_000; z3.update(0.05, t3, p3, () => {}, () => {});
+  const L = z3.mobs.filter((m: any) => m.bmc === "bcx_lair" && m.respawnAt !== -1 && !m.chief);
+  ok(L.length === 3 && L.every((m) => m.elite), "логово: не-вожаки элитные при появлении");
+  for (const m of L) { z3.kill(m, () => {}); m.respawnAt = 1; }
+  for (let i = 0; i < 4; i++) { t3 += 100; z3.update(0.05, t3, p3, () => {}, () => {}); }
+  ok(L.every((m) => !m.dead), "логово: не-вожаки возродились");
+  ok(L.every((m) => m.elite), "логово: после возрождения не-вожаки остаются элитными");
+  applyOverride("bmcamp" as any, "bcx_lair", null); }
 // сброс всех правок (admin reset) не удаляет встроенных bmx_* мобов
 for (const id of Object.keys(BM_MOBS)) applyOverride("bmmob" as any, id, null);
 ok(!!BM_MOBS.bmx_ash_warden && !!BM_MOBS.bmx_ember_archer && !!BM_MOBS.bmx_forge_brute, "сброс правок: встроенные чёрные мобы остаются");

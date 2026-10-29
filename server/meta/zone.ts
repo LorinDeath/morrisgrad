@@ -477,7 +477,7 @@ export class Zone {
       list.forEach((t, i) => { if (!(ZONE_MOBS as any)[t]) return;
         const a = (i / Math.max(1, list.length)) * Math.PI * 2 + 0.3, rr = i === 0 && c.chief ? 0 : c.r * (0.35 + 0.55 * ((i * 0.618) % 1));
         const m = this.addMob(t, this.clamp(Math.round(c.x + Math.cos(a) * rr)), this.clamp(Math.round(c.y + Math.sin(a) * rr)), { fixed: true, respawn: c.respawnMin, region: "bm:" + c.id, elite: (i === 0 && !!c.chief) || !!c.lair });
-        m.camp = num!; (m as any).bmc = c.id; (m as any).bmSig = keep.get(c.id); (m as any).bmSlot = i; if (i === 0 && c.chief) m.chief = true;
+        m.camp = num!; (m as any).bmc = c.id; (m as any).bmSig = keep.get(c.id); (m as any).bmSlot = i; (m as any).bmElite = m.elite; if (i === 0 && c.chief) m.chief = true;
         const tk = this.bmPending?.[c.id + ":" + i]; if (tk && tk > now) { m.dead = true; m.hp = 0; m.respawnAt = tk; }
         types.push(t); });
       this.camps.push({ id: num, region: "bm:" + c.id, x: c.x, y: c.y, types });
@@ -1076,7 +1076,7 @@ export class Zone {
         if (m.fixed && now >= m.respawnAt) {
           if (m.roam) { m.sx = m.roam.home[0]; m.sy = m.roam.home[1]; m.roam.i = 1; (m as any).spOk = 0; }
           m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
-          if (m.camp && !m.chief) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
+          if (m.camp && !m.chief) { m.elite = (m as any).bmc ? !!(m as any).bmElite : this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); } // чёрный лагерь/логово: элитность из таблицы, не по шансу региона
           this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp; m.hpBase = ZONE_MOBS[m.type].hp;
           m.dmgBy.clear(); m.hb?.clear(); m.usedAbility.clear(); m.qf?.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
         }
