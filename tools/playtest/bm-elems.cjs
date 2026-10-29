@@ -118,8 +118,7 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
   if (ON('shot')) {
     for (const [ty, blade] of Object.entries(SHOTS)) { if (!blade) { console.log('нет лезвия', ty); continue; }
       const had = new Set((await S()).account.inv.map((i) => i.uid));
-      await G(([el, b]) => window.__game.debug.send({ type: 'bm_test_artifact', elem: el, ranged: true, blade: b }), [EL, blade]); await sleep(1400);
-      const A = (await S()).account.inv.find((i) => !had.has(i.uid)); if (!A) { t(`артефакт с ${blade}`, false); continue; }
+      await G(([el, b]) => window.__game.debug.send({ type: 'bm_test_artifact', elem: el, ranged: true, blade: b }), [EL, blade]); let A = null; for (let k = 0; k < 12 && !A; k++) { await sleep(500); A = (await S()).account.inv.find((i) => !had.has(i.uid)); if (!A && k === 5) await G(([el, b]) => window.__game.debug.send({ type: 'bm_test_artifact', elem: el, ranged: true, blade: b }), [EL, blade]); } if (!A) { t(`артефакт с ${blade}`, false); continue; }
       await G((u) => window.__game.debug.send({ type: 'equip', uid: u }), A.uid); await sleep(1300);
       await cap(`${NM}: дальнее лезвие — снаряд «${{ explode: 'взрыв', ricochet: 'рикошет', pierce: 'насквозь', split: 'раскол' }[ty]}»`);
       const ms = []; for (const [dx, dy] of [[210, 0], [290, 10], [260, 80], [300, -70], [370, 0]]) { const m = await spawn(MOB[1], dx, dy, true); if (m) ms.push(m); }
