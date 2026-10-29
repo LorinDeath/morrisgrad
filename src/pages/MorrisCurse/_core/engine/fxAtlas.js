@@ -21,6 +21,10 @@ import c128 from '../../../../assets/mc/fx30/fx30_c128.png';
 // 🜏 «Чёрная магия»: эффекты стихий Художника (public/bm-art/fx, tools/bm-art/sync-ice.py) — свои листы, ключи как у Художника
 // (ice_bolt, ice_hit, ice_arc, ice_release, ice_crit, ice_zero). У каждого — пара <key>_glow (аддитивно, рисуется вместе с базой).
 import BM_FX from '../../../../../public/bm-art/fx/index.json';
+// 🜏 листы НАВЫКОВ Художника (public/bm-art/fx/skills, tools/bm-art/sync-skills.py): ключ sk_<ключ>_<часть> (+ _glow аддитивно).
+// Листы большие (до 2960 px) — грузятся ЛЕНИВО: при первом рисовании (или preloadSkillFx) — не на старте страницы.
+import BM_SKILL_FX from '../../../../../public/bm-art/fx/skills/index.json';
+export const SKILL_FX = BM_SKILL_FX;
 
 const PX_PER_M0 = 20;
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s); // Astro: импорт PNG — объект с .src
@@ -37,6 +41,21 @@ function registerBmFx(k, d) {
     const anims = {};
     for (const [n, a] of Object.entries(d.anims || {})) anims[n] = { sheet: sh, x: 0, y: (a.row || 0) * h, w, h, frames: a.n || 1, fps: a.fps || 12, loop: !!a.loop };
     META.keys[k + g] = { blend: g ? 'additive' : 'normal', glow: g ? null : '#5fb8e8', mode, anchor: [an[0] / w, an[1] / h], size_m: Math.round((w / PX_PER_M0) * 0.9 * 100) / 100, tint: false, anims, elem: d.elem, bm: 1 };
+  }
+}
+for (const [k, d] of Object.entries(BM_SKILL_FX?.keys || {})) for (const [pn, p] of Object.entries(d.parts || {})) registerSkillPart(k, pn, p, d);
+function registerSkillPart(k, pn, p, d) {
+  if (!Array.isArray(p.cell)) return;
+  const [w, h] = p.cell, an = p.anchor || [w / 2, h / 2], key = `sk_${k}_${pn}`;
+  for (const g of ['', '_glow']) {
+    const sh = 'bmsk_' + k + '_' + pn + g, img = g ? p.glow : p.image;
+    if (!img) continue;
+    META.sheets[sh] = { image: img, frameW: w, frameH: h, cols: p.cols || 1, rows: p.rows || 1, bm: 1, lazy: 1 };
+    SRC[sh] = `/bm-art/fx/skills/${img}`;
+    const anims = {};
+    for (const [n, a] of Object.entries(p.anims || {})) anims[n] = { sheet: sh, x: 0, y: (a.row || 0) * h, w, h, frames: a.n || 1, fps: a.fps || 12, loop: !!a.loop };
+    // glow: null — без мягкого шара (свет уже в паре _glow); mode — directional (снаряд/хлыст/след), остальное к камере
+    META.keys[key + g] = { blend: g ? 'additive' : 'normal', glow: null, mode: 'directional', anchor: [an[0] / w, an[1] / h], size_m: Math.round((w / PX_PER_M0) * 100) / 100, tint: false, anims, elem: d.elem, bm: 1, skill: 1, cellM: [w / PX_PER_M0, h / PX_PER_M0], layer: p.layer || 'above' };
   }
 }
 // снаряд стихии сам несёт попадание (projInfo берёт anims.hit): ice_bolt.hit = ice_hit
@@ -88,8 +107,23 @@ export function fxAspect(an) { const s = META.sheets[an.sheet]; return s.frameW 
 
 // листы грузятся один раз на страницу (не на каждый экземпляр FxAtlas)
 let texP = null;
+const LAZY = {}; // лист → текстура (ленивые листы навыков; общие для всех FxAtlas)
+const lazyP = {};
+let THREE0 = null;
+function lazySheet(sheet) {
+  if (LAZY[sheet] || lazyP[sheet] || !THREE0) return LAZY[sheet] || null;
+  lazyP[sheet] = loadAtlasTexture(THREE0, SRC[sheet]).then((t) => { LAZY[sheet] = t; }).catch((e) => { console.warn('[fx skills]', e.message); });
+  return null;
+}
+/** заранее загрузить листы навыков: keys — ключи Художника (ember_whip…) или их части sk_*; без аргумента — ничего */
+export function preloadSkillFx(keys = []) {
+  for (const sh of Object.keys(META.sheets)) if (META.sheets[sh].lazy && keys.some((k) => sh.startsWith('bmsk_' + k.replace(/^sk_/, '')))) lazySheet(sh);
+}
+export const skillFxLoaded = () => Object.keys(LAZY);
+if (typeof window !== 'undefined') window.__skillFxLoaded = skillFxLoaded; // для автотестов
 function sharedTextures(THREE) {
-  if (!texP) texP = Promise.all(Object.keys(META.sheets).map((s) => loadAtlasTexture(THREE, SRC[s]).then((t) => [s, t]).catch((e) => { console.warn('[fx30]', e.message); return [s, null]; })))
+  THREE0 = THREE0 || THREE;
+  if (!texP) texP = Promise.all(Object.keys(META.sheets).filter((s) => !META.sheets[s].lazy).map((s) => loadAtlasTexture(THREE, SRC[s]).then((t) => [s, t]).catch((e) => { console.warn('[fx30]', e.message); return [s, null]; })))
     .then((a) => Object.fromEntries(a.filter((e) => e[1])));
   return texP;
 }
@@ -106,7 +140,7 @@ export class FxAtlas {
     const id = sheet + (add ? '+' : '');
     let b = this.batches[id];
     if (b) return b;
-    const tex = this.tex[sheet];
+    const tex = this.tex[sheet] || (META.sheets[sheet]?.lazy ? LAZY[sheet] || lazySheet(sheet) : null);
     if (!tex) return null;
     // одна текстура на лист для обычного и аддитивного батча и для всех FxAtlas (хаб: ProjFx + ProjAtlasFx) —
     // фильтры одинаковые (Nearest), поэтому без clone(): каждый лист грузится в видеопамять один раз

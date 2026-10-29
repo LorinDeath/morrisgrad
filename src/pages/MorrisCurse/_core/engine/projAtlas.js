@@ -4,7 +4,7 @@
 // Режимы из атласа: directional — поворот по полёту; billboard / billboard_spin_baked — к камере (вращение уже в кадрах);
 // ground — на земле; fall — без поворота, метеор зеркалится по X. Смешивание и ореол — из fx30_atlas.json
 // (огненный шар и метеор — normal + glow, как просила художница).
-import { FxAtlas, fxDef, fxDur } from './fxAtlas.js';
+import { FxAtlas, fxDef, fxDur, FX_META } from './fxAtlas.js';
 import { GLOW } from './projBatch.js';
 
 const PX = 20;
@@ -18,7 +18,9 @@ export function projInfo(t) {
   const m = d.mode;
   const fly = d.anims.fly ? 'fly' : d.anims.loop ? 'loop' : d.anims.fall ? 'fall' : Object.keys(d.anims)[0];
   const imp = d.anims.hit ? 'hit' : d.anims.burst ? 'burst' : d.anims.land ? 'land' : fly;
-  return { key: d.key, fly, imp, impDur: fxDur(d.key, imp) || 0.3, rot: m === 'directional', ground: m === 'ground', fall: m === 'fall', size: d.size || 1.3, glow: d.glow };
+  // 🜏 снаряд навыка артефакта (лист Художника sk_*_bolt): ячейка не квадратная, след — анимация trail, взрыв рисует zoneView (burst)
+  const M = FX_META.keys?.[d.key];
+  return { key: d.key, fly, imp, impDur: fxDur(d.key, imp) || 0.3, rot: m === 'directional', ground: m === 'ground', fall: m === 'fall', size: d.size || 1.3, glow: d.glow, skill: !!M?.skill, cell: M?.skill ? M.cellM : null, trail: !!(M?.skill && d.anims.trail) };
 }
 
 export class ProjAtlasFx {
@@ -64,6 +66,7 @@ export class ProjAtlasFx {
     this.live.delete(e.id);
     const t = e.t || p?.t || 'fireball';
     if (t === 'plague_flask') return; // фляга: лужу рисует событие 'puddle'
+    if ((p?.info || projInfo(t)).skill) return; // 🜏 навык артефакта: взрыв (burst) рисует zoneView по событию 'ability'
     this.impact(t, e.x, e.y, { dx: p?.dx, dy: p?.dy, cz: p?.cz });
   }
   impact(t, x, y, o = {}) { if (this.fx.length < 200) this.fx.push({ kind: 'impact', t, x, y, age: 0, life: projInfo(t).impDur, info: projInfo(t), k: o.k || 1, dx: o.dx || 1, dy: o.dy || 0, fdx: o.fdx || 1, cz: !!o.cz }); }
@@ -92,8 +95,9 @@ export class ProjAtlasFx {
       if (p.age > p.r / p.s + 1.5) { this.live.delete(p.id); continue; } // 'pend' потерян — не висим
       const x = p.x0 + p.dx * d, y = p.y0 + p.dy * d, i = p.info, S = i.size * (p.k || 1);
       const h = p.arc ? 0.6 + Math.sin(Math.min(1, d / p.r) * Math.PI) * Math.min(4, p.r / PX * 0.35) : i.ground ? 0.06 : 1.0;
-      const m = this._mode(i), w = i.fall && p.dx < 0 ? -S : S;
-      this._put(i, i.fly, p.age, x, y, h, w, S, m, m ? p.dx : 0, m ? p.dy : 0, 1, true, p.cz);
+      const m = this._mode(i), w = i.cell ? i.cell[0] * (p.k || 1) : i.fall && p.dx < 0 ? -S : S, hh = i.cell ? i.cell[1] * (p.k || 1) : S;
+      if (i.trail) { p.tr ??= 0; while (d - p.tr >= 16 && this.fx.length < 320) { p.tr += 16; this.fx.push({ kind: 'trail', t: p.t, x: p.x0 + p.dx * p.tr, y: p.y0 + p.dy * p.tr, dx: p.dx, dy: p.dy, age: 0, life: fxDur(i.key, 'trail') || 0.33, info: i, k: p.k || 1 }); } }
+      this._put(i, i.fly, p.age, x, y, h, w, hh, m, m ? p.dx : 0, m ? p.dy : 0, 1, true, p.cz);
     }
     for (let j = this.fx.length - 1; j >= 0; j--) {
       const f = this.fx[j]; f.age += dt;
@@ -115,6 +119,8 @@ export class ProjAtlasFx {
       } else if (f.kind === 'fall') { // сверху-сбоку к цели; без поворота, остриё (anchor) — в точке
         const k = f.age / f.life, hgt = 7 * (1 - k), off = 3 * PX * (1 - k) * -f.fdx;
         this._put(i, 'fall', this.time, f.x + off, f.y, 0.3 + hgt, f.fdx < 0 && f.t === 'meteor' ? -S : S, S * 2, 0, 0, 0, 1, true);
+      } else if (f.kind === 'trail') { // 🜏 след снаряда навыка: кадры trail на месте, гаснет
+        this._put(i, 'trail', f.age, f.x, f.y, 1.0, i.cell[0] * f.k, i.cell[1] * f.k, m, f.dx, f.dy, 1 - (f.age / f.life) * 0.5);
       } else if (f.kind === 'fly') {
         const d = f.r * (f.age / f.life);
         this._put(i, i.fly, f.age, f.x + f.dx * d, f.y + f.dy * d, 1.0, S, S, m, f.dx, f.dy, 1 - f.age / f.life * 0.5, true);

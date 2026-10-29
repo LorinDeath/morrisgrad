@@ -28,6 +28,7 @@ import { sprOf, tintOf } from '../../../../../server/meta/biomes.ts';
 import { ProjFx } from '../engine/projFx.js';
 import { ProjAtlasFx, curseRGB, curseHex } from '../engine/projAtlas.js';
 import { FX_META } from '../engine/fxAtlas.js';
+import { skillEvent, drawSkf, preloadSkills } from '../engine/skillFx.js'; // 🜏 анимации навыков артефактов листами Художника
 // id навыка → ключ снаряда FX atlas v2 (с псевдонимами); значки/метки/телеграфы не считаются снарядами
 const atlasId = (id) => { let k = String(id || '').replace(/^rs:/, ''); k = FX_META.keys[k] ? k : FX_META.aliases[k]; return k && FX_META.keys[k] && !/^(hit|status|mark|tele)_?/.test(k) && FX_META.keys[k].anims.hit ? k : null; };
 // навыки без снаряда → эффект v2: рывок (шлейф), нова/аура на месте, конус
@@ -179,6 +180,8 @@ export class ZoneView {
     if (this.world === 'arinar') this.bmv.apply(s.bm);
     for (const e of s.ev || []) {
       if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
+      // 🜏 навыки артефактов: листы Художника (хлыст/кольцо/снаряд/дождь/рывок) вместо код-эффекта, если лист стихии есть
+      if ((e.k === 'acone' || e.k === 'ability' || e.k === 'aline' || e.k === 'arain') && skillEvent(e, (t) => { if (this.teles.length < 260) this.teles.push(t); }, (x, y, r) => [...this.mobs.values()].filter((o) => !o.demo && Math.hypot(o.x - x, o.y - y) <= r))) continue;
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
       if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; const PL = pureList(e), pp = PL.reduce((q, [, n]) => q + n, 0), ice = e.el === 'ice';
         out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pp)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : '#ffb347') : '#fff' });
@@ -530,6 +533,7 @@ export class ZoneView {
         P.fireArc(X, Z, t.dx, t.dy, L, t.arc, kk, t.full, t.el); // заливка зоны + лезвие стихии (лёд — дуга ice_arc) + искры по ободу
         if (kk < 0.55) P.teleCone(X, Z, t.dx * c - t.dy * sn, t.dx * sn + t.dy * c, L * 1.02, Math.min(0.55, t.arc * 0.6), ice ? [0.8, 0.95, 1] : [1, 0.92, 0.55], 1 - kk / 0.55);
       }
+      else if (t.kind === 'skf') { if (t.mob) { const o = this.mobs.get(t.mob); if (o) { t.x = o.x; t.y = o.y; } } drawSkf(P.fx, t, toX, toZ); }
       else if (t.kind === 'efx') P.elemFx(t.key, t.anim, t.t, X, Z, t.S, t.h);
       else if (t.kind === 'tcone') P.teleCone(X, Z, t.dx, t.dy, t.len / PX, t.arc, [1, 0.35, 0.3], 0.8);
       else if (t.kind === 'cone') P.cone(t.fx, X, Z, t.dx, t.dy, t.len / PX, t.arc, kk);

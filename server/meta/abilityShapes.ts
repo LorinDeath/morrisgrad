@@ -3,7 +3,7 @@
 // линия насквозь, снаряд со взрывом, рывок/прыжок (сервер сам двигает героя, клиенту — ability_move),
 // дождь из точек, отложенный удар (метеор), аура с тиками, неуязвимость/снижение урона, заморозка/замедление.
 // Направление — от клиента (нормализуется), всё остальное (дальность, урон, цели, позиции) — сервер.
-import { BM_SHAPES } from "./blackArt";
+import { BM_SHAPES, BMA_CFG } from "./blackArt";
 import { ENEMY_SPRITES } from "./mobFamily";
 import { ABILITY_BY_ID } from "./defs";
 import { cryptoRand } from "./profile";
@@ -86,6 +86,7 @@ export interface CastCtx {
 }
 
 const R = (n: number) => Math.round(n);
+const PROJ_FIREBALL_SPD = 560; // = PROJ_SPEED.fireball (zone.ts): снаряд навыка артефакта летит как огненный шар
 // ключи FX atlas v2 (src/assets/mc/fx30/fx30_atlas.json; те же ключи, что в fx2): id навыка/оружия → спрайт
 export const PROJ_SPRITES = new Set(["fireball", "war_axe", "fire_spark", "moon_orb", "split_shard", "thorn_bow", "spear", "pierce", "daggers", "sun_beam", "ice_fan", "chain_bolt",
   "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws", ...ENEMY_SPRITES]);
@@ -121,6 +122,9 @@ function lineMobs(zone: any, x: number, y: number, dx: number, dy: number, len: 
 // Возвращает суммарный урон (для вампиризма и т.п.)
 export function castShape(id: string, c: CastCtx): number {
   const s = shapeOf(id);
+  // 🜏 навык артефакта: клиент рисует его листом Художника; art:0 — выключено в админке, fs — масштаб анимаций
+  const bmArt = !!BM_SHAPES[id], art = bmArt && BMA_CFG.skillArt !== false, fs = Number(BMA_CFG.skillFxScale) || 1;
+  if (bmArt && (!art || fs !== 1)) { const ev0 = c.ev; c = Object.assign(Object.create(c), { ev: (e: any) => ev0({ ...e, ...(art ? {} : { art: 0 }), ...(fs !== 1 ? { fs } : {}) }) }); }
   const k = c.radiusMult;
   const P = c.props || [];
   let dealt = 0, endX = c.x, endY = c.y;
@@ -162,14 +166,14 @@ export function castShape(id: string, c: CastCtx): number {
     }
     case "proj": {
       // летит до первого моба на линии (или до конца), там взрыв
-      const len = s.len * k, spr = projSprite(id, "fireball");
+      const len = s.len * k, spr = art ? id : projSprite(id, "fireball"); // навык артефакта: снаряд — его лист (скорость огненного шара)
       if (c.fire) {
         // талант «Тройной шар»: три шара веером ±18°, каждый 55% и меньше взрыв (как в забеге)
         const split = id === "fireball" && P.includes("t_split3");
         for (const da of split ? [-0.32, 0, 0.32] : [0]) {
         const [pdx, pdy] = rot(c.dx, c.dy, da);
         const r = s.r * k * (split ? 0.76 : 1), pm = split ? 0.55 : 1;
-        c.fire({ t: spr, x: c.x, y: c.y, dx: pdx, dy: pdy, range: len, w: 30, max: 1, onEnd: (x, y) => {
+        c.fire({ t: spr, ...(art ? { spd: PROJ_FIREBALL_SPD } : {}), x: c.x, y: c.y, dx: pdx, dy: pdy, range: len, w: 30, max: 1, onEnd: (x, y) => {
           hitAll(c.zone.mobsAround(x, y, r), pm); c.ev({ k: "ability", sid: c.sid, id, x: R(x), y: R(y), r });
           if (spr === "split_shard") for (const a of [-0.6, 0, 0.6]) { const [vx, vy] = rot(c.dx, c.dy, a); c.fire!({ t: "split_shard", x: x + vx * 20, y: y + vy * 20, dx: vx, dy: vy, range: 170, w: 22, max: 1, onHit: (m) => { dealt += c.hit(m, 0.4) || 0; } }); }
         } });
@@ -219,11 +223,15 @@ export function castShape(id: string, c: CastCtx): number {
       const area = s.area * k, n = id === "spear_rain" && P.includes("t_storm") ? 26 : s.n; // «Ливень улик»: 26 копий
       // область дождя — ПЕРЕД героем по направлению (а не вокруг него)
       const ox = c.x + c.dx * area * 1.1, oy = c.y + c.dy * area * 1.1;
+      // 🜏 навык артефакта: сначала метки (arain — все точки и время удара), капли бьют через rainLead мс — успевают упасть
+      const lead = art ? Math.max(0, Math.min(1500, Number(BMA_CFG.rainLead) || 0)) : 0, pts: number[][] = [];
       for (let i = 0; i < n; i++) {
         const a = cryptoRand() * Math.PI * 2, d = Math.sqrt(cryptoRand()) * area;
         const px = ox + Math.cos(a) * d, py = oy + Math.sin(a) * d;
-        c.later(80 * i, () => { hitAll(c.zone.mobsAround(px, py, s.r), 1 / 4); c.ev({ k: "ability", sid: c.sid, id, x: R(px), y: R(py), r: s.r }); });
+        if (art) pts.push([R(px), R(py), lead + 80 * i]);
+        c.later(lead + 80 * i, () => { hitAll(c.zone.mobsAround(px, py, s.r), 1 / 4); c.ev({ k: "ability", sid: c.sid, id, x: R(px), y: R(py), r: s.r }); });
       }
+      if (art) c.ev({ k: "arain", sid: c.sid, id, x: R(ox), y: R(oy), r: s.r, lead, pts });
       break;
     }
     case "meteor": {

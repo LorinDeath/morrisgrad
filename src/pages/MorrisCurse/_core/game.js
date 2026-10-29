@@ -54,6 +54,7 @@ import { campTimersOn, campCfg } from './ui/campTimer.js';
 import { bossCfg } from './ui/bossSpawn.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
+import { preloadSkills } from './engine/skillFx.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
@@ -1415,8 +1416,10 @@ async function boot(canvasId, username, userId, api) {
   }
   // панель действий: навыки раскладки + рывок + атака (мир) / навыки + рывок + оружие и пассивки (забег)
   const ABAR_KEYS = ['Q', 'G', 'F'];
+  let _skPre = '';
   function updateActionBar() {
     const now = performance.now();
+    { const ids = (meta.hero?.effective?.abilities || []).map((a) => a.id), sg = ids.join(); if (sg !== _skPre) { _skPre = sg; preloadSkills(ids); } } // 🜏 листы навыков артефакта — заранее
     if (mode === 'run' && run) {
       const m = run.me;
       const list = (m.abilities || []).map((a, i) => ({ kind: 'ab', slot: i, id: a.id, key: ABAR_KEYS[i], name: a.name, desc: a.desc, rad: a.rad || 0, cdLeft: a.cdLeft, cdTotal: a.cd }));
