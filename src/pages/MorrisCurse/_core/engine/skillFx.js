@@ -37,6 +37,9 @@ for (const id of Object.keys(BM_SHAPES)) boltAlias(id);
 /** 🛠 навыки конструктора с сервера (state.skd: пресеты с правками и свои skx_…): форма, стихия, анимация, траектория */
 export function registerSkDefs(list) {
   if (!Array.isArray(list)) return 0;
+  const ids = new Set(list.map((d) => d?.id)); // удалённые в админке свои «skx_…» — убрать (список всегда полный)
+  for (const id of Object.keys(SK_DEFS)) if (/^skx_/.test(id) && !ids.has(id)) { delete SK_DEFS[id]; delete ABILITY_BY_ID[id]; }
+  cache.clear();
   for (const d of list) { if (!d?.id) continue; const base = SK_DEFS[d.id] || skBlank(d.id, d.form, d.elem); SK_DEFS[d.id] = { ...base, ...d, b1a: d.b?.[0] ?? base.b1a, b1s: d.b?.[1] ?? base.b1s, b2a: d.b?.[2] ?? base.b2a, b2s: d.b?.[3] ?? base.b2s }; SK_ELEM[d.id] = d.elem || base.elem; cache.delete(d.id); boltAlias(d.id); }
   for (const d of list) { // 🛠 свой навык «skx_…»: карточка навыка у героя/в подсказках (копия пресета той же формы)
     if (!/^skx_/.test(d?.id || '')) continue;

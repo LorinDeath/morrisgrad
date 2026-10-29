@@ -91,7 +91,7 @@ export function regenRate(now: number, hurtAt: number, hitAt: number, maxHp: num
   return inCombat ? (statRegen + (hub ? 2 : 0.3)) * (G.regenCombat ?? 0.1) : full;
 }
 import { castShape } from "./abilityShapes";
-import { SK_DEFS, skBuffAdd, skBuffSum, skApplyBuffs, type SkMod } from "./skillCraft";
+import { SK_DEFS, SK_PRESET_IDS, CUSTOM_SK, skPublic, skBuffAdd, skBuffSum, skApplyBuffs, type SkMod } from "./skillCraft";
 import { skillElem } from "./blackArt";
 import { worldBounds, OPEN_AOI, ARINAR_LAYOUT_VER } from "../worlds/sizes";
 import { walkable, freeWalk, POS_WORLDS } from "./walkable";
@@ -129,6 +129,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }),
   bm_hold: S({ on: "b" }), bm_mode: S({ melee: "b" }), bm_test_artifact: S({ ranged: "b?", staff: "b?" }), admin_bm_recalc: S({}),
   bm_forge_open: S({}), bm_forge_craft: S({ part: "s", n: "n?" }), bm_forge_build: S({ handle: "s", blade: "s", blade2: "s?", blade3: "s?", crystal: "s?", name: "s" }), // 🔥 кузня Знахаря (этап Б)
+  admin_skc: S({ op: "s", id: "s?", data: "o?" }), // 🛠 конструктор навыков (админка)
   admin_bmm: S({ op: "s", id: "s?", kind: "s?", data: "o?", lvl: "n?", cls: "s?" }), // 👹 конструктор чёрных мобов и лагерей (админка)
   admin_bmf: S({ op: "s", id: "s?", data: "o?", type: "s?", mob: "s?", res: "s?", chance: "n?", qmin: "n?", qmax: "n?", name: "s?" }), // 🔥 конструктор оружия (админка) // 🜏 артефакты чёрной магии: заряд, тестовый артефакт (dev/админ), «Пересчитать все» // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
 };
@@ -406,7 +407,7 @@ export class MetaService {
    *  свежие карточки изменённых предметов, пересчитанные статы героя. Сервер уже применил правку в памяти (мир/дуэли/забеги). */
   broadcastConfig() {
     const patches = this.admin.clientPatches(), items = this.admin.touchedItems();
-    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides(), questDialogues: QUEST_DIALOGUES, regenCfg: regenCfg(), bmMobs: bmmClient(ITEM_BY_ID as any), ...([...this.admin.touched].some((k) => k.startsWith("bpart:")) ? { bmParts: BM_PARTS } : {}) };
+    const base = { type: "config_update", ver: this.admin.ver, patches, skd: Object.values(SK_DEFS).map(skPublic), customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides(), questDialogues: QUEST_DIALOGUES, regenCfg: regenCfg(), bmMobs: bmmClient(ITEM_BY_ID as any), ...([...this.admin.touched].some((k) => k.startsWith("bpart:")) ? { bmParts: BM_PARTS } : {}) };
     for (const [sid, ms] of this.ms) {
       const e = this.sessionLookup?.(sid); if (!e) continue;
       const cards: Record<string, any> = {};
@@ -749,6 +750,13 @@ export class MetaService {
         const out = (r: any) => this.send(ws, { type: "admin_bmf", op: msg.op, ...r });
         const fail = (e: any) => { console.error("[mc] admin_bmf", e?.message || e); out({ ok: false, err: "Ошибка" }); };
         this.bmfOp(ms, msg).then(out).catch(fail); return true;
+      }
+      case "admin_skc": { // 🛠 конструктор навыков: список (пресеты + свои), сохранение/новый/копия, удаление своего
+        if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
+        const t = Date.now(); if (msg.op !== "list" && t - ((ms as any).admAt || 0) < 250) return true; (ms as any).admAt = t;
+        if (JSON.stringify(msg).length > 20000) { this.send(ws, { type: "toast_error", message: "Слишком большой запрос" }); return true; }
+        const out = (r: any) => this.send(ws, { type: "admin_skc", op: msg.op, ...r });
+        this.skcOp(ms, msg).then(out).catch((e: any) => { console.error("[mc] admin_skc", e?.message || e); out({ ok: false, err: "Ошибка" }); }); return true;
       }
       case "admin_bmm": { // 👹 конструктор чёрных мобов: черновики, публикация, части тела, лагеря, настройки
         if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
@@ -2220,6 +2228,27 @@ export class MetaService {
     return { ok: false, err: "неизвестная операция" };
   }
   /** 👹 админка «Чёрные мобы»: черновики мобов — bmc_mdraft (в игру не идут), публикация — game_overrides bmmob/bmbody/bmcamp/bmmcfg */
+  /** 🛠 конструктор навыков (kind skdef): пресеты правятся, свои «skx_…» создаются/копируются/удаляются; где стоит навык — детали оружия */
+  async skcOp(ms: any, msg: any): Promise<any> {
+    const A = this.admin, by = ms.pkey, F = (OV_SCHEMA as any).skdef.fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path);
+    const used = (id: string) => Object.keys(BM_PARTS).filter((p) => (BM_PARTS as any)[p]?.skill === id);
+    const list = () => Object.keys(SK_DEFS).map((id) => ({ id, preset: SK_PRESET_IDS.includes(id), custom: CUSTOM_SK.test(id), v: ovValues("skdef" as any, id), used: used(id) }));
+    const pick = (d: any) => { const o: any = {}; for (const p of F) if (d && d[p] !== undefined && d[p] !== null) o[p] = d[p]; return o; };
+    switch (msg.op) {
+      case "list": return { ok: true, list: list(), fields: (OV_SCHEMA as any).skdef.fields, presets: SK_PRESET_IDS, max: BMA_CFG.maxCustomSkills || 200 };
+      case "save": { // id пусто — новый свой (из «Новый» или «Дублировать»): сервер выдаёт «skx_…»
+        let id = String(msg.id || "");
+        if (!id) { for (let i = 0; i < 20 && (!id || SK_DEFS[id]); i++) id = `skx_${Math.random().toString(36).slice(2, 8)}`; }
+        if (!SK_DEFS[id] && !CUSTOM_SK.test(id)) return { ok: false, err: "неверный id" };
+        const patch = pick(msg.data); if (!Object.keys(patch).length) return { ok: false, err: "пусто" };
+        const r: any = await A.save(by, "skdef" as any, id, patch); return { ...r, id, list: list() };
+      }
+      case "reset": { const id = String(msg.id || ""); if (!SK_DEFS[id]) return { ok: false, err: "нет навыка" };
+        const u = used(id); if (CUSTOM_SK.test(id) && u.length) return { ok: false, err: `навык стоит на деталях: ${u.slice(0, 6).join(", ")} — сначала снимите` };
+        const r: any = await A.reset(by, "skdef" as any, id); return { ...r, id, list: list() }; }
+    }
+    return { ok: false, err: "неизвестная операция" };
+  }
   async bmmOp(ms: any, session: any, msg: any): Promise<any> {
     const db: any = (this.store as any).db, A = this.admin, by = ms.pkey;
     const vals = (k: string, id: string) => ovValues(k as any, id);
