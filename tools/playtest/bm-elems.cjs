@@ -24,6 +24,8 @@ const SHOTS = { water: { ricochet: 'water_blade_r', pierce: 'water_blade_2_r', e
 const ART_NAME = { water: 'Клинок прилива', stone: 'Скол горы', nature: 'Шип терний', lightning: 'Жало грозы' }[EL];
 (async () => {
   d1(`INSERT OR REPLACE INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:${ADMIN}', 'admin', 'local-test', 0)`);
+  // кэш ролей на сервере живёт 60 с и перечитывается при входе — ждём, чтобы свежая роль админа точно подхватилась
+  if ((ON('camp') || ON('admin')) && process.env.ROLE_WAIT !== '0') { console.log('жду обновления кэша ролей 62 с'); await sleep(62000); }
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 1440, height: 860 }, ...(VIDEO ? { recordVideo: { dir: VIDEO, size: { width: 1280, height: 764 } } } : {}) });
   await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {}
