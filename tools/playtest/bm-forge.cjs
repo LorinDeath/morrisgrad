@@ -27,7 +27,7 @@ const ADMIN = 'qa_bmb_' + Date.now().toString(36);
   const marks = []; const mark = (n) => marks.push([n, Date.now()]); const T0 = Date.now();
   await p.goto(assertLocalUrl(`${BASE}?name=${ADMIN}&uid=${ADMIN}&ws=${WS}&fs=1&debug=1`));
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game?.debug, null, { timeout: 120000 }); await sleep(2500);
-  await G(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await G(() => window.__game.board?.tut?.('skip')); await sleep(400);
+  await G(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await G(() => window.__game.board?.tut?.('skip')); await sleep(400); if (process.env.DAY || VIDEO) { const dn = await G((h) => { try { return window.__game.dn?.({ pin: h }) || null; } catch (e) { return String(e); } }, process.env.DAY || '12:00'); console.log('  day pin', JSON.stringify(dn)?.slice(0, 160)); await sleep(600); } // светлый день для записи (только локально в клиенте)
   const S = () => G(() => window.__game.debug.metaSt());
   // кусочки чертежа
   await G(() => window.__game.debug.send({ type: 'dev_grant', res: { bp_fire_handle: 30, bp_fire_blade: 40, bp_fire_blade2: 20, bp_fire_blade3: 20, bp_fire_crystal: 60 } })); await sleep(900);

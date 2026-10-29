@@ -17,16 +17,17 @@ const ADMIN = 'qa_bma_' + Date.now().toString(36);
 (async () => {
   d1(`INSERT OR REPLACE INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:${ADMIN}', 'admin', 'local-test', 0)`);
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const marks = []; globalThis.__T0 = Date.now();
   const ctx = await b.newContext({ viewport: { width: 1440, height: 860 }, ...(VIDEO ? { recordVideo: { dir: VIDEO, size: { width: 1280, height: 764 } } } : {}) });
   await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {} });
   const p = await ctx.newPage(); const errs = []; const fr = [];
   p.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 400)));
   p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_result/.test(s)) fr.push(s.slice(0, 300)); }));
   const G = (f, a) => p.evaluate(f, a);
-  const shot = async (n, o = {}) => { await G(() => document.querySelectorAll('.mcl-err').forEach((e) => e.remove())); await sleep(300); await p.screenshot({ path: `${OUT}/${n}.png`, ...o }); console.log('shot', `${OUT}/${n}.png`); };
+  const shot = async (n, o = {}) => { await G(() => document.querySelectorAll('.mcl-err').forEach((e) => e.remove())); await sleep(300); await p.screenshot({ path: `${OUT}/${n}.png`, ...o }); console.log('shot', `${OUT}/${n}.png`); marks.push([n, +((Date.now() - globalThis.__T0) / 1000).toFixed(3)]); };
   await p.goto(assertLocalUrl(`${BASE}?name=${ADMIN}&uid=${ADMIN}&ws=${WS}&fs=1&debug=1`));
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game?.debug, null, { timeout: 120000 }); await sleep(2500);
-  await G(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await G(() => window.__game.board?.tut?.('skip')); await sleep(400);
+  await G(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await G(() => window.__game.board?.tut?.('skip')); await sleep(400); if (process.env.DAY || VIDEO) { const dn = await G((h) => { try { return window.__game.dn?.({ pin: h }) || null; } catch (e) { return String(e); } }, process.env.DAY || '12:00'); console.log('  day pin', JSON.stringify(dn)?.slice(0, 160)); await sleep(600); } // светлый день для записи (только локально в клиенте)
   const S = () => G(() => { const s = window.__game.debug.metaSt(); return s && { inv: s.account.inv.map((i) => ({ id: i.id, uid: i.uid })), equip: s.hero?.equip, eff: s.hero?.effective && { art: s.hero.effective.art, bm: s.hero.effective.bm, crit: s.hero.effective.critPct, spd: s.hero.effective.speedPct, hp: s.hero.effective.maxHp }, bma: s.bma, artAb: s.hero?.artAbilities, inHand: s.hero?.artInHand, loadout: s.hero?.loadout }; });
   // обычное снаряжение — надеть
   for (const id of ['dew_slime_helmet', 'dew_slime_armor', 'dew_slime_legs', 'dew_slime_hands', 'dew_slime_weapon']) { await G((i) => window.__game.debug.send({ type: 'dev_grant', item: i }), id); await sleep(250); }
@@ -99,6 +100,22 @@ const ADMIN = 'qa_bma_' + Date.now().toString(36);
   fr.length = 0; await G(() => document.querySelector('[data-bmrecalc]')?.click()); await sleep(1500);
   t('админка: «Пересчитать все артефакты»', rb && fr.some((x) => x.includes('bm_recalc')), { rb, fr: fr.slice(0, 3) });
   await shot('09-admin-recalc');
+  if (VIDEO) { // только для видео: бой артефактом в Аринаре днём — заряд + криты (числа ✦ на мобах)
+    const T0 = globalThis.__T0 || Date.now(); const mk = (n) => { marks.push([n, +((Date.now() - T0) / 1000).toFixed(3)]); };
+    await G(() => { try { window.__game.debug.closeAdmin(); } catch {} }); await sleep(500);
+    for (let i = 0; i < 8 && (await G(() => window.__game.state().world)) !== 'arinar'; i++) { await G(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 240, y: 600 }); window.__game.debug.teleport(240, 600); }); await sleep(1200); await G(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(3000); }
+    await G(() => window.__game.dn?.({ pin: '12:00' })); let tgt = null;
+    for (const [dx, dy] of [[0, 0], [3000, 0], [-3000, 0], [0, 3000], [0, -3000], [6000, 0], [0, 6000]]) {
+      await G(([x, y]) => window.__game.debug.tp(x, y, true), [24000 + dx, 24150 + dy]); await sleep(2500);
+      const ms = await G(() => { const me = window.__game.state().player || {}; return { me, ms: window.__game.debug.zoneMobsFull().filter((m) => m.hp > 0 && !m.boss) }; });
+      if (ms.ms.length) { const me = ms.me; ms.ms.sort((a, b) => Math.hypot(a.x - (me.x || 0), a.y - (me.y || 0)) - Math.hypot(b.x - (me.x || 0), b.y - (me.y || 0))); tgt = ms.ms[0]; break; } }
+    console.log('crit target', JSON.stringify(tgt));
+    if (tgt) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [Math.round(tgt.x - 70), Math.round(tgt.y)]); await sleep(1200); mk('fight');
+      for (let i = 0; i < 7; i++) { const t2 = await G((id) => window.__game.debug.zoneMobsFull().find((m) => m.id === id) || window.__game.debug.zoneMobsFull().filter((m) => m.hp > 0 && !m.boss)[0], tgt.id); if (t2 && t2.id !== tgt.id) { tgt = t2; await G(([x, y]) => window.__game.debug.tp(x, y, true), [Math.round(tgt.x - 70), Math.round(tgt.y)]); await sleep(500); }
+        await p.mouse.move(vp.width / 2 + 110, vp.height / 2); await p.mouse.down(); await sleep(1750); await p.mouse.up(); await sleep(450); if (i === 3) await shot('11-crit-fight'); }
+      mk('fightEnd'); }
+    await sleep(800); }
   t('без ошибок страницы', errs.length === 0, errs.slice(0, 3));
-  console.log(`DONE ok=${ok} bad=${bad}`); await b.close(); process.exit(bad ? 1 : 0);
+  try { require('fs').writeFileSync(require('path').join(OUT, 'marks.json'), JSON.stringify(marks)); } catch {}
+  console.log(`DONE ok=${ok} bad=${bad}`); await ctx.close(); await b.close(); process.exit(bad ? 1 : 0);
 })().catch((e) => { console.log('FAIL crash', e.stack); process.exit(1); });
