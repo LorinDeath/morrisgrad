@@ -60,7 +60,7 @@ const ICE_RES = { bp_ice_handle: 40, bp_ice_blade: 60, bp_ice_blade2: 30, bp_ice
   const click = async (sel) => { const r = await G((s) => { const e = document.querySelector(s); if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; }, sel); if (!r) return false; await p.mouse.move(r.x, r.y, { steps: 6 }); await p.mouse.click(r.x, r.y); await sleep(VIDEO ? 700 : 350); return true; };
   const setF = async (path, v) => { const ok = await G(([path, v]) => { const e = document.querySelector(`.skca [data-f="${path}"]`); if (!e) return false; e.value = String(v); e.dispatchEvent(new Event(e.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); return true; }, [path, v]); await sleep(VIDEO ? 500 : 200); return ok; };
   const saveSk = async () => { fr.length = 0; await click('.skca [data-x="save"]'); const x = await waitFr(/"admin_skc".*"op":"save"/, 8000); let r = null; try { r = JSON.parse(x); } catch {} return r; };
-  const made = {};
+  const made = {}, ALLS = new Set();
   if (ON('admin') || ON('game')) {
     await openAdmin();
     const n0 = await G(() => document.querySelectorAll('.skca .pl [data-sid]').length);
@@ -108,14 +108,14 @@ const ICE_RES = { bp_ice_handle: 40, bp_ice_blade: 60, bp_ice_blade2: 30, bp_ice
         await field(); await clearNear(); await sleep(500); const Mf = await me(); console.log('FIELD', Math.round(Mf.x), Math.round(Mf.y));
     for (const [key, id] of [['sine', made.sine], ['homing', made.homing], ['boomerang', made.boomerang], ['bezier', made.bezier]]) {
       await clearNear(); await sleep(400);
-      const ms = key === 'homing' ? [[260, -150], [330, 120]] : key === 'boomerang' ? [[260, 70], [260, -70], [70, 0]] : [[220, -30], [300, 40], [360, 0]];
+      const ms = key === 'homing' ? [[260, -150], [330, 120]] : key === 'boomerang' ? [[260, 70], [260, -70], [180, 55], [180, -55], [330, 40], [330, -40], [70, 0]] : [[220, -30], [300, 40], [360, 0]];
       const sr = []; for (const [dx, dy] of ms) sr.push(await spawn('golem', dx, dy, true)); console.log('SPAWN', key, JSON.stringify(sr).slice(0, 300)); await sleep(900); // бумеранг: петля шириной 2×amp — мишени на вершине петли
       const hp0 = (await G(() => window.__game.debug.zoneMobsFull().filter((m) => m.type === 'golem').map((m) => m.hp))).reduce((a, b) => a + b, 0);
       fr.length = 0; await G((id) => window.__game.debug.send({ type: 'loadout_set', ids: [id] }), id); await sleep(800); const M = await me(); await aimAt(M.x + 300, M.y); ev.length = 0;
       await G(([id, M]) => window.__game.debug.rawSend({ type: 'dev_grant', stressCast: { id, dx: 1, dy: 0, ox: Math.round(M.x), oy: Math.round(M.y), tx: Math.round(M.x + 400), ty: Math.round(M.y), cid: Date.now() % 1e6 } }), [id, M]);
       await sleep(key === 'homing' ? 450 : 300); console.log('DBG', key, JSON.stringify(await G(() => window.__game.debug.projs())).slice(0, 300), fr.filter((x) => /ability_cd|toast/.test(x)).slice(-3).join(' | ').slice(0, 400), JSON.stringify(await G(() => window.__game.debug.zoneMobsFull().filter((m) => m.type === 'golem').map((m) => [Math.round(m.x), Math.round(m.y), m.hp]))), JSON.stringify(await me()).slice(0, 120)); await shot(`g-${key}-flight`); await sleep(1600);
       const hp1 = (await G(() => window.__game.debug.zoneMobsFull().filter((m) => m.type === 'golem').map((m) => m.hp))).reduce((a, b) => a + b, 0);
-      const sids = new Set(sr.filter(Boolean).map((x) => x.id)); const hits = ev.filter((e) => e.k === 'hit' && e.d > 0 && !e.dot && sids.has(e.id)); console.log('HITK', key, JSON.stringify(ev.filter((e) => e.k === 'hit').slice(0, 4))); console.log('EV', key, ev.length, JSON.stringify(ev.slice(0, 3)).slice(0, 400));
+      for (const x of sr) if (x) ALLS.add(x.id); const sids = ALLS; /* мишени теста (недобитая мишень прошлого каста — тоже наша) */ const hits = ev.filter((e) => e.k === 'hit' && e.d > 0 && !e.dot && sids.has(e.id)); console.log('HITK', key, JSON.stringify(ev.filter((e) => e.k === 'hit').slice(0, 4))); console.log('EV', key, ev.length, JSON.stringify(ev.slice(0, 3)).slice(0, 400));
       t(`каст «${key}» бьёт мишени`, hp1 < hp0 || hits.length > 0, { hp0, hp1, hits: hits.length });
     }
     // восстановить детали (локальная БД), удалить один свой навык через админку
@@ -126,6 +126,10 @@ const ICE_RES = { bp_ice_handle: 40, bp_ice_blade: 60, bp_ice_blade2: 30, bp_ice
     p.once('dialog', (d) => d.accept()); fr.length = 0; await click('.skca [data-x="del"]'); const dx = await waitFr(/"admin_skc".*"op":"reset"/, 6000);
     await sleep(1200); const gone = await G((id) => ({ list: !!document.querySelector(`.skca [data-sid="${id}"]`), cli: window.__game.debug.skfSlot(id) }), made.nova);
     t('удаление своего навыка: из списка и у клиента', !!made.nova && /"ok":true/.test(dx || '') && !gone.list && !gone.cli, gone); await shot('k08-deleted');
+    // уборка локальной БД: свои навыки этого и прошлых прогонов «(тест)», которые не стоят на деталях
+    fr.length = 0; await G(() => window.__game.debug.send({ type: 'admin_skc', op: 'list' })); const lx = await waitFr(/"admin_skc".*"op":"list"/, 6000); let L = []; try { L = JSON.parse(lx).list || []; } catch {}
+    let nd = 0; for (const x of L) if (x.custom && /\(тест\)/.test(x.v?.name || '') && !(x.used || []).length) { await G((id) => window.__game.debug.send({ type: 'admin_skc', op: 'reset', id }), x.id); await sleep(320); nd++; }
+    console.log('CLEANUP', nd);
   }
   t('без ошибок страницы', errs.length === 0, errs.slice(0, 3));
   fs.writeFileSync(`${OUT}/marks-${SEG}.json`, JSON.stringify(marks));
