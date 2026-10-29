@@ -57,4 +57,9 @@ ok(typeof validateQuest(null) === "string", "null-квест — отказ");
 // 6. черты
 { let dot = 0, heal = 0; applyTraits([{ k: "burn", chance: 100, dpsPct: 10, dur: 3 }, { k: "lifesteal", chance: 0, pct: 50 }], 100, () => 0.5, { dot: (_k, d) => (dot = d), slow() {}, knock() {}, freeze() {}, heal: (h) => (heal = h) });
   ok(dot === 10 && heal === 0, `черты: поджог 10/с, вампиризм с шансом 0 не срабатывает (${dot}, ${heal})`); }
+// 7. тестовые артефакты (хотфикс 29.10): выдача только в dev, не админу; кнопки клиента — только localhost
+{ const sv = readFileSync("server/meta/service.ts", "utf8"); const i = sv.indexOf('case "bm_test_artifact"'); const blk = sv.slice(i, i + 600);
+  ok(i > 0 && /if \(session\.dev !== true\)/.test(blk) && !/canAdminFull/.test(blk), "bm_test_artifact: только session.dev, без админа");
+  const gj = readFileSync("src/pages/MorrisCurse/_core/game.js", "utf8"); const m = gj.match(/book\.canTestArt = ([^;]+);/);
+  ok(!!m && !/admin/.test(m[1]) && /localhost/.test(m[1]), "canTestArt: только localhost"); }
 console.log(`${pass} passed, ${fail} failed`); if (fail) process.exit(1);
