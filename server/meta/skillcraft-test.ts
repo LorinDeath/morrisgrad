@@ -3,6 +3,8 @@ import { castShape, shapeOf } from "./abilityShapes";
 import { BM_SKILLS, BM_SHAPES, BMA_CFG, skillElem, isBmSkill } from "./blackArt";
 import { SK_DEFS, SK_PRESET_IDS, skBlank, skClone, skHitbox, hbTouch, pathAt, pathWorld, steer, castCraft, skBuffAdd, skBuffSum, skApplyBuffs, skErr, skShape } from "./skillCraft";
 import { SK_ELEM } from "./blackArt";
+import { Zone } from "./zone";
+import { ZONE_MOBS } from "./defs";
 let fails = 0;
 const ok = (c: any, m: string) => { if (!c) { fails++; console.log("FAIL", m); } else console.log("ok  ", m); };
 const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e;
@@ -87,4 +89,22 @@ ok(SK_PRESET_IDS.every((id) => JSON.stringify(skShape(SK_DEFS[id])) === JSON.str
   SK_ELEM["skx_w"] = "water"; ok(skillElem("skx_w") === "water" && isBmSkill("skx_w"), "свой навык воды — навык артефакта своей стихии"); delete SK_ELEM["skx_w"];
   const c = skClone(SK_DEFS.bmf_cinder_bolt, "skx_c"); ok(c.id === "skx_c" && !c.preset && c.range === 480 && c.name.includes("копия") && c.mods !== SK_DEFS.bmf_cinder_bolt.mods, "дублирование: глубокая копия, новый id");
   const bad = skBlank("skx_b"); bad.boom = 0; ok(!!skErr(bad), "снаряд без урона — ошибка"); ok(!skErr(skBlank("skx_ok")), "новый навык валиден"); }
+// сервер: снаряд конструктора летит по пути и бьёт по рамке картинки (настоящий Zone.updateProjs)
+{ const z: any = new Zone("arinar", [], [], { proc: true, seed: 11 } as any);
+  const live = z.mobs.filter((x: any) => !x.dead && !x.special); for (const m of live) m.dead = true;
+  const A = live[0], B2 = live[1], mr = ZONE_MOBS[A.type].radius;
+  const shoot = (pth: any, hb: any, ax: number, ay: number, bx: number, by: number, extra: any = {}) => {
+    A.dead = false; A.x = ax; A.y = ay; B2.dead = !(bx > -1e8); B2.x = bx; B2.y = by; z.reindex(); z.projs = []; const H: string[] = [];
+    z.fire({ o: "p", t: "skx", x: 1000, y: 1000, dx: 1, dy: 0, range: 400, spd: 400, w: hb?.s === "b" ? hb.hw * 2 : 30, max: 99, pth, hb, onHit: (m: any) => H.push(m === A ? "A" : "B"), ...extra });
+    for (let i = 0; i < 80 && z.projs.length; i++) z.updateProjs(0.05, new Map());
+    A.dead = true; B2.dead = true; return H.join("");
+  };
+  const box = { s: "b", a0: -25, a1: 7, hw: 7 };
+  ok(shoot({ p: "line" }, box, 1200, 1000 + 7 + mr - 1, -1e9, 0) === "A" && shoot({ p: "line" }, box, 1200, 1000 + 7 + mr + 3, -1e9, 0) === "", `прямая: задевает по рамке ±7 + радиус моба ${mr}, мимо — нет`);
+  ok(shoot({ p: "arc", a: 80 }, box, 1200, 1000, -1e9, 0) === "" && shoot({ p: "arc", a: 80 }, box, 1200, 1080, -1e9, 0) === "A", "дуга: летит дугой (сбоку от оси — попадание, на оси — мимо)");
+  ok(shoot({ p: "boomerang", a: 0 }, box, 1100, 1000, -1e9, 0) === "AA", "бумеранг: туда и обратно — два попадания по одной цели");
+  ok(shoot({ p: "homing", turn: 360, seek: 500 }, box, 1250, 1150, -1e9, 0) === "A", "самонаведение: догоняет цель сбоку");
+  ok(shoot({ p: "line" }, box, 1150, 1000, 1300, 1000, { max: 1 }) === "A" && shoot({ p: "line" }, box, 1150, 1000, 1300, 1000, { max: 2 }) === "AB", "пробивание: 1 — первая цель, 2 — обе");
+  ok(shoot(undefined, undefined, 1200, 1000 + 15 + mr - 1, -1e9, 0) === "A", "старые снаряды (без пути/рамки) — как раньше");
+  const ev = z.events.filter((e: any) => e.k === "proj").pop(); ok(ev && !ev.pth, "событие старого снаряда без pth"); }
 console.log(fails ? `\n${fails} FAIL` : "\nALL OK"); if (fails) process.exit(1);

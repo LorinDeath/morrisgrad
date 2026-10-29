@@ -23,6 +23,7 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 // Навыки боссов и проклятых (ids — базы навыков бестиария). Обычный босс — ровно 1 навык, проклятый — 2–5.
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
+import { pathWorld, steer, hbTouch } from "./skillCraft";
 import { mitigateDamage } from "./balance";
 import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
@@ -173,6 +174,9 @@ export interface Proj {
   onHit?: (target: any, i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void;
   /** 🜏 артефакт/чёрный моб: bm — флаг, bf — доля заряда при выстреле, sz — размер спрайта (ширина/20); vm — снаряд моба по мобам (foe — кто враг, onMob — попадание) */
   bm?: number; bf?: number; sz?: number; vm?: number; foe?: (m: any) => boolean; onMob?: (m: any, i: number) => void;
+  /** 🛠 конструктор навыков: траектория (skillCraft.pathAt; x0/y0/ax/ay — старт и прицел), хитбокс по картинке, наведение */
+  pth?: { p: string; a?: number; f?: number; b?: number[]; turn?: number; seek?: number }; hb?: any; x0?: number; y0?: number; ax?: number; ay?: number;
+  hx?: number; hy?: number; tg?: any; turned?: number; hbR?: number;
 }
 export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, ice_bolt: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420, bm_arrow_small: 620, bm_arrow_big: 620 };
 
@@ -204,9 +208,30 @@ export class Zone {
     if (this.projs.length > 600) return null; // предохранитель
     const L = Math.hypot(o.dx, o.dy) || 1;
     const p: Proj = { spd: PROJ_SPEED[o.t] || PROJ_SPEED.default, flown: 0, hit: new Set(), n: 0, born: this.now || Date.now(), id: this.nextProj++, ...o, dx: o.dx / L, dy: o.dy / L } as Proj;
+    if (p.pth) { p.x0 = p.x; p.y0 = p.y; p.ax = p.dx; p.ay = p.dy; p.hx = p.dx; p.hy = p.dy; }
+    if (p.hb) p.hbR = p.hb.s === "c" ? p.hb.r : Math.max(Math.abs(p.hb.a0), Math.abs(p.hb.a1), p.hb.hw);
     this.projs.push(p);
-    this.events.push({ k: "proj", _b: p.born, cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, cz: (p as any).cz ? 1 : undefined, sz: (p as any).sz, bm: (p as any).bm, mob: p.o === "m" ? p.mob : undefined });
+    this.events.push({ k: "proj", _b: p.born, ...(p.pth ? { pth: { p: p.pth.p, a: p.pth.a, f: p.pth.f, b: p.pth.b, turn: p.pth.turn } } : {}), cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, cz: (p as any).cz ? 1 : undefined, sz: (p as any).sz, bm: (p as any).bm, mob: p.o === "m" ? p.mob : undefined });
     return p;
+  }
+  /** 🛠 шаг снаряда по траектории конструктора навыков: путь детерминирован от старта (клиент считает так же);
+   *  самонаведение — поворот к цели (ptg — клиенту, на кого наводится); бумеранг на развороте снова может задеть тех же */
+  pathStep(p: Proj, st: number) {
+    const P = p.pth!;
+    if (P.p === "homing") {
+      let tg = p.tg;
+      if (!tg || tg.dead) {
+        tg = null; let best = Infinity;
+        for (const m of this.near(p.x, p.y, P.seek || 420)) { if (m.dead || p.hit.has(m.id)) continue; const ex = m.x - p.x, ey = m.y - p.y, d = Math.hypot(ex, ey), fw = (ex * p.dx + ey * p.dy) / (d || 1); if (fw < -0.2) continue; const sc = d * (1.6 - fw); if (sc < best) { best = sc; tg = m; } }
+        p.tg = tg; if (tg) this.events.push({ k: "ptg", id: p.id, m: tg.id });
+      }
+      if (tg) [p.dx, p.dy] = steer(p.dx, p.dy, tg.x - p.x, tg.y - p.y, P.turn || 240, st / Math.max(1, p.spd));
+      p.x += p.dx * st; p.y += p.dy * st; p.hx = p.dx; p.hy = p.dy;
+      return;
+    }
+    const w = pathWorld(P as any, p.x0!, p.y0!, p.ax!, p.ay!, p.flown + st, p.range);
+    p.x = w[0]; p.y = w[1]; p.hx = w[2]; p.hy = w[3];
+    if (P.p === "boomerang" && !p.turned && p.flown + st >= p.range / 2) { p.turned = 1; p.hit.clear(); }
   }
   /** движение и столкновения снарядов: шаги не длиннее ширины снаряда (быстрый снаряд не «перепрыгивает» моба) */
   updateProjs(dt: number, players: Map<string, ZPlayer>) {
@@ -219,12 +244,13 @@ export class Zone {
       } else while (left > 0 && !done) {
         const st = Math.min(left, Math.max(6, p.w * 0.5)); left -= st;
         const x0 = p.x, y0 = p.y;
-        p.x += p.dx * st; p.y += p.dy * st; p.flown += st;
+        if (p.pth) this.pathStep(p, st); else { p.x += p.dx * st; p.y += p.dy * st; }
+        p.flown += st;
         if (this.guard && this.guard.guardProj(p, x0, y0, p.x, p.y)) { done = true; break; } // купол / тело Чёрного мага
         if (p.o === "p") {
-          for (const m of this.near(p.x, p.y, p.w + 60)) {
+          for (const m of this.near(p.x, p.y, (p.hbR ? p.hbR * 2 : p.w) + 60)) {
             if (m.dead || p.hit.has(m.id)) continue;
-            if (Math.hypot(m.x - p.x, m.y - p.y) > ZONE_MOBS[m.type].radius + p.w / 2) continue;
+            if (p.hb ? !hbTouch(p.hb, p.x, p.y, p.hx ?? p.dx, p.hy ?? p.dy, m.x, m.y, ZONE_MOBS[m.type].radius) : Math.hypot(m.x - p.x, m.y - p.y) > ZONE_MOBS[m.type].radius + p.w / 2) continue;
             p.hit.add(m.id); const k = p.n++; p.onHit?.(m, k); // n считаем и без onHit (взрыв в onEnd)
             if (p.n >= p.max) { done = true; break; }
           }
