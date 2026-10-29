@@ -2,6 +2,7 @@ import { ChestSprites } from '../engine/chestSprite.js';
 import { uiSfx } from '../ui/atmoUi.js';
 import { BmView } from './bmView.js';
 import { BmMobLayer } from './bmMobView.js'; import { mobFaceL } from '../ui/bmMobArt.js'; // 👹 чёрные мобы конструктора (части тела Художника + оружие в руке)
+import { pureList, ELEM_COLOR, BP_ELEM_ICONS } from '../../../../../server/meta/blackArt.ts'; // ось стихий: цвета/иконки чистого урона
 import { bmxTypeAt, BMX_BASE } from '../../../../../server/meta/blackMobs.ts';
 import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
@@ -179,11 +180,10 @@ export class ZoneView {
     for (const e of s.ev || []) {
       if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
-      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; const pf = e.pf || 0, pi = e.pi || 0, ice = e.el === 'ice';
-        out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pf - pi)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : '#ffb347') : '#fff' });
+      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; const PL = pureList(e), pp = PL.reduce((q, [, n]) => q + n, 0), ice = e.el === 'ice';
+        out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pp)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : '#ffb347') : '#fff' });
         // ICE: чистый урон стихий — отдельные числа (огонь — оранжевый, лёд — голубой)
-        if (pf > 0) out.push({ k: 'float', x: o.x + 14, y: o.y - 16, text: `🔥${Math.round(pf)}`, color: '#ff8a2a' });
-        if (pi > 0) out.push({ k: 'float', x: o.x - 14, y: o.y - 16, text: `❄${Math.round(pi)}`, color: '#6cc8ff' });
+        PL.forEach(([el, n], j) => out.push({ k: 'float', x: o.x + (j % 2 ? -14 : 14), y: o.y - 16 - 10 * (j >> 1), text: `${BP_ELEM_ICONS[el] || '✦'}${Math.round(n)}`, color: ELEM_COLOR[el] || '#fff' }));
         if (ice && e.d > 0) { this.efx('ice_hit', 'hit', o.x, o.y, 0.45, 1.7); (this._iceHit ||= new Map()).set(e.id, performance.now()); } if (e.bm && e.d > 0 && (e.by === myId || this.nearMe(o.x, o.y, 400))) uiSfx('bm_hit'); } }
       else if (e.k === 'dome_repel') out.push({ k: 'dome_repel', x: e.x, y: e.y }); // купол города вытолкнул моба — вспышка на ободе
       else if (e.k === 'evade') out.push({ k: 'float', x: e.x, y: e.y, text: '↩ сброс', color: '#94a3b8' });
@@ -230,7 +230,7 @@ export class ZoneView {
       else if (e.k === 'aline') { const id = String(e.id || '').replace(/^rs:/, ''); if (DASH_FX[id]) this.teles.push({ kind: 'dash', fx: DASH_FX[id], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, col: e.cz ? curseRGB() : null }); else this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, cz: !!e.cz }); }
       else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty, e.cz);
       else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (String(e.id || '').replace(/^rs:/, '') === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.95 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
-      else if (e.k === 'phit' && e.sid === myId) { out.push({ k: 'hurt', d: e.d, pf: e.pf || 0, pi: e.pi || 0, z: e.z || 0 }); this.mobStruck(e.src);
+      else if (e.k === 'phit' && e.sid === myId) { out.push({ k: 'hurt', d: e.d, pf: e.pf || 0, pi: e.pi || 0, pe: e.pe, z: e.z || 0 }); this.mobStruck(e.src);
         const p = this.myPos; if (p) { if (e.z) this.efx('ice_zero', 'zero', p.x, p.y, 0.5, 1.4, 1.6); else if (e.el === 'ice' || e.pi) this.efx('ice_hit', 'hit', p.x, p.y, 0.45, 1.6); } } // ICE: «0 урона» — броня поглотила удар
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }

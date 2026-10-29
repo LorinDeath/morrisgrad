@@ -1,5 +1,5 @@
-import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs, BM_BUILTIN } from "./blackMobs";
-import { BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, CUSTOM_BP, makeBpart } from "./blackArt";
+import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
+import { BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, BP_ELEM_NAMES, PURE_KEYS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
@@ -71,7 +71,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_vs", label: "Чёрный урон по игрокам", t: "hdr" },
     N("vsPlayer", "Чёрные мобы и навыки артефактов у мобов по игрокам, ×", 0, 10), N("pvpMul", "PK: чёрный удар игрока по игроку, ×", 0, 10),
     { path: "_h_pure", label: "ICE: чистый урон стихий (% макс. ОЗ АТАКУЮЩЕГО за удар, сверху остального урона)", t: "hdr" },
-    N("pureMul.fire", "Чистый огненный урон: глобально, ×", 0, 20), N("pureMul.ice", "Чистый ледяной урон: глобально, ×", 0, 20),
+    ...BP_ELEMS.map((el) => N("pureMul." + el, `Чистый урон «${BP_ELEM_NAMES[el]}»: глобально, ×`, 0, 20)),
     ...["mob", "elite", "chief", "rare", "boss", "world", "player"].map((c) => N("pureClassMul." + c, "Чистый урон по цели: " + ({ mob: "Моб", elite: "Элита", chief: "Вожак", rare: "Редкий", boss: "Босс", world: "Мировой босс", player: "Игрок" }[c]!) + ", ×", 0, 10)),
     N("pureSkill", "Чистый урон с навыков артефакта (за попадание), ×", 0, 10), N("pureVsPlayer", "Чистый урон по игрокам (PK, дуэли, чёрные мобы), ×", 0, 10),
     N("pureMob", "Чёрные мобы: их чистый урон, ×", 0, 10),
@@ -92,10 +92,10 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_caps", label: "Капы чёрных статов (заряд и предельная броня — нижний предел)", t: "hdr" },
     N("caps.force", "Сила атаки, макс. %", 0, 5000), N("caps.power", "Мощность, макс. %", 0, 1000), N("caps.charge", "Скорость заряда, мин. с", 0.05, 10),
     N("caps.bdmg", "Чёрный урон, макс. %", 0, 100), N("caps.barm", "Чёрная броня, макс.", 0, 1e7), N("caps.bcap", "Предельная броня, мин. %", 0, 100), N("caps.bcrit", "Крит, макс. из 100", 0, 100, "int"),
-    N("caps.pfire", "Чистый огненный урон, макс. % ОЗ", 0, 100), N("caps.pice", "Чистый ледяной урон, макс. % ОЗ", 0, 100)] },
+    ...BP_ELEMS.map((el) => N("caps." + PURE_KEYS[el], `Чистый урон «${BP_ELEM_NAMES[el]}», макс. % ОЗ`, 0, 100))] },
   bmbody: { name: "Части тела чёрных мобов", fields: [{ path: "name", label: "Название", t: "ltext" }, { path: "slot", label: "Слот (у встроенной не меняется)", t: "enum", opts: [...BODY_SLOTS] },
     { path: "img", label: "Лист Художника (slot_N / ice_slot_N из public/bm-art/body)", t: "text" }, { path: "elem", label: "Стихия", t: "enum", opts: [...BP_ELEMS] },
-    N("pfire", "Чистый огненный урон моба, % его ОЗ", 0, 100), N("pice", "Чистый ледяной урон моба, % его ОЗ", 0, 100), { path: "desc", label: "Описание", t: "ltext" }, { path: "hidden", label: "Скрыта (нельзя выбрать)", t: "bool" },
+    ...BP_ELEMS.map((el) => N(PURE_KEYS[el], `Чистый урон «${BP_ELEM_NAMES[el]}» моба, % его ОЗ`, 0, 100)), { path: "desc", label: "Описание", t: "ltext" }, { path: "hidden", label: "Скрыта (нельзя выбрать)", t: "bool" },
     N("hp", "ОЗ моба, %", -90, 500), N("dmg", "Урон моба, %", -90, 500), N("armor", "Броня моба, +", -1000, 1e5), N("speed", "Скорость моба, %", -90, 300)] },
   bmmob: { name: "Чёрные мобы", fields: [{ path: "name", label: "Имя", t: "ltext" }, { path: "desc", label: "Описание", t: "ltext" },
     { path: "cls", label: "Класс (табличка)", t: "enum", opts: [...BM_CLASSES] }, N("lvl", "Уровень", 1, 60, "int"),
@@ -112,7 +112,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("respawnMin", "Возрождение от, с", 5, 86400, "int"), N("respawnMax", "Возрождение до, с", 5, 86400, "int"), { path: "lair", label: "Логово (одиночный сильный)", t: "bool" },
     { path: "hidden", label: "Выключен", t: "bool" }, { path: "mobs", label: "Состав [{mob, n}]", t: "text" }] },
   bmmcfg: { name: "Чёрные мобы: настройки", fields: [{ path: "on", label: "Чёрные мобы и лагеря в мире", t: "bool" },
-    N("fightNearTiles", "Драка с обычными мобами: игрок ближе, клеток", 0, 64, "int"), N("maxCampMobs", "Мобов в лагере, макс.", 1, 200, "int"), N("maxCamps", "Лагерей, макс.", 0, 500, "int"),
+    N("fightNearTiles", "Драка с обычными мобами: игрок ближе, клеток", 0, 64, "int"), N("maxCampMobs", "Мобов в лагере, макс.", 1, 200, "int"), { path: "strictElemDrops", label: "Кусочки стихии — только с мобов этой стихии (ледяные мобы — только ледяные)", t: "bool" }, N("maxCamps", "Лагерей, макс.", 0, 500, "int"),
     N("maxCustomMobs", "Своих мобов, макс.", 0, 2000, "int"), N("maxCustomBody", "Своих частей тела, макс.", 0, 3000, "int"), N("mobVis", "Масштаб листа в мире", 0.1, 3),
     N("weaponDmgPct", "Оружие в руке: +% урона", 0, 500), N("refMul", "«Авто по уровню»: × обычного моба", 0.1, 10), N("campMinDist", "Лагерь от города, мин. px", 0, 20000, "int"),
     ...BM_CLASSES.flatMap((c) => [N(`cls.${c}.hp`, `${c}: ×ОЗ`, 0.1, 10), N(`cls.${c}.dmg`, `${c}: ×урон`, 0.1, 10), N(`cls.${c}.speed`, `${c}: ×скорость`, 0.1, 10)])] },
@@ -125,7 +125,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_st", label: "Чёрные статы части", t: "hdr" },
     N("stats.force", "Сила атаки, % к удару на полном заряде", 0, 5000), N("stats.power", "Мощность, %", 0, 1000), N("stats.charge", "Скорость заряда, с", 0, 30), N("stats.bdmg", "Чёрный урон, %", 0, 100),
     N("stats.barm", "Чёрная броня", 0, 1e7), N("stats.bcap", "Предельная броня, %", 0, 100), N("stats.bcrit", "Крит, из 100", 0, 100, "int"),
-    N("stats.pfire", "Чистый огненный урон, % ОЗ атакующего", 0, 100), N("stats.pice", "Чистый ледяной урон, % ОЗ атакующего", 0, 100),
+    ...BP_ELEMS.map((el) => N("stats." + PURE_KEYS[el], `Чистый урон «${BP_ELEM_NAMES[el]}», % ОЗ атакующего`, 0, 100)),
     { path: "_h_f", label: "Форма (рукоять — темп, лезвие — дальность/дуга)", t: "hdr" },
     N("cd", "Рукоять: перезарядка удара, мс", 200, 5000, "int"), N("reach", "Ближнее лезвие: дальность, px", 40, 400, "int"), N("arc", "Ближнее лезвие: дуга, рад", 0.2, 3.1),
     { path: "ranged", label: "Лезвие дальнего боя (снаряд)", t: "bool" },
@@ -587,7 +587,17 @@ export function validateTraits(list: any): Trait[] | string {
   }
   return out;
 }
-function validateLoot(patch: any): any | string {
+/** 💰 Дроп: кусочки/осколки стихии — только с мобов этой стихии (ледяные мобы — только ледяные кусочки; BMM_CFG.strictElemDrops).
+ *  Обычные (не чёрные) мобы: стихийные кусочки, кроме огня (как было), нельзя. */
+export function lootElemErr(mobId: string, res: string): string | null {
+  const re = resElem(res); if (!re) return null;
+  const z: any = (ZONE_MOBS as any)[mobId];
+  if (!z?.black) return re === "fire" ? null : `${res}: кусочки стихии «${re}» падают только с чёрных мобов этой стихии`;
+  const el = z.elem || "fire";
+  if (re !== el && (BMM_CFG.strictElemDrops !== false || re !== "fire")) return `${res}: кусочки стихии «${re}» падают только с мобов этой стихии (у моба — «${el}»)`;
+  return null;
+}
+function validateLoot(patch: any, mobId = ""): any | string {
   const out: any = {};
   if (patch.gear !== undefined) {
     if (!Array.isArray(patch.gear) || patch.gear.length > 20) return "gear: список до 20";
@@ -598,7 +608,7 @@ function validateLoot(patch: any): any | string {
     if (!Array.isArray(patch.materials) || patch.materials.length > 12) return "materials: список до 12";
     out.materials = [];
     for (const m of patch.materials) {
-      if (!RESOURCES[m?.res]) return `нет ресурса ${m?.res}`; const c = Number(m.chance), a = Math.round(Number(m.qty?.[0])), b = Math.round(Number(m.qty?.[1]));
+      if (!RESOURCES[m?.res]) return `нет ресурса ${m?.res}`; { const ee = lootElemErr(mobId, m.res); if (ee) return ee; } const c = Number(m.chance), a = Math.round(Number(m.qty?.[0])), b = Math.round(Number(m.qty?.[1]));
       if (!(c >= 0 && c <= 100) || !(a >= 1 && b >= a && b <= 99)) return "материал: шанс 0…100, кол-во 1…99"; out.materials.push({ res: m.res, chance: c, qty: [a, b] });
     }
   }
@@ -685,7 +695,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
 function validatePatch0(kind: Kind, id: string, patch: any): any | string {
   const S = SCHEMA[kind]; if (!S || !TABLES[kind][id]) return "нет такой сущности";
   if (!patch || typeof patch !== "object") return "пустой патч";
-  if (kind === "loot") return validateLoot(patch);
+  if (kind === "loot") return validateLoot(patch, id);
   const out: any = {};
   for (const [p, v] of Object.entries(patch)) {
     if (p === "traits") { if (!S.traits) return "у этой сущности нет черт"; const t = validateTraits(v); if (typeof t === "string") return t; out.traits = t; continue; }

@@ -15,7 +15,7 @@ import { traitsFor, applyTraits } from "./admin";
 import { cryptoRand } from "./profile";
 import { castShape, AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { PROJ_SPEED } from "./zone";
-import { BMA_CFG, bmHit, bmDefend, bmPure, pureVsDef, pureSum, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
+import { BMA_CFG, bmHit, bmDefend, bmPure, pureVsDef, pureSum, pureEvFields, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
 import { tryRevive } from "./revive";
 const W_ARENA = WORLD_SIZES.arena;
 import { WORLD_SIZES, worldBounds } from "../worlds/sizes";
@@ -244,7 +244,7 @@ export class Pvp {
     return Math.abs(ex * dy - ey * dx) <= (atk.width || 20) / 2 + r;
   }
 
-  private deal(c: any, session: any, dmg: number, crit: boolean, eff: any, black = false) {
+  private deal(c: any, session: any, dmg: number, crit: boolean, eff: any, black = false, xf?: any) {
     if (this.host.ally?.(session.id, c.os.id)) return; // союзники по отряду не наносят друг другу урон
     if (isInvuln(c.op)) { c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: 0, immune: 1, x: Math.round(c.os.x), y: Math.round(c.os.y) }); return 0; } // неуязвимость рывка/навыка — по часам сервера
     // пробитие брони атакующего (% затем плоское) снижает броню цели → её снижение урона пересчитывается
@@ -255,7 +255,7 @@ export class Pvp {
     { const t = Date.now(); (c.op as any).hurtAt = t; (c.me as any).hitAt = t; } // бой → регенерация ×regenCombat
     c.d.hits[c.i] += real;
     if (eff.lifestealPct) this.lsHeal(c, session, real * eff.lifestealPct / 100);
-    c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: real, crit: crit || undefined, x: Math.round(c.os.x), y: Math.round(c.os.y) });
+    c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: real, crit: crit || undefined, x: Math.round(c.os.x), y: Math.round(c.os.y), ...(xf || {}) });
     if (c.op.zp.hp <= 0 && !this.revived(c.d, c)) this.finish(c.d, c.i as 0 | 1, "ko");
     return real;
   }
@@ -325,8 +325,8 @@ export class Pvp {
       const crit = this.host.bmCrit && this.host.store ? this.host.bmCrit(this.host.store.account(cc.me.pkey), cc.me, session.stats?.classId, eff.bm.bcrit, "a") : cryptoRand() * 100 < (eff.bm.bcrit || 0);
       let dm = bmHit(cc.op.zp.maxHp, "mob", eff.bm, 0, crit, (Number(BMA_CFG.vsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0)) * k;
       const vbm = (cc.op.zp as any).bm; if (vbm) dm = bmDefend(dm, vbm, cc.op.zp.maxHp);
-      dm += pureSum(pureVsDef(bmPure(cc.me.zp.maxHp, eff.bm, "player", k * (Number(BMA_CFG.pureVsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0), crit), vbm, cc.op.zp.maxHp)); // ICE: чистый урон и в дуэли
-      const real = this.deal(cc, session, dm, crit, eff, true); this.traits(cc, session, real, wt); return real;
+      const pu = pureVsDef(bmPure(cc.me.zp.maxHp, eff.bm, "player", k * (Number(BMA_CFG.pureVsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0), crit), vbm, cc.op.zp.maxHp); dm += pureSum(pu); // ICE: чистый урон и в дуэли
+      const real = this.deal(cc, session, dm, crit, eff, true, { ...pureEvFields(pu), ...(art.elem && art.elem !== "fire" ? { el: art.elem } : {}) }); // цифры стихий своим цветом и в дуэли this.traits(cc, session, real, wt); return real;
     };
     // вылет из отрисованного центра героя (допуск SHOT_TOL), прицел — курсор; автоатака по сопернику (mob = -1) — точно в него
     const [blo, bhi] = worldBounds("arena"), A = shotAim(session.x, session.y, msg, blo, bhi), ox = A.x, oy = A.y;

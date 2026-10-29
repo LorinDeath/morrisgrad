@@ -1,7 +1,7 @@
 // Админка «👹 Чёрные мобы» (чёрная магия, этап В): конструктор мобов из частей тела Художника + оружие в руке,
 // живое превью (анимации, сетка, силуэт героя, хитбокс/агро), лагеря/логова с таймерами, части тела, настройки.
 // Черновик моба сохраняется сам (admin_bmm draft → bmc_mdraft), «Опубликовать» — правка bmmob (аудит, версия, у всех сразу).
-import { BM_PARTS, BP_TYPE_NAMES, BP_ELEMS, BP_ELEM_NAMES } from '../../../../../server/meta/blackArt.ts';
+import { BM_PARTS, BP_TYPE_NAMES, BP_ELEMS, BP_ELEM_NAMES, BP_ELEM_ICONS } from '../../../../../server/meta/blackArt.ts';
 import { RESOURCES } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
 import { elTag } from './bmArtUi.js';
@@ -63,7 +63,7 @@ export function mountBmMobs(ap, sec) {
   return mobs(ap, S, bd, sec);
 }
 const resName = (r) => RESOURCES[r]?.name || r;
-const EL_ICON = (el) => (el === 'ice' ? '❄' : el === 'fire' ? '🔥' : '◆');
+const EL_ICON = (el) => BP_ELEM_ICONS[el] || '◆'; // ось стихий — из реестра ELEMENTS
 const elOf = (x) => x?.el || x?.elem || 'fire';
 /** кнопки фильтра по стихии (key — поле S) */
 const elFilter = (S, key) => `<div class="ef">${[['', 'Все'], ...BP_ELEMS.map((x) => [x, `${EL_ICON(x)} ${BP_ELEM_NAMES[x] || x}`])].map(([k, n]) => `<button class="b ${(S[key] || '') === k ? 'on' : ''}" data-ef="${key}:${esc(k)}">${esc(n)}</button>`).join('')}</div>`;

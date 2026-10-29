@@ -24,7 +24,7 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
-import { BMA_CFG, bmSkillPct, bmPure, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf } from "./blackArt";
+import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
@@ -514,11 +514,11 @@ export class Zone {
     const sh = t.shieldUntil > this.now ? 0.5 : 1, sd: any = ZONE_MOBS[src.type];
     // ICE: чистый урон чёрного моба по мобу — % его макс. ОЗ × pureMob × класс цели
     const pp = sd?.bmPure ? bmPure(src.maxHp || sd.hp, sd.bmPure, t.special === "boss" ? "boss" : t.elite ? "elite" : "mob", (Number(BMA_CFG.pureMob) || 0) * sh) : null;
-    const pf = pp?.fire || 0, pi = pp?.ice || 0;
-    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * sh)) + pf + pi;
+    const pv = pureEvFields(pp);
+    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * sh)) + pureSum(pp);
     t.hp -= real; t.dmgBy.set("mob:" + src.id, (t.dmgBy.get("mob:" + src.id) || 0) + real);
     if (!t.targetSid && !t.mobTarget) { t.mobTarget = src.id; this.rally(t, src.id); }
-    this.events.push({ k: "hit", id: t.id, d: real, mob: 1, ...(pf ? { pf } : {}), ...(pi ? { pi } : {}) });
+    this.events.push({ k: "hit", id: t.id, d: real, mob: 1, ...pv });
     this.stats.mobHits++;
     if (t.hp <= 0) { this.stats.mobKills++; (t as any).killer = "mob:" + src.id; this.kill(t, onKill); }
     return real;
@@ -1417,13 +1417,14 @@ export class Zone {
     if (this.guard && sid) { const a = this.pl?.get(sid); if (this.guard.guardMobHit(m, sid, a ? a.x : NaN, a ? a.y : NaN)) { this.events.push({ k: "hit", id: m.id, d: 0, dome: 1 }); return 0; } } // купол Чёрного мага
     const armor = d.armor * mobArmorMul(m);
     const sh = m.shieldUntil > Date.now() ? 0.5 : 1;
-    const pf = Math.max(0, Math.round((pen?.pure?.fire || 0) * sh)), pi = Math.max(0, Math.round((pen?.pure?.ice || 0) * sh)); // ICE: чистый урон стихий — сверху, мимо брони
-    const real = (pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh))) + pf + pi; // 🜏 чёрный урон: броня моба не действует
+    const pq: Record<string, number> = {}; if (pen?.pure) for (const k of Object.keys(pen.pure)) pq[k] = Math.max(0, Math.round((Number(pen.pure[k]) || 0) * sh)); // ICE: чистый урон стихий оси — сверху, мимо брони
+    const pv = pureEvFields(pq), pSum = pureSum(pq);
+    const real = (pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh))) + pSum; // 🜏 чёрный урон: броня моба не действует
     if (sid && !m.qf?.has(sid)) this.onEngage?.(m, sid); // начало боя игрока с мобом (условия квестов)
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
-    this.events.push({ k: "hit", id: m.id, d: real, by: sid, bm: pen?.black ? 1 : undefined, ...(pf ? { pf } : {}), ...(pi ? { pi } : {}), ...(pen?.el && pen.el !== "fire" ? { el: pen.el } : {}) }); // bm — чёрный удар (вспышка/звук у клиента); by — для счётчика DPS у клиента
+    this.events.push({ k: "hit", id: m.id, d: real, by: sid, bm: pen?.black ? 1 : undefined, ...pv, ...(pen?.el && pen.el !== "fire" ? { el: pen.el } : {}) }); // bm — чёрный удар (вспышка/звук у клиента); by — для счётчика DPS у клиента
     if (this.guard && sid) this.guard.noteFight(m, sid); // «рядом идёт бой» — Чёрный маг идёт защищать
     if (m.hp <= 0) { (m as any).killer = sid; m.k1 = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);

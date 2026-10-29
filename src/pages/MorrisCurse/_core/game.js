@@ -57,6 +57,7 @@ import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
+import { pureList, ELEM_COLOR, BP_ELEM_ICONS } from '../../../../server/meta/blackArt.ts';
 import { NetClient } from './net.js';
 import { HubWorld } from './hub/hubWorld.js';
 import { rsInfo } from '../../../../server/meta/rsAny.ts';
@@ -692,8 +693,11 @@ async function boot(canvasId, username, userId, api) {
       else if (e.k === 'phit' && e.immune) { const me = e.to === myId, o = me ? player : others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), 'неуязвим', '#c4b5fd'); }
       else if (e.k === 'phit') {
         if (e.by === myId) dpsMeter.add(e.d);
-        if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171', !!e.crit); }
-        else { const o = others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), `${e.crit ? '✦' : ''}${e.d}`, e.crit ? '#fde047' : '#fca5a5', !!e.crit); }
+        const PL = pureList(e), pp = PL.reduce((s, [, n]) => s + n, 0); // ICE: чистый урон стихий и в дуэли — свои цвета
+        const tx = e.to === myId ? player.x : (others.get(e.to)?.x ?? e.x), ty = e.to === myId ? player.y : (others.get(e.to)?.y ?? e.y);
+        if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d - pp}`, e.crit ? '#fb923c' : '#f87171', !!e.crit); }
+        else { overlay.float(toX(tx), 2.6, toZ(ty), `${e.crit ? '✦' : ''}${e.d - pp}`, e.crit ? '#fde047' : '#fca5a5', !!e.crit); }
+        PL.forEach(([el, n], i) => overlay.float(toX(tx) + (i % 2 ? -0.6 : 0.6), 3.0 + 0.3 * (i >> 1), toZ(ty), `${BP_ELEM_ICONS[el] || '✦'}-${n}`, ELEM_COLOR[el] || '#fff'));
       }
     }
   });
@@ -947,10 +951,9 @@ async function boot(canvasId, username, userId, api) {
       if (e.k === 'float') overlay.float(toX(e.x), 2.4, toZ(e.y), e.text, e.color, !!e.crit);
       else if (e.k === 'toast') overlay.toast(e.text, e.color);
       else if (e.k === 'dome_repel') cityView.repel(e.x, e.y); // тот же эффект, что у игрока (сервер: не чаще раза в 3 с на моба)
-      else if (e.k === 'hurt') { flashHurt(); const pp = (e.pf || 0) + (e.pi || 0);
+      else if (e.k === 'hurt') { flashHurt(); const PL = pureList(e), pp = PL.reduce((s, [, n]) => s + n, 0);
         overlay.float(toX(player.x), 2.6, toZ(player.y), e.z ? `0 урона · −${e.d - pp}` : `-${e.d - pp}`, e.z ? '#cbd5e1' : '#f87171');
-        if (e.pf > 0) overlay.float(toX(player.x) + 0.6, 3.0, toZ(player.y), `🔥-${e.pf}`, '#ff8a2a'); // ICE: чистый урон стихий
-        if (e.pi > 0) overlay.float(toX(player.x) - 0.6, 3.0, toZ(player.y), `❄-${e.pi}`, '#6cc8ff'); }
+        PL.forEach(([el, n], i) => overlay.float(toX(player.x) + (i % 2 ? -0.6 : 0.6), 3.0 + 0.3 * (i >> 1), toZ(player.y), `${BP_ELEM_ICONS[el] || '✦'}-${n}`, ELEM_COLOR[el] || '#fff')); } // ICE: чистый урон стихий оси
       else if (e.k === 'died') overlay.toast('Вы пали! Возрождение через 5 с…', '#fca5a5');
     }
   });

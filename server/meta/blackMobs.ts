@@ -7,7 +7,7 @@
 // Снятие с публикации — hidden:1 (никогда не удаление: живые мобы и записи бестиария остаются целы).
 import { ZONE_MOBS, MONSTER_LOOT } from "./defs";
 import { RESOURCES } from "./shared";
-import { BM_PARTS, BP_TYPES, BP_ELEMS, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles } from "./blackArt";
+import { BM_PARTS, BP_TYPES, BP_ELEMS, ALL_ELEMS, PURE_KEYS, ELEM_COLOR, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles } from "./blackArt";
 import { mobXp, tierOf } from "./balance";
 
 export const BODY_SLOTS = ["tail", "armL", "legL", "torso", "legR", "head", "armR"] as const;
@@ -22,6 +22,7 @@ export const BMM_CFG = {
   on: true,                 // чёрные мобы и их лагеря в мире
   fightNearTiles: 12,       // чёрные ↔ обычные дерутся, только если игрок ближе стольких клеток (32 px) — иначе мир спит
   maxCampMobs: 40,          // мобов в одном лагере не больше
+  strictElemDrops: true,    // кусочки стихии — только с мобов ЭТОЙ стихии (ледяные мобы — только ледяные; выкл — огненные можно с любых)
   maxCamps: 30,             // лагерей всего
   maxCustomMobs: 200, maxCustomBody: 300,
   mobVis: 0.6,              // масштаб листа Художника в мире (лист 104 px ≈ 5.2 м; 0.6 → моб ≈ 2.3 м, как обычные крупные)
@@ -92,10 +93,13 @@ export function mobElem(m: BmMob, items?: Record<string, any>): string {
 export const resElem = (r: string) => { for (const el of BP_ELEMS) if (r === shardId(el) || BP_TYPES.some((t) => r === pieceId(el, t))) return el; return null; };
 /** чистый урон стихий моба: сумма pfire/pice деталей оружия (основные статы) + частей тела, % его макс. ОЗ */
 export function mobPure(m: BmMob, items?: Record<string, any>) {
-  const w = mobWeapon(m, items); let pfire = 0, pice = 0;
-  for (const id of Object.values(w)) { const p: any = id && BM_PARTS[id]; if (p) { pfire += Number(p.stats?.pfire) || 0; pice += Number(p.stats?.pice) || 0; } }
-  for (const id of Object.values(m.body || {})) { const b = id && BM_BODY[id]; if (b) { pfire += Number(b.pfire) || 0; pice += Number(b.pice) || 0; } }
-  return pfire > 0 || pice > 0 ? { pfire: Math.round(pfire * 1000) / 1000, pice: Math.round(pice * 1000) / 1000 } : null;
+  const w = mobWeapon(m, items); const acc: Record<string, number> = {}; // ось стихий: все чистые статы реестра ELEMENTS
+  const add = (src: any) => { if (src) for (const el of ALL_ELEMS) { const k = PURE_KEYS[el], v = Number(src[k]) || 0; if (v) acc[k] = (acc[k] || 0) + v; } };
+  for (const id of Object.values(w)) { const p: any = id && BM_PARTS[id]; if (p) add(p.stats); }
+  for (const id of Object.values(m.body || {})) add(id && BM_BODY[id]);
+  const out: any = {}; let any = false; for (const k of Object.keys(acc)) if (acc[k] > 0) { out[k] = Math.round(acc[k] * 1000) / 1000; any = true; }
+  if (any) { out.pfire ??= 0; out.pice ??= 0; } // старые поля — всегда есть (совместимость)
+  return any ? out : null;
 }
 export const CUSTOM_BM = /^bmx_[a-z0-9_]{2,32}$/;
 /** «Авто по уровню»: средние статы обычных мобов этого уровня × refMul */
@@ -164,7 +168,7 @@ export function mobErr(m: BmMob): string | null {
     for (const [t, id] of Object.entries(w)) { if (!id) continue; const p = BM_PARTS[id as string]; if (!(BP_TYPES as readonly string[]).includes(t)) return `оружие: неизвестный слот ${t}`; if (!p) return `нет детали ${id}`; if (p.type !== t) return `${p.name}: не ${t}`; } }
   if (m.artId && !/^art_[0-9a-f]{12}$/.test(m.artId)) return "артефакт: id вида art_…";
   if (m.elem && !BP_ELEMS.includes(m.elem)) return "стихия: из списка";
-  { const el = mobElem(m); for (const d of m.drops || []) { const re = resElem(d.res); if (re && re !== "fire" && re !== el) return `${d.res}: кусочки этой стихии падают только с мобов стихии «${re}» (у моба — «${el}»)`; } }
+  { const el = mobElem(m); for (const d of m.drops || []) { const re = resElem(d.res); if (re && re !== el && (BMM_CFG.strictElemDrops !== false || re !== "fire")) return `${d.res}: кусочки этой стихии падают только с мобов стихии «${re}» (у моба — «${el}»)`; } }
   if (!(BM_CLASSES as readonly string[]).includes(m.cls)) return "класс: из списка";
   return null;
 }
@@ -204,7 +208,7 @@ export function mobAtk(w: Record<string, string>, ranged: boolean): { kind: "arc
 export function registerBlackMobs(items?: Record<string, any>) {
   for (const [id, m] of Object.entries(BM_MOBS)) {
     const f = mobFinal(m, items), role = f.ranged ? (m.cls === "mage" ? "caster" : "ranged") : CLASS_ROLE[m.cls] || "melee";
-    const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobElem(m, items) === "ice" ? "#6cc8ff" : "#ff5a1a", lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
+    const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobElem(m, items) === "fire" ? "#ff5a1a" : ELEM_COLOR[mobElem(m, items)] || "#ff5a1a", lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
       black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]) }; // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
