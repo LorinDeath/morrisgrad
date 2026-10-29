@@ -2299,6 +2299,10 @@ async function boot(canvasId, username, userId, api) {
         return n; },
       mobDemoAt: (t) => { for (const m of zone.mobs.values()) if (m.demo) m.faFix = t == null ? -1 : t; }, // кадр показа «на паузе» (GIF по кадрам)
       mobTypes32: () => B32_META.rows.slice(),
+      // проверка видимости чёрных мобов: у каждого есть лист (state art, непрозрачных пикселей > 0) и он попал в батч кадра
+      bmmVis: () => { const L = zone.bmm, px = (cv) => { if (!cv) return 0; if (cv.__px === undefined) { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let n = 0; for (let k = 3; k < d.length; k += 64) if (d[k] > 20) n++; cv.__px = n; } return cv.__px; };
+        const mobs = [...zone.mobs.values()].filter((o) => o.black).map((o) => { const e = L.b.get(o.type); return { id: o.id, type: o.type, x: Math.round(o.x), y: Math.round(o.y), batch: !!e, st: e?.cv?.state || null, px: px(e?.cv), drawn: e?.batch?.n || 0, vis: e?.batch?.mesh?.visible ?? null }; });
+        return { mobs, types: [...L.b.keys()] }; },
       zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench | 0, elite: !!m.elite, boss: !!(m.flagRaw & 256), flip: !!m.flip, bmA: m.bmA || null, flag: m.flag | 0 })),
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,

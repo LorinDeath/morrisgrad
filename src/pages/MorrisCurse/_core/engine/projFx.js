@@ -2,6 +2,7 @@
 // API прежний (shot / hit / boom / cloud / beam / zap / status) + метки и телеграфы спрайтами (mark / teleLine / teleCircle / teleCone)
 // и навыковые эффекты (nova / cone / dash / slam). Старый proj_atlas.png больше не используется.
 import { GLOW } from './projBatch.js';
+import { elRGB } from './projAtlas.js';
 import { FxAtlas, fxDef, fxDur, TELE_RGB } from './fxAtlas.js';
 
 const C = (hex) => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
@@ -139,9 +140,24 @@ export class ProjFx {
   }
   // 🜏 Огненный взмах артефакта: заливка сектора (= хитбокс сервера) + огненный край лезвия, проходящий от края до края, и угли по ободу.
   // (x,z) центр, (dx,dz) направление, L — радиус (м), h — полуугол (рад), k ∈ [0,1) прогресс, full — полный заряд (ярче/золотистее)
-  fireArc(x, z, dx, dz, L, h, k, full = false, el = 'fire') {
-    const base = Math.atan2(dz, dx), fade = 1 - k, sw = Math.min(1, k * 2.6), th = -h + 2 * h * sw, ice = el === 'ice';
-    const hot = ice ? (full ? [0.92, 0.98, 1] : [0.66, 0.89, 1]) : full ? [1, 0.82, 0.35] : [1, 0.5, 0.12], deep = ice ? (full ? [0.37, 0.72, 0.91] : [0.18, 0.35, 0.54]) : full ? [1, 0.55, 0.12] : [0.95, 0.28, 0.04];
+  fireArc(x, z, dx, dz, L, h, k, full = false, el = 'fire', o = {}) {
+    const base = Math.atan2(dz, dx), fade = 1 - k, sw = Math.min(1, k * 2.6), th = -h + 2 * h * sw, ice = el === 'ice', ec = elRGB(el);
+    let hot = ice ? (full ? [0.92, 0.98, 1] : [0.66, 0.89, 1]) : full ? [1, 0.82, 0.35] : [1, 0.5, 0.12], deep = ice ? (full ? [0.37, 0.72, 0.91] : [0.18, 0.35, 0.54]) : full ? [1, 0.55, 0.12] : [0.95, 0.28, 0.04];
+    if (ec) { hot = ec.map((c) => Math.min(1, c * 0.55 + (full ? 0.5 : 0.35))); deep = ec.map((c) => c * (full ? 0.95 : 0.7)); } // ЭТАП 2: вода/камень/природа/молния — цвет стихии из админки
+    const water = el === 'water'; if (water && ec) hot = ec.map((c) => Math.min(1, c * 0.4 + 0.6)); // вода: светлее край (тёмно-синий терялся на траве/в тени)
+    // ЭТАП 2: большой взмах — лента следа в воздухе за лезвием (длина stl — доля дуги, высота sth, м): от яркого края к прозрачному хвосту
+    const stl = o.stl ?? 0.8, sth = o.sth ?? 1.1, ssc = (o.ssc || 1.25) / 1.25;
+    if (stl > 0 && sw > 0.02) {
+      const tail = Math.min(2 * h, 2 * h * stl), steps = Math.max(6, Math.ceil(tail * L / 0.35)), lift = Math.sin(Math.min(1, sw) * Math.PI) * 0.25;
+      for (let i = 0; i <= steps; i++) {
+        const a = th - (tail * i) / steps; if (a < -h - 0.02) break;
+        const q = i / steps, aa = base + a, ux = Math.cos(aa), uz = Math.sin(aa), R = L * (0.92 - 0.1 * q), w = ((1 - q) * 1.15 + 0.2) * ssc, al = (1 - q) * (1 - q) * fade;
+        this.glow.push(x + ux * R, sth + lift * (1 - q), z + uz * R, w * 1.6, w * 0.55, 1, 0, -uz, ux, GLOW.streak, 0, hot[0], hot[1], hot[2], 0.85 * al);
+        if (i % 2 === 0) this.glow.push(x + ux * R * 0.72, sth * 0.8, z + uz * R * 0.72, w, w, 0, 0, 0, 0, GLOW.ball, 0, deep[0], deep[1], deep[2], 0.45 * al);
+        if (water) { this.glow.push(x + ux * R * 1.02, sth + lift * (1 - q) + 0.08, z + uz * R * 1.02, w * 1.9, w * 0.32, 1, 0, -uz, ux, GLOW.streak, 0, 0.92, 0.98, 1, 0.9 * al); // пенный гребень волны
+          if (i % 3 === 0) this.glow.push(x + ux * R * 0.86, sth * 0.9, z + uz * R * 0.86, w * 1.3, w * 1.3, 0, 0, 0, 0, GLOW.ball, 0, ec ? ec[0] : 0.2, ec ? ec[1] : 0.6, ec ? ec[2] : 1, 0.6 * al); }
+      }
+    }
     // лёд: дуга Художника (ice_arc, 6 кадров @24, радиус ~50 px из 128 — масштаб по дальности) поверх заливки
     if (ice && k < 0.5) this.fx.draw('ice_arc', 'arc', k * 0.42, x, 0.08, z, L * 128 / 50 * 1.0, L * 128 / 50 * Math.min(1, h / 0.9 + 0.2), 2, 0, dx, dz, null, 1, 0.8, false);
     // заливка сектора: кольца свечения на земле — видно всю зону урона
@@ -163,7 +179,7 @@ export class ProjFx {
     if (k < 0.6) {
       const aa = base + th, ux = Math.cos(aa), uz = Math.sin(aa), a1 = 1 - k / 0.6;
       this.glow.push(x + ux * L * 0.6, 0.3, z + uz * L * 0.6, L * 0.85, 0.8, 1, 0, ux, uz, GLOW.streak, 0, hot[0], hot[1], hot[2], 0.95 * a1);
-      for (let j = 1; j <= 4; j++) this.fx.draw(ice ? 'ice_bolt' : 'fire_spark', ice ? 'trail' : 'fly', this.time + j * 0.07, x + ux * L * (0.25 + j * 0.18), 0.35, z + uz * L * (0.25 + j * 0.18), 0.75, 0.75, 1, 0, -uz, ux, null, a1, 0.6);
+      for (let j = 1; j <= 4; j++) this.fx.draw(ice || el === 'water' || el === 'lightning' ? 'ice_bolt' : 'fire_spark', ice ? 'trail' : 'fly', this.time + j * 0.07, x + ux * L * (0.25 + j * 0.18), 0.35 + (stl > 0 ? sth * 0.5 : 0), z + uz * L * (0.25 + j * 0.18), 0.75, 0.75, 1, 0, -uz, ux, ec ? ec.map((c) => -c) : null, a1, ec ? 0 : 0.6);
     }
   }
   /** эффект стихии Художника (ice_hit / ice_crit / ice_zero / ice_release) к камере; t — сек от начала, S — размер, м */

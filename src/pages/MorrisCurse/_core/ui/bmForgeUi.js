@@ -61,7 +61,8 @@ const CSS = `
 let cssOn = false;
 const css = () => { if (cssOn || typeof document === 'undefined') return; cssOn = true; const s = document.createElement('style'); s.id = 'bm-forge-css'; s.textContent = CSS; document.head.appendChild(s); };
 const SAY = { idle: 'Огонь помнит форму. Принеси кусочки чертежа — выкую деталь, а из деталей — оружие.', craft: 'Деталь готова. Тёплая ещё.', build: 'Готово. Назови — и оно твоё.', salv: 'Разобрал. Осколки огня сохрани.', err: 'Не выйдет. Посмотри, чего не хватает.' };
-const ELI = { fire: '🔥', ice: '❄' };
+const ELI = { fire: '🔥', ice: '❄', water: '💧', stone: '🪨', nature: '🌿', lightning: '⚡' };
+const SHOT_NM = { explode: '💥 взрыв', ricochet: '↯ рикошет', pierce: '➶ пробой', split: '✶ раскол' }; // тип снаряда дальнего лезвия (настройка — админка «Детали»)
 export const elBadge = (el) => { el = el || 'fire'; return `<span class="bmf-el ${esc(el)}" title="Стихия: ${esc(BP_ELEM_NAMES[el] || el)}">${ELI[el] || '◆'} ${esc(BP_ELEM_NAMES[el] || el)}</span>`; };
 const statLine = (st) => BM_KEYS.filter((k) => st?.[k]).map((k) => `${BM_NAMES[k].icon} ${fmtBm(k, st[k])}`).join(' · ');
 
@@ -110,13 +111,13 @@ export class BmForgeWin {
   rParts() {
     const st = this.st; if (!st) return '<p class="mc-dim">Знахарь раскладывает инструменты…</p>';
     const els = st.elems || BP_ELEMS, f = this.elf;
-    const filt = `<div class="bmf-filt">${[['', 'Все'], ...els.map((e) => [e, `${ELI[e] || '◆'} ${BP_ELEM_NAMES[e] || e}`])].map(([k, n]) => `<button class="bmf-btn sm dark ${f === k ? 'on' : ''}" data-f="elf" data-v="${esc(k)}">${esc(n)}</button>`).join('')}<span class="mc-dim" style="font-size:11px;align-self:center">ледяные детали — только из ледяных кусочков (с ледяных чёрных мобов)</span></div>`;
+    const filt = `<div class="bmf-filt">${[['', 'Все'], ...els.map((e) => [e, `${ELI[e] || '◆'} ${BP_ELEM_NAMES[e] || e}`])].map(([k, n]) => `<button class="bmf-btn sm dark ${f === k ? 'on' : ''}" data-f="elf" data-v="${esc(k)}">${esc(n)}</button>`).join('')}<span class="mc-dim" style="font-size:11px;align-self:center">детали каждой стихии — только из кусочков этой стихии (с её чёрных мобов и лагерей)</span></div>`;
     return filt + BP_TYPES.map((t) => { const L = st.parts.filter((p) => p.type === t && (!f || (p.elem || 'fire') === f)).sort((x, y) => els.indexOf(x.elem || 'fire') - els.indexOf(y.elem || 'fire')); if (!L.length) return '';
       return `<div class="bmf-h">${esc(BP_TYPE_NAMES[t])}</div><div class="bmf-grid">${L.map((p) => { const have = st.pieces[p.piece] || 0;
         return `<div class="bmf-part ${p.can ? 'can' : ''} ${esc(p.elem || 'fire')}" data-part="${esc(p.id)}" data-elem="${esc(p.elem || 'fire')}"><span class="have" title="Создано деталей">×${p.have}</span><h5>${esc(p.icon || '•')} ${esc(p.name)}${p.form === 'staff' ? ' 🪄' : p.ranged ? ' 🏹' : ''}${elBadge(p.elem)}</h5>
-          <div class="st">${statLine(p.stats) || '—'}</div>${p.desc ? `<div class="st mc-dim">${esc(p.desc)}</div>` : ''}
+          <div class="st">${statLine(p.stats) || '—'}</div>${p.shot ? `<div class="st bmf-shot" data-shot="${esc(p.shot.t)}">Снаряд: <b>${SHOT_NM[p.shot.t] || esc(p.shot.t)}</b>${p.shot.t === 'pierce' ? ` · ${p.shot.n} цели` : p.shot.t === 'ricochet' ? ` · ${p.shot.n} отскока` : p.shot.t === 'split' ? ` · ${p.shot.n} осколка` : ` · радиус ${p.shot.r}`}</div>` : ''}${p.desc ? `<div class="st mc-dim">${esc(p.desc)}</div>` : ''}
           <div class="cost ${have >= p.cost ? 'ok' : 'no'}">${RESOURCES[p.piece]?.icon || '📜'} ${esc(RESOURCES[p.piece]?.name || p.piece)}: <b>${have}/${p.cost}</b>${p.reqLvl ? ` · ур. ${p.reqLvl}+` : ''}</div>
-          <button class="bmf-btn sm" data-f="craft" data-v="${esc(p.id)}" ${p.can ? '' : 'disabled'}>${p.elem === 'ice' ? '❄' : '🔥'} Создать</button></div>`; }).join('')}</div>`; }).join('');
+          <button class="bmf-btn sm" data-f="craft" data-v="${esc(p.id)}" ${p.can ? '' : 'disabled'}>${ELI[p.elem || 'fire'] || '🔥'} Создать</button></div>`; }).join('')}</div>`; }).join('');
   }
   rAsm() {
     const st = this.st; if (!st) return '<p class="mc-dim">…</p>';

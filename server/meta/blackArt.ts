@@ -4,9 +4,11 @@
 // навыки артефактов — обычные записи kind "skill" (поля bm.pct / bm.k) — единый список навыков игры.
 import type { AbilityDef } from "./shared";
 import { BM_WEAPON_PTS } from "./bmWeaponPts";
+import { BM_ELEM_NAMES } from "./bmElemNames";
 
-export type BmStats = { force: number; power: number; charge: number; bdmg: number; barm: number; bcap: number; bcrit: number; pfire: number; pice: number };
-export const BM_KEYS: (keyof BmStats)[] = ["force", "power", "charge", "bdmg", "barm", "bcap", "bcrit", "pfire", "pice"];
+export type BmStats = { force: number; power: number; charge: number; bdmg: number; barm: number; bcap: number; bcrit: number; pfire: number; pice: number;
+  pwater: number; pstone: number; pnature: number; plightning: number }; // этап 2: чистый урон воды/камня/природы/молнии (новые поля — 0 у старых слепков)
+export const BM_KEYS: (keyof BmStats)[] = ["force", "power", "charge", "bdmg", "barm", "bcap", "bcrit", "pfire", "pice", "pwater", "pstone", "pnature", "plightning"];
 export const BM_NAMES: Record<keyof BmStats, { name: string; unit: string; icon: string; hint: string }> = {
   force: { name: "Сила атаки", unit: "%", icon: "✊", hint: "зажмите атаку: только ПОЛНЫЙ заряд умножает удар на (1 + сила %); отпустили раньше — обычный удар" },
   power: { name: "Мощность", unit: "%", icon: "💥", hint: "только на полном заряде: размер и дальность удара +мощность %" },
@@ -17,27 +19,38 @@ export const BM_NAMES: Record<keyof BmStats, { name: string; unit: string; icon:
   bcrit: { name: "Шанс крита", unit: " из 100", icon: "🎲", hint: "мешочек: ровно столько критов на 100 ударов; выпали все криты — сразу новый мешочек" },
   pfire: { name: "Чистый огненный урон", unit: "% ОЗ", icon: "🔥", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони (TZ.md §ICE)" },
   pice: { name: "Чистый ледяной урон", unit: "% ОЗ", icon: "❄", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони (TZ.md §ICE)" },
+  pwater: { name: "Чистый водный урон", unit: "% ОЗ", icon: "💧", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони" },
+  pstone: { name: "Чистый каменный урон", unit: "% ОЗ", icon: "🪨", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони" },
+  pnature: { name: "Чистый урон природы", unit: "% ОЗ", icon: "🌿", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони" },
+  plightning: { name: "Чистый урон молнии", unit: "% ОЗ", icon: "⚡", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони" },
 };
 /** 🜏 ОСЬ СТИХИЙ — единый реестр (данные, не код). Новая стихия = строка здесь + контент (детали/тела/кусочки/арт) + live:true.
  *  live:false — стихия заготовлена (цвет, иконка, чистый стат, набор fx), но в игре ещё не участвует: нет деталей, кусочков, выбора в админке.
  *  pure — ключ стата чистого урона (% ОЗ атакующего); fx — набор эффектов (снаряд, атлас навыков public/bm-art/<fx.skills>, вспышка). */
 export type ElemDef = { id: string; name: string; icon: string; color: string; pure: string; live: boolean; trait?: string;
   fx: { proj: string; skills: string; hit: string } };
-export const ELEMENTS: ElemDef[] = [
+const ELEMENTS0: ElemDef[] = [
   { id: "fire", name: "Огонь", icon: "🔥", color: "#ff8a2a", pure: "pfire", live: true, fx: { proj: "fire_spark", skills: "fx/skills", hit: "ember" } },
   { id: "ice", name: "Лёд", icon: "❄", color: "#6cc8ff", pure: "pice", live: true, trait: "замедление", fx: { proj: "ice_bolt", skills: "ice/fx/skills", hit: "frost" } },
-  { id: "water", name: "Вода", icon: "💧", color: "#3a8dff", pure: "pwater", live: false, fx: { proj: "ice_bolt", skills: "water/fx/skills", hit: "splash" } },
-  { id: "stone", name: "Камень", icon: "🪨", color: "#a08a6a", pure: "pstone", live: false, fx: { proj: "fire_spark", skills: "stone/fx/skills", hit: "dust" } },
-  { id: "nature", name: "Природа", icon: "🌿", color: "#5fd04a", pure: "pnature", live: false, trait: "острая и опасная", fx: { proj: "fire_spark", skills: "nature/fx/skills", hit: "thorn" } },
-  { id: "lightning", name: "Молния", icon: "⚡", color: "#ffe14a", pure: "plightning", live: false, trait: "острые и очень быстрые", fx: { proj: "fire_spark", skills: "lightning/fx/skills", hit: "spark" } },
+  // этап 2 (bm-elements4): вода, камень, природа, молния — полный набор Художника (public/bm-art/{body,weapon,fx,craft}/<стихия>_…)
+  { id: "water", name: "Вода", icon: "💧", color: "#3a8dff", pure: "pwater", live: true, trait: "отбрасывание волной", fx: { proj: "water_bolt", skills: "water/fx/skills", hit: "water_hit" } },
+  { id: "stone", name: "Камень", icon: "🪨", color: "#c8a46a", pure: "pstone", live: true, trait: "тяжёлые удары, броня", fx: { proj: "stone_bolt", skills: "stone/fx/skills", hit: "stone_hit" } },
+  { id: "nature", name: "Природа", icon: "🌿", color: "#5fd04a", pure: "pnature", live: true, trait: "острая и опасная, яд", fx: { proj: "nature_bolt", skills: "nature/fx/skills", hit: "nature_hit" } },
+  { id: "lightning", name: "Молния", icon: "⚡", color: "#ffe14a", pure: "plightning", live: true, trait: "острые и очень быстрые", fx: { proj: "lightning_bolt", skills: "lightning/fx/skills", hit: "lightning_hit" } },
 ];
+/** цвет стихии — из админки (BMA_CFG.elemColor, «🜏 Чёрная магия: настройки» → «Цвета стихий»); нет правки — цвет реестра */
+export const ELEM_DEF_COLOR: Record<string, string> = Object.fromEntries(ELEMENTS0.map((e) => [e.id, e.color]));
+const okHex = (c: any) => typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c);
+export const elemColor = (el: string) => { const c = (BMA_CFG as any)?.elemColor?.[el]; return okHex(c) ? c : ELEM_DEF_COLOR[el]; };
+export const ELEMENTS: ElemDef[] = ELEMENTS0.map((e) => Object.defineProperty({ ...e }, "color", { get: () => elemColor(e.id), enumerable: true }) as ElemDef);
 export const ELEM_BY_ID: Record<string, ElemDef> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e]));
 /** все стихии оси (включая заготовленные) */
 export const ALL_ELEMS = ELEMENTS.map((e) => e.id);
 /** стихии чистого урона: стихия → стат (для всей оси) */
 export const PURE_KEYS: Record<string, string> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.pure]));
-export const ELEM_COLOR: Record<string, string> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.color]));
-export const bmZero = (): BmStats => ({ force: 0, power: 0, charge: 0, bdmg: 0, barm: 0, bcap: 0, bcrit: 0, pfire: 0, pice: 0 });
+/** живой словарь цветов: читает правку админки при каждом обращении (цифры урона, мобы, превью — сразу новым цветом) */
+export const ELEM_COLOR: Record<string, string> = new Proxy({ ...ELEM_DEF_COLOR }, { get: (t, k: any) => (typeof k === "string" && k in t ? elemColor(k) : (t as any)[k]) });
+export const bmZero = (): BmStats => ({ force: 0, power: 0, charge: 0, bdmg: 0, barm: 0, bcap: 0, bcrit: 0, pfire: 0, pice: 0, pwater: 0, pstone: 0, pnature: 0, plightning: 0 });
 
 /** Настройки чёрной магии (админка «🜏 Чёрная магия: настройки», kind bmagic/main). */
 /** полуугол дуги не шире 81° — ровно столько умеет рисовать спрайт конуса (визуал = хитбокс) */
@@ -87,6 +100,13 @@ export const BMA_CFG = {
   pureCrit: false,                 // крит умножает и чистый урон
   pureArmor: false,                // вкл — чистый урон тоже режется чёрной/предельной бронёй цели (выкл — мимо брони)
   bmMinDmg: 1,                     // мин. урон удара по «чёрной» цели после чёрной брони (0 — разрешить 0); только если удар был > 0
+  elemColor: { ...ELEM_DEF_COLOR } as Record<string, string>, // цвета стихий (цифры чистого урона, мобы, дуги, превью); правятся в админке
+  // этап 2: большой взмах ближнего лезвия со следом воздуха (клиент рисует; хитбокс — прежняя дуга)
+  bigSwing: true, swingTrail: 1, swingScale: 1.25, swingAirMs: 260, swingH: 1.1, // swingTrail — длина ленты (×0.8 дуги), swingScale — толщина, swingAirMs — сколько лента висит в воздухе, swingH — высота, м
+  // этап 2: типы снарядов дальних лезвий (поле shot у детали): множители по умолчанию
+  shotOn: true, shotExplodeR: 80, shotExplodeK: 0.6, shotRicochetN: 2, shotRicochetK: 0.7, shotRicochetR: 260, shotPierceN: 3, shotSplitN: 3, shotSplitK: 0.5, shotSplitR: 160,
+  // этап 2: камень — замедление-оглушение (плеть/кольцо), как iceSlow у льда; яд природы — в чертах навыков, отбрасывание воды — в форме
+  stoneSlow: true,
   iceSlow: true,                   // ледяные навыки артефактов (Ледяной хлыст, Кольцо инея) замедляют цель (стандартное замедление игры) // charge — нижний предел (с), bcap — нижний предел (%)
 };
 
@@ -100,6 +120,28 @@ export interface BmPart {
   /** форма детали лезвия (админка): «staff» — палка/посох (основной — дальний по умолчанию, во 2/3 слоте — +снаряд), «blade» — клинок.
    *  Нет поля — по листу Художника: blade_3* («Посох-жаровня») — посох, иначе клинок. */
   form?: "staff" | "blade";
+  /** этап 2: тип снаряда дальнего лезвия/посоха (нет — обычный): explode — взрыв по площади, ricochet — отскок к следующей цели,
+   *  pierce — насквозь, split — раскол на осколки. shotN — отскоков/целей/осколков, shotR — радиус (px), shotK — × урона вторичного удара */
+  shot?: "" | "explode" | "ricochet" | "pierce" | "split"; shotN?: number; shotR?: number; shotK?: number;
+}
+export const SHOT_TYPES = ["", "explode", "ricochet", "pierce", "split"] as const;
+export const SHOT_NAMES: Record<string, string> = { "": "Обычный", explode: "Взрывной", ricochet: "Рикошет", pierce: "Пробивной", split: "Раскалывающийся" };
+/** тип снаряда сборки (слепок артефакта): от основного лезвия; параметры по умолчанию — BMA_CFG.shot* */
+export type ShotInfo = { t: string; n: number; r: number; k: number };
+/** ЭТАП 2: параметры большого взмаха для событий shot/marc (клиент рисует след в воздухе; по умолчанию — без полей) */
+export function swingEv(): Record<string, number> {
+  const C: any = BMA_CFG; if (C.bigSwing === false || !(Number(C.swingTrail) > 0)) return { stl: 0 };
+  const o: Record<string, number> = {}, L = Number(C.swingTrail), S = Number(C.swingScale), A = Number(C.swingAirMs), H = Number(C.swingH);
+  if (L !== 1) o.stl = +Math.min(2, 0.8 * L).toFixed(3); if (Number.isFinite(S) && S !== 1.25) o.ssc = Math.max(0.2, Math.min(4, S));
+  if (Number.isFinite(A) && A !== 260) o.slf = +Math.max(0.15, Math.min(2.5, 0.24 + A / 1000)).toFixed(3); if (Number.isFinite(H) && H !== 1.1) o.sth = Math.max(0, Math.min(4, H));
+  return o;
+}
+export function shotOf(b: BmPart | null | undefined): ShotInfo | null {
+  const t = b?.shot; if (!t || !(SHOT_TYPES as readonly string[]).includes(t) || (BMA_CFG as any).shotOn === false) return null;
+  const C: any = BMA_CFG;
+  const def = t === "explode" ? { n: 1, r: C.shotExplodeR, k: C.shotExplodeK } : t === "ricochet" ? { n: C.shotRicochetN, r: C.shotRicochetR, k: C.shotRicochetK }
+    : t === "pierce" ? { n: C.shotPierceN, r: 0, k: 0.8 } : { n: C.shotSplitN, r: C.shotSplitR, k: C.shotSplitK };
+  return { t, n: Math.max(1, Math.min(8, Math.round(b!.shotN ?? def.n))), r: Math.max(0, Math.min(600, Number(b!.shotR ?? def.r) || 0)), k: Math.max(0, Math.min(3, Number(b!.shotK ?? def.k) || 0)) };
 }
 /** боевые статы (не складываются от доп. посохов при staffStatsAdd = выкл); barm/bcap — защитные, складываются всегда */
 export const BM_ATK_KEYS = ["force", "power", "charge", "bdmg", "bcrit", "pfire", "pice"];
@@ -131,7 +173,7 @@ export const CUSTOM_BP = /^bpx_[a-z0-9_]{2,32}$/;
 export function makeBpart(id: string, type: string, elem = "fire"): BmPart {
   const t = (BP_TYPES as readonly string[]).includes(type) ? type as BpType : "blade";
   const el = elemOf(elem);
-  return { id, name: BP_TYPE_NAMES[t] + " (новая)", type: t, elem: el, rarity: "common", lvl: 1, icon: t === "crystal" ? "💎" : t === "handle" ? BP_ELEM_ICONS[el] : "🗡️", color: el === "ice" ? "#6cc8ff" : "#ff7a1a",
+  return { id, name: BP_TYPE_NAMES[t] + " (новая)", type: t, elem: el, rarity: "common", lvl: 1, icon: t === "crystal" ? "💎" : t === "handle" ? BP_ELEM_ICONS[el] : "🗡️", color: el === "fire" ? "#ff7a1a" : ELEM_DEF_COLOR[el] || "#ff7a1a",
     stats: {}, cost: BP_COST_DEF[t], ...(t === "handle" ? { cd: 600 } : t === "blade" ? { reach: 110, arc: 1.1 } : {}) };
 }
 /** ЛЁД (этап ICE): полный ледяной набор Художника (public/bm-art/{body,weapon}/ice_…, «elem»: «ice»). Статы зеркалят огонь деталь в деталь;
@@ -163,6 +205,53 @@ function ICE_PARTS(): Record<string, BmPart> {
     stats: { bdmg: 0.02, bcrit: 1, barm: i % 2 ? 2 : 1 }, skill: "bmi_icicle_hail" }); });
   return out;
 }
+/** ЭТАП 2: полный набор детали стихии из листов Художника (<el>_handle_1…5, blade_1…5 и _ranged, blade_staff_1…3, blade2/3_1…5, их посохи, crystal_1…5).
+ *  Имена — из листов (bmElemNames.ts). Характер стихии — множители статов (ELEM_FLAVOR); всё правится в админке (bpart). */
+type Flavor = { force: number; bdmg: number; power: number; bcrit: number; charge: number; cd: number; barm: number; bcap: number; reach: number; range: number; shots: BmPart["shot"][] };
+export const ELEM_FLAVOR: Record<string, Flavor> = {
+  water: { force: 1, bdmg: 1, power: 1.1, bcrit: 1, charge: 1, cd: 1, barm: 1, bcap: 1, reach: 1.05, range: 1.1, shots: ["ricochet", "pierce", "explode", "split", ""] },
+  stone: { force: 1.25, bdmg: 1.1, power: 0.9, bcrit: 0.8, charge: 1.2, cd: 1.15, barm: 1.8, bcap: 1.3, reach: 0.95, range: 0.9, shots: ["explode", "split", "explode", "pierce", ""] },
+  nature: { force: 1.1, bdmg: 1.15, power: 1, bcrit: 1.4, charge: 0.95, cd: 0.95, barm: 0.8, bcap: 1, reach: 1, range: 1, shots: ["split", "pierce", "ricochet", "explode", ""] },
+  lightning: { force: 0.9, bdmg: 1.05, power: 1, bcrit: 1.6, charge: 0.7, cd: 0.75, barm: 0.6, bcap: 0.9, reach: 1.1, range: 1.15, shots: ["ricochet", "pierce", "split", "ricochet", "explode"] },
+};
+/** навыки деталей стихии: рукоять — рывок, лезвие — плеть, 2-е — кольцо, 3-е — дождь, кристалл/посох — снаряд */
+export const ELEM_SK: Record<string, { dash: string; lash: string; ring: string; rain: string; bolt: string; icon: string }> = {
+  water: { dash: "bmw_wave_dash", lash: "bmw_tide_whip", ring: "bmw_bubble_ring", rain: "bmw_rain_torrent", bolt: "bmw_droplet_bolt", icon: "💧" },
+  stone: { dash: "bms_landslide_dash", lash: "bms_boulder_lash", ring: "bms_spike_ring", rain: "bms_rockfall", bolt: "bms_boulder_bolt", icon: "🪨" },
+  nature: { dash: "bmn_vine_dash", lash: "bmn_thorn_lash", ring: "bmn_bramble_ring", rain: "bmn_spore_rain", bolt: "bmn_seed_bolt", icon: "🌿" },
+  lightning: { dash: "bml_blink_dash", lash: "bml_spark_lash", ring: "bml_storm_ring", rain: "bml_thunder_rain", bolt: "bml_ball_bolt", icon: "⚡" },
+};
+const R2 = (v: number) => Math.round(v * 100) / 100, R3 = (v: number) => Math.round(v * 1000) / 1000;
+export function ELEM_PARTS(el: string): Record<string, BmPart> {
+  const F = ELEM_FLAVOR[el], K = ELEM_SK[el], N = BM_ELEM_NAMES.weapon[el] || {}, c = ELEM_DEF_COLOR[el], pk = ELEM_BY_ID0[el].pure, out: Record<string, BmPart> = {};
+  const P = (id: string, img: string, type: BmPart["type"], o: Partial<BmPart>): BmPart => ({ id, img: `${el}_${img}`, name: N[img] || img, type, elem: el, rarity: "rare", lvl: 1, icon: K.icon, color: c, stats: {}, ...o });
+  const RAR = ["rare", "uncommon", "uncommon", "rare", "epic"];
+  for (let i = 1; i <= 5; i++) { // рукояти: темп (кд), заряд, сила, крит
+    const id = i === 1 ? `${el}_handle` : `${el}_handle${i}`;
+    out[id] = P(id, `handle_${i}`, "handle", { rarity: RAR[i - 1], stats: { force: Math.round((40 - (i - 1) * 3) * F.force), charge: R2((1.6 - (i - 1) * 0.1) * F.charge), bcrit: Math.round((5 - (i % 2)) * F.bcrit) }, cd: Math.round((560 + (i - 1) * 20) * F.cd), skill: K.dash, ...(i >= 4 ? { reqLvl: 8 + i } : {}) });
+  }
+  for (let i = 1; i <= 5; i++) { // ближние лезвия и их дальние варианты (тип снаряда — по варианту)
+    const id = i === 1 ? `${el}_blade` : `${el}_blade_${i}`, rid = i === 1 ? `${el}_blade_r` : `${el}_blade_${i}_r`;
+    out[id] = P(id, `blade_${i}`, "blade", { icon: "🗡️", rarity: RAR[i - 1], stats: { bdmg: R3((0.1 - (i - 1) * 0.005) * F.bdmg), power: Math.round((40 + (i - 1) * 2) * F.power), bcrit: Math.round(2 * F.bcrit) }, reach: Math.round((120 + (i - 1) * 4) * F.reach), arc: R2(1.15 - (i - 1) * 0.03), skill: K.lash, ...(i >= 4 ? { reqLvl: 8 + i } : {}) });
+    out[rid] = P(rid, `blade_${i}_ranged`, "blade", { icon: "🏹", rarity: RAR[i - 1], stats: { bdmg: R3((0.08 - (i - 1) * 0.004) * F.bdmg), power: Math.round(30 * F.power), bcrit: Math.round(2 * F.bcrit) }, ranged: true, rangeTiles: Math.min(14, Math.round(9 * F.range)), width: 22, skill: K.lash, shot: F.shots[i - 1] || "", ...(i >= 4 ? { reqLvl: 8 + i } : {}) });
+  }
+  for (let i = 1; i <= 3; i++) { const id = `${el}_staff_${i}`;
+    out[id] = P(id, `blade_staff_${i}`, "blade", { form: "staff", icon: "🪄", rarity: i === 1 ? "epic" : "rare", cost: i === 1 ? 40 : 32, ...(i === 1 ? { reqLvl: 10 } : {}),
+      stats: { bdmg: R3((0.1 - (i - 1) * 0.01) * F.bdmg), power: Math.round((40 - (i - 1) * 5) * F.power), bcrit: Math.round((3 + (i === 2 ? 1 : 0)) * F.bcrit) }, ranged: true, rangeTiles: Math.min(14, Math.round((10 - (i > 1 ? 1 : 0)) * F.range)), width: 22 + (i === 2 ? 2 : 0), reach: 115, arc: 1.0, skill: i === 3 ? K.rain : K.bolt, shot: F.shots[(i + 1) % 5] || "" });
+  }
+  for (let i = 1; i <= 5; i++) {
+    const a = i === 1 ? `${el}_blade2` : `${el}_blade2_${i}`, b = i === 1 ? `${el}_blade3` : `${el}_blade3_${i}`;
+    out[a] = P(a, `blade2_${i}`, "blade2", { rarity: i < 4 ? "uncommon" : "rare", icon: "🛡", stats: { barm: Math.round((3 + (i - 1) * 0.5) * F.barm * 10) / 10, bcap: Math.round(12 * F.bcap) }, skill: K.ring });
+    out[b] = P(b, `blade3_${i}`, "blade3", { rarity: i < 4 ? "uncommon" : "rare", icon: "🌙", stats: { bdmg: R3(0.02 * F.bdmg), barm: Math.round(2 * F.barm * 10) / 10 }, skill: K.rain });
+    const s2 = `${el}_b2staff_${i}`, s3 = `${el}_b3staff_${i}`;
+    out[s2] = P(s2, `blade2_staff_${i}`, "blade2", { form: "staff", rarity: i < 4 ? "uncommon" : "rare", icon: "🪄", stats: { bdmg: R3(0.02 * F.bdmg), power: 6, barm: i % 2 ? 1 : 2 }, skill: K.ring });
+    out[s3] = P(s3, `blade3_staff_${i}`, "blade3", { form: "staff", rarity: i < 4 ? "uncommon" : "rare", icon: "🪄", stats: { bdmg: R3(0.02 * F.bdmg), bcrit: 1, barm: i % 2 ? 2 : 1 }, skill: K.rain });
+    const cr = i === 1 ? `${el}_crystal` : `${el}_crystal_${i}`; // кристаллы — чистый урон своей стихии
+    out[cr] = P(cr, `crystal_${i}`, "crystal", { rarity: i === 5 ? "legendary" : "epic", icon: "💎", stats: { bcrit: 1, power: 10 - (i - 1), [pk]: R2(0.5 + (i - 1) * 0.1) } as any, skill: K.bolt, ...(i >= 3 ? { reqLvl: 6 + i * 2, cost: 25 + i * 5 } : {}) });
+  }
+  return out;
+}
+const ELEM_BY_ID0: Record<string, ElemDef> = Object.fromEntries(ELEMENTS0.map((e) => [e.id, e]));
 export const BM_PARTS: Record<string, BmPart> = {
   fire_handle: { id: "fire_handle", img: "handle_1", name: "Рукоять тлеющего угля", type: "handle", elem: "fire", rarity: "rare", lvl: 1, icon: "🔥", color: "#e0601a",
     stats: { force: 40, charge: 1.6, bcrit: 5 }, cd: 560, skill: "bmf_phoenix_dash" },
@@ -207,6 +296,7 @@ export const BM_PARTS: Record<string, BmPart> = {
   fire_crystal: { id: "fire_crystal", img: "crystal_1", name: "Кристалл жара", type: "crystal", elem: "fire", rarity: "epic", lvl: 1, icon: "💎", color: "#ffe08a",
     stats: { bcrit: 1, power: 10, pfire: 0.5 }, skill: "bmf_cinder_bolt" },
   ...ICE_PARTS(),
+  ...ELEM_PARTS("water"), ...ELEM_PARTS("stone"), ...ELEM_PARTS("nature"), ...ELEM_PARTS("lightning"),
 };
 const RAR_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
 
@@ -246,13 +336,46 @@ export const BM_SKILLS: (AbilityDef & { bm: BmSkillCfg })[] = [
   { id: "bmi_blizzard_dash", cls: "artifact" as any, name: "Рывок метели", icon: "🌬️", cd: 12, power: 1, unlockLevel: 1, radiance: ["swift", "echo", "nova"],
     desc: "Рывок сквозь врагов в вихре метели, за героем — снежный след.",
     bm: { pct: 0.5, k: 2, elem: "ice", vfx: "вихрь снега, след инея, короткая неуязвимость" } },
+  ...ELEM_SKILLS(),
 ];
+/** ЭТАП 2: по 5 навыков воды, камня, природы, молнии (листы Художника public/bm-art/<el>/fx/skills) — пресеты конструктора навыков.
+ *  Черты: природа — яд (плеть/спородождь), вода — отбрасывание, камень — замедление-оглушение, молния — быстрее (кд меньше) и шире кольцо */
+function ELEM_SKILLS(): any[] {
+  const D: [string, string, string, string, string, number, number, number, string, any[]?][] = [
+    // [id, имя, иконка, слот, описание, кд, pct, k, vfx, traits]
+    ["bmw_tide_whip", "Хлыст прилива", "🌊", "lash", "Водяная плеть хлещет конусом и отбрасывает врагов волной.", 6, 0.6, 2, "плеть из воды (water_arc), брызги, на целях — пена"],
+    ["bmw_bubble_ring", "Кольцо пузырей", "🫧", "ring", "Вокруг героя лопается кольцо пузырей — отбрасывает.", 10, 0.8, 3, "кольцо пузырей, вспышка брызг"],
+    ["bmw_droplet_bolt", "Капля-снаряд", "💧", "bolt", "Тяжёлая капля летит вперёд и разбрызгивается у первой цели.", 7, 0.7, 2.5, "капля water_bolt + след, всплеск 100 px"],
+    ["bmw_rain_torrent", "Ливень", "🌧️", "rain", "Ливень обрушивается на площадь перед героем.", 14, 0.3, 1, "круги-телеграфы, струи воды, лужи гаснут за 1 с"],
+    ["bmw_wave_dash", "Рывок волны", "🌊", "dash", "Рывок сквозь врагов на гребне волны.", 12, 0.5, 2, "гребень волны, след пены, короткая неуязвимость"],
+    ["bms_boulder_lash", "Каменная плеть", "🪨", "lash", "Плеть из валунов бьёт конусом и оглушает (замедляет).", 7, 0.7, 2.2, "плеть из камней, каменная крошка"],
+    ["bms_spike_ring", "Кольцо шипов", "⛰️", "ring", "Из земли вокруг героя вырываются каменные шипы.", 11, 0.9, 3.2, "кольцо шипов, пыль"],
+    ["bms_boulder_bolt", "Валун-снаряд", "🥌", "bolt", "Валун летит вперёд и раскалывается у первой цели.", 8, 0.8, 2.8, "валун stone_bolt + пыль, раскол 100 px"],
+    ["bms_rockfall", "Камнепад", "☄️", "rain", "Камни падают на площадь перед героем.", 15, 0.35, 1.1, "тени-телеграфы, падающие глыбы, пыль"],
+    ["bms_landslide_dash", "Рывок оползня", "🏔️", "dash", "Рывок оползнем сквозь врагов.", 13, 0.55, 2.2, "оползень, каменный след"],
+    ["bmn_thorn_lash", "Терновая плеть", "🌿", "lash", "Терновая плеть хлещет конусом и отравляет.", 6, 0.6, 2, "плеть из терна, листья, на целях — яд", [{ k: "poison", chance: 40, dpsPct: 20, dur: 3 }]],
+    ["bmn_bramble_ring", "Кольцо терновника", "🌵", "ring", "Вокруг героя вырастает кольцо терновника.", 10, 0.8, 3, "кольцо терновника, листья"],
+    ["bmn_seed_bolt", "Семя-снаряд", "🌰", "bolt", "Семя летит вперёд и раскрывается шипами у первой цели.", 7, 0.7, 2.5, "семя nature_bolt + след пыльцы"],
+    ["bmn_spore_rain", "Ядовитый спородождь", "🍄", "rain", "Ядовитые споры падают на площадь перед героем.", 14, 0.3, 1, "облака спор, ядовитые лужи", [{ k: "poison", chance: 35, dpsPct: 18, dur: 3 }]],
+    ["bmn_vine_dash", "Рывок лозы", "🌱", "dash", "Рывок по лозам сквозь врагов.", 12, 0.5, 2, "лозы, след листьев"],
+    ["bml_spark_lash", "Разрядная плеть", "⚡", "lash", "Плеть из разрядов бьёт конусом — быстро и остро.", 5, 0.6, 2.1, "плеть из молний (lightning_arc), искры"],
+    ["bml_storm_ring", "Кольцо грозы", "🌩️", "ring", "Вокруг героя бьёт кольцо грозы — отбрасывает.", 9, 0.8, 3, "кольцо разрядов, вспышка"],
+    ["bml_ball_bolt", "Шаровая молния", "🔆", "bolt", "Шаровая молния летит вперёд и взрывается у первой цели.", 6, 0.7, 2.6, "шар lightning_bolt + искры, разряд 100 px"],
+    ["bml_thunder_rain", "Грозовой ливень", "⛈️", "rain", "Удары молний по площади перед героем.", 12, 0.32, 1.05, "метки-телеграфы, удары молний"],
+    ["bml_blink_dash", "Рывок-вспышка", "💫", "dash", "Мгновенный рывок-вспышка сквозь врагов, короткая неуязвимость.", 10, 0.5, 2, "вспышка, послеобразы, неуязвимость 0.4 с"],
+  ];
+  const RAD: Record<string, string[]> = { lash: ["echo", "swift", "vamp"], ring: ["extend", "nova", "vamp"], bolt: ["echo", "extend", "swift"], rain: ["extend", "echo", "vamp"], dash: ["swift", "echo", "nova"] };
+  const EL: Record<string, string> = { bmw: "water", bms: "stone", bmn: "nature", bml: "lightning" };
+  return D.map(([id, name, icon, slot, desc, cd, pct, k, vfx, traits]) => ({ id, cls: "artifact" as any, name, icon, cd, power: 1, unlockLevel: 1, radiance: RAD[slot], desc,
+    bm: { pct, k, elem: EL[id.slice(0, 3)], vfx, ...(traits ? { traits } : {}) } }));
+}
 /** стихия навыка артефакта: bmi_* — лёд, bmf_* — огонь */
 /** стихия навыков конструктора (skillCraft.ts заполняет: пресеты и свои skx_…) */
 export const SK_ELEM: Record<string, string> = {};
-export const skillElem = (id: any) => (typeof id === "string" && SK_ELEM[id] ? SK_ELEM[id] : typeof id === "string" && id.startsWith("bmi_") ? "ice" : "fire");
+export const SK_PREFIX: Record<string, string> = { bmf_: "fire", bmi_: "ice", bmw_: "water", bms_: "stone", bmn_: "nature", bml_: "lightning" };
+export const skillElem = (id: any) => (typeof id !== "string" ? "fire" : SK_ELEM[id] || SK_PREFIX[id.slice(0, 4)] || "fire");
 export const BM_SKILL_IDS = BM_SKILLS.map((s) => s.id);
-export const isBmSkill = (id: any) => typeof id === "string" && (id.startsWith("bmf_") || id.startsWith("bmi_") || !!SK_ELEM[id]);
+export const isBmSkill = (id: any) => typeof id === "string" && (!!SK_PREFIX[id.slice(0, 4)] || !!SK_ELEM[id]);
 /** формы навыков (abilityShapes.SHAPES) */
 export const BM_SHAPES: Record<string, any> = {
   bmf_ember_lash: { k: "cone", len: 230, arc: 1.0 },
@@ -266,13 +389,34 @@ export const BM_SHAPES: Record<string, any> = {
   bmi_shard_bolt: { k: "proj", len: 480, r: 100, w: "staff", elem: "ice" },
   bmi_icicle_hail: { k: "rain", n: 8, area: 200, r: 60, elem: "ice" },
   bmi_blizzard_dash: { k: "dash", len: 220, w: 60, invuln: 400, trail: 1, elem: "ice" },
+  // этап 2: вода — отбрасывание (waterKnock), камень — замедление (stoneSlow), природа — яд в чертах, молния — шире и быстрее
+  bmw_tide_whip: { k: "cone", len: 230, arc: 1.0, knock: 2, elem: "water" },
+  bmw_bubble_ring: { k: "nova", r: 140, knock: 2, elem: "water" },
+  bmw_droplet_bolt: { k: "proj", len: 480, r: 100, w: "staff", elem: "water" },
+  bmw_rain_torrent: { k: "rain", n: 8, area: 200, r: 60, elem: "water" },
+  bmw_wave_dash: { k: "dash", len: 220, w: 60, invuln: 400, trail: 1, elem: "water" },
+  bms_boulder_lash: { k: "cone", len: 230, arc: 1.0, elem: "stone", get slow() { return !!BMA_CFG.stoneSlow; } },
+  bms_spike_ring: { k: "nova", r: 140, knock: 2, elem: "stone", get slow() { return !!BMA_CFG.stoneSlow; } },
+  bms_boulder_bolt: { k: "proj", len: 480, r: 100, w: "staff", elem: "stone" },
+  bms_rockfall: { k: "rain", n: 8, area: 200, r: 60, elem: "stone" },
+  bms_landslide_dash: { k: "dash", len: 220, w: 60, invuln: 400, trail: 1, elem: "stone" },
+  bmn_thorn_lash: { k: "cone", len: 230, arc: 1.0, elem: "nature" },
+  bmn_bramble_ring: { k: "nova", r: 140, knock: 2, elem: "nature" },
+  bmn_seed_bolt: { k: "proj", len: 480, r: 100, w: "staff", elem: "nature" },
+  bmn_spore_rain: { k: "rain", n: 8, area: 200, r: 60, elem: "nature" },
+  bmn_vine_dash: { k: "dash", len: 220, w: 60, invuln: 400, trail: 1, elem: "nature" },
+  bml_spark_lash: { k: "cone", len: 250, arc: 0.9, elem: "lightning" },
+  bml_storm_ring: { k: "nova", r: 150, knock: 2, elem: "lightning" },
+  bml_ball_bolt: { k: "proj", len: 520, r: 100, w: "staff", elem: "lightning" },
+  bml_thunder_rain: { k: "rain", n: 8, area: 200, r: 60, elem: "lightning" },
+  bml_blink_dash: { k: "dash", len: 240, w: 60, invuln: 400, trail: 1, elem: "lightning" },
 };
 
 // ---------- артефакт ----------
 export interface ArtAtk { kind: "arc" | "proj"; range: number; arc?: number; width?: number; max?: number; count?: number; spread?: number }
 /** staff — основное лезвие посох (можно переключать ближний/дальний), shots — снарядов за выстрел (1 + посохи во 2/3 слоте),
  *  alt — вторая форма удара посоха (ближняя дуга) */
-export interface ArtInfo { parts: Record<string, string>; stats: BmStats; atk: ArtAtk; cd: number; skills: string[]; elem: string; elems?: string[]; ranged: boolean; staff?: boolean; shots?: number; alt?: ArtAtk }
+export interface ArtInfo { parts: Record<string, string>; stats: BmStats; atk: ArtAtk; cd: number; skills: string[]; elem: string; elems?: string[]; ranged: boolean; staff?: boolean; shots?: number; alt?: ArtAtk; shot?: ShotInfo }
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
 /** Сумма частей → чёрные статы, форма удара (от основного лезвия), навыки. null — сборка неверна. */
 export function computeArtifact(parts: Record<string, string>, P: Record<string, BmPart> = BM_PARTS): ArtInfo | null {
@@ -292,7 +436,7 @@ export function computeArtifact(parts: Record<string, string>, P: Record<string,
   const proj: ArtAtk = { kind: "proj", range: Math.round(Math.min(Math.max(1, b.rangeTiles || (staff ? BMA_CFG.staffRangeTiles : 6)), BMA_CFG.maxRangeTiles) * BMA_CFG.tile), width: b.width || 20, ...(shots > 1 ? { count: shots } : {}) };
   const arc: ArtAtk = { kind: "arc", range: Math.round(Math.max(40, b.reach || 110)), arc: Math.min(ARC_MAX, b.arc || 1.1), max: 4 };
   return { parts: { ...parts }, stats: st, atk: ranged ? proj : arc, cd: Math.max(200, h.cd || 600), skills, elem: b.elem || "fire", ...(elems.length > 1 ? { elems } : {}), ranged,
-    ...(staff ? { staff: true, alt: arc } : {}), ...(shots > 1 ? { shots } : {}) };
+    ...(staff ? { staff: true, alt: arc } : {}), ...(shots > 1 ? { shots } : {}), ...(ranged && shotOf(b) ? { shot: shotOf(b)! } : {}) };
 }
 export function artRarity(parts: Record<string, string>, P: Record<string, BmPart> = BM_PARTS): string {
   let best = 0; for (const id of Object.values(parts)) { const i = RAR_ORDER.indexOf(P[id]?.rarity || "common"); if (i > best) best = i; }

@@ -6,7 +6,7 @@ import { ITEM_BY_ID } from "./defs";
 let P = 0, F = 0; const ok = (c: any, m: string) => { if (c) { P++; console.log("PASS " + m); } else { F++; console.log("FAIL " + m); } };
 ok(["fire", "ice", "water", "stone", "nature", "lightning"].every((e) => ALL_ELEMS.includes(e)), "реестр: 6 стихий");
 ok(ELEMENTS.every((e) => e.color && e.icon && e.name && e.pure === "p" + e.id && e.fx?.proj && e.fx?.skills), "у каждой: цвет, иконка, имя, чистый стат, набор fx");
-ok(BP_ELEMS.join() === "fire,ice", "в игре (live) пока только огонь и лёд — нового контента нет");
+ok(BP_ELEMS.join() === "fire,ice,water,stone,nature,lightning", "в игре (live) все 6 стихий (этап 2: вода, камень, природа, молния)");
 ok(PURE_KEYS.lightning === "plightning" && ELEM_COLOR.nature && BP_ELEM_ICONS.lightning === "⚡", "производные таблицы из реестра");
 ok(ALL_ELEMS.every((e) => BMA_CFG.pureMul[e] === 1 && BMA_CFG.caps[PURE_KEYS[e]] === 20), "pureMul/caps — для всей оси");
 { const p = bmPure(1000, { pfire: 1, pnature: 2 } as any, "mob"); ok(p.fire === 10 && p.nature === 20 && pureSum(p) === 30, "bmPure: заготовленная стихия считается по данным"); 

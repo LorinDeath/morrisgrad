@@ -65,6 +65,7 @@ export function mountBmForge(ap, sec) {
 }
 
 weaponManifest();
+const SHOT_LBL = { explode: '💥 взрыв', ricochet: '↯ рикошет', pierce: '➶ насквозь', split: '✶ раскол' }; // тип снаряда дальнего лезвия
 function fieldsOf(ap) { return ap.cat?.schema?.bpart?.fields || []; }
 function parts(ap, S, bd, sec) {
   const L = S.list, drafts = new Map((L.drafts || []).map((d) => [d.id, d]));
@@ -81,7 +82,7 @@ function parts(ap, S, bd, sec) {
       if (f.t === 'hdr') return `<div class="hd">${esc(f.label)}</div>`;
       const v = get(e.data, f.path), id = `bmfa-${f.path}`;
       if (f.t === 'bool') return `<label class="w" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-k="${f.path}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
-      if (f.t === 'enum') return `<label>${esc(f.label)}<select data-k="${f.path}" ${f.path === 'type' && !e.isNew ? 'disabled' : ''}>${f.opts.map((o) => `<option value="${esc(o)}" ${String(v ?? '') === String(o) ? 'selected' : ''}>${esc(o === '' ? '— нет —' : BP_TYPE_NAMES[o] || o)}</option>`).join('')}</select></label>`;
+      if (f.t === 'enum') return `<label>${esc(f.label)}<select data-k="${f.path}" ${f.path === 'type' && !e.isNew ? 'disabled' : ''}>${f.opts.map((o) => `<option value="${esc(o)}" ${String(v ?? '') === String(o) ? 'selected' : ''}>${esc(o === '' ? '— нет —' : BP_TYPE_NAMES[o] || SHOT_LBL[o] || o)}</option>`).join('')}</select></label>`;
       if (f.t === 'color') return `<label>${esc(f.label)}<input type="color" data-k="${f.path}" value="${esc(v || '#ff6a1a')}"></label>`;
       if (f.t === 'int' || f.t === 'num') return `<label>${esc(f.label)}<input type="number" data-k="${f.path}" data-n="${f.t}" min="${f.min}" max="${f.max}" step="${f.t === 'int' ? 1 : 'any'}" value="${v ?? ''}"></label>`;
       if (f.path === 'img') { const ty = e.data?.type; const ls = weaponSheets().filter((w) => w.slot === ty); return `<label>${esc(f.label)}<select data-k="img"><option value="">— заглушка —</option>${ls.map((w) => `<option value="${esc(w.key)}" ${String(v ?? '') === w.key ? 'selected' : ''}>${esc(w.key)} · ${esc(w.name)}${w.mode ? ' (' + esc(w.mode) + ')' : ''}</option>`).join('')}${v && !ls.some((w) => w.key === v) ? `<option value="${esc(v)}" selected>${esc(v)} (нет листа)</option>` : ''}</select></label>`; }

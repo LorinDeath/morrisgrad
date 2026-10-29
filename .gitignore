@@ -34,3 +34,4 @@ tools/light-emitters/.test-bundle.mjs
 **/.dev.vars.*
 .env.*
 !.env.example
+server/meta/_x_*

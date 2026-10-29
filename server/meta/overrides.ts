@@ -1,4 +1,4 @@
-import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
+import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, cleanGear, cleanChests, cleanCampLoot, cleanMove, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
 import { ELEMENTS, BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, BP_ELEM_NAMES, PURE_KEYS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
@@ -83,6 +83,11 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_chg", label: "Заряд и форма удара", t: "hdr" },
     N("chargeMoveMul", "Скорость героя при зарядке, ×", 0.1, 1), N("holdMaxSec", "Заряд сгорает через, с (0 — не сгорает)", 0, 60), N("powerMaxMul", "Мощность: предел размера, ×", 1, 5),
     N("maxRangeTiles", "Дальнее лезвие: макс. дальность, клеток", 1, 40, "int"),
+    { path: "_h_swing", label: "Большой взмах ближнего лезвия", t: "hdr" }, { path: "bigSwing", label: "Большой взмах (лента следа в воздухе)", t: "bool" },
+    N("swingTrail", "След: длина (1 — 0.8 дуги, 0 — без следа)", 0, 2.5), N("swingScale", "След: толщина ×", 0.2, 4), N("swingAirMs", "След: висит в воздухе, мс", 0, 2000, "int"), N("swingH", "След: высота над землёй, м", 0, 4),
+    { path: "_h_shot", label: "Типы снарядов дальних лезвий (по умолчанию; деталь может задать свои)", t: "hdr" }, { path: "shotOn", label: "Типы снарядов включены (выкл — все обычные)", t: "bool" },
+    N("shotExplodeR", "Взрыв: радиус, px", 0, 600, "int"), N("shotExplodeK", "Взрыв: × урона по соседям", 0, 3), N("shotRicochetN", "Рикошет: отскоков", 1, 8, "int"), N("shotRicochetR", "Рикошет: поиск цели, px", 0, 600, "int"), N("shotRicochetK", "Рикошет: × урона за отскок", 0, 3),
+    N("shotPierceN", "Пробивной: целей насквозь", 1, 8, "int"), N("shotSplitN", "Раскол: осколков", 1, 8, "int"), N("shotSplitR", "Раскол: дальность осколков, px", 0, 600, "int"), N("shotSplitK", "Раскол: × урона осколка", 0, 3),
     N("arcMax", "Ближнее лезвие: целей за взмах (все в дуге, до N)", 1, 50, "int"), N("mobRangeMul", "Чёрные мобы: дальность их лезвия, ×", 0.3, 3), N("mobCdMul", "Чёрные мобы: кд удара, × (к рукояти)", 0.2, 5), N("mobAimMs", "Чёрные стрелки: прицел до выстрела, мс", 0, 2000, "int"),
     { path: "skillArt", label: "Навыки артефактов: анимации листами Художника (выкл — старые эффекты)", t: "bool" }, N("skillFxScale", "Навыки артефактов: масштаб анимаций, ×", 0.3, 3), N("rainLead", "Дождь навыка: метка до удара капли, мс", 0, 1500),
     N("staffSpread", "Посохи: угол между снарядами мульти-выстрела, °", 0, 60), { path: "staffStatsAdd", label: "Посохи во 2/3 слоте: складывать их боевые статы (выкл — у каждого снаряда урон основного)", t: "bool" },
@@ -109,15 +114,18 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "artId", label: "Артефакт игрока в руке (art_…)", t: "text" },
     ...BODY_SLOTS.map((s) => ({ path: "body." + s, label: "Тело: " + s, t: "text" as const })),
     ...BP_TYPES.map((t) => ({ path: "weapon." + t, label: "Оружие: " + t, t: "text" as const })),
-    { path: "drops", label: "Дроп [{res, chance, qty:[a,b]}]", t: "text" }] },
+    { path: "drops", label: "Дроп [{res, chance, qty:[a,b]}]", t: "text" },
+    { path: "gear", label: "Снаряжение [{item, chance}]", t: "text" }, { path: "chests", label: "Сундуки наград [{t: ярус, chance, c: проклятый %, L: уровень}]", t: "text" },
+    { path: "move", label: "Движение {spd, dash:{cd,len,spd}, blink:{cd,range}, ghost}", t: "text" }] },
   bmcamp: { name: "Лагеря чёрных мобов", fields: [{ path: "name", label: "Название", t: "ltext" }, { path: "world", label: "Мир", t: "enum", opts: ["arinar", "hellfire"] },
     N("x", "X, px", -1e6, 1e6, "int"), N("y", "Y, px", -1e6, 1e6, "int"), N("r", "Радиус, px", 40, 1200, "int"), { path: "chief", label: "Вожак (вид моба)", t: "text" },
     N("respawnMin", "Возрождение от, с", 5, 86400, "int"), N("respawnMax", "Возрождение до, с", 5, 86400, "int"), { path: "lair", label: "Логово (одиночный сильный)", t: "bool" },
-    { path: "hidden", label: "Выключен", t: "bool" }, { path: "mobs", label: "Состав [{mob, n}]", t: "text" }] },
+    { path: "hidden", label: "Выключен", t: "bool" }, { path: "mobs", label: "Состав [{mob, n}]", t: "text" },
+    { path: "loot", label: "Добыча лагеря {drops, gear, chests} — сверх мобов, в сундук зачистки", t: "text" }] },
   bmmcfg: { name: "Чёрные мобы: настройки", fields: [{ path: "on", label: "Чёрные мобы и лагеря в мире", t: "bool" },
     N("fightNearTiles", "Драка с обычными мобами: игрок ближе, клеток", 0, 64, "int"), N("maxCampMobs", "Мобов в лагере, макс.", 1, 200, "int"), { path: "strictElemDrops", label: "Кусочки стихии — только с мобов этой стихии (ледяные мобы — только ледяные)", t: "bool" }, N("maxCamps", "Лагерей, макс.", 0, 500, "int"),
-    N("maxCustomMobs", "Своих мобов, макс.", 0, 2000, "int"), N("maxCustomBody", "Своих частей тела, макс.", 0, 3000, "int"), N("mobVis", "Масштаб листа в мире", 0.1, 3),
-    N("weaponDmgPct", "Оружие в руке: +% урона", 0, 500), N("refMul", "«Авто по уровню»: × обычного моба", 0.1, 10), N("campMinDist", "Лагерь от города, мин. px", 0, 20000, "int"),
+    { path: "moveOn", label: "Движение мобов: рывки, телепорты, тени", t: "bool" }, N("moveCdMul", "Перезарядка рывков/телепортов, ×", 0.1, 10), N("maxCustomMobs", "Своих мобов, макс.", 0, 2000, "int"), N("maxCustomBody", "Своих частей тела, макс.", 0, 3000, "int"), N("mobVis", "Масштаб листа в мире", 0.1, 3),
+    N("weaponDmgPct", "Оружие в руке: +% урона", 0, 500), N("refMul", "«Авто по уровню»: × обычного моба", 0.1, 10), N("campMinDist", "Лагерь от города, мин. px", 0, 20000, "int"), N("rim", "Контур цветом стихии (0 — выкл)", 0, 1), N("rimW", "Толщина контура, доля листа", 0, 0.3), N("elemGap", "Лагеря разных стихий: мин. расстояние, px (0 — выкл)", 0, 20000),
     ...BM_CLASSES.flatMap((c) => [N(`cls.${c}.hp`, `${c}: ×ОЗ`, 0.1, 10), N(`cls.${c}.dmg`, `${c}: ×урон`, 0.1, 10), N(`cls.${c}.speed`, `${c}: ×скорость`, 0.1, 10)])] },
   bpart: { name: "Части оружия", fields: [{ path: "name", label: "Название", t: "ltext" },
     { path: "type", label: "Тип детали (у встроенной не меняется)", t: "enum", opts: [...BP_TYPES] }, { path: "elem", label: "Стихия", t: "enum", opts: [...BP_ELEMS] },
@@ -134,6 +142,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "ranged", label: "Лезвие дальнего боя (снаряд)", t: "bool" },
     { path: "form", label: "Вид лезвия: staff — палка/посох (основной — дальний бой с переключателем; во 2/3 слоте — +1 снаряд), blade — клинок; пусто — по листу (blade_3 — посох)", t: "enum", opts: ["", "blade", "staff"] },
     N("rangeTiles", "Дальнее лезвие: дальность, клеток", 1, 40, "int"), N("width", "Дальнее лезвие: ширина снаряда, px", 4, 120, "int"),
+    { path: "shot", label: "Тип снаряда дальнего лезвия: explode — взрыв, ricochet — рикошет, pierce — насквозь, split — раскол; пусто — обычный", t: "enum", opts: ["", "explode", "ricochet", "pierce", "split"] },
+    N("shotN", "Снаряд: отскоков / целей насквозь / осколков (пусто — по умолчанию)", 1, 8, "int"), N("shotR", "Снаряд: радиус взрыва / поиска рикошета / разлёта осколков, px", 0, 600, "int"), N("shotK", "Снаряд: × урона вторичного удара", 0, 3),
     { path: "skill", label: "Навык части — любой навык артефактов из общего списка «✨ Навыки»", t: "enum", opts: BP_SKILL_OPTS, h: "свои навыки конструктора «skx_…» появляются здесь сами" },
     { path: "_h_cost", label: "Создание у Знахаря", t: "hdr" },
     N("cost", "Кусочков чертежа (bp_<стихия>_<тип>) на одну деталь", 0, 9999, "int"), N("reqLvl", "Требуемый уровень героя", 0, 60, "int")] },
@@ -493,7 +503,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
       Nh("gap", "Дождь: между каплями, мс", 0, 2000, "", "int"), Nh("ticks", "Кольцо: ударов", 1, 20, "урон каждого = 1/√ударов", "int"), Nh("tickGap", "Кольцо: между ударами, мс", 50, 5000, "", "int"),
       Nh("invuln", "Рывок: неуязвимость, мс", 0, 5000, "", "int"), Nh("trail", "Рывок: огненный след через, мс", 0, 10000, "0 — без следа; 1 — сразу (как прежде)", "int"), Nh("trailMul", "Рывок: урон следа, ×", 0, 10, ""),
       H("_h4", "Урон"), E("dmg", "Тип урона", [...SK_DMG], SK_DMG_NAMES), Nh("pct", "Чёрный/чистый: % ОЗ", 0, 100, "доля ОЗ цели (чёрный) или атакующего (чистый)"), Nh("k", "Множитель навыка", 0, 50, "как «k» у пресетов"), Nh("mul", "Общий множитель урона, ×", 0, 50, "1 — без изменений"),
-      H("_h5", "На цели"), E("slow", "Замедление", ["", "on", "ice"], { "": "нет", on: "да", ice: "как у льда (по настройке)" }), Nh("freeze", "Заморозка, мс", 0, 10000, "0 — нет", "int"), Nh("knock", "Отбрасывание, px", 0, 800, "0 — нет", "int"),
+      H("_h5", "На цели"), E("slow", "Замедление", ["", "on", "ice", "stone"], { "": "нет", on: "да", ice: "как у льда (по настройке)", stone: "как у камня (по настройке)" }), Nh("freeze", "Заморозка, мс", 0, 10000, "0 — нет", "int"), Nh("knock", "Отбрасывание, px", 0, 800, "0 — нет", "int"),
       H("_h6", "На себя"), Nh("sInv", "Неуязвимость, мс", 0, 10000, "", "int"), Nh("sDr", "Снижение урона, %", 0, 90, "на время неуязвимости/щита"), Nh("sHeal", "Вампиризм, % урона", 0, 100, "лечит от нанесённого"), Nh("sHaste", "Ускорение, %", 0, 300, "к скорости бега на 3 с"),
       H("_h7", "Цена"), Nh("hpCost", "Цена: % макс. ОЗ", 0, 90, "не хватает ОЗ — навык не срабатывает"), Nh("selfSlow", "Самозамедление, мс", 0, 10000, "герой медленнее после применения", "int"), Nh("selfSlowMul", "Самозамедление: скорость, ×", 0.05, 1, "0.6 — 60% скорости"),
       ...Array.from({ length: SK_MAX_MODS }, (_, i) => [
@@ -682,6 +692,10 @@ function validateBm(kind: string, id: string, patch: any): any | string {
     const P = K.T[id], rest: any = {}, out: any = {};
     for (const [k, v] of Object.entries(patch)) {
       if (kind === "bmmob" && k === "drops") { const d = cleanDrops(v); if (typeof d === "string") return d; out.drops = d; }
+      else if (kind === "bmmob" && k === "gear") { const d = cleanGear(v); if (typeof d === "string") return d; out.gear = d; }
+      else if (kind === "bmmob" && k === "chests") { const d = cleanChests(v); if (typeof d === "string") return d; out.chests = d; }
+      else if (kind === "bmmob" && k === "move") { const d = cleanMove(v); if (typeof d === "string") return d; out.move = d || {}; }
+      else if (kind === "bmcamp" && k === "loot") { const c = { ...P, ...(patch.mobs ? { mobs: patch.mobs } : {}), ...(patch.chief !== undefined ? { chief: patch.chief } : {}) }; const d = cleanCampLoot(v, c); if (typeof d === "string") return d; out.loot = d; }
       else if (kind === "bmcamp" && k === "mobs") { const d = cleanCampMobs(v); if (typeof d === "string") return d; out.mobs = d; }
       else if (kind === "bmmob" && (k.startsWith("body.") || k.startsWith("weapon.") || k === "artId")) { const t = String(v ?? "").trim(); if (!/^[A-Za-z0-9_]{0,48}$/.test(t)) return `${k}: латиница`; out[k] = t; }
       else if (kind === "bmcamp" && k === "chief") { const t = String(v ?? "").trim(); if (t && !ZONE_MOBS[t] && !BM_MOBS[t]) return `вожак: нет моба ${t}`; out.chief = t; }

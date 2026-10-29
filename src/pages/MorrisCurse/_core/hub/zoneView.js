@@ -26,7 +26,7 @@ import { wetNear } from '../../../../../server/meta/liquid.ts';
 WET.f = wetNear;
 import { sprOf, tintOf } from '../../../../../server/meta/biomes.ts';
 import { ProjFx } from '../engine/projFx.js';
-import { ProjAtlasFx, curseRGB, curseHex } from '../engine/projAtlas.js';
+import { ProjAtlasFx, curseRGB, curseHex, elRGB } from '../engine/projAtlas.js';
 import { FX_META } from '../engine/fxAtlas.js';
 import { skillEvent, drawSkf, preloadSkills } from '../engine/skillFx.js'; // 🜏 анимации навыков артефактов листами Художника
 // id навыка → ключ снаряда FX atlas v2 (с псевдонимами); значки/метки/телеграфы не считаются снарядами
@@ -193,12 +193,12 @@ export class ZoneView {
       else if (e.k === 'evade') out.push({ k: 'float', x: e.x, y: e.y, text: '↩ сброс', color: '#94a3b8' });
       else if (e.k === 'mskill') out.push({ k: 'float', x: e.x, y: e.y - 20, text: `✦ ${e.name}`, color: '#f0abfc' });
       else if (e.k === 'shot' && e.bm) { // 🜏 ближнее лезвие: огненная дуга ровно по хитбоксу сервера (r — дальность, a — полуугол); свой взмах тоже по эху сервера
-        if (e.r && e.a && e.dx != null) this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, e.fr || 0, e.el);
+        if (e.r && e.a && e.dx != null) this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, e.fr || 0, e.el, e);
         if (e.sid === myId) uiSfx('bm_swing');
       }
       else if (e.k === 'marc') { // взмах чёрного моба — та же дуга, что у игрока
         const o = this.mobs.get(e.id); if (o) { o.bmAtk = 0.45; o.flash = Math.max(o.flash || 0, 0.06); if (Math.abs(e.dx) > 0.2) o.flip = e.dx < 0; }
-        this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, 0, e.el);
+        this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, 0, e.el, e);
         if (this.nearMe(e.x, e.y)) uiSfx('bm_swing');
       }
       else if (e.k === 'shot') { if (e.sid !== myId) this.shoot(e.x, e.y, null, e.w, e.tx, e.ty); }
@@ -218,6 +218,19 @@ export class ZoneView {
         else if (e.fx === 'plague_puddle') this.pax.puddle(e.x, e.y, e.r, 1.6);
         else if (e.fx !== 'meteor' && e.fx !== 'spear_rain') this.pax.impact(e.fx, e.x, e.y, { k: Math.max(1, e.r / 50) }); // метеор/копья — своё падение
       }
+      else if (e.k === 'shx') { // ЭТАП 2: тип снаряда — взрыв (вспышка в радиусе), рикошет (цепь между целями), раскол (искра в точке); цвет стихии из админки
+        const hx = ELEM_COLOR[e.el] || (e.o === 'm' ? '#ff5a1a' : '#ff8a2a'), col = [1, 3, 5].map((j) => parseInt(hx.slice(j, j + 2), 16) / 255), ci = parseInt(hx.slice(1), 16);
+        const cz = e.el && e.el !== 'fire' && e.el !== 'ice' ? col : false, spr = e.el === 'water' || e.el === 'lightning' || e.el === 'ice' ? 'ice_bolt' : 'fireball';
+        if (e.t === 'explode') { this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r || 80, t: 0, life: 0.45, color: ci }); this.pax.impact(spr, e.x, e.y, { k: Math.max(1, (e.r || 80) / 55), cz }); }
+        else if (e.t === 'ric' && Array.isArray(e.pts)) for (let j = 1; j < e.pts.length; j++) { const [x0, y0] = e.pts[j - 1], [x1, y1] = e.pts[j], dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+          this.teles.push({ kind: 'dash', fx: 'dash_trail', x: x0, y: y0, dx: dx / len, dy: dy / len, len, t: -0.06 * (j - 1), life: 0.3, col }); this.pax.impact(spr, x1, y1, { k: 0.8, cz }); }
+        else if (e.t === 'split') this.pax.impact(spr, e.x, e.y, { k: 0.9, cz }); }
+      else if (e.k === 'mmv') { // ЭТАП 2: рывок/телепорт чёрного моба — тени цвета стихии и шлейф; телепорт — сразу на месте
+        const o = this.mobs.get(e.id), hx = ELEM_COLOR[e.el] || '#ffffff', col = [1, 3, 5].map((j) => parseInt(hx.slice(j, j + 2), 16) / 255);
+        if (o && e.t === 'blink') { o.x = o.tx = e.x1; o.y = o.ty = e.y1; }
+        if (o) this.bmm.ghost(o, e, col);
+        const dx = e.x1 - e.x0, dy = e.y1 - e.y0, len = Math.hypot(dx, dy) || 1;
+        this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x0, y: e.y0, dx: dx / len, dy: dy / len, len, t: 0, life: e.t === 'blink' ? 0.25 : 0.35, col }); }
       else if (e.k === 'tele') { this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 }); this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: -(e.t || 0.55), life: 0.3, col: [1, 0.5, 0.45] }); } // рывок моба: телеграф, затем шлейф dash_trail
       else if (e.k === 'tele_line') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, w: e.w, t: 0, life: e.t || 0.55 });
       else if (e.k === 'tele_ring') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
@@ -291,7 +304,7 @@ export class ZoneView {
   // wtype — тип оружия (WEAPON_TYPES): копьё, кинжалы, посох, лук, секира, меч, лапки-лезвия…
   // mob — цель (летит за ней), иначе в точку (tx,ty); у дуговых ударов — короткий «серп» в сторону удара
   /** 🜏 огненная дуга удара: (x,y) — откуда, (dx,dy) — куда, r — дальность, a — ПОЛУугол (как inArc сервера), fr — доля заряда */
-  fslash(x, y, dx, dy, r, a, fr = 0, el = 'fire') { if (this.teles.length < 200) this.teles.push({ kind: 'fslash', x, y, dx, dy, len: r, arc: Math.min(Math.PI * 0.45, a), full: fr >= 1, el: el || 'fire', t: 0, life: 0.42 }); }
+  fslash(x, y, dx, dy, r, a, fr = 0, el = 'fire', e = {}) { if (this.teles.length < 200) this.teles.push({ kind: 'fslash', x, y, dx, dy, len: r, arc: Math.min(Math.PI * 0.45, a), full: fr >= 1, el: el || 'fire', t: 0, life: e.slf || 0.5, stl: e.stl ?? 0.8, sth: e.sth ?? 1.1, ssc: e.ssc || 1.25 }); } // ЭТАП 2: большой взмах — след в воздухе (админка: «Большой взмах»)
   /** ICE: разовый эффект стихии из атласа bm-art/fx (ice_hit / ice_crit / ice_zero / ice_release) */
   efx(key, anim, x, y, life = 0.45, S = 1.6, h = 0.9) { if (this.teles.length < 200) this.teles.push({ kind: 'efx', key, anim, x, y, S, h, t: 0, life }); }
   nearMe(x, y, R = 700) { const p = this.myPos; return !p || Math.hypot(p.x - x, p.y - y) < R; }
@@ -531,8 +544,8 @@ export class ZoneView {
       else if (t.kind === 'fslash') { // огненный взмах: зона урона (= хитбокс) + яркий след лезвия, проходящий от края до края
         const L = t.len / PX, fade = 1 - kk, sw = Math.min(1, kk * 2.4), th = -t.arc + 2 * t.arc * sw, c = Math.cos(th), sn = Math.sin(th);
         const ice = t.el === 'ice';
-        P.teleCone(X, Z, t.dx, t.dy, L, t.arc * 2, ice ? (t.full ? [0.7, 0.9, 1] : [0.3, 0.7, 1]) : t.full ? [1, 0.75, 0.25] : [1, 0.42, 0.08], 0.9 * fade); // контур = край хитбокса
-        P.fireArc(X, Z, t.dx, t.dy, L, t.arc, kk, t.full, t.el); // заливка зоны + лезвие стихии (лёд — дуга ice_arc) + искры по ободу
+        P.teleCone(X, Z, t.dx, t.dy, L, t.arc * 2, ice ? (t.full ? [0.7, 0.9, 1] : [0.3, 0.7, 1]) : elRGB(t.el) || (t.full ? [1, 0.75, 0.25] : [1, 0.42, 0.08]), 0.9 * fade); // контур = край хитбокса
+        P.fireArc(X, Z, t.dx, t.dy, L, t.arc, kk, t.full, t.el, t); // заливка зоны + лезвие стихии (лёд — дуга ice_arc) + искры по ободу
         if (kk < 0.55) P.teleCone(X, Z, t.dx * c - t.dy * sn, t.dx * sn + t.dy * c, L * 1.02, Math.min(0.55, t.arc * 0.6), ice ? [0.8, 0.95, 1] : [1, 0.92, 0.55], 1 - kk / 0.55);
       }
       else if (t.kind === 'skf') { if (t.mob) { const o = this.mobs.get(t.mob); if (o) { t.x = o.x; t.y = o.y; } } drawSkf(P.fx, t, toX, toZ); }

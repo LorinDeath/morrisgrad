@@ -58,7 +58,7 @@ const parts = { handle: "fire_handle", blade: "fire_blade", blade2: "fire_blade2
   const r = computeArtifact({ ...parts, blade: "fire_blade_r" })!; ok(r.ranged && r.atk.kind === "proj" && r.atk.range <= BMA_CFG.maxRangeTiles * BMA_CFG.tile, "дальний: снаряд, не дальше maxRangeTiles");
   ok(computeArtifact({ blade: "fire_blade" }) === null, "без рукояти артефакта нет");
 }
-ok(BM_SKILLS.length === 10 && BM_SKILL_IDS.every((id) => (ABILITY_BY_ID as any)[id]?.cls === "artifact" && shapeOf(id)), "10 навыков (5 огонь + 5 лёд) в общем реестре, у каждого форма");
+ok(BM_SKILLS.length === 30 && BM_SKILL_IDS.every((id) => (ABILITY_BY_ID as any)[id]?.cls === "artifact" && shapeOf(id)), "30 навыков (по 5 на 6 стихий) в общем реестре, у каждого форма");
 ok(typeof validatePatch("skill", "bmf_ember_lash", { "bm.pct": 1.2, "bm.k": 3 }) !== "string", "админка: pct/k навыка артефакта правятся");
 ok(typeof validatePatch("bmagic", "main", { critMul: 2, vsPlayer: 0.5 }) !== "string", "админка: настройки чёрной магии");
 ok(typeof validatePatch("bpart", "fire_blade", { "stats.bdmg": 0.2 }) !== "string", "админка: части оружия");

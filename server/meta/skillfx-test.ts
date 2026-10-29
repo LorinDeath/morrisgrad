@@ -47,5 +47,17 @@ ok(skillArt("fireball") === null && skillArt("rs:bmf_magma_ring")?.key === "magm
   ok(f[0]?.t !== "bmf_cinder_bolt" && ev.every((e) => e.art === 0) && !skillEvent(ev[0], () => {}, () => []), "выкл в админке: старый спрайт, art:0 — клиент рисует код-эффект");
   BMA_CFG.skillArt = true; (BMA_CFG as any).skillFxScale = 1.5; const e2: any[] = []; castShape("bmf_magma_ring", ctx(e2, [], []) as any);
   const T: any[] = []; skillEvent(e2[0], (t: any) => T.push(t), () => []); ok(e2[0].fs === 1.5 && Math.abs(T[0].sx - 1.5 * e2[0].r / 140) < 1e-9, "масштаб анимаций из админки"); (BMA_CFG as any).skillFxScale = 1; }
+{ // 🛠 конструктор: «анимация листа другой стихии» — лист именно этой стихии для всех 6 стихий × 5 форм, без подмены огнём
+  const { skBlank, skArtKey, SK_FORMS, SK_ELEMS, SK_DEFS } = await import("./skillCraft");
+  const IDX: any = (await import("../../public/bm-art/fx/skills/index.json")).default;
+  const SLOT: any = { cone: "whip", nova: "ring", proj: "bolt", rain: "rain", dash: "dash" };
+  ok(SK_ELEMS.length === 6, `6 стихий в конструкторе (${SK_ELEMS.join(",")})`);
+  for (const el of SK_ELEMS) for (const form of SK_FORMS) { if (!SLOT[form]) continue;
+    const d: any = { ...skBlank("skx_t_" + el + form, form as any, "fire"), fx: el }, want = IDX.elems?.[el]?.slots?.[SLOT[form]];
+    ok(!!want && skArtKey(d) === want, `fx=${el} форма ${form}: лист ${skArtKey(d)} (ждём ${want})`);
+    SK_DEFS[d.id] = d; const a = skillArt(d.id); ok(a?.elem === el && a?.key === want, `fx=${el} ${form}: клиент берёт ${a?.key}/${a?.elem}`); delete SK_DEFS[d.id]; }
+  const r: any = { ...skBlank("skx_t_ring", "nova" as any, "fire"), fx: "lightning" }; ok(skArtKey(r) === "storm_ring", "⚡ Молния + «Кольцо вокруг» = storm_ring (не огонь)");
+  ok(skArtKey({ ...r, fx: "nope", elem: "nope" } as any) === null, "нет листа стихии — null, без подмены огнём");
+}
 ok(!!fxDef("sk_magma_ring_ring"), "fxDef знает части листов");
 console.log(fails ? `FAILED ${fails}` : "ALL OK"); if (fails) process.exit(1);

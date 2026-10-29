@@ -107,7 +107,8 @@ function artEff(a: Account, e: { id: string; uid: any }, art: any) {
   const melee = !!art.staff && !!a.flags?.[artModeKey(e.uid)];
   const atk = artModeAtk(art, melee);
   return { id: e.id, uid: e.uid, parts: art.parts, atk, cd: art.cd, skills: art.skills, ranged: atk.kind === "proj", elem: art.elem,
-    ...(art.staff ? { staff: true, mode: melee ? "melee" : "ranged" } : {}), shots: atk.kind === "proj" ? Math.max(1, atk.count || 1) : 1 };
+    ...(art.staff ? { staff: true, mode: melee ? "melee" : "ranged" } : {}), shots: atk.kind === "proj" ? Math.max(1, atk.count || 1) : 1,
+    ...(atk.kind === "proj" && art.shot ? { shot: art.shot } : {}) }; // этап 2: тип снаряда дальнего лезвия
 }
 export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: number; armor: number; minAtk: number; maxAtk: number }, opt?: { dark?: boolean }) {
   const dark = !!opt?.dark; // проклятая земля Чёрного мага: у вещей работают только очернённые статы (игроку не сообщается)

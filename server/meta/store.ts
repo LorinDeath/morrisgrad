@@ -68,6 +68,7 @@ export class ProfileStore {
   libReady: Promise<void> | null = null;
   libStarted = 0;
   static LOAD_TIMEOUT_MS = 8000; // загрузка профиля целиком
+  libOk = false;
   static LIB_TIMEOUT_MS = 5000;  // сверка библиотеки перед загрузкой (не критична для входа)
   stats = { flushes: 0, errors: 0, lastError: "" };
   failed = new Set<string>(); // последняя выгрузка игрока не удалась
@@ -107,13 +108,14 @@ export class ProfileStore {
   // ---- библиотека: сверка версии пула при старте, досев при расхождении ----
   ensureLibrary(): Promise<void> {
     if (!this.db) return Promise.resolve();
+    if (this.libOk) return Promise.resolve(); // сверка уже прошла — не повторять (раньше через 10 с ложное «stuck — restarting» и лишний SELECT)
     if (this.libReady && Date.now() - this.libStarted < ProfileStore.LIB_TIMEOUT_MS * 2) return this.libReady;
     if (this.libReady) console.error("[mc] library check stuck — restarting");
     this.libStarted = Date.now();
     const lp: Promise<void> = (async () => {
       const want = libraryHash();
       const row = await this.db.prepare("SELECT value FROM library_meta WHERE key = 'items_hash'").first();
-      if (row?.value === want) return;
+      if (row?.value === want) { if (this.libReady === lp) this.libOk = true; return; }
       const stmts: any[] = [];
       for (const [table, rows] of seedTables()) {
         const cols = (SEED_COLS as any)[table] as string[];
@@ -125,7 +127,7 @@ export class ProfileStore {
       }
       stmts.push(this.db.prepare("INSERT INTO library_meta (key, value) VALUES ('items_hash', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(want));
       for (let i = 0; i < stmts.length; i += 200) await this.db.batch(stmts.slice(i, i + 200));
-      console.log(`[mc] item library reseeded (${want})`);
+      console.log(`[mc] item library reseeded (${want})`); if (this.libReady === lp) this.libOk = true;
     })().catch((e) => { console.error("[mc] library check failed", e?.message || e); if (this.libReady === lp) this.libReady = null; });
     this.libReady = lp;
     return lp;
