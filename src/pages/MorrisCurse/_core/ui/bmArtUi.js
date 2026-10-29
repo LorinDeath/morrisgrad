@@ -89,7 +89,7 @@ export function rArtifacts(book, st) {
     return `<button class="bm-card ${it.uid === selUid ? 'on' : ''} ${it.uid === handUid ? 'hand' : ''}" data-act="artsel" data-v="${it.uid}">
       <b>${esc(d?.name || 'Артефакт')}${A ? artEls(A).map(elTag).join('') : ''}</b><small>${A ? `${A.staff ? '🪄 посох' : A.ranged ? '🏹 дальний' : '🗡️ ближний'}${(A.shots || 1) > 1 ? ` ×${A.shots}` : ''} · 🔥 ${fmtBm('bdmg', A.stats.bdmg)} · 🎲 ${A.stats.bcrit}/100${A.stats.pfire ? ` · <span style="color:#ff8a2a">🔥 ${fmtBm('pfire', A.stats.pfire)}</span>` : ''}${A.stats.pice ? ` · <span style="color:#6cc8ff">❄ ${fmtBm('pice', A.stats.pice)}</span>` : ''}` : 'карточка загружается…'}</small></button>`;
   }).join('');
-  const testBtns = book.canTestArt ? `<button class="mc-btn sm" data-act="bmtest" data-v="0" title="Только админ/локальная разработка">＋ тест: огненный (ближний)</button><button class="mc-btn sm" data-act="bmtest" data-v="1">＋ тест: огненный (дальний)</button><button class="mc-btn sm" data-act="bmtest" data-v="2">＋ тест: посох-жаровня</button>` : '';
+  const testBtns = book.canTestArt ? `<button class="mc-btn sm" data-act="bmtest" data-v="0" title="Только локальная разработка">＋ тест: огненный (ближний)</button><button class="mc-btn sm" data-act="bmtest" data-v="1">＋ тест: огненный (дальний)</button><button class="mc-btn sm" data-act="bmtest" data-v="2">＋ тест: посох-жаровня</button>` : '';
   let detail = '<p class="mc-dim">Артефактов пока нет. Их собирают из частей чёрного оружия (этап Б). Выбрав артефакт, вы увидите, как обычные параметры глушатся, а чёрные — раскрываются.</p>';
   const it = selUid && arts.find((i) => i.uid === selUid);
   if (it) {

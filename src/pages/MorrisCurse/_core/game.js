@@ -716,7 +716,7 @@ async function boot(canvasId, username, userId, api) {
   let myRole = null; // роль своего аккаунта (сервер: player_roles + проверенный вход)
   net.on('my_role', (d) => {
     myRole = d.role || null;
-    book.canTestArt = !!d.admin || /^(localhost|127\.0\.0\.1)$/.test(location.hostname); // кнопки тестового артефакта (сервер проверяет сам)
+    book.canTestArt = /^(localhost|127\.0\.0\.1)$/.test(location.hostname); // кнопки тестового артефакта — только локальная разработка (в проде их нет и у админа; сервер — только session.dev)
     // кнопка панели — админ (полный доступ) или модератор (бестиарий/оружие/предметы); сервер проверяет каждый admin_*
     const canPanel = !!(d.admin || d.modAdmin);
     adminPanel.setAccess({ full: !!d.admin, allowed: !!(d.admin || d.modAdmin), kinds: d.kinds || (d.modAdmin ? ['mob', 'weapon', 'item'] : null) });

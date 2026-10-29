@@ -705,8 +705,8 @@ export class MetaService {
         this.push(ws, session, { toast: msg.melee ? "Посох: ближний бой" : "Посох: дальний бой" }); this.bev(session, { type: "equip" }); // push — свежий снимок: книга/рука/кд сразу видят режим
         return true;
       }
-      case "bm_test_artifact": { // тестовый ОГНЕННЫЙ артефакт: только локальный dev или админ
-        if (!(session.dev === true || this.roles.canAdminFull(ms))) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
+      case "bm_test_artifact": { // тестовый ОГНЕННЫЙ артефакт: ТОЛЬКО локальный dev (MC_DEV_TRUST_USERID=1 + localhost); в проде выключен и для админа (хотфикс 29.10)
+        if (session.dev !== true) { this.send(ws, { type: "toast_error", message: "Только локальная разработка" }); return true; }
         if (!needHero()) return true;
         if (Date.now() - ((ms as any).bmtAt || 0) < 1000) return true; (ms as any).bmtAt = Date.now();
         const have = a.inv.filter((i) => isArtifactId(i.id)).length;
@@ -715,7 +715,7 @@ export class MetaService {
           : { handle: "fire_handle", blade: msg.ranged ? "fire_blade_r" : "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3", crystal: "fire_crystal" });
         if (!def) { this.send(ws, { type: "toast_error", message: "Части артефакта не найдены (админка → 🔥 Части оружия)" }); return true; }
         a.inv.push({ uid: newUid(), id: def.id, at: Date.now(), src: "grant:bm_test", n: 1, hero: cls } as any); ms.dirty = true;
-        this.store.audit(ms.pkey, "bm_art", `bm_art:${ms.pkey}:${def.id}`, { id: def.id, ranged: !!msg.ranged, by: session.dev === true ? "dev" : "admin" });
+        this.store.audit(ms.pkey, "bm_art", `bm_art:${ms.pkey}:${def.id}`, { id: def.id, ranged: !!msg.ranged, by: "dev" });
         this.push(ws, session, { toast: `🔥 ${def.name} — в сумке` }); return true;
       }
       case "bm_forge_open": case "bm_forge_craft": case "bm_forge_build": { // 🔥 кузня Знахаря: всё считает сервер
