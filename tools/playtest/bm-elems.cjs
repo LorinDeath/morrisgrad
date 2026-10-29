@@ -31,7 +31,7 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
     window.__cap = (t) => { const e = document.getElementById('vcap'); if (e) { e.textContent = t; e.style.display = t ? 'block' : 'none'; } }; });
   const p = await ctx.newPage(); const errs = []; const fr = []; const ev = [];
   p.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 400)));
-  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_bmf|bm_forge|admin_result|"dev_mob"/.test(s)) fr.push(s.slice(0, 2500));
+  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_bmf|bm_forge|admin_result|"dev_mob"|chest_|bchest_state/.test(s)) fr.push(s.slice(0, 2500));
     if (/"k":"/.test(s)) { try { const o = JSON.parse(s), out = []; walk(o, out); const at = Date.now(); for (const e of out) if (e.k && /^(shx|proj|marc|shot|hit|dmg|fslash)$/.test(e.k) || e.pe || e.pi || e.pf || e.el) { if (ev.length < 30000) ev.push({ ...e, at }); } } catch {} } }));
   const G = (f, a) => p.evaluate(f, a);
   const T0 = Date.now(), marks = []; const mark = (n) => marks.push([n, (Date.now() - T0) / 1000]);
@@ -135,28 +135,33 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
   }
   // ================= CAMP: лагерь стихии, скорость мобов, дроп =================
   if (ON('camp')) {
+    // скорость: свежий (не спокойный) моб гонится за игроком — путь за 1.5 с
+    const speedOf = async (ty) => { const M0 = await me(); let m = null; for (let k = 0; k < 3 && !m; k++) { m = await spawn(ty, 330, 0, false); if (!m) await sleep(900); } const def = await G((ty) => { const d = window.__game.debug.mobDef(ty) || {}; return { spd: d.speed ?? d.spd, mv: d.move?.spd ?? null, dash: !!d.move?.dash, blink: !!d.move?.blink }; }, ty); if (!m) return { def }; const a = await byId(m.id); await sleep(1000); const c = await byId(m.id); await kill(ty); await sleep(400); return { def, px_s: a && c ? Math.round(Math.hypot(c.x - a.x, c.y - a.y)) : null }; };
+    const SPEED = { [MOB[0]]: await speedOf(MOB[0]), [MOB[3]]: await speedOf(MOB[3]), golem: await speedOf('golem') }; console.log('SPEED', EL, JSON.stringify(SPEED));
+    await clearNear(); await sleep(500);
     const M = await me(); await openAdmin(); fr.length = 0;
-    await G(([x, y, el, M]) => window.__game.debug.send({ type: 'admin_bmm', op: 'save', kind: 'bmcamp', id: '', data: { name: `Лагерь (${el}, тест)`, world: 'arinar', x: Math.round(x + 360), y: Math.round(y), r: 120, mobs: [{ mob: M[0], n: 2 }, { mob: M[1], n: 2 }, { mob: M[2], n: 1 }], chief: M[3], respawnMin: 20, respawnMax: 25 } }), [M.x, M.y, EL, MOB]);
+    await G(([x, y, el, M]) => window.__game.debug.send({ type: 'admin_bmm', op: 'save', kind: 'bmcamp', id: '', data: { name: `Лагерь (${el}, тест)`, world: 'arinar', x: Math.round(x + 360), y: Math.round(y), r: 120, mobs: [{ mob: M[0], n: 2 }, { mob: M[1], n: 2 }, { mob: M[2], n: 1 }], chief: M[3], respawnMin: 20, respawnMax: 25, loot: { drops: [{ res: `bp_${el}_blade`, chance: 100, qty: [1, 2] }, { res: `bp_${el}_crystal`, chance: 60, qty: [1, 1] }], chests: [{ t: 'rare', chance: 100 }] } } }), [M.x, M.y, EL, MOB]);
     const sv = await waitFr(/"op":"save"/, 8000); t(`лагерь «${NM}» сохранён`, !!sv && sv.includes('"ok":true'), sv?.slice(0, 160));
     await G(() => window.__game.debug.closeAdmin()); await sleep(600);
     await cap(`${NM}: чёрный лагерь стихии`);
     let bm = []; for (let i = 0; i < 25; i++) { bm = await blacks(); if (bm.length >= 5) break; await sleep(700); }
     t(`чёрные мобы «${NM}» лагеря в мире`, bm.length >= 5 && bm.every((m) => MOB.includes(m.type)), bm.slice(0, 6).map((m) => m.type));
     await shot('c01-camp');
-    // скорость: подходим, мобы бегут к игроку — замер пути за 1.6 с
-    const q0 = bm[0]; await G(([x, y]) => window.__game.debug.tp(x, y, true), [q0.x - 240, q0.y]); await sleep(150);
-    const a0 = await blacks(); await sleep(1600); const a1 = await blacks();
-    const sp = a0.map((m) => { const n = a1.find((x) => x.id === m.id); return n ? Math.round(Math.hypot(n.x - m.x, n.y - m.y) / 1.6) : null; }).filter((v) => v != null);
-    const SPEED = { max: Math.max(0, ...sp), avg: sp.length ? Math.round(sp.reduce((a, b) => a + b, 0) / sp.length) : 0 }; console.log('SPEED', EL, JSON.stringify(SPEED));
+    await G(([x, y]) => window.__game.debug.tp(x, y, true), [bm[0].x - 200, bm[0].y]); await sleep(600);
     const res0 = pieces(await S()); ev.length = 0; fr.length = 0; await cap(`${NM}: бой с лагерем`);
     const tA = Date.now(); let n = 0;
-    while (Date.now() - tA < 14000) { const bl = await blacks(); if (!bl.length) break; const q = bl[0]; if (q.d > 140) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [q.x - 90, q.y]); await sleep(250); } await strike(q.x, q.y, 250); await sleep(380); n++; if (n === 4 || n === 12) await shot(`c0${n === 4 ? 2 : 3}-camp-fight`); }
+    while (Date.now() - tA < 14000) { const bl = await blacks(); const q = bl[0]; if (!q) break; if (q.d > 140) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [q.x - 90, q.y]); await sleep(250); } await strike(q.x, q.y, 250); await sleep(380); n++; if (n === 4 || n === 12) await shot(`c0${n === 4 ? 2 : 3}-camp-fight`); }
     const mp = ev.filter((e) => e.k === 'proj' && e.o !== 'p');
     t(`стрелки лагеря стреляют снарядами стихии (el=${EL})`, mp.some((e) => e.el === EL), mp.slice(0, 2).map((e) => ({ t: e.t, el: e.el, st: e.st })));
-    for (let i = 0; i < 6 && (await blacks()).length; i++) { for (const m of MOB) await G((ty) => window.__game.debug.rawSend({ type: 'dev_grant', killNearAny: true, killType: ty }), m); await sleep(500); }
+    for (let i = 0; i < 12 && (await blacks()).length; i++) { const q = (await blacks())[0]; if (!q) break; await G(([x, y]) => window.__game.debug.tp(x, y, true), [q.x - 80, q.y]); await sleep(300); await G((ty) => window.__game.debug.rawSend({ type: 'dev_grant', killNearAny: true, killType: ty }), q.type); await sleep(450); }
+    t('лагерь зачищен', (await blacks()).length === 0);
     await sleep(2500); await cap(`${NM}: награда лагеря — сундук, кусочки своей стихии`); await shot('c04-camp-after');
+    const cs = fr.map((x) => { try { return JSON.parse(x); } catch { return null; } }).find((o) => o?.type === 'chest_spawn');
+    if (cs) { await G(([x, y]) => window.__game.debug.tp(x, y + 40, true), [cs.x, cs.y]); await sleep(900); await cap(`${NM}: сундук лагеря — кусочки своей стихии`);
+      await G((id) => window.__game.debug.rawSend({ type: 'chest_open', chest: id }), cs.id); await sleep(3500); await shot('c05-camp-chest-open');
+      await G((id) => window.__game.debug.rawSend({ type: 'chest_take', chest: id, all: true }), cs.id); await sleep(1800); await shot('c06-camp-chest-taken'); }
     const res1 = pieces(await S()); const gained = Object.keys(res1).filter((k) => (res1[k] || 0) > (res0[k] || 0));
-    const seen = [...new Set(fr.join(' ').match(/bp_[a-z]+_[a-z0-9]+/g) || [])], chf = fr.filter((x) => /chest/i.test(x)).length;
+    const seen = [...new Set(fr.join(' ').match(/bp_[a-z]+_[a-z0-9]+/g) || [])], chf = fr.filter((x) => /chest_spawn|bchest_state|Сундук/.test(x)).length; console.log('camp frames', JSON.stringify(fr.filter((x) => /chest|Лагерь|Сундук/.test(x)).map((x) => x.slice(0, 200)).slice(0, 6)));
     t('после лагеря: награда (кусочки/сундук) пришла', gained.length + seen.length + chf > 0, { gained, seen, chf });
     t(`кусочки только своей стихии (${EL})`, [...gained, ...seen].every((k) => k.startsWith(`bp_${EL}_`)), { gained, seen });
     const ch = chf, bags = seen.length;
