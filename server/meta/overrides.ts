@@ -1,5 +1,5 @@
 import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
-import { BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, BP_ELEM_NAMES, PURE_KEYS, CUSTOM_BP, makeBpart } from "./blackArt";
+import { ELEMENTS, BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, BP_ELEM_NAMES, PURE_KEYS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
@@ -14,6 +14,8 @@ import { CITY_CFG, PK_CFG, POS_CFG, CITY_SLOTS, CITY_LOOKS, CENTERPIECES } from 
 import { BUILD_DEF, ROOMS } from "./cityBuild";
 import { GFX_CFG, LIGHT_TYPES, EMIT_KEYS } from "./gfxCfg";
 import { mobSkillOptions } from "./mobSkills";
+import { SK_DEFS, SK_HOOK, CUSTOM_SK, SK_FORMS, SK_FORM_NAMES, SK_PATHS, SK_PATH_NAMES, SK_DMG, SK_DMG_NAMES, SK_MOD_STATS, SK_MOD_ON, SK_MOD_IF, SK_ELEMS, SK_MAX_MODS, skErr } from "./skillCraft";
+import { BP_SKILL_OPTS, skMake } from "./skillReg";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
 // Схема полей (тип, диапазон) — ЕДИНСТВЕННЫЙ список того, что можно менять; патч вне схемы отклоняется.
 // apply() восстанавливает исходное значение из кода и накладывает патч — повторное применение идемпотентно.
@@ -36,7 +38,7 @@ import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
 
-export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask" | "bmagic" | "bpart" | "bmbody" | "bmmob" | "bmcamp" | "bmmcfg";
+export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask" | "bmagic" | "bpart" | "bmbody" | "bmmob" | "bmcamp" | "bmmcfg" | "skdef";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext" | "chests"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string>; h?: string } // h — короткая подсказка (что делает, единицы); диапазон и «по умолчанию» админка допишет сама
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -132,7 +134,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "ranged", label: "Лезвие дальнего боя (снаряд)", t: "bool" },
     { path: "form", label: "Вид лезвия: staff — палка/посох (основной — дальний бой с переключателем; во 2/3 слоте — +1 снаряд), blade — клинок; пусто — по листу (blade_3 — посох)", t: "enum", opts: ["", "blade", "staff"] },
     N("rangeTiles", "Дальнее лезвие: дальность, клеток", 1, 40, "int"), N("width", "Дальнее лезвие: ширина снаряда, px", 4, 120, "int"),
-    { path: "skill", label: "Навык части — любой навык артефактов из общего списка «✨ Навыки»", t: "enum", opts: ["", ...BM_SKILL_IDS] },
+    { path: "skill", label: "Навык части — любой навык артефактов из общего списка «✨ Навыки»", t: "enum", opts: BP_SKILL_OPTS, h: "свои навыки конструктора «skx_…» появляются здесь сами" },
     { path: "_h_cost", label: "Создание у Знахаря", t: "hdr" },
     N("cost", "Кусочков чертежа (bp_<стихия>_<тип>) на одну деталь", 0, 9999, "int"), N("reqLvl", "Требуемый уровень героя", 0, 60, "int")] },
   loot: { name: "Дроп", fields: [] }, // gear/materials — таблицы, проверяются отдельно (validateLoot)
@@ -467,6 +469,41 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "fx.auto", label: "Авто-качество: при низком FPS реже следы и меньше вспышек", t: "bool" },
     { ...N("fx.autoFps", "Порог авто-качества, кадров/с", 10, 60), h: "ниже порога — шаг следа ×2, потолки ×0.6" }] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
+  // 🛠 «Конструктор навыков» — только админ (не в roles.MOD_ADMIN_KINDS); пресеты = id навыков артефактов, свои — «skx_…»
+  skdef: { name: "🛠 Конструктор навыков", fields: (() => {
+    const H = (path: string, label: string): Field => ({ path, label, t: "hdr" });
+    const E = (path: string, label: string, opts: string[], optn?: Record<string, string>, h?: string): Field => ({ path, label, t: "enum", opts, ...(optn ? { optn } : {}), ...(h ? { h } : {}) });
+    const Nh = (path: string, label: string, min: number, max: number, h: string, t: "int" | "num" = "num"): Field => ({ ...N(path, label, min, max, t), h });
+    const EN = Object.fromEntries(ELEMENTS.map((e) => [e.id, `${e.icon} ${e.name}${e.live ? "" : " (заготовка)"}`]));
+    return [
+      H("_h0", "Основное"), { path: "name", label: "Название", t: "ltext" as const }, { path: "icon", label: "Значок (эмодзи)", t: "text" as const }, { path: "desc", label: "Описание для игрока", t: "ltext" as const },
+      E("elem", "Стихия навыка", SK_ELEMS, EN, "цвет чисел и чистый урон этой стихии"), E("fx", "Анимация листа другой стихии", ["", ...SK_ELEMS], { "": "как стихия навыка", ...EN }, "можно взять картинку льда для огненного навыка"),
+      E("form", "Форма", SK_FORMS, SK_FORM_NAMES as any, "снаряд, плеть, кольцо вокруг, дождь, рывок"), Nh("cd", "Перезарядка, с", 0.5, 300, "у пресетов КД берётся из «✨ Навыки»"), { path: "rad", label: "Сияния (через запятую: echo, swift, vamp…)", t: "text" as const },
+      H("_h1", "Снаряд: полёт (форма «Снаряд»)"), E("path", "Траектория", SK_PATHS, SK_PATH_NAMES as any, "прямая, дуга, синус, самонаведение, бумеранг, Безье, навес"),
+      Nh("spd", "Скорость, px/с", 50, 3000, "560 — как у пресетов", "int"), Nh("range", "Дальность, px", 40, 3000, "при «длительности» 0", "int"), Nh("dur", "Длительность полёта, мс", 0, 20000, "0 — летит на дальность; больше 0 — дальность = скорость × время", "int"),
+      Nh("scale", "Размер, ×", 0.2, 5, "картинка и хитбокс вместе"), Nh("amp", "Амплитуда (дуга/синус), px", 0, 600, "отклонение вбок"), Nh("freq", "Волн за полёт (синус)", 0, 10, "сколько волн до конца дальности"),
+      Nh("turn", "Поворот самонаведения, °/с", 0, 1440, "больше — резче доворачивает"), Nh("seek", "Захват цели, px", 0, 2000, "радиус поиска цели", "int"),
+      Nh("b1a", "Безье: точка 1 вдоль, доля", -2, 2, "0..1 — доля дальности"), Nh("b1s", "Безье: точка 1 вбок, доля", -2, 2, "+ вправо, − влево"), Nh("b2a", "Безье: точка 2 вдоль, доля", -2, 2, "0..1 — доля дальности"), Nh("b2s", "Безье: точка 2 вбок, доля", -2, 2, "+ вправо, − влево"),
+      H("_h2", "Снаряд: попадание"), E("hit", "Хитбокс", ["auto", "circle", "box"], { auto: "по картинке (рамка кадров)", circle: "круг", box: "прямоугольник" }, "«по картинке» — совпадает с видимым"),
+      Nh("hitW", "Хитбокс: ширина/диаметр, px", 0, 600, "0 — по картинке", "int"), Nh("hitH", "Хитбокс: длина, px", 0, 600, "только прямоугольник", "int"),
+      Nh("n", "Снарядов за раз (веер)", 1, 12, "1 — один снаряд", "int"), Nh("spread", "Ширина веера, °", 0, 360, "угол между крайними"), Nh("pierce", "Пробивает целей", 1, 50, "1 — до первого", "int"),
+      Nh("hitMul", "Урон при касании, × урона", 0, 20, "0 — только взрыв"), Nh("boom", "Радиус взрыва, px", 0, 800, "0 — без взрыва", "int"), Nh("boomMul", "Урон взрыва, × урона", 0, 20, "1 — как у пресетов"),
+      H("_h3", "Площадь: кольцо, плеть, дождь, рывок"), Nh("r", "Радиус кольца / капли, px", 10, 1200, "кольцо и дождь", "int"), Nh("len", "Длина плети / рывка, px", 20, 2000, "плеть и рывок", "int"), Nh("arc", "Угол плети, °", 5, 360, "57 — как у пресетов"),
+      Nh("w", "Ширина рывка, px", 10, 600, "полоса урона", "int"), Nh("drops", "Капель дождя", 1, 60, "", "int"), Nh("area", "Площадь дождя, радиус px", 20, 2000, "", "int"), Nh("lead", "Дождь: задержка до первой, мс", -1, 2000, "−1 — общая из настроек", "int"),
+      Nh("gap", "Дождь: между каплями, мс", 0, 2000, "", "int"), Nh("ticks", "Кольцо: ударов", 1, 20, "урон каждого = 1/√ударов", "int"), Nh("tickGap", "Кольцо: между ударами, мс", 50, 5000, "", "int"),
+      Nh("invuln", "Рывок: неуязвимость, мс", 0, 5000, "", "int"), Nh("trail", "Рывок: огненный след через, мс", 0, 10000, "0 — без следа; 1 — сразу (как прежде)", "int"), Nh("trailMul", "Рывок: урон следа, ×", 0, 10, ""),
+      H("_h4", "Урон"), E("dmg", "Тип урона", [...SK_DMG], SK_DMG_NAMES), Nh("pct", "Чёрный/чистый: % ОЗ", 0, 100, "доля ОЗ цели (чёрный) или атакующего (чистый)"), Nh("k", "Множитель навыка", 0, 50, "как «k» у пресетов"), Nh("mul", "Общий множитель урона, ×", 0, 50, "1 — без изменений"),
+      H("_h5", "На цели"), E("slow", "Замедление", ["", "on", "ice"], { "": "нет", on: "да", ice: "как у льда (по настройке)" }), Nh("freeze", "Заморозка, мс", 0, 10000, "0 — нет", "int"), Nh("knock", "Отбрасывание, px", 0, 800, "0 — нет", "int"),
+      H("_h6", "На себя"), Nh("sInv", "Неуязвимость, мс", 0, 10000, "", "int"), Nh("sDr", "Снижение урона, %", 0, 90, "на время неуязвимости/щита"), Nh("sHeal", "Вампиризм, % урона", 0, 100, "лечит от нанесённого"), Nh("sHaste", "Ускорение, %", 0, 300, "к скорости бега на 3 с"),
+      H("_h7", "Цена"), Nh("hpCost", "Цена: % макс. ОЗ", 0, 90, "не хватает ОЗ — навык не срабатывает"), Nh("selfSlow", "Самозамедление, мс", 0, 10000, "герой медленнее после применения", "int"), Nh("selfSlowMul", "Самозамедление: скорость, ×", 0.05, 1, "0.6 — 60% скорости"),
+      ...Array.from({ length: SK_MAX_MODS }, (_, i) => [
+        H(`_hm${i}`, `Модификатор ${i + 1} (бафы в % и ×)`), E(`mods.${i}.k`, "Что меняет", Object.keys(SK_MOD_STATS), SK_MOD_STATS, "пусто — выключен"), E(`mods.${i}.op`, "Как", ["pct", "mul"], { pct: "+X %", mul: "× N" }, "% складываются, × перемножаются"),
+        Nh(`mods.${i}.v`, "Значение (% или ×)", -1000, 1000, "+30 = +30%; при × — 1.5 = в полтора раза"), Nh(`mods.${i}.ms`, "Длительность, мс", 0, 120000, "0 — только этот каст (урон при попадании/убийстве требует > 0)", "int"),
+        Nh(`mods.${i}.st`, "Стаков, макс.", 1, 20, "повтор добавляет стак и продлевает", "int"), E(`mods.${i}.on`, "Когда", Object.keys(SK_MOD_ON), SK_MOD_ON), E(`mods.${i}.if`, "Условие", Object.keys(SK_MOD_IF), SK_MOD_IF),
+        Nh(`mods.${i}.th`, "Порог условия, %", 0, 100, "ОЗ или заряд героя"), Nh(`mods.${i}.ch`, "Шанс, %", 0, 100, "100 — всегда"),
+      ]).flat(),
+    ];
+  })() },
   // 📋 Доска заданий (board.ts): общие настройки, таблица опыта, обучение, QoL
   bchest: { name: "🎁 Сундуки наград доски", fields: [
     { path: "_h_bc0", label: "Общее (за сданное задание с рангом — сундук в 🎁; вещи бросаются при открытии)", t: "hdr" },
@@ -579,7 +616,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   ] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { bchest: { main: BCHEST }, board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, bmagic: { main: BMA_CFG }, bpart: BM_PARTS, bmbody: BM_BODY, bmmob: BM_MOBS, bmcamp: BM_CAMPS, bmmcfg: { main: BMM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, bmagic: { main: BMA_CFG }, bpart: BM_PARTS, bmbody: BM_BODY, bmmob: BM_MOBS, bmcamp: BM_CAMPS, bmmcfg: { main: BMM_CFG }, skdef: SK_DEFS, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -628,6 +665,7 @@ const BMK: Record<string, { T: Record<string, any>; re: RegExp; make: (id: strin
   bmbody: { T: BM_BODY, re: CUSTOM_BB, make: (id, p) => makeBody(id, String(p?.slot || "torso")), max: () => BMM_CFG.maxCustomBody || 300 },
   bmmob: { T: BM_MOBS, re: CUSTOM_BM, make: (id, p) => makeMob(id, Number(p?.lvl) || 5, String(p?.cls || "warrior")), max: () => BMM_CFG.maxCustomMobs || 200 },
   bmcamp: { T: BM_CAMPS, re: CUSTOM_BC, make: (id) => makeCamp(id), max: () => BMM_CFG.maxCamps || 30 },
+  skdef: { T: SK_DEFS, re: CUSTOM_SK, make: (id, p) => skMake(id, p), max: () => BMA_CFG.maxCustomSkills || 200 },
 };
 function validateBm(kind: string, id: string, patch: any): any | string {
   const K = BMK[kind]; if (!patch || typeof patch !== "object") return "пустой патч";
@@ -646,6 +684,7 @@ function validateBm(kind: string, id: string, patch: any): any | string {
     const r = validatePatch0(kind as Kind, id, rest); if (typeof r === "string") return r; Object.assign(out, r);
     if (kind === "bmbody" && !K.re.test(id) && out.slot !== undefined && out.slot !== (ORIG.get("bmbody:" + id)?.slot ?? P.slot)) return "слот встроенной части не меняется — создайте новую";
     if (kind === "bmmob") { const c = JSON.parse(JSON.stringify(P)); for (const [k, v] of Object.entries(out)) setP(c, k, v); const e = mobErr(c); if (e) return e; }
+    if (kind === "skdef") { const c = JSON.parse(JSON.stringify(P)); for (const [k, v] of Object.entries(out)) setP(c, k, v); const e = skErr(c); if (e) return e; }
     if (kind === "bmcamp") { const a = out.respawnMin ?? P.respawnMin, b = out.respawnMax ?? P.respawnMax; if (a > b) return "возрождение: «от» больше «до»"; }
     if (K.re.test(id) && kind === "bmbody") out.slot = out.slot ?? P.slot;
     return out;
@@ -807,7 +846,9 @@ export function applyOverride(kind: Kind, id: string, patch: any | null) {
   }
   if (BMK[kind] && BMK[kind].re.test(id) && !(kind === "bmmob" && BM_BUILTIN.has(id))) { // свой моб/часть/лагерь: правка — создать по шаблону, сброс — убрать из таблицы (вид в ZONE_MOBS остаётся для живых)
     const K = BMK[kind]; ORIG.delete(kind + ":" + id); delete K.T[id];
+    if (kind === "skdef") SK_HOOK.unreg(id);
     if (patch) { K.T[id] = K.make(id, patch); applyOverride0(kind, id, patch); }
+    if (kind === "skdef") { if (K.T[id]) SK_HOOK.reg(K.T[id]); return; }
     if (kind !== "bmcamp") registerBlackMobs(ITEM_BY_ID as any); return;
   }
   applyOverride0(kind, id, patch);

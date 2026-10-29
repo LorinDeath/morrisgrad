@@ -28,7 +28,7 @@ function regionDefs(r: any) {
   return { dens: "1", "packs.0": "2", "packs.1": `3 (в ${Math.round(G.campPacks3 * 100)}% лагерей)`, "pack.0": pk.length ? String(Math.min(...pk.map((p: any) => p[0]))) : "—", "pack.1": pk.length ? String(Math.max(...pk.map((p: any) => p[1]))) : "—",
     eliteMax: "без лимита", elite: String(r.elite ?? 0) };
 }
-export const KINDS: Kind[] = ["board", "btask", "bchest", "mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade", "gather", "npc", "ench", "bmage", "light", "ui", "terrain", "city", "pk", "pos", "dn", "gfx", "bmagic", "bpart", "bmbody", "bmmob", "bmcamp", "bmmcfg"];
+export const KINDS: Kind[] = ["board", "btask", "bchest", "mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade", "gather", "npc", "ench", "bmage", "light", "ui", "terrain", "city", "pk", "pos", "dn", "gfx", "bmagic", "bpart", "bmbody", "bmmob", "bmcamp", "bmmcfg", "skdef"];
 const ID_RE = /^[a-z0-9_:-]{1,48}$/i;
 const STR = (v: any, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 const OBJ_TYPES = ["talk", "kill", "kill_boss", "gather", "collect", "level", "reach"] as const;
@@ -243,7 +243,9 @@ export class AdminStore {
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
         this.copyOwn.clear();
         // строки разделов («main@_h_kill») сливаются с основной строкой сущности: сначала основная, затем разделы
-        for (const [key, raw0] of mergeRows(rows)) { const i = key.indexOf(":"), kind = key.slice(0, i) as Kind, id = key.slice(i + 1); this.touched.add(key); let raw = raw0;
+        // 🛠 навыки конструктора — первыми: детали оружия/мобы ссылаются на свои «skx_…»
+        const merged = [...mergeRows(rows)].sort((a: any, b: any) => (String(b[0]).startsWith("skdef:") ? 1 : 0) - (String(a[0]).startsWith("skdef:") ? 1 : 0));
+        for (const [key, raw0] of merged) { const i = key.indexOf(":"), kind = key.slice(0, i) as Kind, id = key.slice(i + 1); this.touched.add(key); let raw = raw0;
           if (kind === "bchest") { const mg = migrateBchestPatch(raw); raw = mg.patch; if (mg.changed.length) console.warn(`[admin] bchest:${id} миграция шанса ☠ сундуков: ${mg.changed.join(", ")}`); } // потолок 30 %, прежние значения по умолчанию → новые
           const p = validatePatch(kind, id, raw); if (typeof p === "string") { console.warn(`[admin] ${key}: правка пропущена — ${p}`); continue; }
           if (kind === "item" && isCopy(id)) this.copyOwn.set(id, p); else applyOverride(kind, id, p); } // копия: своя строка поверх наследованного (applyCopies)

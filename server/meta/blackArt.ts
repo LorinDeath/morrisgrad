@@ -76,6 +76,7 @@ export const BMA_CFG = {
   salvagePerPart: 4,               //   + за каждую деталь сверх двух обязательных
   forgeCityOnly: true,             // кузня — только в Альказаке (рядом со Знахарем)
   maxCustomParts: 300,             // своих деталей из конструктора (bpx_*) не больше
+  maxCustomSkills: 200,            // 🛠 своих навыков конструктора (skx_*) не больше
   caps: { force: 500, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100, ...Object.fromEntries(ELEMENTS.map((e) => [e.pure, 20])) } as Record<string, number>,
   // этап ICE: чистый урон стихий (pfire/pice) = % макс. ОЗ АТАКУЮЩЕГО, сверху остального урона (TZ.md §ICE)
   pureMul: Object.fromEntries(ELEMENTS.map((e) => [e.id, 1])) as Record<string, number>,                 // глобальный множитель по стихии

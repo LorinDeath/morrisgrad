@@ -8,6 +8,7 @@
 import { SKILL_FX, FX_META, preloadSkillFx } from './fxAtlas.js';
 import { BM_SKILLS, BM_SHAPES, SK_ELEM } from '../../../../../server/meta/blackArt.ts';
 import { clearProjInfo } from './projAtlas.js';
+import { ABILITY_BY_ID } from '../../../../../server/meta/shared.ts';
 import { SK_DEFS, skBlank, skFxElem } from '../../../../../server/meta/skillCraft.ts';
 
 export const SLOT_OF = { cone: 'whip', nova: 'ring', proj: 'bolt', rain: 'rain', dash: 'dash' };
@@ -37,6 +38,11 @@ for (const id of Object.keys(BM_SHAPES)) boltAlias(id);
 export function registerSkDefs(list) {
   if (!Array.isArray(list)) return 0;
   for (const d of list) { if (!d?.id) continue; const base = SK_DEFS[d.id] || skBlank(d.id, d.form, d.elem); SK_DEFS[d.id] = { ...base, ...d, b1a: d.b?.[0] ?? base.b1a, b1s: d.b?.[1] ?? base.b1s, b2a: d.b?.[2] ?? base.b2a, b2s: d.b?.[3] ?? base.b2s }; SK_ELEM[d.id] = d.elem || base.elem; cache.delete(d.id); boltAlias(d.id); }
+  for (const d of list) { // 🛠 свой навык «skx_…»: карточка навыка у героя/в подсказках (копия пресета той же формы)
+    if (!/^skx_/.test(d?.id || '')) continue;
+    const base = BM_SKILLS.find((a) => BM_SHAPES[a.id]?.k === d.form) || BM_SKILLS[0];
+    ABILITY_BY_ID[d.id] = { ...base, id: d.id, name: d.name, icon: d.icon, desc: d.desc, cd: d.cd, bm: { ...base.bm, elem: d.elem } };
+  }
   clearProjInfo(); return list.length;
 }
 
