@@ -51,7 +51,7 @@ const ADMIN = 'qa_bma_' + Date.now().toString(36);
   await sleep(1800); await shot('02-artifacts-tab-preview');
   // ссылка → Кодекс навыков, раздел «Навыки артефактов»
   await G(() => document.querySelector('.bm-sklink [data-act="codexart"]')?.click()); await sleep(1500);
-  const cx = await G(() => ({ tab: !!document.querySelector('[data-act="cfilter"][data-v="artifact"].gold'), n: document.querySelectorAll('.mc-rs-grid .mc-rskill').length, f: document.querySelectorAll('.mc-rs-grid .bmf').length, open: document.querySelectorAll('.mc-rs-grid .mc-rskill.locked').length }));
+  const cx = await G(() => ({ tab: !!document.querySelector('[data-act="cfilter"][data-v="artifact"].gold'), n: document.querySelectorAll('.mc-rs-grid .mc-rskill').length, f: document.querySelectorAll('.mc-rs-grid .mc-rs-bmf').length, open: document.querySelectorAll('.mc-rs-grid .mc-rskill.locked').length }));
   t('Кодекс навыков → «🔥 Навыки артефактов»: 5 открытых карточек с формулой', cx.tab && cx.n === 5 && cx.f === 5 && cx.open === 0, cx);
   await shot('10-codex-artifact-skills');
   await G(() => window.__game.debug.openBook('artifacts')); await sleep(800);
