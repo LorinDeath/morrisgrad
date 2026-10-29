@@ -209,6 +209,22 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
     await G(() => document.querySelector('.bmma canvas')?.click()); await sleep(900); await shot('a07-admin-mob-attack');
     await G(() => document.querySelector('.bmma [data-bs="camps"]')?.click()); await sleep(1000);
     await G((el) => document.querySelector(`.bmma [data-ef="cef:${el}"]`)?.click(), EL); await sleep(800); await shot('a08-admin-camps');
+    // выпадающий список состава нового лагеря не пересоздаётся опросом таймеров (раз в 2 с), пока админ его держит
+    await G(() => document.querySelector('.bmma [data-x="cnew"]')?.click()); await sleep(700);
+    await G(() => { const s = document.querySelector('.bmma select.cm'); window.__cmSel = s; s?.scrollIntoView({ block: 'center' }); s?.focus(); }); await sleep(5200);
+    const cmOk = await G(() => ({ alive: !!window.__cmSel?.isConnected, focus: document.activeElement === window.__cmSel, same: document.querySelector('.bmma select.cm') === window.__cmSel }));
+    t('лагерь: список «Моб» в составе живёт > 2 опросов (не пересоздаётся, фокус на месте)', cmOk.alive && cmOk.focus && cmOk.same, cmOk);
+    await G((m) => { const s = window.__cmSel; if (s) { s.value = m; s.dispatchEvent(new Event('change', { bubbles: true })); } document.querySelector('.bmma [data-x="cadd"]')?.click(); }, MOB[0]); await sleep(700);
+    const added = await G(() => document.querySelectorAll('.bmma [data-cd]').length); t('лагерь: моб выбран из списка и добавлен в состав', added >= 1, added);
+    await G(() => document.querySelector('.bmma select.cm')?.scrollIntoView({ block: 'center' })); await sleep(300); await shot('a09-admin-camp-compose');
+    // конструктор навыков: «анимация листа другой стихии» = эта стихия, форма «Кольцо вокруг» — лист этой стихии, не огонь
+    await cap(`Админка · Конструктор навыков: анимация «${NM}», кольцо вокруг`);
+    await p.waitForFunction(() => { if (document.querySelector('.skca [data-x="new"]')) return true; document.querySelector('.mc-admin [data-tab="skdef"]')?.click() || document.querySelector('.mc-admin [data-tab="skillcraft"]')?.click(); return false; }, null, { timeout: 20000, polling: 1500 }).catch(() => {});
+    await G(() => { const f = document.querySelector('.skca [data-nf]'), e = document.querySelector('.skca [data-ne]'); f.value = 'nova'; f.dispatchEvent(new Event('change')); e.value = 'fire'; e.dispatchEvent(new Event('change')); document.querySelector('.skca [data-x="new"]').click(); }); await sleep(800);
+    await G((el) => { const s = document.querySelector('.skca select[data-f="fx"]'); if (s) { s.value = el; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); } }, EL); await sleep(1800);
+    const WANT = { water: 'bubble_ring', stone: 'spike_ring', nature: 'bramble_ring', lightning: 'storm_ring' }[EL];
+    const pk = await G(() => globalThis.__skcPvKey); t(`конструктор навыков: превью «${NM}» + кольцо = лист ${WANT}`, pk === WANT, pk);
+    await G(() => document.querySelector('.skca canvas[data-pv]')?.scrollIntoView({ block: 'center' })); await sleep(600); await shot('a10-admin-skill-elem-ring');
     await cap('');
   }
   t('без ошибок страницы', errs.length === 0, errs.slice(0, 3));

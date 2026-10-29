@@ -78,7 +78,7 @@ export function skClone(src: SkDef, id: string): SkDef { const c = JSON.parse(JS
 // ——— анимация и хитбокс «по картинке» ———
 export const skFxElem = (d: SkDef) => (d.fx && ELEM_IDS.includes(d.fx) ? d.fx : d.elem);
 /** ключ листа Художника и его часть для формы */
-export function skArtKey(d: SkDef): string | null { const A: any = ART; return A.elems?.[skFxElem(d)]?.[SK_SLOT[d.form]] || A.elems?.fire?.[SK_SLOT[d.form]] || null; }
+export function skArtKey(d: SkDef): string | null { const A: any = ART; return A.elems?.[skFxElem(d)]?.[SK_SLOT[d.form]] || null; } // без подмены огнём: нет листа своей стихии — нет картинки (хитбокс по форме)
 /** хитбокс снаряда: {s:'c', r} или {s:'b', a0, a1, hw} (вдоль направления от точки снаряда, полуширина), px мира */
 export function skHitbox(d: SkDef): { s: "c"; r: number } | { s: "b"; a0: number; a1: number; hw: number } {
   const sc = Math.max(0.1, d.scale || 1);

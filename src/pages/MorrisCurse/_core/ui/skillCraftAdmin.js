@@ -200,7 +200,8 @@ export function onSkcResult(ap, d) {
 const IMG = new Map();
 function img(src) { let i = IMG.get(src); if (!i) { i = new Image(); i.src = src; IMG.set(src, i); } return i; }
 function part(d, pn) {
-  const key = SKILL_FX?.elems?.[skFxElem(d)]?.slots?.[SK_SLOT[d.form]] || SKILL_FX?.elems?.fire?.slots?.[SK_SLOT[d.form]], K = key && SKILL_FX.keys[key];
+  const key = SKILL_FX?.elems?.[skFxElem(d)]?.slots?.[SK_SLOT[d.form]] /* лист стихии анимации, без подмены огнём */, K = key && SKILL_FX.keys[key];
+  globalThis.__skcPvKey = key || null; // плейтест: какой лист рисует превью
   const p = K?.parts?.[pn] || (pn && K && Object.values(K.parts)[0]); if (!p) return null;
   return { p, im: img(`/bm-art/fx/skills/${p.image}`), gl: p.glow ? img(`/bm-art/fx/skills/${p.glow}`) : null, key };
 }

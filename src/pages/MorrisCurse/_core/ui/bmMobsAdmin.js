@@ -251,6 +251,8 @@ function cfg(ap, S, bd, sec) {
 }
 
 /** ответ сервера admin_bmm */
+/** админ сейчас взаимодействует с полем формы (фокус на input/select/textarea внутри окна) — не пересобирать DOM */
+export const adminBusy = (ap) => { const a = document.activeElement; return !!(a && ap?.el?.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)); };
 export function onBmmResult(ap, d) {
   const S = (ap.bmm ||= { sub: 'mobs' });
   const rerender = () => { if (ap.tab === 'bmmobs' && ap.el) { const sec = ap.el.querySelector('section'); if (sec) mountBmMobs(ap, sec); } };
@@ -265,7 +267,13 @@ export function onBmmResult(ap, d) {
   else if (d.op === 'auto' && d.ok && S.edit) { Object.assign(S.edit.data, d.stats); S.status = 'Статы по уровню подставлены — черновик'; S.stCls = 'draft'; clearTimeout(S.dt); S.dt = setTimeout(() => ap.send({ type: 'admin_bmm', op: 'draft', id: S.edit.id, data: S.edit.data }), DRAFT_MS); }
   else if (d.op === 'here' && d.ok && S.camp) { Object.assign(S.camp, { world: d.world, x: d.x, y: d.y }); S.cstatus = `📍 ${d.world} ${d.x},${d.y}`; S.cst = ''; }
   else if (d.op === 'camps' && d.ok && S.list) { S.list.camps = d.camps; // живые таймеры — только ячейки «Сейчас», без перерисовки формы
-    const cells = ap.el?.querySelectorAll('.bmma [data-live]'); if (cells?.length) { for (const td of cells) { const c = d.camps.find((x) => x.id === td.dataset.live); if (c) td.textContent = liveTxt(c); } if (cells.length === d.camps.length) return; } }
+    // опрос раз в 2 с: НИКОГДА не пересобирать форму, пока админ что-то правит (открытый выпадающий список/поле в фокусе, открыт лагерь) —
+    // иначе <select> пересоздаётся и закрывается сам. Пересборка — только если поменялся набор лагерей и форма не открыта.
+    const cells = ap.el?.querySelectorAll('.bmma [data-live]') || [];
+    for (const td of cells) { const c = d.camps.find((x) => x.id === td.dataset.live); if (c) td.textContent = liveTxt(c); }
+    const shown = [...cells].map((td) => td.dataset.live).sort().join(','), all = d.camps.map((c) => c.id).sort().join(',');
+    const sameSet = !S.cef ? shown === all : [...cells].every((td) => d.camps.some((c) => c.id === td.dataset.live));
+    if (sameSet || S.camp || adminBusy(ap)) return; }
   else if (d.op === 'save') { const ok = d.ok, msg = ok ? '✔ Сохранено' : 'Ошибка: ' + (d.err || d.message || '');
     if (d.kind === 'bmcamp') { S.cstatus = msg; S.cst = ok ? 'ok' : 'err'; if (ok) { if (d.camps) S.list.camps = d.camps; if (S.camp) S.camp.id = d.id; } }
     else if (d.kind === 'bmbody') { S.bstatus = msg; if (ok) { if (d.body) S.list.body = d.body; if (S.bpart) S.bpart.id = d.id; } }
