@@ -32,7 +32,7 @@ export function rarityRows() {
 export function mobRows() {
   return Object.entries(MONSTER_LOOT).filter(([k]) => !["run_fly", "run_moth", "run_glitch"].includes(k)).map(([id, m]) => {
     const z = ZONE_MOBS[id.replace(/^run_/, "")];
-    return { id, name: m.name, lvl: m.lvl || z?.lvl || 1, tier: m.tier || z?.tier || 1, role: m.role || z?.role || "melee", size: m.size || z?.size || "s", kind: m.kind,
+    return { id, name: m.name || z?.name || id, lvl: m.lvl || z?.lvl || 1, tier: m.tier || z?.tier || 1, role: m.role || z?.role || "melee", size: m.size || z?.size || "s", kind: m.kind,
       rare: m.rare ? 1 : 0, stats: JSON.stringify(m.stats), where_tags: JSON.stringify(m.where || []), look_id: m.look?.id || null, description: (m.abilitiesText || []).join(" ") };
   });
 }
