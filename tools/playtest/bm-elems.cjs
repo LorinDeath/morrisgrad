@@ -102,7 +102,8 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
   const byId = (id) => G((id) => window.__game.debug.zoneMobsFull().find((m) => m.id === id), id);
   // ================= SWING: большой взмах + чистый урон стихии цветными цифрами =================
   if (ON('swing')) {
-    if (!ART) { await G((el) => window.__game.debug.send({ type: 'bm_test_artifact', elem: el }), EL); await sleep(1500); ART = (await S()).account.inv.filter((i) => i.id.startsWith('art_')).pop(); }
+    for (let k = 0; k < 5 && !ART; k++) { await G((el) => window.__game.debug.send({ type: 'bm_test_artifact', elem: el }), EL); await sleep(1500 + k * 700); ART = ((await S())?.account?.inv || []).filter((i) => i.id.startsWith('art_')).pop(); }
+    t('тестовый артефакт стихии для взмаха есть', !!ART); if (!ART) throw new Error('нет артефакта для взмаха');
     await G((u) => window.__game.debug.send({ type: 'equip', uid: u }), ART.uid); await sleep(1300);
     await cap(`${NM}: большой взмах — лента следа в воздухе, чистый урон цифрами цвета стихии`);
     let tg = null; for (let k = 0; k < 4 && !tg; k++) { tg = await spawn(MOB[0], 100, 0, true); if (!tg) await sleep(1000); } const tg2 = await spawn(MOB[3], 110, 70, true);
