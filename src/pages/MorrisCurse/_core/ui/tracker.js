@@ -14,6 +14,7 @@ import { deadCampTarget } from './campTimer.js';
 
 const TUT_KEY = 'mc-tut-v2';
 const FOLD_KEY = 'mc-tut-fold'; // «свернуть подсказки обучения» — только на этом устройстве (выключить совсем — в настройках, хранит сервер)
+const TRAY_KEY = 'mc-qtray'; // «свернуть трекер в трей» ('1' — свёрнут, '0' — развёрнут; нет ключа — по умолчанию: телефон свёрнут, кроме обучения)
 const angOf = (t, ctx) => Math.atan2(t.y - ctx.y, t.x - ctx.x);
 /** цвета меток целей: номер + цвет одинаковы в трекере, на экране, мини-карте и карте M (дальше — по кругу, номер различает) */
 export const T_COLORS = ['#4ade80', '#38bdf8', '#f472b6', '#facc15', '#fb923c', '#a78bfa', '#f87171', '#2dd4bf', '#e879f9', '#a3e635', '#60a5fa', '#fbbf24'];
@@ -44,7 +45,7 @@ export class QuestTracker {
     this.mobile = mobile;
     const el = document.createElement('div');
     el.className = 'mc-tracker';
-    el.innerHTML = '<div class="q"></div><div class="bq"></div><div class="arrow"><i>➤</i><span></span><b class="d"></b></div><div class="tut"></div>';
+    el.innerHTML = '<div class="hd" data-tray><span class="ic">📜</span><span class="lb">Задания</span><b class="n"></b><i class="mk"></i><b class="tg">▾</b></div><div class="q"></div><div class="bq"></div><div class="arrow"><i>➤</i><span></span><b class="d"></b></div><div class="tut"></div>';
     overlay.layer.appendChild(el);
     this.el = el;
     this.qEl = el.querySelector('.q');
@@ -54,12 +55,17 @@ export class QuestTracker {
     this.arrowD = el.querySelector('.arrow .d');
     this.tutEl = el.querySelector('.tut');
     this.bqEl = el.querySelector('.bq');
+    this.hdEl = el.querySelector('.hd'); this.hdN = this.hdEl.querySelector('.n'); this.hdMk = this.hdEl.querySelector('.mk'); this.hdTg = this.hdEl.querySelector('.tg');
     // клик по строке доски / шагу обучения — окно «Задания»; ▾ — свернуть обучение; остальное — журнал квестов (как раньше)
+    // 📜 (заголовок / значок трея) — свернуть/развернуть трекер; в свёрнутом виде весь значок разворачивает
     el.addEventListener('pointerdown', (e) => { e.stopPropagation();
+      if (this.tray || e.target.closest('[data-tray]')) { this.setTray(!this.tray); return; }
       const f = e.target.closest('[data-fold]'); if (f) { this.setFold(!this.fold); return; }
       const b = e.target.closest('[data-bt]'); if (b) { onOpenBoard?.(b.dataset.bt); return; }
       onOpenBook?.(); });
     try { this.fold = localStorage.getItem(FOLD_KEY) === '1'; } catch (_) { this.fold = false; }
+    try { const v = localStorage.getItem(TRAY_KEY); this.trayPref = v === '1' ? true : v === '0' ? false : null; } catch (_) { this.trayPref = null; }
+    this.tray = false; this.trayProg = null; this.trayNew = false; this.hdSig = '';
     this.bsig = ''; this.rowArrows = [];
     this.sig = '';
     try { this.tut = JSON.parse(localStorage.getItem(TUT_KEY) || '{}'); } catch (_) { this.tut = {}; }
@@ -68,6 +74,29 @@ export class QuestTracker {
 
   show(on) { this.el.style.display = on ? '' : 'none'; }
 
+  /** трей: явный выбор игрока (localStorage); без выбора — телефон свёрнут, но не во время обучения (шаги нужны новичку) */
+  setTray(on) { this.trayPref = !!on; try { localStorage.setItem(TRAY_KEY, on ? '1' : '0'); } catch (_) {} this.applyTray(); }
+  applyTray(tutOn) {
+    if (tutOn !== undefined) this.tutOn = tutOn;
+    const on = this.trayPref ?? (!!this.mobile && !this.tutOn);
+    if (on === this.tray) return;
+    this.tray = on; this.el.classList.toggle('tray', on);
+    this.trayProg = on && this.progOk ? this.prog : null; this.trayNew = false; this.hdSig = '';
+    this.hdEl.title = on ? 'Развернуть задания' : 'Свернуть задания в трей';
+    this.hdTg.textContent = on ? '▸' : '▾';
+    this.renderHd();
+  }
+  /** значок трея: число активных заданий; ✔ — есть готовое к сдаче, • — был прогресс, пока трекер свёрнут */
+  renderHd() {
+    const c = this.cnt || { n: 0, ready: 0 };
+    if (this.tray && this.trayProg == null && this.progOk) this.trayProg = this.prog; // база — когда журнал и доска уже пришли (после перезагрузки — без ложной «•»)
+    if (this.tray && this.trayProg != null && this.prog !== this.trayProg) this.trayNew = true;
+    const mk = c.ready ? 'ok' : this.trayNew ? 'new' : '';
+    const sig = `${c.n}|${mk}|${this.tray}`; if (sig === this.hdSig) return; this.hdSig = sig;
+    this.hdN.textContent = c.n ? String(c.n) : '';
+    this.hdMk.className = 'mk' + (mk ? ' ' + mk : ''); this.hdMk.textContent = c.ready ? '✔' + (c.ready > 1 ? c.ready : '') : mk ? '•' : '';
+    if (this.tray) this.hdEl.title = `Задания: ${c.n}${c.ready ? ` · готово к сдаче: ${c.ready}` : ''}${this.trayNew ? ' · есть прогресс' : ''} — развернуть`;
+  }
   setFold(on) { this.fold = !!on; try { localStorage.setItem(FOLD_KEY, on ? '1' : '0'); } catch (_) {} this.bsig = ''; }
   tutDone(k) {
     if (['move', 'book', 'map', 'board'].includes(k)) this.board?.ui(k); // шаг обучения на сервере (белый список, без наград сверх шага)
@@ -184,6 +213,12 @@ export class QuestTracker {
     // все цели для меток (экран, мини-карта, карта M): номер и цвет совпадают со строкой трекера
     this.targets = this.hunts.map((h, i) => h.target && { ...h.target, n: i + 1, c: tColor(i), kind: 'hunt', id: h.id }).filter(Boolean);
     this.boardUpdate(ctx);
+    { // значок трея: сколько активно и есть ли что сдать (квесты из журнала + охота + задания доски)
+      let n = this.hunts.length + (this.bcnt?.n || 0), ready = this.bcnt?.ready || 0; const pr = [this.bcnt?.prog || ''];
+      if (st) for (const id of tracked) { const x = QUEST_BY_ID[id]; if (!x) continue; n++; if (st.complete.includes(id) && !x.auto) ready++; pr.push(id + ':' + (st.account.quests.active[id]?.p || []).join(',') + (st.complete.includes(id) ? '!' : '')); }
+      this.cnt = { n, ready }; this.prog = pr.join(';'); this.progOk = !!st && (!this.board || !!this.board.ready);
+      this.applyTray(!!this.board?.ready && !!this.board.tutStep?.()); this.renderHd();
+    }
     // стрелка к цели
     const t = this.target;
     if (t && t.world === ctx.world) {
@@ -208,7 +243,7 @@ export class QuestTracker {
   /** доска: шаг обучения (подсказка ПК/телефон) и отслеживаемые задания. Мини-стрелка — только у заданий с местом на карте;
    *  у остальных — счётчик. Главная стрелка — к шагу/заданию, только если у квестов и охоты из Бестиария цели нет. */
   boardUpdate(ctx) {
-    const B = this.board; this.boardTarget = null; this.targets ||= [];
+    const B = this.board; this.boardTarget = null; this.targets ||= []; this.bcnt = null;
     if (!B?.ready || !B.defs.on || !ctx.hasClass && !B.tutStep()) { if (this.bsig) { this.bsig = ''; this.bqEl.innerHTML = ''; } this.bqEl.style.display = 'none'; return; }
     const rows = [], arrows = [];
     const st = B.tutStep();
@@ -222,9 +257,11 @@ export class QuestTracker {
       if (tg && !this.target) this.boardTarget = tg;
     }
     const pins = (B.st.pin || []).map((id) => B.def(id)).filter(Boolean), showP = this.mobile ? 4 : 12;
+    const bc = this.bcnt = { n: 0, ready: 0, prog: '' };
     let k = (this.hunts || []).length; // номера меток: сначала охота из Бестиария, затем задания
     pins.forEach((t, pi) => {
       const id = t.id, r = B.tier(t), tg = hasPlace(t) ? taskTarget(t, B, ctx) : null, npcAt = t.at && t.at !== 'board';
+      bc.n++; if (!r.done && r.ready && !(t.take && !B.taken(id))) bc.ready++; // «✔ сдать/забрать» bc.prog += `${id}:${r.have}${r.done ? '!' : ''};`;
       const cnt = r.done ? '✔' : r.ready && !(t.take && !B.taken(id)) ? (npcAt ? '✔ сдать' : '✔ забрать') : `${r.have}/${r.n}`;
       const n = tg ? ++k : 0, tn = n ? `<i class="tn" style="--c:${tColor(n - 1)}">${n}</i>` : '◇';
       if (tg) { this.targets.push({ ...tg, n, c: tColor(n - 1), kind: 'task', id }); }
@@ -234,6 +271,7 @@ export class QuestTracker {
     });
     // задания других тел, которые выполняются сейчас (на этом теле): сдать — на теле-владельце
     for (const x of B.crossList().slice(0, this.mobile ? 2 : 6)) { const n = x.t.n?.[0] || 1, done = x.p >= n;
+      bc.n++; if (done) bc.ready++; bc.prog += `x${x.t.id}:${x.p};`;
       rows.push(`<div class="bt pin xbt" data-bt="${x.t.cat}"><div class="nm">◇ ${rankTag(x.t.rk)}${esc(B.title(x.t))} <b>${done ? '✔' : `${Math.min(x.p, n)}/${n}`}</b></div><div class="xb">Задание тела ${esc(B.bodyName(x.o))} · ${done ? 'выполнено — сдать на ' + esc(B.bodyName(x.o)) : 'выполняется здесь'}</div></div>`); }
     if (pins.length > showP) rows.push(`<div class="bt more" data-bt="${pins[showP].cat}">… ещё ${pins.length - showP} — в окне «Задания»</div>`);
     const html = rows.join('');

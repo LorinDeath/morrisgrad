@@ -55,7 +55,7 @@ html.mc-ui :is(.mc-altar-panel, .mc-upg .say, .mc-reward, .mc-lock, .mc-soc-scro
 /* малая рамка (центр залит): frame_small (кольцо 3 → 6 CSS) */
 html.mc-ui :is(.mc-tracker .q, .mc-tracker .arrow, .mc-party, .mc-pframe, .mc-bookbtn, .mc-ratebtn, .mc-quest, .mc-beast, .mc-recipe, .mc-abil, .mc-tal,
   .mc-soc-pl, .mc-lobby-row, .mc-wallet, .mc-aslot, .mc3d-choice, .mc3d-class, .mc3d-toast, .mc3d-prompt, .mc-chest-chan, .mc-duel-hud .bars, .mc-tchip,
-  .mc-soul, .mc-insp-ab, .mc-heroes span, .mc-duel-res .nums div, .mc-qtrack, .mc-tracker .tut) {
+  .mc-soul, .mc-insp-ab, .mc-heroes span, .mc-duel-res .nums div, .mc-qtrack, .mc-tracker .tut, .mc-tracker .hd) {
   border-style: solid !important; border-width: 6px !important; border-radius: 0 !important;
   border-image: var(--ui-frame-small) 5 fill / 10px stretch !important; background: none !important; image-rendering: pixelated;
 }
@@ -151,6 +151,11 @@ html.mc-ui .mc-tracker .q li b { color: var(--ui-text); }
 html.mc-ui .mc-tracker .q .hunt.sep { border-top: 2px solid var(--ui-outline); }
 html.mc-ui .mc-tracker .arrow { padding: 0 4px !important; color: var(--ui-text2); }
 html.mc-ui .mc-tracker .arrow i, html.mc-ui .mc-tracker .arrow .d { color: var(--ui-v3); }
+html.mc-ui .mc-tracker .hd { padding: 0 4px !important; color: var(--ui-gold); text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-tracker .hd .lb { color: var(--ui-text2); }
+html.mc-ui .mc-tracker .hd .n { color: var(--ui-gold); }
+html.mc-ui .mc-tracker .hd .tg { color: var(--ui-v3); }
+html.mc-ui .mc-tracker.tray .hd { padding: 1px 6px !important; }
 html.mc-ui .mc-tracker .tut { padding: 2px 4px !important; color: var(--ui-v3); border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
 /* отряд */
 html.mc-ui .mc-party { padding: 0 2px !important; font-family: var(--ui-font); color: var(--ui-text); }
