@@ -19,7 +19,7 @@ registerBlackMobs(ITEM_BY_ID as any);
 // --- 1. стихии — ось
 ok(BP_ELEMS.includes("fire") && BP_ELEMS.includes("ice"), "стихии: огонь и лёд");
 ok(Object.values(BM_PARTS).every((p) => BP_ELEMS.includes(elemOf(p.elem))), "у каждой детали оружия есть стихия");
-ok(Object.values(BM_PARTS).filter((p) => !p.id.startsWith("ice_")).every((p) => elemOf(p.elem) === "fire"), "старые детали — огонь");
+ok(Object.values(BM_PARTS).filter((p) => !/^(ice|water|stone|nature|lightning)_/.test(p.id)).every((p) => elemOf(p.elem) === "fire"), "старые детали — огонь");
 ok(Object.values(BM_PARTS).filter((p) => p.id.startsWith("ice_")).length >= 21 && Object.values(BM_PARTS).filter((p) => p.id.startsWith("ice_")).every((p) => p.elem === "ice"), "21 ледяная деталь (рукояти, лезвия, посохи, кристалл), все ice");
 ok(Object.values(BM_BODY).filter((b) => b.id.startsWith("ib_")).length === 35 && Object.values(BM_BODY).filter((b) => b.id.startsWith("ib_")).every((b) => b.elem === "ice"), "35 ледяных частей тела");
 ok(Object.values(BM_BODY).filter((b) => b.id.startsWith("fb_")).every((b) => elemOf(b.elem) === "fire"), "старые части тела — огонь");

@@ -71,7 +71,7 @@ registerBlackMobs(ITEM_BY_ID as any);
   ok(IDX.blade_3.type === "staff" && IDX.blade_3_ranged.type === "staff" && BM_WEAPON_PTS.blade_3.type === "staff", "«Посох-жаровня» (blade_3) — тип staff");
   ok(IDX.blade_1.type === "blade" && IDX.blade2_1.type === "blade", "клинки остаются клинками");
   const own = Object.values(BM_PARTS).filter((p) => /_staff_|^blade_staff/.test(p.img || ""));
-  ok(own.length === 13 && own.every((p) => isStaff(p, p.type) && !p.hidden), `встроенные детали-посохи Художника (${own.length}), открыты в кузне`);
+  ok(own.length === 13 * 6 && own.every((p) => isStaff(p, p.type) && !p.hidden), `встроенные детали-посохи Художника (${own.length}), открыты в кузне`);
   ok(isStaff({ ...BM_PARTS.fire_blade2, form: undefined, img: "blade2_staff_3" } as any, "blade2") && !isStaff({ ...BM_PARTS.fire_blade2, form: undefined, img: "blade2_3" } as any, "blade2"), "без поля form: тип берётся из атласа");
   const W3 = { handle: "fire_handle", blade: "fire_staff_arch", blade2: "fire_b2staff_1", blade3: "fire_b3staff_1", crystal: "fire_crystal" };
   const A = computeArtifact(W3)!; ok(A.staff && A.ranged && A.shots === 3 && A.atk.count === 3, "три посоха Художника — тройной выстрел без тестового флага");

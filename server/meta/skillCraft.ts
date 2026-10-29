@@ -37,7 +37,7 @@ export interface SkDef {
   // урон
   dmg: "black" | "pure" | "normal"; pct: number; k: number; mul: number;
   // на цели
-  slow: "" | "on" | "ice"; freeze: number; knock: number;
+  slow: "" | "on" | "ice" | "stone"; freeze: number; knock: number;
   // на себя
   sInv: number; sDr: number; sHeal: number; sHaste: number;
   // цена
@@ -60,10 +60,10 @@ export function skBlank(id: string, form: SkForm = "proj", elem = "fire"): SkDef
 }
 /** пресет из навыка артефакта (BM_SKILLS + BM_SHAPES): ровно прежние числа */
 function presetOf(a: any): SkDef {
-  const s = BM_SHAPES[a.id], el = a.bm?.elem || "fire", d = skBlank(a.id, s.k, el), ice = el === "ice";
+  const s = BM_SHAPES[a.id], el = a.bm?.elem || "fire", d = skBlank(a.id, s.k, el), ice = el === "ice", sl = !("slow" in s) ? "" : el === "ice" ? "ice" : el === "stone" ? "stone" : "on";
   Object.assign(d, { preset: true, name: a.name, icon: a.icon, desc: a.desc, cd: a.cd, rad: (a.radiance || []).join(","), pct: a.bm.pct, k: a.bm.k, dmg: "black" });
-  if (s.k === "cone") Object.assign(d, { len: s.len, arc: s.arc * RAD, slow: ice ? "ice" : "" });
-  if (s.k === "nova") Object.assign(d, { r: s.r, knock: s.knock || 0, slow: ice ? "ice" : "" });
+  if (s.k === "cone") Object.assign(d, { len: s.len, arc: s.arc * RAD, knock: s.knock || 0, slow: ice ? "ice" : sl });
+  if (s.k === "nova") Object.assign(d, { r: s.r, knock: s.knock || 0, slow: ice ? "ice" : sl });
   if (s.k === "proj") Object.assign(d, { range: s.len, boom: s.r, spd: 560, hit: "circle", hitW: 30, hitH: 30, pierce: 1, hitMul: 0, boomMul: 1 });
   if (s.k === "rain") Object.assign(d, { drops: s.n, area: s.area, r: s.r, lead: -1, gap: 80 });
   if (s.k === "dash") Object.assign(d, { len: s.len, w: s.w, invuln: s.invuln || 0, trail: s.trail || 0 });
@@ -142,7 +142,7 @@ export function skShape(d: SkDef): any {
     default: return { k: "proj", len: d.range, r: d.boom || 60, w: "staff", elem: d.elem };
   }
 }
-export const slowOn = (d: SkDef) => d.slow === "on" || (d.slow === "ice" && !!BMA_CFG.iceSlow);
+export const slowOn = (d: SkDef) => d.slow === "on" || (d.slow === "ice" && !!BMA_CFG.iceSlow) || (d.slow === "stone" && !!(BMA_CFG as any).stoneSlow);
 
 // ——— выполнение (abilityShapes.castShape → castCraft) ———
 /** хуки сервиса для цены, модификаторов и бафов на себя (в дуэлях/у мобов их нет — навык работает без них) */

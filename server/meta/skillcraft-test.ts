@@ -25,7 +25,7 @@ function run(id: string, craft: boolean, fire: boolean) {
   (BMA_CFG as any).skillCraft = save;
   return { L: rain ? L.filter((x) => x[0] !== "hit" && x[0] !== "ev" || /arain/.test(x[1])) : L, dealt: rain ? 0 : dealt };
 }
-ok(SK_PRESET_IDS.length === 10 && SK_PRESET_IDS.every((id) => SK_DEFS[id].preset), "10 пресетов = 5 огненных + 5 ледяных навыков");
+ok(SK_PRESET_IDS.length === 30 && SK_PRESET_IDS.every((id) => SK_DEFS[id].preset), "30 пресетов = по 5 навыков на 6 стихий");
 for (const art of [true, false]) for (const fire of [true, false]) for (const id of SK_PRESET_IDS) {
   BMA_CFG.skillArt = art;
   const a = run(id, false, fire), b = run(id, true, fire);
@@ -85,7 +85,7 @@ ok(SK_PRESET_IDS.every((id) => JSON.stringify(skShape(SK_DEFS[id])) === JSON.str
   const e1 = skApplyBuffs(e0, L2, 0);
   ok(e1.dmgPct === 30 && e1.speedPct === 60 && e1.bm.charge === 0.5 && e1.armor === 200 && near(e1.damageReduction, 0.85) && e1.critPct === 15 && e0.dmgPct === 10, "свёртка в статы: атака +20%, скорость (потолок 60%), зарядка ×2 быстрее, броня ×2, крит +10; исходник не меняется"); }
 // реестр и стихии
-{ ok(SK_PRESET_IDS.every((id) => skillElem(id) === (id.startsWith("bmi_") ? "ice" : "fire")), "стихия пресетов");
+{ ok(SK_PRESET_IDS.every((id) => skillElem(id) === ({ bmf_: "fire", bmi_: "ice", bmw_: "water", bms_: "stone", bmn_: "nature", bml_: "lightning" } as any)[id.slice(0, 4)]), "стихия пресетов");
   SK_ELEM["skx_w"] = "water"; ok(skillElem("skx_w") === "water" && isBmSkill("skx_w"), "свой навык воды — навык артефакта своей стихии"); delete SK_ELEM["skx_w"];
   const c = skClone(SK_DEFS.bmf_cinder_bolt, "skx_c"); ok(c.id === "skx_c" && !c.preset && c.range === 480 && c.name.includes("копия") && c.mods !== SK_DEFS.bmf_cinder_bolt.mods, "дублирование: глубокая копия, новый id");
   const bad = skBlank("skx_b"); bad.boom = 0; ok(!!skErr(bad), "снаряд без урона — ошибка"); ok(!skErr(skBlank("skx_ok")), "новый навык валиден"); }
