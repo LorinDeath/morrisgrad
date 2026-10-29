@@ -1,0 +1,134 @@
+---
+import LpShell from '../../components/loropedia/LpShell.astro';
+import LpCard from '../../components/loropedia/LpCard.astro';
+import StatusBadge from '../../components/loropedia/StatusBadge.astro';
+import { LP, article, CAT_COLORS } from '../../lib/loropedia';
+
+const heroes = LP.articles.filter((a) => a.cat === 'personazhi' && a.image).sort((a, b) => b.backlinks.length - a.backlinks.length);
+const chapters = LP.chapters.map(article).filter((a) => !!a);
+const nonCanon = LP.articles.filter((a) => a.status === 'idea' || a.invented);
+const disputed = LP.articles.filter((a) => a.status === 'disputed');
+const popular = [...LP.articles].filter((a) => a.cat !== 'glavy').sort((a, b) => b.backlinks.length - a.backlinks.length).slice(0, 8);
+const art = LP.images.filter((i) => !/^cover/.test(i.id)).slice(0, 8);
+const desc = `Энциклопедия вселенной МоррисГрада: ${LP.stats.articles} статей о героях, кланах, локациях, магии и событиях летописи «Обитель смерти» — с хронологией, картой связей и артами.`;
+---
+<LpShell title="Лоропедия МоррисГрада — энциклопедия летописи «Обитель смерти»" description={desc} active="home"
+  jsonLd={[{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Лоропедия МоррисГрада', description: desc, url: 'https://morrisgrad.com/loropedia', inLanguage: 'ru-RU' }]}>
+  <header class="lp-hero">
+    <div class="lp-hero-sun" aria-hidden="true"></div>
+    <div class="lp-filigree" aria-hidden="true"><span></span><b>❖ ⚜ ❖</b><span></span></div>
+    <h1 class="lp-hero-title">Лоропедия</h1>
+    <p class="lp-hero-kicker">МоррисГрада</p>
+    <p class="lp-hero-sub">Энциклопедия летописи «Обитель смерти»: кто есть кто, где что лежит и почему всё пошло не так.</p>
+    <form class="lp-hero-search" action="/loropedia/poisk" method="get" role="search">
+      <input type="search" name="q" placeholder="Лорин, Чёрная Корона, Фрактал…" aria-label="Поиск по Лоропедии" autocomplete="off" />
+      <button type="submit">Искать</button>
+    </form>
+    <div class="lp-stats">
+      <div><b>{LP.stats.articles}</b><span>статей</span></div>
+      <div><b>{LP.categories.length}</b><span>разделов</span></div>
+      <div><b>{LP.stats.links}</b><span>связей</span></div>
+      <div><b>{LP.stats.images}</b><span>артов</span></div>
+    </div>
+  </header>
+
+  <section class="lp-section">
+    <h2 class="lp-h2"><span>Разделы</span></h2>
+    <div class="lp-cats">
+      {LP.categories.map((c) => (
+        <a class="lp-cat" href={c.slug === 'khronologiya-razdel' ? '/loropedia/khronologiya' : `/loropedia/c/${c.slug}`} style={`--cat:${CAT_COLORS[c.slug]}`}>
+          <span class="lp-cat-icon" aria-hidden="true">{c.icon}</span>
+          <span class="lp-cat-name">{c.name}</span>
+          <span class="lp-cat-desc">{c.desc}</span>
+          <span class="lp-cat-count">{c.count}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="lp-section">
+    <h2 class="lp-h2"><span>Лица летописи</span></h2>
+    <div class="lp-portraits">
+      {heroes.map((a) => (
+        <a class="lp-portrait" href={`/loropedia/${a.slug}`}>
+          <img src={a.image!.thumb} alt={a.title} loading="lazy" decoding="async" />
+          <span class="lp-portrait-name">{a.title}</span>
+          {a.role && <span class="lp-portrait-role">{a.role}</span>}
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="lp-section">
+    <h2 class="lp-h2"><span>Главы по порядку</span></h2>
+    <div class="lp-chapters" tabindex="0" aria-label="Главы летописи, листаются вбок">
+      {chapters.map((a) => (
+        <a class="lp-chapter" href={`/loropedia/${a!.slug}`}>
+          <span class="lp-chapter-img">{a!.image ? <img src={a!.image.thumb} alt="" loading="lazy" decoding="async" /> : <span aria-hidden="true">📖</span>}</span>
+          <span class="lp-chapter-n">№{a!.order}</span>
+          <span class="lp-chapter-t">{a!.title}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <div class="lp-two">
+    <section class="lp-section lp-panel">
+      <h2 class="lp-h2 small"><span>Персонажи по кланам</span></h2>
+      <div class="lp-table-wrap"><table class="lp-table">
+        <thead><tr><th>Клан</th><th>Персонажи</th></tr></thead>
+        <tbody>
+          {LP.clans.map((c) => (
+            <tr>
+              <td>{c.slug ? <a class="lp-link" href={`/loropedia/${c.slug}`}>{c.name}</a> : <span class="lp-muted">{c.name}</span>}</td>
+              <td>{c.slugs.map((s, i) => { const a = article(s)!; return <>{i > 0 && ', '}<a class="lp-link" href={`/loropedia/${s}`}>{a.title}</a></>; })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+    </section>
+    <section class="lp-section lp-panel">
+      <h2 class="lp-h2 small"><span>Хронология</span></h2>
+      <ol class="lp-mini-timeline">
+        {LP.timeline.map((era) => (
+          <li><b>{era.title}</b><span set:html={era.items[0]?.html} /></li>
+        ))}
+      </ol>
+      <a class="lp-more" href="/loropedia/khronologiya">Вся хронология →</a>
+    </section>
+  </div>
+
+  <section class="lp-section">
+    <h2 class="lp-h2"><span>Чаще всего упоминаются</span></h2>
+    <div class="lp-grid">{popular.map((a) => <LpCard a={a} showCat />)}</div>
+  </section>
+
+  <div class="lp-two">
+    <section class="lp-section lp-panel lp-panel-idea">
+      <h2 class="lp-h2 small"><span>Не канон: замыслы автора</span></h2>
+      <p class="lp-muted">Этого нет в тексте книги — идеи и додумки Алекса. Читать как «возможно, когда-нибудь».</p>
+      <ul class="lp-list">{nonCanon.map((a) => <li><a class="lp-link" href={`/loropedia/${a.slug}`}>{a.title}</a> <StatusBadge status="idea" label={a.statusLabel} icon="💡" /></li>)}</ul>
+    </section>
+    <section class="lp-section lp-panel lp-panel-disputed">
+      <h2 class="lp-h2 small"><span>Спорное</span></h2>
+      <p class="lp-muted">Текст книги не подтверждает однозначно — версии расходятся.</p>
+      <ul class="lp-list">{disputed.map((a) => <li><a class="lp-link" href={`/loropedia/${a.slug}`}>{a.title}</a> <StatusBadge status="disputed" label="Спорно" icon="⚠️" /></li>)}</ul>
+    </section>
+  </div>
+
+  <section class="lp-section">
+    <h2 class="lp-h2"><span>Из галереи</span></h2>
+    <div class="lp-art-strip">
+      {art.map((im) => (
+        <a href={im.notes?.[0] ? `/loropedia/${im.notes[0].slug}` : '/loropedia/galereya'} class="lp-art-tile">
+          <img src={im.thumb} alt={im.notes?.[0]?.title || ''} loading="lazy" decoding="async" />
+        </a>
+      ))}
+    </div>
+    <div class="lp-cta-row">
+      <a class="lp-cta" href="/loropedia/galereya">🖼 Вся галерея</a>
+      <a class="lp-cta" href="/loropedia/karta">✶ Карта связей</a>
+      <a class="lp-cta" href="/loropedia/khronologiya">⏳ Хронология</a>
+    </div>
+  </section>
+</LpShell>

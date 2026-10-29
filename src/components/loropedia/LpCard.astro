@@ -1,0 +1,30 @@
+---
+// Карточка статьи для списков (категории, теги, главная).
+import StatusBadge from './StatusBadge.astro';
+import { CAT_COLORS, category, type LpArticle } from '../../lib/loropedia';
+interface Props { a: LpArticle; showCat?: boolean }
+const { a, showCat = false } = Astro.props;
+const cat = category(a.cat);
+// «додумано» (внешность/детали не из книги) показываем и фильтруем как «не канон»
+const st = a.invented && a.status === 'canon' ? 'idea' : a.status;
+const stLabel = a.invented && a.status === 'canon' ? 'Додумано' : a.statusLabel;
+const stIcon = a.invented && a.status === 'canon' ? '💡' : a.statusIcon;
+const sub = a.role || a.when || (a.order != null ? `Глава №${a.order}` : '') || '';
+---
+<a class="lp-card" href={`/loropedia/${a.slug}`} data-status={st} style={`--cat:${CAT_COLORS[a.cat] || '#c9a86c'}`}>
+  <span class="lp-card-corner tl" aria-hidden="true"></span><span class="lp-card-corner br" aria-hidden="true"></span>
+  <div class="lp-card-thumb">
+    {a.image
+      ? <img src={a.image.thumb} alt="" loading="lazy" decoding="async" width="480" height={Math.round(480 * a.image.h / a.image.w)} />
+      : <span class="lp-card-glyph" aria-hidden="true">{cat?.icon || '❖'}</span>}
+  </div>
+  <div class="lp-card-body">
+    <div class="lp-card-meta">
+      {showCat && cat && <span class="lp-card-cat">{cat.name}</span>}
+      {st !== 'canon' && <StatusBadge status={st} label={stLabel} icon={stIcon} />}
+    </div>
+    <h3 class="lp-card-title">{a.title}</h3>
+    {sub && <div class="lp-card-sub">{sub}</div>}
+    {a.excerpt && <p class="lp-card-ex">{a.excerpt}</p>}
+  </div>
+</a>

@@ -1,0 +1,23 @@
+---
+import LpShell from '../../../components/loropedia/LpShell.astro';
+import LpCard from '../../../components/loropedia/LpCard.astro';
+import StatusFilter from '../../../components/loropedia/StatusFilter.astro';
+import { LP, tagBySlug, article } from '../../../lib/loropedia';
+
+const t = tagBySlug(Astro.params.tag || '');
+if (!t) return new Response(null, { status: 404, statusText: 'Not found' });
+const items = t.slugs.map(article).filter((x) => !!x).sort((a, b) => a!.title.localeCompare(b!.title, 'ru'));
+const others = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(0, 40);
+---
+<LpShell title={`#${t.name} — Лоропедия МоррисГрада`} description={`Статьи Лоропедии МоррисГрада с тегом «${t.name}»: ${items.length} шт.`} crumbs={[[`#${t.name}`, `/loropedia/tag/${t.slug}`]]}>
+  <header class="lp-page-head">
+    <span class="lp-page-icon" aria-hidden="true">#</span>
+    <div><h1 class="lp-page-title">{t.name}</h1><p class="lp-page-sub">{items.length} статей с этим тегом</p></div>
+  </header>
+  <StatusFilter target="#lp-tag-list" />
+  <div id="lp-tag-list" class="lp-grid">{items.map((a) => <LpCard a={a!} showCat />)}</div>
+  <section class="lp-section">
+    <h2 class="lp-h2 small"><span>Другие теги</span></h2>
+    <div class="lp-tagcloud">{others.map((x) => <a class:list={['lp-tag', { active: x.slug === t.slug }]} href={`/loropedia/tag/${x.slug}`}>#{x.name} <small>{x.slugs.length}</small></a>)}</div>
+  </section>
+</LpShell>

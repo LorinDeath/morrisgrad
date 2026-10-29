@@ -1,0 +1,56 @@
+---
+// Каркас всех страниц Лоропедии: общий Layout сайта + своя навигация, крошки и поиск.
+import Layout from '../../layouts/Layout.astro';
+import { breadcrumbs } from '../../lib/seo';
+import '../../styles/loropedia.css';
+
+interface Props {
+  title: string;            // полный <title>
+  description?: string;
+  image?: string | null;
+  type?: 'website' | 'article';
+  crumbs?: [string, string][]; // без «Лоропедии» — она добавляется сама
+  active?: 'home' | 'cats' | 'timeline' | 'map' | 'gallery' | 'search';
+  jsonLd?: any[];
+  noindex?: boolean;
+}
+const { title, description, image = null, type = 'website', crumbs = [], active, jsonLd = [], noindex = false } = Astro.props;
+const trail: [string, string][] = [['Лоропедия', '/loropedia'], ...crumbs];
+const q = Astro.url.searchParams.get('q') || '';
+const nav = [
+  { id: 'home', href: '/loropedia', label: 'Главная', icon: '❖' },
+  { id: 'timeline', href: '/loropedia/khronologiya', label: 'Хронология', icon: '⏳' },
+  { id: 'map', href: '/loropedia/karta', label: 'Карта связей', icon: '✶' },
+  { id: 'gallery', href: '/loropedia/galereya', label: 'Галерея', icon: '🖼' },
+];
+---
+<Layout title={title} description={description} image={image} type={type} robots={noindex ? 'noindex,follow' : null}
+  jsonLd={[breadcrumbs([['Главная', '/'], ...trail]), ...jsonLd]}>
+  <div class="lp container">
+    <div class="lp-topbar">
+      <a class="lp-brand" href="/loropedia">
+        <span class="lp-brand-mark" aria-hidden="true">📜</span>
+        <span class="lp-brand-text">Лоропедия <small>МоррисГрада</small></span>
+      </a>
+      <nav class="lp-nav" aria-label="Разделы Лоропедии">
+        {nav.map((n) => <a href={n.href} class:list={['lp-nav-link', { active: active === n.id }]}><span aria-hidden="true">{n.icon}</span> {n.label}</a>)}
+      </nav>
+      <form class="lp-search-mini" action="/loropedia/poisk" method="get" role="search">
+        <input type="search" name="q" value={q} placeholder="Найти в летописи…" aria-label="Поиск по Лоропедии" autocomplete="off" />
+        <button type="submit" aria-label="Искать">⌕</button>
+      </form>
+    </div>
+    {trail.length > 1 && (
+      <nav class="lp-crumbs" aria-label="Навигационная цепочка">
+        {trail.map(([name, path], i) => i < trail.length - 1
+          ? <><a href={path}>{name}</a><span class="lp-crumb-sep" aria-hidden="true">◆</span></>
+          : <span aria-current="page">{name}</span>)}
+      </nav>
+    )}
+    <slot />
+    <div class="lp-foot">
+      <div class="lp-foot-orn" aria-hidden="true"><span></span>✦ ⚜ ✦<span></span></div>
+      <p>Лоропедия собрана из летописи «Обитель смерти». <span class="lp-pill lp-pill-canon">✅ Канон</span> — есть в тексте книги; <span class="lp-pill lp-pill-idea">💡 Не канон</span> — замыслы и додумки автора; <span class="lp-pill lp-pill-disputed">⚠️ Спорно</span> — текст не подтверждает однозначно.</p>
+    </div>
+  </div>
+</Layout>

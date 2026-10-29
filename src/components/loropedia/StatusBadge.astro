@@ -1,0 +1,6 @@
+---
+// Плашка статуса статьи: канон / не канон (идея, додумано) / спорно / справка.
+interface Props { status: string; label: string; icon: string; big?: boolean }
+const { status, label, icon, big = false } = Astro.props;
+---
+<span class:list={['lp-pill', `lp-pill-${status}`, { 'lp-pill-big': big }]} title={label}><span aria-hidden="true">{icon}</span> {label}</span>

@@ -7,6 +7,7 @@ import NavCard from '../components/NavCard.astro';
 import Notes from '../components/Notes.astro';
 import BookReader from '../components/BookReader.astro';
 import { getAllBooks } from '../utils/fb2';
+import { LP } from '../lib/loropedia';
 
 // Динамическая загрузка всех книг цикла из FB2
 const allBooks = await getAllBooks();
@@ -201,6 +202,45 @@ const activities = [
             <span class="btn-arrow">→</span>
           </div>
           <span class="cta-hint">Запуск на весь экран • WASD управление</span>
+        </div>
+      </a>
+    </section>
+
+    <!-- БЛОК «ЛОРОПЕДИЯ» — сразу под «Проклятыми», в том же ар-деко -->
+    <section class="flagship-section flagship-section--lore">
+      <a href="/loropedia" class="flagship-card flagship-card--lore" title="Открыть Лоропедию МоррисГрада">
+        <div class="flagship-corners top-l"></div>
+        <div class="flagship-corners top-r"></div>
+        <div class="flagship-corners bot-l"></div>
+        <div class="flagship-corners bot-r"></div>
+
+        <div class="flagship-aura"></div>
+        <div class="lore-sigil" aria-hidden="true">📜</div>
+
+        <div class="flagship-content">
+          <div class="flagship-badge">
+            <span class="badge-dot lore-dot"></span> ЭНЦИКЛОПЕДИЯ // ЛЕТОПИСЬ ОБИТЕЛИ СМЕРТИ
+          </div>
+
+          <h2 class="flagship-title">ЛОРОПЕДИЯ</h2>
+          <p class="flagship-desc">
+            Кто есть кто в МоррисГраде, где что лежит и почему всё пошло не так. Герои и кланы, локации и артефакты, магия и законы системы, хронология событий и карта связей — всё из летописи, с пометками, что канон, а что пока лишь замысел.
+          </p>
+
+          <div class="flagship-meta">
+            <span class="meta-tag">📖 {LP.stats.articles} статей</span>
+            <span class="meta-tag">⏳ Хронология</span>
+            <span class="meta-tag">✶ Карта связей</span>
+            <span class="meta-tag">🖼 {LP.stats.images} артов</span>
+          </div>
+        </div>
+
+        <div class="flagship-cta">
+          <div class="btn-play btn-lore">
+            <span class="btn-text">ОТКРЫТЬ ЛОРОПЕДИЮ</span>
+            <span class="btn-arrow">→</span>
+          </div>
+          <span class="cta-hint">Поиск по именам и прозвищам</span>
         </div>
       </a>
     </section>
@@ -945,6 +985,37 @@ const activities = [
     font-family: monospace;
     letter-spacing: 0.3px;
   }
+
+  /* Лоропедия: та же флагманская карточка, но «книжная» палитра — бирюза и золото */
+  .flagship-section--lore { margin-top: -1rem; }
+  .flagship-card--lore {
+    background: linear-gradient(135deg, rgba(10, 38, 44, 0.9) 0%, rgba(12, 14, 30, 0.95) 60%, rgba(8, 6, 16, 0.98) 100%);
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.8), 0 0 35px rgba(245, 208, 97, 0.2), inset 0 0 30px rgba(94, 234, 212, 0.12);
+  }
+  .flagship-card--lore:hover {
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 50px rgba(245, 208, 97, 0.35), 0 0 30px rgba(94, 234, 212, 0.4);
+  }
+  .flagship-card--lore .flagship-aura {
+    background: radial-gradient(circle at 70% 50%, rgba(94, 234, 212, 0.16) 0%, transparent 60%);
+  }
+  .flagship-card--lore .meta-tag {
+    background: rgba(10, 40, 44, 0.7);
+    border-color: rgba(94, 234, 212, 0.35);
+    color: #e6fffa;
+  }
+  .lore-dot { background: #5eead4; box-shadow: 0 0 8px #5eead4; }
+  .lore-sigil {
+    position: absolute;
+    right: 18%;
+    top: 50%;
+    transform: translateY(-50%) rotate(-8deg);
+    font-size: 9rem;
+    opacity: 0.07;
+    pointer-events: none;
+    filter: sepia(1);
+  }
+  .btn-lore { background: linear-gradient(135deg, #f5d061 0%, #c9a86c 100%); }
+  .flagship-card--lore:hover .btn-lore { background: linear-gradient(135deg, #fff1b8 0%, #f5d061 100%); }
 
   /* ==========================================================================\n     СЕТКА АКТИВНОСТЕЙ (ACTIVITIES GRID) С ФОНАМИ ПЕРСОНАЖЕЙ\n     ========================================================================== */
   .section-header-block {

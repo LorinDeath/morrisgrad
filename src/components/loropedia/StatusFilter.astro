@@ -1,0 +1,33 @@
+---
+// Фильтр по статусу: прячет карточки/строки с data-status, не подходящие под выбранный.
+interface Props { target: string }
+const { target } = Astro.props;
+---
+<div class="lp-filter" role="group" aria-label="Фильтр по статусу" data-lp-filter={target}>
+  <button type="button" class="active" data-f="all">Все</button>
+  <button type="button" data-f="canon">✅ Канон</button>
+  <button type="button" data-f="idea">💡 Не канон</button>
+  <button type="button" data-f="disputed">⚠️ Спорно</button>
+  <button type="button" data-f="ref">📎 Справка</button>
+</div>
+<script>
+  function initLpFilters() {
+    document.querySelectorAll<HTMLElement>('[data-lp-filter]').forEach((bar) => {
+      if (bar.dataset.ready) return; bar.dataset.ready = '1';
+      const scope = document.querySelector(bar.dataset.lpFilter || 'body');
+      const btns = bar.querySelectorAll<HTMLButtonElement>('button');
+      // кнопки статусов, которых нет в списке, не показываем
+      const present = new Set([...(scope?.querySelectorAll<HTMLElement>('[data-status]') || [])].map((e) => e.dataset.status));
+      btns.forEach((b) => { if (b.dataset.f !== 'all' && !present.has(b.dataset.f)) b.hidden = true; });
+      btns.forEach((b) => b.addEventListener('click', () => {
+        btns.forEach((x) => x.classList.toggle('active', x === b));
+        const f = b.dataset.f;
+        scope?.querySelectorAll<HTMLElement>('[data-status]').forEach((el) => { el.hidden = f !== 'all' && el.dataset.status !== f; });
+        scope?.querySelectorAll<HTMLElement>('[data-lp-group]').forEach((g) => {
+          g.hidden = !g.querySelector('[data-status]:not([hidden])');
+        });
+      }));
+    });
+  }
+  document.addEventListener('astro:page-load', initLpFilters);
+</script>
