@@ -7,7 +7,7 @@
 // Снятие с публикации — hidden:1 (никогда не удаление: живые мобы и записи бестиария остаются целы).
 import { ZONE_MOBS, MONSTER_LOOT } from "./defs";
 import { RESOURCES } from "./shared";
-import { BM_PARTS, BP_TYPES, pieceId, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles } from "./blackArt";
+import { BM_PARTS, BP_TYPES, BP_ELEMS, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles } from "./blackArt";
 import { mobXp, tierOf } from "./balance";
 
 export const BODY_SLOTS = ["tail", "armL", "legL", "torso", "legR", "head", "armR"] as const;
@@ -31,7 +31,10 @@ export const BMM_CFG = {
   campMinDist: 400,         // лагерь не ближе к городу/куполу, px
 };
 
-export interface BmBody { id: string; name: string; slot: BodySlot; img: string; hp: number; dmg: number; armor: number; speed: number; hidden?: boolean; desc?: string }
+export interface BmBody { id: string; name: string; slot: BodySlot; img: string; hp: number; dmg: number; armor: number; speed: number; hidden?: boolean; desc?: string;
+  elem?: string;                 // ICE: стихия части (нет поля — огонь)
+  pfire?: number; pice?: number; // ICE: чистый урон стихии моба с этой частью, % его макс. ОЗ (по умолчанию 0; правится в админке)
+}
 export const CUSTOM_BB = /^bbx_[a-z0-9_]{2,32}$/;
 // поправки встроенных частей по варианту листа (1 кость, 2 камень, 3 латы, 4 уголь/корни, 5 обсидиан/хитин): %ОЗ, %урона, +броня, %скорости
 const VAR_MODS: Record<number, [number, number, number, number]> = { 1: [0, 4, 0, 4], 2: [10, 0, 3, -6], 3: [6, 3, 4, -3], 4: [-4, 2, 0, 6], 5: [4, 6, 2, 0] };
@@ -50,6 +53,19 @@ for (const s of BODY_SLOTS) for (let v = 1; v <= 5; v++) {
   const [hp, dmg, ar, sp] = VAR_MODS[v], w = SLOT_W[s];
   BM_BODY[`fb_${s}_${v}`] = { id: `fb_${s}_${v}`, name: BODY_NAMES[s][v - 1], slot: s, img: `${s}_${v}`, hp: Math.round(hp * w), dmg: Math.round(dmg * w), armor: Math.round(ar * w), speed: Math.round(sp * w) };
 }
+// ICE: ледяной набор Художника (public/bm-art/body/ice_<slot>_<n>): те же поправки по варианту; armL/legL — те же листы, что armR/legR
+const ICE_NAMES: Record<string, string[]> = {
+  head: ["Череп в ледяной короне", "Ледниковый шлем", "Череп ледяного оленя", "Кристальная друза", "Маска Снежной вдовы"],
+  torso: ["Кираса с ледяным сердцем", "Сосулечный хребет", "Кристалл-монолит", "Шкура ледяного тролля", "Ледяная клетка-фонарь"],
+  armR: ["Ледяные когти", "Ледяная глыба-кулак", "Воронёная латная в инее", "Сосулечная цепь", "Рука с кристальным щитом"],
+  legR: ["Птичья лапа со шпорой", "Ледяная колонна", "Сабатон в инее", "Снежная лапа йети", "Ледяная ходуля"],
+  tail: ["Сосулечный хвост", "Хвост ледяного змея", "Сноп кристаллов", "Позвонки в ледяной корке", "Меховой хвост в инее"],
+};
+ICE_NAMES.armL = ICE_NAMES.armR; ICE_NAMES.legL = ICE_NAMES.legR;
+for (const s of BODY_SLOTS) for (let v = 1; v <= 5; v++) {
+  const [hp, dmg, ar, sp] = VAR_MODS[v], w = SLOT_W[s];
+  BM_BODY[`ib_${s}_${v}`] = { id: `ib_${s}_${v}`, name: ICE_NAMES[s][v - 1], slot: s, img: `ice_${s}_${v}`, hp: Math.round(hp * w), dmg: Math.round(dmg * w), armor: Math.round(ar * w), speed: Math.round(sp * w), elem: "ice" };
+}
 export function makeBody(id: string, slot: string): BmBody {
   const s = (BODY_SLOTS as readonly string[]).includes(slot) ? slot as BodySlot : "torso";
   return { id, name: BODY_SLOT_NAMES[s] + " (новая)", slot: s, img: `${s}_1`, hp: 0, dmg: 0, armor: 0, speed: 0 };
@@ -64,6 +80,22 @@ export interface BmMob {
   artId?: string;                            // артефакт игрока в руке (art_…): тогда детали — из него
   cursed?: boolean; ench?: number;           // всегда проклятый / ярус зачарования (0 — по броску мира)
   scale: number; drops: BmDrop[]; gear?: { item: string; chance: number }[]; hidden?: boolean;
+  elem?: string;                             // ICE: стихия моба (нет — по лезвию/торсу); ледяные кусочки падают только с ледяных
+}
+/** стихия моба: явная → лезвие оружия → торс → огонь (старые записи без поля) */
+export function mobElem(m: BmMob, items?: Record<string, any>): string {
+  if (m.elem && BP_ELEMS.includes(m.elem)) return m.elem;
+  const w = mobWeapon(m, items), b = w.blade && BM_PARTS[w.blade]; if (b) return elemOf(b.elem);
+  const t = m.body?.torso && BM_BODY[m.body.torso]; return elemOf(t?.elem);
+}
+/** ресурс → стихия, если это кусочек чертежа / осколок стихии (иначе null) */
+export const resElem = (r: string) => { for (const el of BP_ELEMS) if (r === shardId(el) || BP_TYPES.some((t) => r === pieceId(el, t))) return el; return null; };
+/** чистый урон стихий моба: сумма pfire/pice деталей оружия (основные статы) + частей тела, % его макс. ОЗ */
+export function mobPure(m: BmMob, items?: Record<string, any>) {
+  const w = mobWeapon(m, items); let pfire = 0, pice = 0;
+  for (const id of Object.values(w)) { const p: any = id && BM_PARTS[id]; if (p) { pfire += Number(p.stats?.pfire) || 0; pice += Number(p.stats?.pice) || 0; } }
+  for (const id of Object.values(m.body || {})) { const b = id && BM_BODY[id]; if (b) { pfire += Number(b.pfire) || 0; pice += Number(b.pice) || 0; } }
+  return pfire > 0 || pice > 0 ? { pfire: Math.round(pfire * 1000) / 1000, pice: Math.round(pice * 1000) / 1000 } : null;
 }
 export const CUSTOM_BM = /^bmx_[a-z0-9_]{2,32}$/;
 /** «Авто по уровню»: средние статы обычных мобов этого уровня × refMul */
@@ -82,6 +114,11 @@ const BUILTIN: [string, string, string, number, Partial<Record<BodySlot, number>
   ["bmx_ash_warden", "Пепельный страж", "warrior", 8, { tail: 1, armL: 1, legL: 1, torso: 1, legR: 1, head: 1, armR: 1 }, { handle: "fire_handle", blade: "fire_blade" }, [{ res: pieceId("fire", "handle"), chance: 18, qty: [1, 2] }, { res: pieceId("fire", "blade"), chance: 12, qty: [1, 1] }]],
   ["bmx_ember_archer", "Угольный стрелок", "archer", 10, { armL: 4, legL: 4, torso: 4, legR: 4, head: 5, armR: 4 }, { handle: "fire_handle", blade: "fire_blade_r", crystal: "fire_crystal" }, [{ res: pieceId("fire", "crystal"), chance: 10, qty: [1, 1] }, { res: pieceId("fire", "blade"), chance: 10, qty: [1, 2] }]],
   ["bmx_staff_seer", "Трёхпосохий жрец", "archer", 14, { armL: 3, legL: 3, torso: 3, legR: 3, head: 3, armR: 3 }, { handle: "fire_handle", blade: "fire_staff_arch", blade2: "fire_b2staff_1", blade3: "fire_b3staff_1", crystal: "fire_crystal" }, [{ res: pieceId("fire", "blade"), chance: 12, qty: [1, 2] }, { res: pieceId("fire", "crystal"), chance: 8, qty: [1, 1] }]], // три посоха Художника — веер из 3 снарядов
+  // ICE: ледяные чёрные мобы — единственный источник bp_ice_* (тело ib_*, оружие ice_*)
+  ["bmx_frost_warden", "Страж инея", "warrior", 9, { tail: 1, armL: 1, legL: 1, torso: 1, legR: 1, head: 1, armR: 1 }, { handle: "ice_handle", blade: "ice_blade" }, [{ res: pieceId("ice", "handle"), chance: 18, qty: [1, 2] }, { res: pieceId("ice", "blade"), chance: 12, qty: [1, 1] }]],
+  ["bmx_rime_archer", "Стрелок изморози", "archer", 11, { armL: 4, legL: 5, torso: 2, legR: 5, head: 3, armR: 4 }, { handle: "ice_handle", blade: "ice_blade_r", crystal: "ice_crystal" }, [{ res: pieceId("ice", "crystal"), chance: 10, qty: [1, 1] }, { res: pieceId("ice", "blade"), chance: 10, qty: [1, 2] }]],
+  ["bmx_glacier_seer", "Жрец стужи", "mage", 14, { armL: 5, legL: 3, torso: 3, legR: 3, head: 4, armR: 5 }, { handle: "ice_handle2", blade: "ice_staff_arch", blade2: "ice_b2staff_2", blade3: "ice_b3staff_5", crystal: "ice_crystal" }, [{ res: pieceId("ice", "blade"), chance: 12, qty: [1, 2] }, { res: pieceId("ice", "crystal"), chance: 8, qty: [1, 1] }]],
+  ["bmx_yeti_brute", "Ледяной громила", "brute", 12, { tail: 5, armL: 2, legL: 4, torso: 4, legR: 4, head: 2, armR: 2 }, { handle: "ice_handle", blade: "ice_blade_glaive", blade2: "ice_blade2", blade3: "ice_blade3" }, [{ res: pieceId("ice", "blade2"), chance: 15, qty: [1, 2] }, { res: pieceId("ice", "blade3"), chance: 15, qty: [1, 2] }]],
   ["bmx_forge_brute", "Горновой громила", "brute", 12, { tail: 3, armL: 2, legL: 2, torso: 5, legR: 2, head: 4, armR: 2 }, { handle: "fire_handle", blade: "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3" }, [{ res: pieceId("fire", "blade2"), chance: 15, qty: [1, 2] }, { res: pieceId("fire", "blade3"), chance: 15, qty: [1, 2] }]],
 ];
 export const BM_MOBS: Record<string, BmMob> = {};
@@ -89,7 +126,9 @@ export const BM_MOBS: Record<string, BmMob> = {};
 export const BM_BUILTIN = new Set(BUILTIN.map((b) => b[0]));
 export const isCustomBm = (id: string) => CUSTOM_BM.test(id) && !BM_BUILTIN.has(id);
 for (const [id, name, cls, lvl, body, weapon, drops] of BUILTIN) {
-  const m = makeMob(id, lvl, cls); m.name = name; m.body = Object.fromEntries(Object.entries(body).map(([s, v]) => [s, `fb_${s}_${v}`])); m.weapon = { ...weapon }; m.drops = drops;
+  const ice = String(weapon.blade || "").startsWith("ice_"), pre = ice ? "ib" : "fb";
+  const m = makeMob(id, lvl, cls); m.name = name; m.body = Object.fromEntries(Object.entries(body).map(([s, v]) => [s, `${pre}_${s}_${v}`])); m.weapon = { ...weapon }; m.drops = drops;
+  if (ice) m.elem = "ice";
   if (cls === "brute") m.scale = 1.2;
   BM_MOBS[id] = m;
 }
@@ -124,6 +163,8 @@ export function mobErr(m: BmMob): string | null {
   if (Object.values(w).some(Boolean)) { if (!w.handle || !w.blade) return "оружие: нужны рукоять и лезвие (или пусто)";
     for (const [t, id] of Object.entries(w)) { if (!id) continue; const p = BM_PARTS[id as string]; if (!(BP_TYPES as readonly string[]).includes(t)) return `оружие: неизвестный слот ${t}`; if (!p) return `нет детали ${id}`; if (p.type !== t) return `${p.name}: не ${t}`; } }
   if (m.artId && !/^art_[0-9a-f]{12}$/.test(m.artId)) return "артефакт: id вида art_…";
+  if (m.elem && !BP_ELEMS.includes(m.elem)) return "стихия: из списка";
+  { const el = mobElem(m); for (const d of m.drops || []) { const re = resElem(d.res); if (re && re !== "fire" && re !== el) return `${d.res}: кусочки этой стихии падают только с мобов стихии «${re}» (у моба — «${el}»)`; } }
   if (!(BM_CLASSES as readonly string[]).includes(m.cls)) return "класс: из списка";
   return null;
 }
@@ -163,8 +204,8 @@ export function mobAtk(w: Record<string, string>, ranged: boolean): { kind: "arc
 export function registerBlackMobs(items?: Record<string, any>) {
   for (const [id, m] of Object.entries(BM_MOBS)) {
     const f = mobFinal(m, items), role = f.ranged ? (m.cls === "mage" ? "caster" : "ranged") : CLASS_ROLE[m.cls] || "melee";
-    const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: "#ff5a1a", lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
-      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]) }; // bmMz — дула посохов (снаряды вылетают из них)
+    const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobElem(m, items) === "ice" ? "#6cc8ff" : "#ff5a1a", lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
+      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]) }; // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));
@@ -174,8 +215,8 @@ export function registerBlackMobs(items?: Record<string, any>) {
 /** клиенту: тело/оружие/табличка для отрисовки + порядок индексов */
 export function bmmClient(items?: Record<string, any>) {
   const mobs: Record<string, any> = {};
-  for (const [id, m] of Object.entries(BM_MOBS)) { const f = mobFinal(m, items); mobs[id] = { name: m.name, cls: m.cls, lvl: m.lvl, body: m.body, weapon: f.weapon, scale: m.scale, cursed: !!m.cursed, ench: m.ench || 0, hidden: !!m.hidden, ranged: f.ranged, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, xp: m.xp, aggro: m.aggro, radius: m.radius, drops: m.drops, desc: m.desc || "" }; }
-  const body: Record<string, any> = {}; for (const [id, b] of Object.entries(BM_BODY)) body[id] = { name: b.name, slot: b.slot, img: b.img, hidden: !!b.hidden };
+  for (const [id, m] of Object.entries(BM_MOBS)) { const f = mobFinal(m, items); mobs[id] = { name: m.name, cls: m.cls, lvl: m.lvl, elem: mobElem(m, items), pure: mobPure(m, items), body: m.body, weapon: f.weapon, scale: m.scale, cursed: !!m.cursed, ench: m.ench || 0, hidden: !!m.hidden, ranged: f.ranged, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, xp: m.xp, aggro: m.aggro, radius: m.radius, drops: m.drops, desc: m.desc || "" }; }
+  const body: Record<string, any> = {}; for (const [id, b] of Object.entries(BM_BODY)) body[id] = { name: b.name, slot: b.slot, img: b.img, hidden: !!b.hidden, elem: b.elem || "fire" };
   return { order: [...BM_ORDER], mobs, body, vis: BMM_CFG.mobVis, base: BMX_BASE, classes: BM_CLASS_NAMES };
 }
 /** клиент: принять список с сервера (те же таблицы, что у сервера — ZONE_MOBS общий модуль) */
@@ -183,8 +224,8 @@ export let BMM_VER = 0;
 export function applyBmmClient(d: any, extra?: Record<string, any>) {
   if (!d || typeof d !== "object") return;
   for (const [id, m] of Object.entries<any>(d.mobs || {})) {
-    BM_MOBS[id] = { id, name: m.name, cls: m.cls, lvl: m.lvl, hp: m.hp, dmg: m.dmg, armor: m.armor, speed: m.speed, aggro: m.aggro, radius: m.radius, xp: m.xp, body: m.body || {}, weapon: m.weapon || {}, scale: m.scale || 1, cursed: m.cursed, ench: m.ench, drops: m.drops || [], hidden: m.hidden, desc: m.desc };
-    const cur: any = (ZONE_MOBS as any)[id], def = { name: m.name, hp: m.hp, dmg: m.dmg, armor: m.armor, speed: m.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: "#ff5a1a", lvl: m.lvl, tier: tierOf(m.lvl), role: m.ranged ? "ranged" : "melee", size: "m", black: true, bmCls: m.cls, bmHidden: !!m.hidden };
+    BM_MOBS[id] = { id, name: m.name, cls: m.cls, lvl: m.lvl, elem: m.elem, hp: m.hp, dmg: m.dmg, armor: m.armor, speed: m.speed, aggro: m.aggro, radius: m.radius, xp: m.xp, body: m.body || {}, weapon: m.weapon || {}, scale: m.scale || 1, cursed: m.cursed, ench: m.ench, drops: m.drops || [], hidden: m.hidden, desc: m.desc };
+    const cur: any = (ZONE_MOBS as any)[id], def = { name: m.name, hp: m.hp, dmg: m.dmg, armor: m.armor, speed: m.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, lvl: m.lvl, tier: tierOf(m.lvl), role: m.ranged ? "ranged" : "melee", size: "m", black: true, bmCls: m.cls, bmHidden: !!m.hidden, elem: m.elem || "fire", color: m.elem === "ice" ? "#6cc8ff" : "#ff5a1a" };
     if (cur) Object.assign(cur, def); else (ZONE_MOBS as any)[id] = def;
     if (extra && extra !== ZONE_MOBS) { if (extra[id]) Object.assign(extra[id], def, { black: true }); else extra[id] = (ZONE_MOBS as any)[id]; }
   }

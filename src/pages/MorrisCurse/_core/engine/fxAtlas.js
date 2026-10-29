@@ -18,9 +18,29 @@ import t32 from '../../../../assets/mc/fx30/fx30_t32.png';
 import a96 from '../../../../assets/mc/fx30/fx30_a96.png';
 import r128 from '../../../../assets/mc/fx30/fx30_r128.png';
 import c128 from '../../../../assets/mc/fx30/fx30_c128.png';
+// 🜏 «Чёрная магия»: эффекты стихий Художника (public/bm-art/fx, tools/bm-art/sync-ice.py) — свои листы, ключи как у Художника
+// (ice_bolt, ice_hit, ice_arc, ice_release, ice_crit, ice_zero). У каждого — пара <key>_glow (аддитивно, рисуется вместе с базой).
+import BM_FX from '../../../../../public/bm-art/fx/index.json';
 
+const PX_PER_M0 = 20;
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s); // Astro: импорт PNG — объект с .src
 const SRC = { s32: url(s32), s64: url(s64), w64: url(w64), t32: url(t32), a96: url(a96), r128: url(r128), c128: url(c128) };
+for (const [k, d] of Object.entries(BM_FX || {})) registerBmFx(k, d);
+/** лист эффекта стихии → META (лист + ключ + пара _glow). Снаряд (facing) — directional, дуга — на земле, остальное — к камере */
+function registerBmFx(k, d) {
+  if (!d || !Array.isArray(d.cell) || META.keys[k]) return;
+  const [w, h] = d.cell, an = d.anchor || [w / 2, h / 2], mode = d.facing ? 'directional' : /_arc$/.test(k) ? 'ground' : 'billboard';
+  for (const g of ['', '_glow']) {
+    const sh = 'bmfx_' + k + g;
+    META.sheets[sh] = { image: `${k}${g}.png`, frameW: w, frameH: h, cols: d.cols || 1, rows: d.rows || 1, bm: 1 };
+    SRC[sh] = `/bm-art/fx/${k}${g}.png`;
+    const anims = {};
+    for (const [n, a] of Object.entries(d.anims || {})) anims[n] = { sheet: sh, x: 0, y: (a.row || 0) * h, w, h, frames: a.n || 1, fps: a.fps || 12, loop: !!a.loop };
+    META.keys[k + g] = { blend: g ? 'additive' : 'normal', glow: g ? null : '#5fb8e8', mode, anchor: [an[0] / w, an[1] / h], size_m: Math.round((w / PX_PER_M0) * 0.9 * 100) / 100, tint: false, anims, elem: d.elem, bm: 1 };
+  }
+}
+// снаряд стихии сам несёт попадание (projInfo берёт anims.hit): ice_bolt.hit = ice_hit
+for (const g of ['', '_glow']) { const b = META.keys['ice_bolt' + g], hk = META.keys['ice_hit' + g]; if (b && hk) b.anims.hit = hk.anims.hit; }
 export const FX_META = META;
 export const PX_PER_M = 20; // «1 m = 20 px» (масштаб атласа = масштаб мира)
 const hexRGB = (h) => { const n = parseInt(String(h).slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
@@ -46,7 +66,7 @@ export function fxDef(k) {
   if (!key) return null;
   if (DEFS[key]) return DEFS[key];
   const d = META.keys[key];
-  return (DEFS[key] = { key, add: d.blend === 'additive', glow: d.glow ? hexRGB(d.glow) : null, mode: d.mode, anchor: d.anchor || [0.5, 0.5], size: d.size_m || 1.3, tint: !!d.tint, anims: animsOf(d.anims) });
+  return (DEFS[key] = { key, pair: d.bm && META.keys[key + '_glow'] ? key + '_glow' : null, add: d.blend === 'additive', glow: d.glow ? hexRGB(d.glow) : null, mode: d.mode, anchor: d.anchor || [0.5, 0.5], size: d.size_m || 1.3, tint: !!d.tint, anims: animsOf(d.anims) });
 }
 // анимации ключа: ячейка из пиксельных x/y (раскладка v3), fps под исходную длительность
 function animsOf(src) {
@@ -121,6 +141,7 @@ export class FxAtlas {
     }
     if (!B) return false;
     B.push(cx, cy, cz, w, h, mode, rot, dx, dz, an.col + fxFrame(an, t, loop ?? an.loop), an.row, r, g, b, a);
+    if (d.pair) this.draw(d.pair, anim, t, x, y, z, w, h, mode, rot, dx, dz, null, a, 0, loop); // пара _glow листа Художника
     return true;
   }
   // Луч из 3 частей: start + mid×N (тайл) + end. (x,z) начало, (dx,dz) направление (единичное), len, width — м

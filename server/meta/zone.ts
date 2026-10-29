@@ -24,7 +24,7 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
-import { BMA_CFG, bmSkillPct, staffDirs, shotOrigins } from "./blackArt";
+import { BMA_CFG, bmSkillPct, bmPure, staffDirs, shotOrigins } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
@@ -174,7 +174,7 @@ export interface Proj {
   /** 🜏 артефакт/чёрный моб: bm — флаг, bf — доля заряда при выстреле, sz — размер спрайта (ширина/20); vm — снаряд моба по мобам (foe — кто враг, onMob — попадание) */
   bm?: number; bf?: number; sz?: number; vm?: number; foe?: (m: any) => boolean; onMob?: (m: any, i: number) => void;
 }
-export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420, bm_arrow_small: 620, bm_arrow_big: 620 };
+export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, ice_bolt: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420, bm_arrow_small: 620, bm_arrow_big: 620 };
 
 /** Биты статусов моба для снимка: вид (8/16/32 — поджог/яд/кровотечение) + стаки каждого вида по 3 бита (13–15, 16–18, 19–21; максимум 7). */
 export function mobStatusBits(dots: { kind: string; until: number }[] | undefined, now: number): number {
@@ -511,10 +511,14 @@ export class Zone {
     if (t.dead || t.reset) return 0;
     const d = ZONE_MOBS[t.type];
     const armor = d.armor * mobArmorMul(t, true);
-    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * (t.shieldUntil > this.now ? 0.5 : 1)));
+    const sh = t.shieldUntil > this.now ? 0.5 : 1, sd: any = ZONE_MOBS[src.type];
+    // ICE: чистый урон чёрного моба по мобу — % его макс. ОЗ × pureMob × класс цели
+    const pp = sd?.bmPure ? bmPure(src.maxHp || sd.hp, sd.bmPure, t.special === "boss" ? "boss" : t.elite ? "elite" : "mob", (Number(BMA_CFG.pureMob) || 0) * sh) : null;
+    const pf = pp?.fire || 0, pi = pp?.ice || 0;
+    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * sh)) + pf + pi;
     t.hp -= real; t.dmgBy.set("mob:" + src.id, (t.dmgBy.get("mob:" + src.id) || 0) + real);
     if (!t.targetSid && !t.mobTarget) { t.mobTarget = src.id; this.rally(t, src.id); }
-    this.events.push({ k: "hit", id: t.id, d: real, mob: 1 });
+    this.events.push({ k: "hit", id: t.id, d: real, mob: 1, ...(pf ? { pf } : {}), ...(pi ? { pi } : {}) });
     this.stats.mobHits++;
     if (t.hp <= 0) { this.stats.mobKills++; (t as any).killer = "mob:" + src.id; this.kill(t, onKill); }
     return real;
@@ -543,7 +547,7 @@ export class Zone {
    *  игрокам (onHit) и враждебным мобам (mobHit). Возвращает число задетых. */
   bmSwing(m: ZMob, d: any, ux: number, uy: number, dmgP: number, dmgM: number, players: Map<string, ZPlayer> | null, onHit: ((sid: string, dmg: number, src: string, mob?: ZMob) => void) | null, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, R = A.range, arc = A.arc || 1, max = Math.max(1, BMA_CFG.arcMax | 0), seen = new Set<number | string>();
-    this.events.push({ k: "marc", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), r: R, a: +arc.toFixed(3) });
+    this.events.push({ k: "marc", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), r: R, a: +arc.toFixed(3), ...(d.elem && d.elem !== "fire" ? { el: d.elem } : {}) });
     if (players && onHit) for (const p of players.values()) {
       if (seen.size >= max) break;
       if (!p.alive || seen.has(p.sid) || !inArc(m.x, m.y, ux, uy, R, arc, p.x, p.y, 14)) continue;
@@ -562,7 +566,7 @@ export class Zone {
     const A = d.bmAtk, w = A.width || 20; let last: any = null;
     const D = staffDirs(A.count || 1, ux, uy), O = shotOrigins(d.bmMz || [], D.length, m.x, m.y, ux, uy); // из дула каждого посоха
     for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i]; // посохи во 2/3 слоте: по снаряду на каждый, у каждого полный урон
-      last = this.fire({ o: "m", mob: m.id, t: "fire_spark", x: O[i][0], y: O[i][1], dx: vx, dy: vy, range: A.range, w, max: 1, spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2), bm: 1,
+      last = this.fire({ o: "m", mob: m.id, t: d.elem === "ice" ? "ice_bolt" : "fire_spark", x: O[i][0], y: O[i][1], dx: vx, dy: vy, range: A.range, w, max: 1, spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2), bm: 1,
         vm: 1, foe: this.bmFoe(m), onMob: (t: ZMob) => this.mobHit(m, t, dmg, onKill) } as any); }
     return last;
   }
@@ -578,7 +582,7 @@ export class Zone {
         const w = A.width || 20;
         const D = staffDirs(A.count || 1, ux, uy), O = shotOrigins(d.bmMz || [], D.length, m.x, m.y, ux, uy); // из дула каждого посоха
         for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i];
-          this.cast(m, { kind: "line", at: now + Math.round(Math.max(0, Number(BMA_CFG.mobAimMs) || 0)), x: O[i][0], y: O[i][1], dx: vx, dy: vy, len: A.range, w, dmg: d.dmg * 1.2 * mul, proj: "fire_spark", spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2) } as any); }
+          this.cast(m, { kind: "line", at: now + Math.round(Math.max(0, Number(BMA_CFG.mobAimMs) || 0)), x: O[i][0], y: O[i][1], dx: vx, dy: vy, len: A.range, w, dmg: d.dmg * 1.2 * mul, proj: d.elem === "ice" ? "ice_bolt" : "fire_spark", spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2) } as any); }
         m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); // без windup: он у мобов запускает рывок
       }
       return;
@@ -1400,7 +1404,7 @@ export class Zone {
   mobsAround(x: number, y: number, r: number): ZMob[] {
     return this.near(x, y, r + 60).filter((m) => Math.hypot(m.x - x, m.y - y) <= r + ZONE_MOBS[m.type].radius);
   }
-  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void, pen?: { penFlat?: number; penPct?: number; black?: boolean }, src?: "ba" | "ab") {
+  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void, pen?: { penFlat?: number; penPct?: number; black?: boolean; pure?: { fire: number; ice: number }; el?: string }, src?: "ba" | "ab") {
     if (m.dead) return;
     // удары игрока по мобу (задания доски: «одним ударом», «только навыками», «без навыков»): сколько ударов, какими, был ли моб цел
     if (sid && !sid.startsWith("mob:") && !m.reset) { const hb = (m.hb ||= new Map()); let e = hb.get(sid);
@@ -1411,12 +1415,13 @@ export class Zone {
     if (this.guard && sid) { const a = this.pl?.get(sid); if (this.guard.guardMobHit(m, sid, a ? a.x : NaN, a ? a.y : NaN)) { this.events.push({ k: "hit", id: m.id, d: 0, dome: 1 }); return 0; } } // купол Чёрного мага
     const armor = d.armor * mobArmorMul(m);
     const sh = m.shieldUntil > Date.now() ? 0.5 : 1;
-    const real = pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh)); // 🜏 чёрный урон: броня моба не действует
+    const pf = Math.max(0, Math.round((pen?.pure?.fire || 0) * sh)), pi = Math.max(0, Math.round((pen?.pure?.ice || 0) * sh)); // ICE: чистый урон стихий — сверху, мимо брони
+    const real = (pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh))) + pf + pi; // 🜏 чёрный урон: броня моба не действует
     if (sid && !m.qf?.has(sid)) this.onEngage?.(m, sid); // начало боя игрока с мобом (условия квестов)
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
-    this.events.push({ k: "hit", id: m.id, d: real, by: sid, bm: pen?.black ? 1 : undefined }); // bm — чёрный удар (вспышка/звук у клиента); by — для счётчика DPS у клиента
+    this.events.push({ k: "hit", id: m.id, d: real, by: sid, bm: pen?.black ? 1 : undefined, ...(pf ? { pf } : {}), ...(pi ? { pi } : {}), ...(pen?.el && pen.el !== "fire" ? { el: pen.el } : {}) }); // bm — чёрный удар (вспышка/звук у клиента); by — для счётчика DPS у клиента
     if (this.guard && sid) this.guard.noteFight(m, sid); // «рядом идёт бой» — Чёрный маг идёт защищать
     if (m.hp <= 0) { (m as any).killer = sid; m.k1 = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);

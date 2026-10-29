@@ -947,7 +947,10 @@ async function boot(canvasId, username, userId, api) {
       if (e.k === 'float') overlay.float(toX(e.x), 2.4, toZ(e.y), e.text, e.color, !!e.crit);
       else if (e.k === 'toast') overlay.toast(e.text, e.color);
       else if (e.k === 'dome_repel') cityView.repel(e.x, e.y); // тот же эффект, что у игрока (сервер: не чаще раза в 3 с на моба)
-      else if (e.k === 'hurt') { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, '#f87171'); }
+      else if (e.k === 'hurt') { flashHurt(); const pp = (e.pf || 0) + (e.pi || 0);
+        overlay.float(toX(player.x), 2.6, toZ(player.y), e.z ? `0 урона · −${e.d - pp}` : `-${e.d - pp}`, e.z ? '#cbd5e1' : '#f87171');
+        if (e.pf > 0) overlay.float(toX(player.x) + 0.6, 3.0, toZ(player.y), `🔥-${e.pf}`, '#ff8a2a'); // ICE: чистый урон стихий
+        if (e.pi > 0) overlay.float(toX(player.x) - 0.6, 3.0, toZ(player.y), `❄-${e.pi}`, '#6cc8ff'); }
       else if (e.k === 'died') overlay.toast('Вы пали! Возрождение через 5 с…', '#fca5a5');
     }
   });

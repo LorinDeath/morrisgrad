@@ -40,7 +40,8 @@ const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e;
   ok(near(bmHit(10000, "mob", bm, 1, true), 14 * BMA_CFG.critMul), "bmHit: крит × critMul");
   ok(bmDefend(100, { barm: 30, bcap: 0 }, 1000) === 70, "bmDefend: −чёрная броня");
   ok(bmDefend(100, { barm: 0, bcap: 5 }, 1000) === 50, "bmDefend: потолок 5% ОЗ");
-  ok(bmDefend(10, { barm: 30, bcap: 5 }, 1000) === 0, "bmDefend: 0 разрешён");
+  { const mn = BMA_CFG.bmMinDmg; BMA_CFG.bmMinDmg = 0; ok(bmDefend(10, { barm: 30, bcap: 5 }, 1000) === 0, "bmDefend: 0 разрешён (bmMinDmg = 0)");
+    BMA_CFG.bmMinDmg = 1; ok(bmDefend(10, { barm: 30, bcap: 5 }, 1000) === 1, "bmDefend: bmMinDmg = 1 — броня не обнуляет удар"); BMA_CFG.bmMinDmg = mn; }
   ok(near(bmSkillPct({ pct: 0.6, k: 2 }, 0.12), 0.84), "навык: pct + k × bdmg");
   ok(chargeFrac(0, 5000, 1) === 0 && chargeFrac(1000, 1500, 1) === 0 && chargeFrac(1000, 2000, 1) === 1 && chargeFrac(1000, 4000, 1) === 1, "заряд: только полный (≥ «Скорость заряда») — 1, раньше — 0");
   ok(chargeFrac(1000, 1000 + (BMA_CFG.holdMaxSec + 1) * 1000, 1) === 0, "заряд: передержал дольше holdMaxSec — сгорел");
@@ -57,7 +58,7 @@ const parts = { handle: "fire_handle", blade: "fire_blade", blade2: "fire_blade2
   const r = computeArtifact({ ...parts, blade: "fire_blade_r" })!; ok(r.ranged && r.atk.kind === "proj" && r.atk.range <= BMA_CFG.maxRangeTiles * BMA_CFG.tile, "дальний: снаряд, не дальше maxRangeTiles");
   ok(computeArtifact({ blade: "fire_blade" }) === null, "без рукояти артефакта нет");
 }
-ok(BM_SKILLS.length === 5 && BM_SKILL_IDS.every((id) => (ABILITY_BY_ID as any)[id]?.cls === "artifact" && shapeOf(id)), "5 навыков в общем реестре, у каждого форма");
+ok(BM_SKILLS.length === 10 && BM_SKILL_IDS.every((id) => (ABILITY_BY_ID as any)[id]?.cls === "artifact" && shapeOf(id)), "10 навыков (5 огонь + 5 лёд) в общем реестре, у каждого форма");
 ok(typeof validatePatch("skill", "bmf_ember_lash", { "bm.pct": 1.2, "bm.k": 3 }) !== "string", "админка: pct/k навыка артефакта правятся");
 ok(typeof validatePatch("bmagic", "main", { critMul: 2, vsPlayer: 0.5 }) !== "string", "админка: настройки чёрной магии");
 ok(typeof validatePatch("bpart", "fire_blade", { "stats.bdmg": 0.2 }) !== "string", "админка: части оружия");

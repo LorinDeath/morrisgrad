@@ -18,7 +18,7 @@ import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../wo
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { CURSE, curseClient, isCursedTag, untag, skillPowerMult } from "./cursed";
 import { parseTag, tierDef } from "./enchant";
-import { BMA_CFG, bagDraw, bmHit, bmDefend, bmSkillPct, chargeFrac, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
+import { BMA_CFG, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsDef, pureSum, bmSkillPct, chargeFrac, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
@@ -157,6 +157,12 @@ export function heroBase(cls: string | null) {
   if (!c) return { maxHp: 70, armor: 0, minAtk: 6, maxAtk: 9 };
   return { maxHp: Math.round(55 + c.stats.maxHp * 0.55), armor: Math.round(c.stats.armor / 5), minAtk: 6, maxAtk: 9 };
 }
+
+/** ICE: поля события удара для клиента — pf/pi (чистый огненный/ледяной, цифры своим цветом), z — броня поглотила удар («0 урона»), el — стихия */
+function pureEv(p: { fire: number; ice: number } | null | undefined, zero = 0, el?: string) {
+  const o: any = {}; if (p?.fire) o.pf = p.fire; if (p?.ice) o.pi = p.ice; if (zero) o.z = 1; if (el && el !== "fire") o.el = el; return o;
+}
+const skillElemOf = (id: any) => (typeof id === "string" && id.startsWith("bmi_") ? "ice" : "fire");
 
 export class MetaService {
   store: ProfileStore;
@@ -1385,7 +1391,8 @@ export class MetaService {
       if (art) { // чёрный удар: крит из мешка (ровно bcrit на bagSize), без брони и разницы уровней
         crit = this.bmCrit(a, ms, session.stats?.classId, eff.bm.bcrit, "a");
         const dmg = bmHit(m.maxHp, this.bmCat(m), eff.bm, frac, crit, 1) * k;
-        real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm), { black: true } as any, "ba") || 0;
+        const pure = bmPure(ms.zp.maxHp, eff.bm, this.bmCat(m), k, crit); // ICE: чистый урон стихий — % СВОИХ макс. ОЗ, сверху
+        real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm), { black: true, pure, el: art.elem } as any, "ba") || 0;
       } else {
       crit = cryptoRand() * 100 < eff.critPct;
       const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
@@ -1404,13 +1411,13 @@ export class MetaService {
       const [vx, vy] = dirs[si];
       if (W.atk.kind === "arc") {
         const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
-        zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt, ...(art ? { bm: 1, fr: Math.round(frac * 100) / 100, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3) } : {}) }); // 🜏 r/a — ровно хитбокс дуги (клиент рисует огненный взмах)
+        zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt, ...(art ? { bm: 1, fr: Math.round(frac * 100) / 100, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3), ...(art.elem && art.elem !== "fire" ? { el: art.elem } : {}) } : {}) }); // 🜏 r/a — ровно хитбокс дуги (клиент рисует огненный взмах)
         targets.forEach((m, i) => applyHit(m, per * (i === 0 ? 1 : 0.8)));
         if ((session.world || "hellfire") === "arinar") this.pvpArc(session, ms, ox, oy, vx, vy, W.atk, per); // PK-режим: удар задевает и игроков
         if (zone.guard === this.guardMux && this.bm.meleeHits(ox, oy, vx, vy, W.atk.range, W.atk.arc, W.atk.width, "arc")) this.bm.hitMage(session.id); // удар по магу — нападение
       } else {
         const line = W.atk.kind === "line";
-        zone.fire({ o: "p", sid: session.id, t: art ? (frac > 0.5 ? "fireball" : "fire_spark") : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1, pv: (session.world || "hellfire") === "arinar" ? 1 : undefined, pvk: per,
+        zone.fire({ o: "p", sid: session.id, t: art ? (art.elem === "ice" ? "ice_bolt" : frac > 0.5 ? "fireball" : "fire_spark") : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1, pv: (session.world || "hellfire") === "arinar" ? 1 : undefined, pvk: per,
           ...(art ? { bm: 1, bf: frac, sz: +((W.atk.width || 20) / 20).toFixed(2) } : {}), // 🜏 bf — заряд на момент выстрела (PK-попадание позже), sz — размер снаряда от ширины (Мощность)
           onHit: (m: any, i: number) => applyHit(m, per * (i === 0 ? 1 : line ? 0.7 : 0.8)) });
       }
@@ -1528,8 +1535,9 @@ export class MetaService {
         m.usedAbility.add(sid);
         const d = ZONE_MOBS[m.type];
         if (bmDef) { // 🜏 навык артефакта: % макс. ОЗ цели (pct + k × чёрный урон) × класс цели, крит — один на применение
-          const raw = m.maxHp * bmSkillPct(bmDef, eff.bm?.bdmg || 0) / 100 * (BMA_CFG.classMul[this.bmCat(m)] ?? 1) * mult * (bmCritCast ? BMA_CFG.critMul : 1);
-          const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { black: true } as any, "ab") || 0;
+          const raw = m.maxHp * bmSkillPct(bmDef, (eff as any).bm?.bdmg || 0) / 100 * (BMA_CFG.classMul[this.bmCat(m)] ?? 1) * mult * (bmCritCast ? BMA_CFG.critMul : 1);
+          const pure = bmPure(ms.zp.maxHp, (eff as any).bm, this.bmCat(m), mult * (Number(BMA_CFG.pureSkill) || 0), bmCritCast); // ICE: чистый урон и с навыков
+          const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { black: true, pure, el: skillElemOf(ab.id) } as any, "ab") || 0;
           this.noteHit(session, real, m.type);
           if (real) this.traitHit(zone, m, session, ms, real, bmTraits);
           if (real && bmCritCast) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y }); // крит навыка — та же метка «КРИТ», что у удара
@@ -2080,13 +2088,14 @@ export class MetaService {
     const z = this.zones.arinar; this.pkCombat(aSid, "deal"); this.pkCombat(vSid, "hit"); (ams as any).hitAt = now;
     if (how === "pk" && !V.pk) pkGrantDefense(V, aSid, now); // жертва может ответить (самооборона)
     if (isInvuln(vms, now)) return true;
-    const eff: any = this.effective(sa); let crit: boolean, real: number;
+    const eff: any = this.effective(sa); let crit: boolean, real: number, pure: { fire: number; ice: number } | null = null, zeroHit = 0;
     const vbm = (vms.zp as any).bm;
     if (eff.art && eff.bm) { // 🜏 чёрный удар по игроку: % его макс. ОЗ × vsPlayer × pvpMul × PK; обычная броня не действует
       crit = this.bmCrit(this.store.account(ams.pkey), ams, sa.stats?.classId, eff.bm.bcrit, "a");
       let d = bmHit(vms.zp.maxHp, "mob", eff.bm, (proj && (proj as any).bf !== undefined ? (proj as any).bf : (ams as any).bmFrac) || 0, crit, (Number(BMA_CFG.vsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0)) * k * Math.max(0, Number(PK_CFG.dmgMult) || 0);
-      if (vbm) d = bmDefend(d, vbm, vms.zp.maxHp);
-      real = Math.max(0, Math.round(d));
+      if (vbm) { const r = bmDefendEx(d, vbm, vms.zp.maxHp); d = r.d; if (r.zero) zeroHit = 1; }
+      pure = pureVsDef(bmPure(ams.zp.maxHp, eff.bm, "player", k * (Number(BMA_CFG.pureVsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0) * Math.max(0, Number(PK_CFG.dmgMult) || 0), crit), vbm, vms.zp.maxHp);
+      real = Math.max(0, Math.round(d)) + pureSum(pure);
     } else {
     crit = cryptoRand() * 100 < eff.critPct;
     const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
@@ -2094,7 +2103,7 @@ export class MetaService {
     real = vbm ? Math.max(0, Math.round(bmDefend(d, vbm, vms.zp.maxHp))) : Math.max(1, Math.round(d * (1 - vms.zp.armorRed)));
     }
     vms.zp.hp -= real; (vms as any).hurtAt = now; this.qNote(vms, "hit", now);
-    z?.events.push({ k: "phit", sid: vSid, d: real, src: "pvp", by: aSid, crit: crit ? 1 : undefined });
+    z?.events.push({ k: "phit", sid: vSid, d: real, src: "pvp", by: aSid, crit: crit ? 1 : undefined, ...pureEv(pure, zeroHit, eff.art?.elem) });
     if (vms.zp.hp <= 0 && tryRevive(vms as any)) { z?.events.push({ k: "previve", sid: vSid, hp: vms.zp.hp }); return true; }
     if (vms.zp.hp > 0) return true;
     // смерть — обычная (как от моба): без новых потерь
@@ -2156,7 +2165,7 @@ export class MetaService {
         let arts: any[] = [];
         if (db) { try { arts = ((await db.prepare("SELECT i.id, i.name, i.rarity, i.props, (SELECT COUNT(*) FROM item_instances x WHERE x.item_id = i.id AND x.state <> 'salvaged') AS n FROM items i WHERE i.id LIKE 'art\\_%' ESCAPE '\\' ORDER BY i.rowid DESC LIMIT 200").all()).results || []).map((r: any) => { let p: any = {}; try { p = JSON.parse(r.props || "{}"); } catch {} return { id: r.id, name: r.name, rarity: r.rarity, n: Number(r.n) || 0, author: p.author || "", created: p.created || 0, src: p.src || "", parts: p.bm?.parts || {}, ranged: !!p.bm?.ranged }; }); } catch (e: any) { console.error("[mc] bmf arts", e?.message || e); } }
         const mobs = Object.keys(ZONE_MOBS).slice(0, 400).map((id) => ({ id, name: (ZONE_MOBS as any)[id]?.name || id, lvl: (ZONE_MOBS as any)[id]?.lvl || 0, drops: ((MONSTER_LOOT as any)[id]?.materials || []).filter((m: any) => /^bp_/.test(m.res)) }));
-        return { ok: true, parts: partList(), drafts, arts, mobs, types: BP_TYPES, elems: BP_ELEMS, pieces: BP_TYPES.map((t) => pieceId("fire", t)) };
+        return { ok: true, parts: partList(), drafts, arts, mobs, types: BP_TYPES, elems: BP_ELEMS, pieces: BP_ELEMS.flatMap((el) => BP_TYPES.map((t) => pieceId(el, t))) };
       }
       case "draft": { const id = String(msg.id || ""); if (!BM_PARTS[id] && !CUSTOM_BP.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_draft", id, msg.data || {}); return { ...r, id }; }
       case "discard": { const id = String(msg.id || ""); await A.bmcDel("bmc_draft", id); return { ok: true, id }; }
@@ -2273,10 +2282,13 @@ export class MetaService {
     const dr = ((ms as any).drUntil || 0) > now ? 0.5 : 1, vbm = (ms.zp as any).bm;
     // 🜏 навык артефакта у моба: % макс. ОЗ игрока × vsPlayer (без брони и разницы уровней); чёрная цель — своя защита (0 возможен)
     const raw = bm ? ms.zp.maxHp * bm / 100 * Math.max(0, Number(BMA_CFG.vsPlayer) || 0) : dmg * gap;
-    const real = vbm ? Math.max(0, Math.round(bmDefend(raw * dr, vbm, ms.zp.maxHp))) : bm ? Math.max(0, Math.round(raw * dr)) : Math.max(1, Math.round(raw * (1 - ms.zp.armorRed) * dr));
+    const dz = vbm ? bmDefendEx(raw * dr, vbm, ms.zp.maxHp) : null;
+    // ICE: чистый урон чёрного моба — % ЕГО макс. ОЗ (сумма pfire/pice частей) × pureVsPlayer × pureMob, сверху (мимо брони, если pureArmor выкл.)
+    const md: any = ZONE_MOBS[src], pp = md?.bmPure && mob ? pureVsDef(bmPure(mob.maxHp || md.hp, md.bmPure, "player", (Number(BMA_CFG.pureVsPlayer) || 0) * (Number(BMA_CFG.pureMob) || 0) * dr), vbm, ms.zp.maxHp) : null;
+    const real = (dz ? Math.max(0, Math.round(dz.d)) : bm ? Math.max(0, Math.round(raw * dr)) : Math.max(1, Math.round(raw * (1 - ms.zp.armorRed) * dr))) + pureSum(pp);
     ms.zp.hp -= real; (ms as any).hurtAt = now;
     this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
-    zone.events.push({ k: "phit", sid, d: real, src });
+    zone.events.push({ k: "phit", sid, d: real, src, ...pureEv(pp, dz?.zero ? 1 : 0, md?.elem) });
     if (ms.zp.hp <= 0 && tryRevive(ms as any)) { zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); this.bevSid(sid, { type: "revive" }); } // талант: раз за бой
     else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); this.bevSid(sid, { type: "death" }); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
   }

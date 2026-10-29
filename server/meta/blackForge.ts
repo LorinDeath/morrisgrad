@@ -4,7 +4,7 @@
 //  • Сборка: рукоять + лезвие обязательны, второе/третье лезвие и кристалл — по желанию. Имя — строгая очистка + мат-фильтр форума.
 //  • Разбор артефакта — обычный «разбор» предмета: даёт базовые осколки bm_shard_<стихия> (salvageYield → artSalvage).
 //  • Лимит: BMA_CFG.maxArtifacts (30) на аккаунт, BMA_CFG.craftPerMin сборок в минуту.
-import { BM_PARTS, BMA_CFG, BP_TYPES, BP_TYPE_NAMES, pieceId, shardId, partCost, computeArtifact, isStaff, type BmPart } from "./blackArt";
+import { BM_PARTS, BMA_CFG, BP_TYPES, BP_TYPE_NAMES, BP_ELEMS, pieceId, shardId, partCost, computeArtifact, isStaff, type BmPart } from "./blackArt";
 import { compileWords, filterText, DEFAULT_WORDS } from "../../src/lib/forum/profanity";
 
 export type ForgeR = { ok: boolean; msg?: string; err?: string; [k: string]: any };
@@ -37,8 +37,9 @@ export function forgeState(a: any, heroLvl: number) {
   }));
   const arts = (a.inv || []).filter((i: any) => /^art_/.test(i.id)).length;
   const pieces: Record<string, number> = {};
-  for (const t of BP_TYPES) { const k = pieceId("fire", t); pieces[k] = Math.max(0, Number(res[k]) || 0); }
-  return { parts, pieces, shards: Math.max(0, Number(res[shardId("fire")]) || 0), arts, max: BMA_CFG.maxArtifacts, salvage: { base: BMA_CFG.salvageBase, per: BMA_CFG.salvagePerPart },
+  for (const el of BP_ELEMS) for (const t of BP_TYPES) { const k = pieceId(el, t); pieces[k] = Math.max(0, Number(res[k]) || 0); }
+  const shardsBy: Record<string, number> = {}; for (const el of BP_ELEMS) shardsBy[el] = Math.max(0, Number(res[shardId(el)]) || 0);
+  return { parts, pieces, shards: shardsBy.fire, shardsBy, elems: BP_ELEMS, arts, max: BMA_CFG.maxArtifacts, salvage: { base: BMA_CFG.salvageBase, per: BMA_CFG.salvagePerPart },
     cfg: { staffStatsAdd: !!BMA_CFG.staffStatsAdd, staffRangeTiles: BMA_CFG.staffRangeTiles, staffSpread: BMA_CFG.staffSpread, maxRangeTiles: BMA_CFG.maxRangeTiles, tile: BMA_CFG.tile } }; // превью кузни = расчёт сервера
 }
 

@@ -11,7 +11,7 @@ let pass = 0, fail = 0;
 const ok = (c: any, m: string) => { if (c) pass++; else fail++; console.log((c ? "PASS " : "FAIL ") + m); };
 
 registerBlackMobs(ITEM_BY_ID as any);
-ok(Object.keys(BM_BODY).length === 35, "35 встроенных частей тела (7 слотов × 5 листов Художника)");
+ok(Object.keys(BM_BODY).length === 70, "70 встроенных частей тела (огонь + лёд: 7 слотов × 5 листов Художника)");
 ok(Object.values(BM_MOBS).every((m) => !mobErr(m)), "встроенные мобы собраны без ошибок");
 for (const id of Object.keys(BM_MOBS)) ok((ZONE_MOBS as any)[id]?.black && MONSTER_LOOT[id], `${id}: в ZONE_MOBS (black) и MONSTER_LOOT`);
 ok(["bmbody", "bmmob", "bmcamp", "bmmcfg"].every((k) => (KINDS as string[]).includes(k) && SCHEMA[k as any] && TABLES[k as any]), "виды правок в админке");

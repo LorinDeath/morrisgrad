@@ -43,6 +43,8 @@ export class ProjAtlasFx {
     setTimeout(() => { const L = this.pred[cid]; if (!L) return; for (const q of L) if (this.live.get(q.id) === q) this.live.delete(q.id); delete this.pred[cid]; }, 900); // сервер отклонил — убираем
   }
   spawn(e) {
+    // ICE: вспышка вылета ice_release у дула (лист Художника: центр 48,48)
+    if (e.t === 'ice_bolt' && this.fx.length < 200) { const ri = projInfo('ice_release'); if (ri.key === 'ice_release') this.fx.push({ kind: 'impact', t: 'ice_release', x: e.x, y: e.y, age: 0, life: ri.impDur, info: ri, k: Math.max(0.8, e.sz || 1), dx: e.dx || 1, dy: e.dy || 0, fdx: 1, cz: false }); }
     this.spawned[`${e.o || '?'}:${e.t}`] = (this.spawned[`${e.o || '?'}:${e.t}`] || 0) + 1; // счётчик для отладки/тестов
     const L = e.cid && e.sid === this.meSid ? this.pred[e.cid] : null;
     if (L?.length) { // подтверждение своего: ближайший по направлению прогноз получает id сервера (позиция не прыгает)

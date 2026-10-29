@@ -139,9 +139,11 @@ export class ProjFx {
   }
   // 🜏 Огненный взмах артефакта: заливка сектора (= хитбокс сервера) + огненный край лезвия, проходящий от края до края, и угли по ободу.
   // (x,z) центр, (dx,dz) направление, L — радиус (м), h — полуугол (рад), k ∈ [0,1) прогресс, full — полный заряд (ярче/золотистее)
-  fireArc(x, z, dx, dz, L, h, k, full = false) {
-    const base = Math.atan2(dz, dx), fade = 1 - k, sw = Math.min(1, k * 2.6), th = -h + 2 * h * sw;
-    const hot = full ? [1, 0.82, 0.35] : [1, 0.5, 0.12], deep = full ? [1, 0.55, 0.12] : [0.95, 0.28, 0.04];
+  fireArc(x, z, dx, dz, L, h, k, full = false, el = 'fire') {
+    const base = Math.atan2(dz, dx), fade = 1 - k, sw = Math.min(1, k * 2.6), th = -h + 2 * h * sw, ice = el === 'ice';
+    const hot = ice ? (full ? [0.92, 0.98, 1] : [0.66, 0.89, 1]) : full ? [1, 0.82, 0.35] : [1, 0.5, 0.12], deep = ice ? (full ? [0.37, 0.72, 0.91] : [0.18, 0.35, 0.54]) : full ? [1, 0.55, 0.12] : [0.95, 0.28, 0.04];
+    // лёд: дуга Художника (ice_arc, 6 кадров @24, радиус ~50 px из 128 — масштаб по дальности) поверх заливки
+    if (ice && k < 0.5) this.fx.draw('ice_arc', 'arc', k * 0.42, x, 0.08, z, L * 128 / 50 * 1.0, L * 128 / 50 * Math.min(1, h / 0.9 + 0.2), 2, 0, dx, dz, null, 1, 0.8, false);
     // заливка сектора: кольца свечения на земле — видно всю зону урона
     for (const rr of [0.3, 0.55, 0.8, 0.97]) {
       const n = Math.max(3, Math.ceil(2 * h * rr * L / 0.55));
@@ -161,9 +163,11 @@ export class ProjFx {
     if (k < 0.6) {
       const aa = base + th, ux = Math.cos(aa), uz = Math.sin(aa), a1 = 1 - k / 0.6;
       this.glow.push(x + ux * L * 0.6, 0.3, z + uz * L * 0.6, L * 0.85, 0.8, 1, 0, ux, uz, GLOW.streak, 0, hot[0], hot[1], hot[2], 0.95 * a1);
-      for (let j = 1; j <= 4; j++) this.fx.draw('fire_spark', 'fly', this.time + j * 0.07, x + ux * L * (0.25 + j * 0.18), 0.35, z + uz * L * (0.25 + j * 0.18), 0.75, 0.75, 1, 0, -uz, ux, null, a1, 0.6);
+      for (let j = 1; j <= 4; j++) this.fx.draw(ice ? 'ice_bolt' : 'fire_spark', ice ? 'trail' : 'fly', this.time + j * 0.07, x + ux * L * (0.25 + j * 0.18), 0.35, z + uz * L * (0.25 + j * 0.18), 0.75, 0.75, 1, 0, -uz, ux, null, a1, 0.6);
     }
   }
+  /** эффект стихии Художника (ice_hit / ice_crit / ice_zero / ice_release) к камере; t — сек от начала, S — размер, м */
+  elemFx(key, anim, t, x, z, S = 1.6, y = 0.9) { return this.fx.draw(key, anim, t, x, y, z, S, S, 0, 0, 0, 0, null, 1, 1, false); }
   teleCone(x, z, dx, dz, range, ang, col = [1, 0.3, 0.3], a = 1) { this.fx.cone('tele_cone', 'loop', this.time, x, z, dx, dz, range, ang, col, a); }
   // Навыковые эффекты: конус (ice_fan_cone / dew_splash_cone / gear_spin_cone), нова (nova_burst тинт / frost_nova / level_shockwave),
   // рывок (dash_trail тинт / shadow_step_trail / fly_blade_dash_trail / leap_strike), удар стража (warden_slam: падение + удар)

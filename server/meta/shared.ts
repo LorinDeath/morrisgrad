@@ -230,6 +230,13 @@ export const RESOURCES: Record<string, { name: string; icon: string; color: stri
   bp_fire_blade3: { name: "Кусочек чертежа: третье лезвие", icon: "📜", color: "#c2410c" },
   bp_fire_crystal: { name: "Кусочек чертежа: кристалл жара", icon: "📜", color: "#ffe08a" },
   bm_shard_fire: { name: "Осколок огня", icon: "🔸", color: "#ff7a1a" },
+  // ICE: кусочки ледяных чертежей — только с ледяных чёрных мобов; из них — только ледяные детали
+  bp_ice_handle: { name: "Кусочек чертежа: ледяная рукоять", icon: "📜", color: "#6cc8ff" },
+  bp_ice_blade: { name: "Кусочек чертежа: ледяное лезвие", icon: "📜", color: "#8fd8ff" },
+  bp_ice_blade2: { name: "Кусочек чертежа: второе ледяное лезвие", icon: "📜", color: "#4aa8e0" },
+  bp_ice_blade3: { name: "Кусочек чертежа: третье ледяное лезвие", icon: "📜", color: "#2f7fb8" },
+  bp_ice_crystal: { name: "Кусочек чертежа: слеза льда", icon: "📜", color: "#eafaff" },
+  bm_shard_ice: { name: "Осколок льда", icon: "🔹", color: "#6cc8ff" },
 };
 for (const [k, v] of Object.entries(MOB_RESOURCES)) if (!RESOURCES[k]) RESOURCES[k] = v;
 

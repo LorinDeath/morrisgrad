@@ -41,11 +41,12 @@ export const ARTIFACT_UPDATE = "UPDATE items SET props = ?, rarity = ? WHERE id 
 /** новый артефакт из частей (сборка/тест). null — неверная сборка. */
 export function makeArtifact(parts: Record<string, string>, name?: string, meta?: { author?: string; src?: string; lore?: string }): any | null {
   const bm = computeArtifact(parts); if (!bm) return null;
-  const blade = BM_PARTS[parts.blade];
+  const blade = BM_PARTS[parts.blade], ice = bm.elem === "ice";
   const id = "art_" + hex12();
   const lvl = Math.max(1, ...Object.values(parts).map((p) => Number(BM_PARTS[p]?.lvl) || 1));
-  const def = registerArtifact(artItemDef(id, name || (blade?.ranged ? "Огненный клинок искр" : "Огненное лезвие пепла"), artRarity(parts), lvl, blade?.ranged ? "🏹" : "🔥",
-    meta?.lore || "Артефакт чёрной магии (огонь). ЗАГЛУШКА: арт частей — от Художника.", bm));
+  const def = registerArtifact(artItemDef(id, name || (ice ? (blade?.ranged ? "Ледяной клинок осколков" : "Ледяное лезвие инея") : blade?.ranged ? "Огненный клинок искр" : "Огненное лезвие пепла"),
+    artRarity(parts), lvl, blade?.ranged ? "🏹" : ice ? "❄" : "🔥",
+    meta?.lore || `Артефакт чёрной магии (${bm.elems ? "огонь и лёд" : ice ? "лёд" : "огонь"}).`, bm));
   def.created = Date.now(); if (meta?.author) def.author = meta.author; if (meta?.src) def.src = meta.src;
   return def;
 }

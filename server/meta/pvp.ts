@@ -15,7 +15,7 @@ import { traitsFor, applyTraits } from "./admin";
 import { cryptoRand } from "./profile";
 import { castShape, AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { PROJ_SPEED } from "./zone";
-import { BMA_CFG, bmHit, bmDefend, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
+import { BMA_CFG, bmHit, bmDefend, bmPure, pureVsDef, pureSum, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
 import { tryRevive } from "./revive";
 const W_ARENA = WORLD_SIZES.arena;
 import { WORLD_SIZES, worldBounds } from "../worlds/sizes";
@@ -325,6 +325,7 @@ export class Pvp {
       const crit = this.host.bmCrit && this.host.store ? this.host.bmCrit(this.host.store.account(cc.me.pkey), cc.me, session.stats?.classId, eff.bm.bcrit, "a") : cryptoRand() * 100 < (eff.bm.bcrit || 0);
       let dm = bmHit(cc.op.zp.maxHp, "mob", eff.bm, 0, crit, (Number(BMA_CFG.vsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0)) * k;
       const vbm = (cc.op.zp as any).bm; if (vbm) dm = bmDefend(dm, vbm, cc.op.zp.maxHp);
+      dm += pureSum(pureVsDef(bmPure(cc.me.zp.maxHp, eff.bm, "player", k * (Number(BMA_CFG.pureVsPlayer) || 0) * (Number(BMA_CFG.pvpMul) || 0), crit), vbm, cc.op.zp.maxHp)); // ICE: чистый урон и в дуэли
       const real = this.deal(cc, session, dm, crit, eff, true); this.traits(cc, session, real, wt); return real;
     };
     // вылет из отрисованного центра героя (допуск SHOT_TOL), прицел — курсор; автоатака по сопернику (mob = -1) — точно в него
@@ -339,7 +340,7 @@ export class Pvp {
       const c0 = c, d0 = c.d;
       const dirs = volleyDirs(W.atk, dx, dy), orig = art ? shotOrigins(staffMuzzles(art.parts), dirs.length, ox, oy, dx, dy) : null; // 🜏 из дула каждого посоха
       for (let si = 0; si < dirs.length; si++) { const [vx, vy] = dirs[si];
-        this.fire(d0, c.i as 0 | 1, { t: art ? "fire_spark" : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: 1,
+        this.fire(d0, c.i as 0 | 1, { t: art ? (art.elem === "ice" ? "ice_bolt" : "fire_spark") : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: 1,
           ...(art ? { bm: 1, sz: +((W.atk.width || 20) / 20).toFixed(2) } : {}),
           onHit: () => { if (!this.duels.has(d0.id) || c0.op.zp.hp <= 0) return; if (art) { artHit(c0, per); return; } const crit = cryptoRand() * 100 < eff.critPct; const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
             const real = this.deal(c0, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per, crit, eff); this.traits(c0, session, real, wt); this.weaponStatus(c0, session, W, real); } }); }
@@ -350,7 +351,7 @@ export class Pvp {
       const hit = this.hitTest(session.x, session.y, c.os.x, c.os.y, vx, vy, W.atk);
       if (hit) n++;
       const tx = hit && W.atk.kind === "proj" ? c.os.x : session.x + vx * reach, ty = hit && W.atk.kind === "proj" ? c.os.y : session.y + vy * reach;
-      c.d.ev.push({ k: "shot", sid: session.id, x: Math.round(session.x), y: Math.round(session.y), tx: Math.round(tx), ty: Math.round(ty), w: wt, ...(art ? { bm: 1, fr: 0, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3) } : {}) });
+      c.d.ev.push({ k: "shot", sid: session.id, x: Math.round(session.x), y: Math.round(session.y), tx: Math.round(tx), ty: Math.round(ty), w: wt, ...(art ? { bm: 1, fr: 0, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3), ...(art.elem && art.elem !== "fire" ? { el: art.elem } : {}) } : {}) });
     }
     if (!n) return;
     if (art) { artHit(c, per); return; } // одна дуга — один удар по сопернику (без двойного счёта)

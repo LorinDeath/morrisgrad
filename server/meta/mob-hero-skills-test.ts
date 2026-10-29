@@ -5,7 +5,7 @@ import { validatePatch, applyOverride } from "./overrides";
 import { ZONE_MOBS } from "./defs";
 let f = 0; const ok = (c: any, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) f++; };
 const ids = ABILITIES_DEF.map((a) => a.id);
-ok(ids.filter((i) => !i.startsWith("bmf_")).length === 24, `героевых навыков ${ids.length}`); // + 5 огненных навыков артефактов (bmf_*) — тот же список
+ok(ids.filter((i) => !/^bm[fi]_/.test(i)).length === 24, `героевых навыков ${ids.length}`); // + 5 огненных (bmf_*) и 5 ледяных (bmi_*) навыков артефактов — тот же список
 ok(ids.filter((i) => i.startsWith("bmf_")).length === 5, "5 навыков артефактов в общем списке");
 ok(ids.every((i) => MOB_SKILLS[i]), "все (24 + 5 артефактных) — в пуле навыков монстров");
 ok(ids.every((i) => MOB_SKILLS[i].cd >= 6), "перезарядка у моба ≥ 6 с");

@@ -178,24 +178,30 @@ export class ZoneView {
     for (const e of s.ev || []) {
       if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
-      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d)), color: e.evade ? '#94a3b8' : e.bm ? '#ffb347' : '#fff' }); if (e.bm && e.d > 0 && (e.by === myId || this.nearMe(o.x, o.y, 400))) uiSfx('bm_hit'); } }
+      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; const pf = e.pf || 0, pi = e.pi || 0, ice = e.el === 'ice';
+        out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pf - pi)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : '#ffb347') : '#fff' });
+        // ICE: чистый урон стихий — отдельные числа (огонь — оранжевый, лёд — голубой)
+        if (pf > 0) out.push({ k: 'float', x: o.x + 14, y: o.y - 16, text: `🔥${Math.round(pf)}`, color: '#ff8a2a' });
+        if (pi > 0) out.push({ k: 'float', x: o.x - 14, y: o.y - 16, text: `❄${Math.round(pi)}`, color: '#6cc8ff' });
+        if (ice && e.d > 0) { this.efx('ice_hit', 'hit', o.x, o.y, 0.45, 1.7); (this._iceHit ||= new Map()).set(e.id, performance.now()); } if (e.bm && e.d > 0 && (e.by === myId || this.nearMe(o.x, o.y, 400))) uiSfx('bm_hit'); } }
       else if (e.k === 'dome_repel') out.push({ k: 'dome_repel', x: e.x, y: e.y }); // купол города вытолкнул моба — вспышка на ободе
       else if (e.k === 'evade') out.push({ k: 'float', x: e.x, y: e.y, text: '↩ сброс', color: '#94a3b8' });
       else if (e.k === 'mskill') out.push({ k: 'float', x: e.x, y: e.y - 20, text: `✦ ${e.name}`, color: '#f0abfc' });
       else if (e.k === 'shot' && e.bm) { // 🜏 ближнее лезвие: огненная дуга ровно по хитбоксу сервера (r — дальность, a — полуугол); свой взмах тоже по эху сервера
-        if (e.r && e.a && e.dx != null) this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, e.fr || 0);
+        if (e.r && e.a && e.dx != null) this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, e.fr || 0, e.el);
         if (e.sid === myId) uiSfx('bm_swing');
       }
       else if (e.k === 'marc') { // взмах чёрного моба — та же дуга, что у игрока
         const o = this.mobs.get(e.id); if (o) { o.bmAtk = 0.45; o.flash = Math.max(o.flash || 0, 0.06); }
-        this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, 0);
+        this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, 0, e.el);
         if (this.nearMe(e.x, e.y)) uiSfx('bm_swing');
       }
       else if (e.k === 'shot') { if (e.sid !== myId) this.shoot(e.x, e.y, null, e.w, e.tx, e.ty); }
       else if (e.k === 'announce') out.push({ k: 'toast', text: e.text, color: e.color });
       else if (e.k === 'crit') { // число урона этого удара — крит-стилем, плюс метка «КРИТ»
         for (let j = out.length - 1; j >= 0; j--) if (out[j].k === 'float' && out[j].mid === e.id) { out[j].crit = 1; out[j].text = `✦${out[j].text}`; break; }
-        out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' }); const o = this.mobs.get(e.id); if (o) o.flash = 0.25; uiSfx('bm_crit'); }
+        out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' }); const o = this.mobs.get(e.id); if (o) o.flash = 0.25; uiSfx('bm_crit');
+        if (performance.now() - (this._iceHit?.get(e.id) || 0) < 400) this.efx('ice_crit', 'crit', e.x, e.y, 0.5, 2.2); }
       else if (e.k === 'die' && ZONE_MOBS[e.type]?.black) { this.bmm.die(this.mobs.get(e.id), e); this.mobs.delete(e.id); }
       else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: !!this.mobs.get(e.id)?.flip, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
       else if (e.k === 'slam') {
@@ -222,7 +228,8 @@ export class ZoneView {
       else if (e.k === 'aline') { const id = String(e.id || '').replace(/^rs:/, ''); if (DASH_FX[id]) this.teles.push({ kind: 'dash', fx: DASH_FX[id], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, col: e.cz ? curseRGB() : null }); else this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, cz: !!e.cz }); }
       else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty, e.cz);
       else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (String(e.id || '').replace(/^rs:/, '') === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.95 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
-      else if (e.k === 'phit' && e.sid === myId) { out.push({ k: 'hurt', d: e.d }); this.mobStruck(e.src); }
+      else if (e.k === 'phit' && e.sid === myId) { out.push({ k: 'hurt', d: e.d, pf: e.pf || 0, pi: e.pi || 0, z: e.z || 0 }); this.mobStruck(e.src);
+        const p = this.myPos; if (p) { if (e.z) this.efx('ice_zero', 'zero', p.x, p.y, 0.5, 1.4, 1.6); else if (e.el === 'ice' || e.pi) this.efx('ice_hit', 'hit', p.x, p.y, 0.45, 1.6); } } // ICE: «0 урона» — броня поглотила удар
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }
     return out;
@@ -277,7 +284,9 @@ export class ZoneView {
   // wtype — тип оружия (WEAPON_TYPES): копьё, кинжалы, посох, лук, секира, меч, лапки-лезвия…
   // mob — цель (летит за ней), иначе в точку (tx,ty); у дуговых ударов — короткий «серп» в сторону удара
   /** 🜏 огненная дуга удара: (x,y) — откуда, (dx,dy) — куда, r — дальность, a — ПОЛУугол (как inArc сервера), fr — доля заряда */
-  fslash(x, y, dx, dy, r, a, fr = 0) { if (this.teles.length < 200) this.teles.push({ kind: 'fslash', x, y, dx, dy, len: r, arc: Math.min(Math.PI * 0.45, a), full: fr >= 1, t: 0, life: 0.42 }); }
+  fslash(x, y, dx, dy, r, a, fr = 0, el = 'fire') { if (this.teles.length < 200) this.teles.push({ kind: 'fslash', x, y, dx, dy, len: r, arc: Math.min(Math.PI * 0.45, a), full: fr >= 1, el: el || 'fire', t: 0, life: 0.42 }); }
+  /** ICE: разовый эффект стихии из атласа bm-art/fx (ice_hit / ice_crit / ice_zero / ice_release) */
+  efx(key, anim, x, y, life = 0.45, S = 1.6, h = 0.9) { if (this.teles.length < 200) this.teles.push({ kind: 'efx', key, anim, x, y, S, h, t: 0, life }); }
   nearMe(x, y, R = 700) { const p = this.myPos; return !p || Math.hypot(p.x - x, p.y - y) < R; }
   shoot(fromX, fromY, mob, wtype, tx, ty) {
     if (this.bolts.length >= 128) return; // залпы по 5 снарядов
@@ -514,10 +523,12 @@ export class ZoneView {
       else if (t.kind === 'circle') P.teleCircle(X, Z, t.r / PX, kk, [1, 0.35, 0.65], 0.9);
       else if (t.kind === 'fslash') { // огненный взмах: зона урона (= хитбокс) + яркий след лезвия, проходящий от края до края
         const L = t.len / PX, fade = 1 - kk, sw = Math.min(1, kk * 2.4), th = -t.arc + 2 * t.arc * sw, c = Math.cos(th), sn = Math.sin(th);
-        P.teleCone(X, Z, t.dx, t.dy, L, t.arc * 2, t.full ? [1, 0.75, 0.25] : [1, 0.42, 0.08], 0.9 * fade); // контур = край хитбокса
-        P.fireArc(X, Z, t.dx, t.dy, L, t.arc, kk, t.full); // заливка зоны + огненное лезвие + угли по ободу
-        if (kk < 0.55) P.teleCone(X, Z, t.dx * c - t.dy * sn, t.dx * sn + t.dy * c, L * 1.02, Math.min(0.55, t.arc * 0.6), [1, 0.92, 0.55], 1 - kk / 0.55);
+        const ice = t.el === 'ice';
+        P.teleCone(X, Z, t.dx, t.dy, L, t.arc * 2, ice ? (t.full ? [0.7, 0.9, 1] : [0.3, 0.7, 1]) : t.full ? [1, 0.75, 0.25] : [1, 0.42, 0.08], 0.9 * fade); // контур = край хитбокса
+        P.fireArc(X, Z, t.dx, t.dy, L, t.arc, kk, t.full, t.el); // заливка зоны + лезвие стихии (лёд — дуга ice_arc) + искры по ободу
+        if (kk < 0.55) P.teleCone(X, Z, t.dx * c - t.dy * sn, t.dx * sn + t.dy * c, L * 1.02, Math.min(0.55, t.arc * 0.6), ice ? [0.8, 0.95, 1] : [1, 0.92, 0.55], 1 - kk / 0.55);
       }
+      else if (t.kind === 'efx') P.elemFx(t.key, t.anim, t.t, X, Z, t.S, t.h);
       else if (t.kind === 'tcone') P.teleCone(X, Z, t.dx, t.dy, t.len / PX, t.arc, [1, 0.35, 0.3], 0.8);
       else if (t.kind === 'cone') P.cone(t.fx, X, Z, t.dx, t.dy, t.len / PX, t.arc, kk);
       else if (t.kind === 'nova') P.nova(t.fx, X, Z, t.r / PX, kk, t.col || null);
