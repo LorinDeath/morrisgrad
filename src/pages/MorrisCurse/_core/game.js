@@ -54,7 +54,7 @@ import { campTimersOn, campCfg } from './ui/campTimer.js';
 import { bossCfg } from './ui/bossSpawn.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
-import { preloadSkills, skillArt as skillArtOf } from './engine/skillFx.js';
+import { preloadSkills, skillArt as skillArtOf, registerSkDefs } from './engine/skillFx.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
@@ -118,6 +118,7 @@ function applyConfig(d) {
 
 const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
+const skSelf = { slowUntil: 0, slowMul: 1, spdUntil: 0, spdPct: 0 }; // 🛠 бафы навыков конструктора на себя
 const pvpSt = { slowUntil: 0, frozenUntil: 0, swiftUntil: 0 }; // замедление/заморозка/порыв от сервера (pvp_state pstatus / buff)
 const swiftSt = { until: 0 }; // Порыв сияния в открытом мире (+25% скорости на 2 с)
 const DASH = { duration: 0.22, speed: 620, cooldown: 5, invulnMs: 83, blink: true }; // cooldown/invulnMs/blink — с сервера (админка «🏃 Рывок»)
@@ -560,6 +561,9 @@ async function boot(canvasId, username, userId, api) {
   });
   net.on('buff', (d) => { // серверные бафы навыков (Порыв сияния и т.п.)
     if (d.id === 'swift') { const u = performance.now() + (d.ms || 2000); swiftSt.until = u; pvpSt.swiftUntil = Math.max(pvpSt.swiftUntil, u); }
+    // 🛠 конструктор навыков: самозамедление (цена навыка) и скорость от модификаторов (+% бега на время)
+    if (d.id === 'sslow') { skSelf.slowUntil = performance.now() + (d.ms || 0); skSelf.slowMul = Math.max(0.1, Math.min(1, Number(d.mul) || 0.6)); }
+    if (d.id === 'skspd') { skSelf.spdUntil = performance.now() + (d.ms || 0); skSelf.spdPct = Number(d.pct) || 0; }
   });
   net.on('open_minigames_menu', (d) => {
     const list = (d.games || []).map((g) => `<div style="text-align:left;margin:4px 0">${g.disabled || !g.url
@@ -592,6 +596,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.light) setLightCfg(d.light); // свет мира (админка «💡 Свет», engine/pixColor.js)
     if (d.gfx) { setVramCfg(d.gfx.vram); if (d.gfx.assetCache === false) disableCache(); else if (d.gfx.assetCache === true) enableCache(); } // «🖼 Графика»: видеопамять (сразу), кэш ресурсов (выкл — снять воркер и стереть кэш)
     if (d.gfx) setGfxCfg(d.gfx); // графика пропсов (админка «🖼 Графика») — кэш, со следующей загрузки
+    if (d.skd) registerSkDefs(d.skd); // 🛠 навыки конструктора (анимация, траектория) — до первого применения
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
@@ -1851,7 +1856,7 @@ async function boot(canvasId, username, userId, api) {
     // скорость героя из талантов/снаряжения/души (eff.speedPct, сервер уже применил мягкий кап и нижнюю границу −20%)
     // Порыв сияния (+25% на 2 с) — и в открытом мире, и на арене
     const swiftK = (pn < swiftSt.until || pn < pvpSt.swiftUntil) ? 1.25 : 1;
-    const spK = (mode === 'run' ? 1 : 1 + (meta.hero?.effective?.speedPct || 0) / 100) * (bmChg.sent ? (meta.state?.bma?.chargeMoveMul ?? 0.6) : 1); // заряд артефакта замедляет
+    const spK = (mode === 'run' ? 1 : 1 + (pn < skSelf.spdUntil ? skSelf.spdPct : (meta.hero?.effective?.speedPct || 0)) / 100) * (pn < skSelf.slowUntil ? skSelf.slowMul : 1) * (bmChg.sent ? (meta.state?.bma?.chargeMoveMul ?? 0.6) : 1); // заряд артефакта замедляет
     let vx = mv.x * MOVE_SPEED * slowK * spK * swiftK, vy = mv.y * MOVE_SPEED * slowK * spK * swiftK;
     if (dash.active) {
       vx = dash.dirX * DASH.speed; vy = dash.dirY * DASH.speed;

@@ -6,7 +6,8 @@
 // dash — trail от точки старта, stretchX = длина/220, поверх игрока spirit (влево — отражение по x).
 // Слои: ground — на полу (y≈0.06), above — поверх персонажей (y≈0.9). Рисунки смотрят вправо (+x). glow — пара _glow (аддитивно).
 import { SKILL_FX, FX_META, preloadSkillFx } from './fxAtlas.js';
-import { BM_SKILLS, BM_SHAPES } from '../../../../../server/meta/blackArt.ts';
+import { BM_SKILLS, BM_SHAPES, SK_ELEM } from '../../../../../server/meta/blackArt.ts';
+import { SK_DEFS, skBlank, skFxElem } from '../../../../../server/meta/skillCraft.ts';
 
 export const SLOT_OF = { cone: 'whip', nova: 'ring', proj: 'bolt', rain: 'rain', dash: 'dash' };
 /** базовые размеры форм (px мира), под которые нарисованы листы */
@@ -18,9 +19,10 @@ export function skillArt(id) {
   id = strip(id);
   if (cache.has(id)) return cache.get(id);
   let r = null;
-  const sh = BM_SHAPES[id];
-  if (sh && SLOT_OF[sh.k]) {
-    const elem = sh.elem || BM_SKILLS.find((s) => s.id === id)?.bm?.elem || 'fire', slot = SLOT_OF[sh.k];
+  const sh = BM_SHAPES[id], sd = SK_DEFS[id];
+  if (sd && SLOT_OF[sd.form] || sh && SLOT_OF[sh.k]) {
+    // 🛠 конструктор навыков: лист — стихии анимации навыка (fx, по умолчанию — его стихия), слот — по форме
+    const elem = sd ? skFxElem(sd) : sh.elem || BM_SKILLS.find((s) => s.id === id)?.bm?.elem || 'fire', slot = SLOT_OF[sd ? sd.form : sh.k];
     const key = SKILL_FX?.elems?.[elem]?.slots?.[slot], K = key && SKILL_FX.keys[key];
     if (K && Object.keys(K.parts || {}).length) r = { id, key, slot, elem, parts: K.parts };
   }
@@ -28,7 +30,14 @@ export function skillArt(id) {
   return r;
 }
 // снаряд навыка (сервер шлёт t = id навыка): псевдоним на часть bolt своего листа — его рисует ProjAtlasFx (fly + след)
-for (const id of Object.keys(BM_SHAPES)) { const a = skillArt(id); if (a?.slot === 'bolt' && a.parts.bolt) FX_META.aliases[id] = `sk_${a.key}_bolt`; }
+const boltAlias = (id) => { const a = skillArt(id); if (a?.slot === 'bolt' && a.parts.bolt) FX_META.aliases[id] = `sk_${a.key}_bolt`; else delete FX_META.aliases[id]; };
+for (const id of Object.keys(BM_SHAPES)) boltAlias(id);
+/** 🛠 навыки конструктора с сервера (state.skd: пресеты с правками и свои skx_…): форма, стихия, анимация, траектория */
+export function registerSkDefs(list) {
+  if (!Array.isArray(list)) return 0;
+  for (const d of list) { if (!d?.id) continue; const base = SK_DEFS[d.id] || skBlank(d.id, d.form, d.elem); SK_DEFS[d.id] = { ...base, ...d, b1a: d.b?.[0] ?? base.b1a, b1s: d.b?.[1] ?? base.b1s, b2a: d.b?.[2] ?? base.b2a, b2s: d.b?.[3] ?? base.b2s }; SK_ELEM[d.id] = d.elem || base.elem; cache.delete(d.id); boltAlias(d.id); }
+  return list.length;
+}
 
 /** часть листа: ключ FX, анимация, длительность, размер ячейки (м), слой */
 export function partOf(art, part) {

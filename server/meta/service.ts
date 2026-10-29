@@ -91,6 +91,8 @@ export function regenRate(now: number, hurtAt: number, hitAt: number, maxHp: num
   return inCombat ? (statRegen + (hub ? 2 : 0.3)) * (G.regenCombat ?? 0.1) : full;
 }
 import { castShape } from "./abilityShapes";
+import { SK_DEFS, skBuffAdd, skBuffSum, skApplyBuffs, type SkMod } from "./skillCraft";
+import { skillElem } from "./blackArt";
 import { worldBounds, OPEN_AOI, ARINAR_LAYOUT_VER } from "../worlds/sizes";
 import { walkable, freeWalk, POS_WORLDS } from "./walkable";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
@@ -162,7 +164,7 @@ export function heroBase(cls: string | null) {
 function pureEv(p: Record<string, number> | null | undefined, zero = 0, el?: string) {
   const o: any = pureEvFields(p); if (zero) o.z = 1; if (el && el !== "fire") o.el = el; return o;
 }
-const skillElemOf = (id: any) => (typeof id === "string" && id.startsWith("bmi_") ? "ice" : "fire");
+const skillElemOf = (id: any) => skillElem(id); // стихия навыка артефакта (пресеты и свои навыки конструктора)
 
 export class MetaService {
   store: ProfileStore;
@@ -454,7 +456,8 @@ export class MetaService {
     const cls = session.stats?.classId || null;
     const a = this.store.account(ms.pkey);
     if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, armorPen: 0, armorPenPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null), cursedGlow: 0, weaponCursed: 0 };
-    return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls), { dark: !!(ms as any).dark }); // проклятая земля (Чёрный маг): только очернённые статы
+    const e0 = heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls), { dark: !!(ms as any).dark });
+    return (ms as any).skb?.length ? skApplyBuffs(e0, (ms as any).skb, Date.now()) : e0; // 🛠 бафы модификаторов навыков (временные, не сохраняются)
   }
 
   // ——— PvP / публичные статы ———
@@ -1012,6 +1015,9 @@ export class MetaService {
       case "dev_grant": {
         // Только для локальных тестов (MC_DEV_TRUST_USERID=1): выдать звёзды/опыт/предмет
         if (session.dev !== true) return true;
+        // 📊 нагрузочный плейтест (только локально): навык без отката — много снарядов/навыков разом
+        if (msg.perfStats) { const since = Date.now() - Math.min(120000, +msg.perfStats || 20000), z: any = this.zoneOf(session); this.send(ws, { type: "dev_perf", tick: PERF.tickDur.stats(since), gap: PERF.tickGap.stats(since), zone: PERF.zone[session.world || "arinar"]?.stats(since) || null, mobs: z?.mobs?.filter((m: any) => !m.dead).length || 0, projs: z?.projs?.length || 0 }); return true; }
+        if (msg.stressCast && typeof msg.stressCast === "object") { const ms0 = this.ms.get(session.id); if (ms0) ms0.abilCd = {}; this.zoneAbility(ws, session, { ...msg.stressCast, type: "zone_ability" }); return true; }
         // тесты рейтинга: выгрузить профиль в D1 и сбросить кэш рейтинга (обычно — не чаще раза в 60 с)
         if (msg.ratingRefresh) { this.save(session); (this.store.chain.get(ms.pkey) || Promise.resolve()).then(() => this.store.flush(ms.pkey)).then(() => { this.rating.at = 0; this.send(ws, { type: "dev_rating_reset" }); }); return true; }
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
@@ -1527,17 +1533,36 @@ export class MetaService {
     if (Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 1; }
     const world = session.world || "hellfire";
     const sid = session.id;
-    const dealt = castShape(ab.cast || ab.id, {
+    // 🛠 конструктор навыков: тип урона, цена, модификаторы (+% атаки, ×урона, скорость, крит, зарядка, броня…), бафы на себя
+    const skd: any = SK_DEFS[ab.cast || ab.id], skNormal = skd?.dmg === "normal", skPure = skd?.dmg === "pure";
+    const skHooks = skd ? {
+      hpFrac: () => ms.zp.hp / Math.max(1, ms.zp.maxHp),
+      chargeFrac: () => { const at = (ms as any).chgAt || 0; return at && (eff as any).bm ? chargeFrac(at, Date.now(), (eff as any).bm.charge) : 0; },
+      pay: (pct: number) => { const c = ms.zp.maxHp * pct / 100; if (ms.zp.hp <= c) { this.send(ws, { type: "toast_error", message: "Не хватает здоровья на навык" }); return false; } ms.zp.hp -= c; return true; },
+      mod: (m: SkMod, i: number) => {
+        const t = Date.now();
+        if (m.k === "heal") { ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + ms.zp.maxHp * (Number(m.v) || 0) / 100); return; }
+        const b = skBuffAdd(((ms as any).skb ||= []), skd.id + ":" + i, m, t); if (!b) return;
+        if (m.k === "spd") { const e2 = this.effective(session); this.send(ws, { type: "buff", id: "skspd", pct: e2.speedPct || 0, until: b.until - t, ms: b.until - t }); }
+        this.send(ws, { type: "buff", id: "skmod", k: m.k, n: b.n, ms: b.until - t, icon: skd.icon });
+      },
+      selfHaste: (t: number) => { (ms as any).swiftUntil = Math.max((ms as any).swiftUntil || 0, Date.now() + t); this.send(ws, { type: "buff", id: "swift", ms: t }); },
+      selfSlow: (t: number, mul: number) => { (ms as any).sslowUntil = Date.now() + t; this.send(ws, { type: "buff", id: "sslow", ms: t, mul }); },
+      dmgMul: () => { const q = skBuffSum((ms as any).skb, "dmg", Date.now()); return (1 + q.pct / 100) * q.mul; },
+    } : undefined;
+    const dealt = castShape(ab.cast || ab.id, { sk: skHooks,
       zone, sid, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult, props: ab.props, here: () => [session.x, session.y],
       fire: (o) => zone.fire({ ...o, o: "p", sid, ...(ab.cursed ? { cz: 1 } : {}) }), // настоящие снаряды навыков (cz — проклятый навык R: фиолетовый шейдер)
       hit: (m, mult, opts) => {
         if (m.dead) return 0;
         m.usedAbility.add(sid);
         const d = ZONE_MOBS[m.type];
-        if (bmDef) { // 🜏 навык артефакта: % макс. ОЗ цели (pct + k × чёрный урон) × класс цели, крит — один на применение
+        if (bmDef && !skNormal) { // 🜏 навык артефакта: % макс. ОЗ цели (pct + k × чёрный урон) × класс цели, крит — один на применение
           const raw = m.maxHp * bmSkillPct(bmDef, (eff as any).bm?.bdmg || 0) / 100 * (BMA_CFG.classMul[this.bmCat(m)] ?? 1) * mult * (bmCritCast ? BMA_CFG.critMul : 1);
           const pure = bmPure(ms.zp.maxHp, (eff as any).bm, this.bmCat(m), mult * (Number(BMA_CFG.pureSkill) || 0), bmCritCast); // ICE: чистый урон и с навыков
-          const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { black: true, pure, el: skillElemOf(ab.id) } as any, "ab") || 0;
+          const el = skillElemOf(ab.id), pk = el; // чистый стихийный (конструктор): та же величина уходит в чистый урон стихии навыка (цветные цифры)
+          const real = skPure ? zone.damage(m, sid, 0, (mm: any) => this.onMobKilled(mm), { black: true, pure: { ...pure, [pk]: ((pure as any)[pk] || 0) + raw }, el } as any, "ab") || 0
+            : zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { black: true, pure, el } as any, "ab") || 0;
           this.noteHit(session, real, m.type);
           if (real) this.traitHit(zone, m, session, ms, real, bmTraits);
           if (real && bmCritCast) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y }); // крит навыка — та же метка «КРИТ», что у удара
