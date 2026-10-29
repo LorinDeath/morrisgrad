@@ -281,7 +281,7 @@ export class AdminStore {
   async save(by: string, kind: Kind, id: string, patch: any): Promise<{ ok: boolean; err?: string; values?: any; version?: number }> {
     if (!this.db) return { ok: false, err: "База недоступна" };
     if (!KINDS.includes(kind) || !ID_RE.test(id)) return { ok: false, err: "неверная сущность" };
-    if (kind === "item" && /^art_/.test(id)) return { ok: false, err: "Артефакт игрока правится через части (🔥 Части оружия) и «Пересчитать все»" };
+    if (kind === "item" && /^art_/.test(id)) return { ok: false, err: "Созданный артефакт игрока — неизменяемый слепок: не правится и не пересчитывается" };
     const clean = validatePatch(kind, id, patch); if (typeof clean === "string") return { ok: false, err: clean };
     const before = currentValues(kind, id), snap = kind === "item" ? this.copySnap() : null;
     const row = await this.db.prepare("SELECT version FROM game_overrides WHERE kind = ? AND id = ?").bind(kind, id).first();

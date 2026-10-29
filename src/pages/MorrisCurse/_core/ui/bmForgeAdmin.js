@@ -53,11 +53,11 @@ export function mountBmForge(ap, sec) {
   const subs = [['parts', '🔥 Детали'], ['arts', '🗡 Артефакты игроков'], ['drop', '📜 Дроп кусочков']];
   sec.innerHTML = `<div class="bmfa"><h3>🔥 Конструктор оружия <small class="mc-dim">черновик сохраняется сам · «Опубликовать» — у всех игроков сразу</small></h3>
     <div class="sub">${subs.map(([k, n]) => `<button data-bs="${k}" class="${S.sub === k ? 'on' : ''}">${n}</button>`).join('')}<span style="flex:1"></span>
-    <button class="b" data-bx="reload">↻ Обновить</button><button class="b" data-bx="recalc" title="Снимки статов всех созданных артефактов — по текущим деталям">♻ Пересчитать все</button></div><div class="bd"></div></div>`;
+    <button class="b" data-bx="reload">↻ Обновить</button><button class="b" data-bx="recalc" title="Шаблоны (чёрные мобы) — по текущим деталям. Созданные оружие и артефакты игроков не меняются: это неизменяемый слепок">♻ Пересчитать все</button></div><div class="bd"></div></div>`;
   const bd = sec.querySelector('.bd');
   sec.querySelectorAll('[data-bs]').forEach((b) => (b.onclick = () => { S.sub = b.dataset.bs; mountBmForge(ap, sec); }));
   sec.querySelector('[data-bx="reload"]').onclick = () => { S.list = null; S.asked = false; mountBmForge(ap, sec); };
-  sec.querySelector('[data-bx="recalc"]').onclick = () => { if (confirm('Пересчитать снимки всех созданных артефактов по текущим деталям?')) ap.send({ type: 'admin_bm_recalc' }); };
+  sec.querySelector('[data-bx="recalc"]').onclick = () => { if (confirm('Пересчитать шаблоны чёрных мобов по текущим деталям? Созданные артефакты игроков не изменятся.')) ap.send({ type: 'admin_bm_recalc' }); };
   if (!S.list) { bd.innerHTML = '<p class="mc-dim">Загрузка…</p>'; return; }
   if (S.sub === 'arts') return arts(ap, S, bd);
   if (S.sub === 'drop') return drops(ap, S, bd);

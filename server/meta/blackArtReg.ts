@@ -53,24 +53,15 @@ export function makeArtifact(parts: Record<string, string>, name?: string, meta?
 /** модерация: скрыть имя артефакта игрока */
 export const ART_HIDDEN_NAME = "Безымянный артефакт";
 export const ARTIFACT_RENAME = "UPDATE items SET name = ? WHERE id = ?";
-/** чёрные статы артефакта (с капами): снимок или живой пересчёт (BMA_CFG.liveParts) */
+/** чёрные статы артефакта (с капами): ТОЛЬКО неизменяемый слепок, сохранённый при создании (решение Алекса t994u/t996u).
+ *  Правки деталей, настроек и «Пересчитать все» созданные артефакты не меняют — даже «ошибочно сильные» остаются как есть.
+ *  Капы (BMA_CFG.caps) — общий предохранитель боя, не пересчёт: применяются при чтении, слепок в D1 не трогают. */
 export function artInfo(itemId: string | null | undefined): ArtInfo | null {
   const d: any = itemId ? ITEM_BY_ID[itemId] : null; if (!d?.bm) return null;
-  let src: ArtInfo = BMA_CFG.liveParts ? computeArtifact(d.bm.parts) || d.bm : d.bm;
-  // посохи (форма удара, число снарядов, режим) — всегда по текущим деталям: админ-тип детали и тестовый флаг действуют сразу.
-  // Доп. посохи без сложения боевых статов — статы тоже по текущим деталям (иначе в снимке остались бы сложенные)
-  const live = src === d.bm ? computeArtifact(d.bm.parts) : src;
-  if (live && live !== src) {
-    const multi = (live.shots || 1) > 1;
-    if (live.staff || src.staff || multi || src.shots) {
-      const { staff: _s, alt: _a, shots: _n, ...rest } = src as any;
-      src = { ...rest, atk: live.atk, ranged: live.ranged, ...(live.staff ? { staff: true, alt: live.alt } : {}), ...(multi ? { shots: live.shots } : {}),
-        ...(multi && !BMA_CFG.staffStatsAdd ? { stats: live.stats } : {}) };
-    }
-  }
-  return { ...src, stats: capBm(src.stats) };
+  return { ...d.bm, stats: capBm(d.bm.stats) };
 }
-/** админка «Пересчитать все»: снимки всех загруженных артефактов заново из текущих частей; вернуть изменённые */
+/** УСТАРЕЛО (t996u): созданные артефакты — неизменяемый слепок, «Пересчитать все» их не трогает. Оставлено только для
+ *  ручной миграции разработчиком; из админки/сервиса не вызывается. */
 export function recalcAllArtifacts(): any[] {
   const out: any[] = [];
   for (const d of Object.values(ITEM_BY_ID) as any[]) {

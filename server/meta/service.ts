@@ -754,11 +754,11 @@ export class MetaService {
         const out = (r: any) => this.send(ws, { type: "admin_bmm", op: msg.op, ...r });
         this.bmmOp(ms, session, msg).then(out).catch((e: any) => { console.error("[mc] admin_bmm", e?.message || e); out({ ok: false, err: "Ошибка" }); }); return true;
       }
-      case "admin_bm_recalc": { // «Пересчитать все»: снимки артефактов заново из текущих частей (админка)
+      case "admin_bm_recalc": { // «Пересчитать все»: шаблоны (чёрные мобы) и детали в админке; созданные артефакты игроков НЕ трогает (слепок, t996u)
         if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
         if (Date.now() - ((ms as any).bmrAt || 0) < 3000) return true; (ms as any).bmrAt = Date.now();
-        this.bmRecalc().then((n) => { this.send(ws, { type: "admin_result", ok: true, op: "bm_recalc", n }); this.send(ws, { type: "toast", message: `Артефакты пересчитаны: ${n}` }); })
-          .catch((e) => { console.error("[mc] bm_recalc", e?.message || e); this.send(ws, { type: "toast_error", message: "Не удалось пересчитать артефакты" }); });
+        this.bmRecalc().then((n) => { this.send(ws, { type: "admin_result", ok: true, op: "bm_recalc", n }); this.send(ws, { type: "toast", message: `Шаблоны пересчитаны: ${n} (созданные артефакты игроков не меняются)` }); })
+          .catch((e) => { console.error("[mc] bm_recalc", e?.message || e); this.send(ws, { type: "toast_error", message: "Не удалось пересчитать шаблоны" }); });
         return true;
       }
       case "salvage": {
@@ -2256,19 +2256,11 @@ export class MetaService {
     const val = JSON.stringify(snap); if (val === this.bmtSig) return; this.bmtSig = val;
     Promise.resolve(this.db.prepare("INSERT INTO library_meta (key, value) VALUES ('bm_timers', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(val).run()).catch((e: any) => { this.bmtSig = ""; console.error("[mc] bm timers save", e?.message || e); });
   }
-  /** «Пересчитать все»: загруженные — в памяти, все строки items (art_*) в D1 — заново из частей */
+  /** «Пересчитать все» (t996u): только шаблоны и детали админки — чёрные мобы заново из текущих деталей/тел.
+   *  Созданные оружие и артефакты игроков — неизменяемый слепок в D1 (items.props.bm): ни в памяти, ни в D1 не меняются. */
   async bmRecalc(): Promise<number> {
-    const live = recalcAllArtifacts(); const db: any = (this.store as any).db;
-    let n = live.length;
-    if (db) {
-      const rows: any[] = (await db.prepare("SELECT id, props FROM items WHERE id LIKE 'art\\_%' ESCAPE '\\'").all()).results || [];
-      const { computeArtifact, artRarity } = await import("./blackArt");
-      const st: any[] = [];
-      for (const r of rows) { let p: any = {}; try { p = JSON.parse(r.props || "{}"); } catch {} const parts = p?.bm?.parts; const info = parts && computeArtifact(parts); if (!info) continue; st.push(db.prepare(ARTIFACT_UPDATE).bind(JSON.stringify({ ...p, bm: info }), artRarity(parts), r.id)); }
-      for (let i = 0; i < st.length; i += 50) await db.batch(st.slice(i, i + 50));
-      n = Math.max(n, st.length);
-    }
-    return n;
+    registerBlackMobs(ITEM_BY_ID as any);
+    return Object.keys(BM_MOBS).length;
   }
   /** удар моба по игроку (zone.update): общий путь — им же пользуется плейтест купола (dev domeHit) */
   zoneHit(w: string, zone: any, sid: string, dmg: number, src: string, mob: any, now: number, bm?: number) {

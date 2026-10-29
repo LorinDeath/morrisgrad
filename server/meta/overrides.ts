@@ -87,7 +87,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_misc", label: "Прочее", t: "hdr" },
     N("maxArtifacts", "Артефактов на аккаунт", 1, 300, "int"), { path: "levelGapOff", label: "Разница уровней не режет чёрный урон", t: "bool" },
     { path: "soulToBlack", label: "Проценты души/талантов (+% урона) усиливают чёрный урон", t: "bool" },
-    { path: "liveParts", label: "Живой пересчёт частей (выкл — снимок при сборке)", t: "bool" },
+    { path: "liveParts", label: "Не действует: созданные артефакты — неизменяемый слепок (поле оставлено для совместимости сохранений)", t: "bool" },
     { path: "skillBag", label: "Навыки артефакта тоже тянут крит из мешочка", t: "bool" },
     { path: "_h_caps", label: "Капы чёрных статов (заряд и предельная броня — нижний предел)", t: "hdr" },
     N("caps.force", "Сила атаки, макс. %", 0, 5000), N("caps.power", "Мощность, макс. %", 0, 1000), N("caps.charge", "Скорость заряда, мин. с", 0.05, 10),

@@ -254,7 +254,7 @@ export class AdminPanel {
   secMark(sec, t, err) { const k = sec ?? this.secCur; if (!this.el || k == null) return; const n = this.el.querySelector(`[data-smsg="${CSS.escape(k)}"]`); if (n) { n.textContent = t; n.className = 'smsg' + (err ? ' err' : ' ok'); } }
   onCatalog(d) { this.cat = d; clearTimeout(this.openT); this.errBox?.close(); this.errBox = null; this.render(); }
   onResult(r) {
-    if (r.op === 'bm_recalc') { this.msg(`✔ Артефакты пересчитаны: ${r.n ?? 0}`); return; }
+    if (r.op === 'bm_recalc') { this.msg(`✔ Шаблоны пересчитаны: ${r.n ?? 0} (созданные артефакты игроков не меняются)`); return; }
     if (r.op === 'qdraft_save' || r.op === 'qdraft' || r.op === 'qdraft_discard' || r.op === 'qdraft_list' || (r.op === 'reject' && this.draftQ)) { this.onDraftResult(r); return; }
     if (r.sec != null || this.secQ) { if (this.onSecResult(r)) return; }
     if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return; }
@@ -533,10 +533,10 @@ export class AdminPanel {
       this.secNext();
     };
     sec.querySelectorAll('[data-ssave]').forEach((b) => (b.onclick = () => saveSecs(b.dataset.ssave)));
-    if (kind === 'bmagic' || kind === 'bpart') { // 🜏 созданные артефакты хранят снимок статов — «Пересчитать все» обновляет их по текущим частям/настройкам
-      const rb = document.createElement('button'); rb.className = 'mc-btn'; rb.dataset.bmrecalc = '1'; rb.textContent = '🔥 Пересчитать все артефакты';
-      rb.title = 'Пересчитать снимки статов всех созданных артефактов по текущим правкам частей и настроек';
-      rb.onclick = () => { this.msg('Пересчёт артефактов…'); this.send({ type: 'admin_bm_recalc' }); };
+    if (kind === 'bmagic' || kind === 'bpart') { // 🜏 «Пересчитать все» — только шаблоны (чёрные мобы) и детали; созданные артефакты игроков — неизменяемый слепок
+      const rb = document.createElement('button'); rb.className = 'mc-btn'; rb.dataset.bmrecalc = '1'; rb.textContent = '🔥 Пересчитать все';
+      rb.title = 'Шаблоны чёрных мобов — заново по текущим деталям и телам. Созданные оружие и артефакты игроков НЕ меняются (неизменяемый слепок)';
+      rb.onclick = () => { this.msg('Пересчёт шаблонов…'); this.send({ type: 'admin_bm_recalc' }); };
       sec.querySelector('[data-save]')?.insertAdjacentElement('afterend', rb);
     }
     sec.querySelector('[data-save]').onclick = () => {

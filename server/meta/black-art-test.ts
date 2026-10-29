@@ -93,8 +93,10 @@ ok(typeof validatePatch("bpart", "fire_blade", { "stats.bdmg": 0.2 }) !== "strin
 { const d = makeArtifact(parts)!; const before = artInfo(d.id)!.stats.bdmg;
   const old = BM_PARTS.fire_blade.stats!.bdmg; (BM_PARTS.fire_blade.stats as any).bdmg = 0.5;
   ok(artInfo(d.id)!.stats.bdmg === before, "снимок: правка части не меняет созданный артефакт");
-  recalcAllArtifacts(); ok(near(artInfo(d.id)!.stats.bdmg, 0.52), "«Пересчитать все»: снимок обновлён");
-  (BM_PARTS.fire_blade.stats as any).bdmg = old; recalcAllArtifacts();
+  ok(artInfo(d.id)!.stats.bdmg === before, "слепок: и после правки детали артефакт прежний (t996u)");
+  (BM_PARTS.fire_blade.stats as any).bdmg = old;
+  const lp = BMA_CFG.liveParts; (BMA_CFG as any).liveParts = true; (BM_PARTS.fire_blade.stats as any).bdmg = 0.5;
+  ok(artInfo(d.id)!.stats.bdmg === before, "слепок: liveParts больше не действует (t994u)"); (BMA_CFG as any).liveParts = lp; (BM_PARTS.fire_blade.stats as any).bdmg = old;
 }
 // --- чёрный урон в зоне: броня моба не действует; навык артефакта у моба — % ОЗ игрока
 { const z = new Zone("arinar", [], [], { proc: true, seed: 11 } as any);
