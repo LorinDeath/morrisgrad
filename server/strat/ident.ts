@@ -28,7 +28,7 @@ export async function identify(env: any, reqUrl: string, msg: any): Promise<Iden
   }
   if (typeof msg?.userId === "string" && msg.userId && isDevRequest(env, { url: reqUrl })) {
     const uid = msg.userId.slice(0, 64);
-    return { pkey: uid, nick: (await siteNick(env, uid)) || cleanNick(msg.nick) || "dev", verified: true };
+    return { pkey: uid, nick: (await siteNick(env, uid)) || cleanNick(msg.nick) || "Игрок-" + uid.slice(-4), verified: true };
   }
   if (typeof msg?.guest === "string" && msg.guest.length >= 16 && msg.guest.length <= 64) {
     const h = await sha16(msg.guest);

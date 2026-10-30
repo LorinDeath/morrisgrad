@@ -1,0 +1,131 @@
+---
+// «Партия Чёрных королей» — пошаговая стратегия на доске (этап 1: лобби по ссылке/коду, 8×8 и 15×15, Огонь и Лёд).
+// Логика — server/strat (StratMatch DO на лобби + StratIndex), клиент — src/scripts/strat/client.ts. Арт — заглушки.
+import SeoHead from '../../components/seo/SeoHead.astro';
+const title = 'Партия Чёрных королей | Моррис Град';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Пошаговая стратегия на доске: две расы, Вождь, очки действий. Играйте с другом по ссылке или с ботом." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style is:global>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at top, #2a1630 0%, #0f0a12 70%); color: #f1e9f5; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #e0b15a; }
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 14px; }
+    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    header h1 { font-size: 1.45rem; margin: 0; letter-spacing: .02em; background: linear-gradient(90deg, #ffd76a, #ff8fb1); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .back { text-decoration: none; font-weight: 700; font-size: .85rem; border: 1px solid #e0b15a66; padding: 5px 12px; border-radius: 20px; }
+    #me { margin-left: auto; font-size: .85rem; opacity: .8; }
+    .card { background: #1b1220cc; border: 1px solid #ffffff1a; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .card h2 { font-size: 1rem; margin: 0 0 10px; color: #ffd76a; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 760px) { .grid, .game { grid-template-columns: 1fr !important; } }
+    .btn { background: linear-gradient(180deg, #7b3fa0, #4f2468); color: #fff; border: 1px solid #b37ad6; border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-size: .9rem; }
+    .btn:hover:not(:disabled) { filter: brightness(1.15); }
+    .btn:disabled { opacity: .45; cursor: default; }
+    .btn.sm { padding: 4px 10px; font-size: .8rem; }
+    .btn.ghost { background: transparent; border-color: #ffffff33; }
+    .btn.gold { background: linear-gradient(180deg, #e0b15a, #a0702a); border-color: #ffd76a; color: #1a1014; }
+    .btn.on { outline: 2px solid #ffd76a; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+    input, select { background: #0f0a12; color: #fff; border: 1px solid #ffffff33; border-radius: 8px; padding: 7px 10px; font-size: .9rem; }
+    #joincode { text-transform: uppercase; letter-spacing: .2em; width: 9em; }
+    .muted { opacity: .6; font-size: .85rem; }
+    .warn { color: #ffb35b; font-size: .8rem; } .ok { color: #6be36b; font-size: .8rem; }
+    .orow { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #ffffff10; }
+    #open { display: flex; flex-wrap: wrap; gap: 6px; }
+    .codebox { font-size: 1.6rem; letter-spacing: .25em; font-weight: 800; color: #ffd76a; }
+    .seat { padding: 8px 10px; border-radius: 10px; background: #ffffff0a; margin: 4px 0; }
+    .seat.me { border: 1px solid #ffd76a66; } .seat.empty { opacity: .6; font-style: italic; }
+    .race { display: inline-block; padding: 1px 8px; border-radius: 8px; font-size: .78rem; font-weight: 700; background: #ffffff1a; }
+    .race.fire { background: #ff7a3d33; color: #ffb08a; } .race.ice { background: #7fd6ff33; color: #bfeaff; }
+    .game { display: grid; grid-template-columns: minmax(0, 640px) 1fr; gap: 14px; align-items: start; }
+    #board { display: block; border-radius: 10px; box-shadow: 0 0 0 2px #ffffff14, 0 10px 40px #0008; cursor: pointer; touch-action: manipulation; }
+    #status { font-weight: 700; margin: 4px 0 10px; min-height: 1.3em; } #status.myturn { color: #ffd76a; }
+    #clock { font-variant-numeric: tabular-nums; font-size: 1.1rem; } #clock.low { color: #ff6b6b; }
+    #toasts { position: fixed; right: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+    .toast, .invite { background: #2a1a33; border: 1px solid #b37ad6; padding: 8px 12px; border-radius: 10px; max-width: 320px; box-shadow: 0 6px 20px #0008; }
+    .invite code { color: #ffd76a; }
+    .rules li { margin: 3px 0; font-size: .85rem; opacity: .85; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="/games">← Мини-игры</a>
+    <h1>♚ Партия Чёрных королей</h1>
+    <span id="me"></span>
+  </header>
+
+  <section id="home">
+    <div class="grid">
+      <div class="card">
+        <h2>Новая партия</h2>
+        <div class="row"><label>Поле <select id="size"><option value="8" selected>8×8 — быстрая</option><option value="15">15×15 — большая</option><option value="5">5×5 — дуэль</option></select></label>
+          <label><input type="checkbox" id="pub" checked /> показывать в списке</label></div>
+        <div class="row"><button class="btn gold" id="create">Создать лобби</button></div>
+        <h2 style="margin-top:14px">Войти по коду</h2>
+        <div class="row"><input id="joincode" maxlength="6" placeholder="КОД" autocomplete="off" /><button class="btn" id="joinbtn">Войти</button></div>
+        <div class="row"><label class="muted">Имя для игры гостем <input id="nick" maxlength="24" placeholder="необязательно" /></label></div>
+      </div>
+      <div class="card">
+        <h2>Ждут соперника <button class="btn sm ghost" id="refresh">↻</button></h2>
+        <div id="open"></div>
+        <h2 style="margin-top:14px">Сейчас на странице</h2>
+        <div id="online"></div>
+      </div>
+    </div>
+    <div class="card rules">
+      <h2>Коротко о правилах</h2>
+      <ul>
+        <li>Цель — сразить вражеского <b>Вождя</b> ♚. Ходы по очереди; за ход — несколько <b>очков действий</b> (ОД): 1 на 5×5, 2 на 8×8, 3 на 15×15. Каждая фигура действует раз за ход.</li>
+        <li>Пешка ходит вперёд и вбок, бьёт по диагонали вперёд и превращается на последней линии. Конь прыгает буквой «Г». Маг ходит по диагонали и стреляет на 2 клетки. Ладья — по прямым до 4. Герой — в любую сторону до 3.</li>
+        <li>Удар снимает HP (атака − броня). Добив врага вплотную, фигура встаёт на его клетку.</li>
+        <li><span class="race fire">Огонь</span> поджигает цель (−1 HP два хода), но у его фигур на 10% меньше HP. <span class="race ice">Лёд</span> обмораживает: цель следующий ход ходит лишь на 1 клетку.</li>
+        <li>На каждый ход — таймер плюс общий запас времени. Не успели — ход передаётся сам. На лимите ходов побеждает тот, у кого больше очков материала.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="match" hidden>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>Код лобби: <span class="codebox" id="code"></span></div>
+        <div class="row"><button class="btn" id="copy">Скопировать ссылку</button><button class="btn ghost" id="leave">Выйти</button></div>
+      </div>
+      <div id="status"></div>
+      <div class="grid"><div id="seat0"></div><div id="seat1"></div></div>
+    </div>
+    <div class="card" id="lobby">
+      <div class="row">Поле: <button class="btn sm" data-size="5">5×5</button><button class="btn sm" data-size="8">8×8</button><button class="btn sm" data-size="15">15×15</button></div>
+      <div class="muted" id="sizeinfo"></div>
+      <div class="row">Раса (вслепую): <button class="btn sm" data-race="fire">🔥 Огонь</button><button class="btn sm" data-race="ice">❄ Лёд</button></div>
+      <div class="row"><button class="btn gold" id="ready">Готов!</button><button class="btn ghost" id="bot">Играть с ботом</button></div>
+    </div>
+    <div id="play" hidden>
+      <div class="game">
+        <div><canvas id="board" width="640" height="640"></canvas></div>
+        <div>
+          <div class="card">
+            <div id="clock"></div>
+            <div class="row" style="margin-top:8px"><button class="btn gold" id="end">Завершить ход</button><button class="btn ghost" id="forfeit">Сдаться</button><button class="btn gold" id="rematch" hidden>Реванш</button></div>
+          </div>
+          <div class="card"><div id="info"></div></div>
+          <div class="card"><div id="score" class="muted"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="toasts"></div>
+<script>
+  import { boot } from '../../scripts/strat/client';
+  boot();
+</script>
+</body>
+</html>
