@@ -22,7 +22,7 @@ import { BMA_CFG, swingEv, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsD
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
-import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob, campMul, mobElem, rollBmChests, rollCampLoot } from "./blackMobs";
+import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, BM_CAMP_BUILTIN, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob, campMul, mobElem, rollBmChests, rollCampLoot } from "./blackMobs";
 import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
 import { enchDropMult, artModeKey } from "./profile";
@@ -2287,7 +2287,8 @@ export class MetaService {
     const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: isCustomBm(id), ...nest(vals("bmmob", id)), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)), el: mobElem(BM_MOBS[id], ITEM_BY_ID as any) }));
     const bodyList = () => Object.keys(BM_BODY).map((id) => ({ id, custom: CUSTOM_BB.test(id), ...nest(vals("bmbody", id)) }));
     const campList = () => { const sum = new Map<string, any>(); for (const w of ["arinar", "hellfire"]) { const z: any = (this.zones as any)[w]; for (const c of z?.campSummary?.() || []) { const zc = z.camps.find((x: any) => x.id === c[0]); if (zc?.region?.startsWith("bm:")) sum.set(zc.region.slice(3), { alive: c[3], total: c[4], state: c[5], next: c[8] }); } }
-      return Object.keys(BM_CAMPS).map((id) => { const c = BM_CAMPS[id], z: any = (this.zones as any)[c.world]; return { id, ...nest(vals("bmcamp", id)), err: z?.bmCampErr?.(c) || null, live: sum.get(id) || null }; }); };
+      return Object.keys(BM_CAMPS).map((id) => { const c = BM_CAMPS[id], z: any = (this.zones as any)[c.world]; const rg: any = c.x || c.y ? (() => { try { return regionAt(c.x, c.y, c.world); } catch { return null; } })() : null;
+        return { id, ...nest(vals("bmcamp", id)), err: z?.bmCampErr?.(c) || null, live: sum.get(id) || null, builtin: BM_CAMP_BUILTIN.has(id) || undefined, bio: rg ? { id: rg.biome, name: rg.band || rg.name, reg: rg.name, lvl: rg.lvl } : null }; }); };
     const flat = (kind: string, raw: any) => { const paths = new Set((OV_SCHEMA as any)[kind].fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path)); const patch: any = {};
       const walk = (o: any, pre: string) => { for (const [k, v] of Object.entries(o || {})) { const p = pre + k; if (paths.has(p)) patch[p] = v; else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, p + "."); } };
       walk(raw, ""); return patch; };
@@ -2308,6 +2309,15 @@ export class MetaService {
       case "auto": return { ok: true, stats: refStats(Number(msg.lvl) || 1) };
       case "here": return { ok: true, world: session.world || "hellfire", x: Math.round(session.x || 0), y: Math.round(session.y || 0) };
       case "camps": return { ok: true, camps: campList() };
+      case "cdel": { // 📌 «Поставленные лагеря» → 🗑: лагерь и его живые мобы снимаются сразу и не возрождаются (и после перезапуска)
+        const id = String(msg.id || ""), c = BM_CAMPS[id]; if (!c) return { ok: false, err: "нет лагеря", id, camps: campList() };
+        if (msg.data?.confirm !== id) return { ok: false, err: "нужно подтверждение", id };
+        let r: any, how: string;
+        if (BM_CAMP_BUILTIN.has(id)) { r = await saveFull("bmcamp", id, { hidden: true }); how = "встроенный — выключен навсегда (код не удаляется)"; }
+        else if (/^bcx_c30_/.test(id)) { r = await saveFull("bmcamp", id, { hidden: true, x: 0, y: 0 }); how = "логово-шаблон — снято с карты, вернулось в шаблоны"; }
+        else { r = await A.reset(by, "bmcamp" as any, id); how = "удалён"; }
+        if (r.ok) for (const z of Object.values(this.zones as any) as any[]) z?.syncBlackCamps?.(Date.now(), true);
+        return { ...r, id, how, camps: campList() }; }
       case "draft": { const id = String(msg.id || ""); if (!BM_MOBS[id] && !CUSTOM_BM.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_mdraft", id, msg.data || {}); return { ...r, id }; }
       case "discard": { const id = String(msg.id || ""); await A.bmcDel("bmc_mdraft", id); return { ok: true, id }; }
       case "new": { if (Object.keys(BM_MOBS).filter((k) => isCustomBm(k)).length >= (BMM_CFG.maxCustomMobs || 200)) return { ok: false, err: "лимит своих мобов" };

@@ -50,7 +50,7 @@ export function mountBmMobs(ap, sec) {
   css(); bodyIndex(); weaponManifest();
   const S = (ap.bmm ||= { sub: 'mobs', list: null, sel: null, edit: null, status: '', stCls: '', anim: 'all', grid: true, hero: true, rings: true });
   if (!S.list && !S.asked) { S.asked = true; ap.send({ type: 'admin_bmm', op: 'list' }); }
-  const subs = [['mobs', '👹 Мобы'], ['camps', '⛺ Лагеря и логова'], ['body', '🦴 Части тела'], ['cfg', '⚙ Настройки']];
+  const subs = [['mobs', '👹 Мобы'], ['camps', '⛺ Лагеря и логова'], ['placed', '📌 Поставленные лагеря'], ['body', '🦴 Части тела'], ['cfg', '⚙ Настройки']];
   sec.innerHTML = `<div class="bmma"><h3>👹 Чёрные мобы <small class="mc-dim">черновик сохраняется сам · «Опубликовать» — у всех сразу · снятие — флажок «Снят», не удаление</small></h3>
     <div class="sub">${subs.map(([k, n]) => `<button data-bs="${k}" class="${S.sub === k ? 'on' : ''}">${n}</button>`).join('')}<span style="flex:1"></span><button class="b" data-bx="reload">↻ Обновить</button></div><div class="bd"></div></div>`;
   const bd = sec.querySelector('.bd');
@@ -58,6 +58,7 @@ export function mountBmMobs(ap, sec) {
   sec.querySelector('[data-bx="reload"]').onclick = () => { S.list = null; S.asked = false; mountBmMobs(ap, sec); };
   if (!S.list) { bd.innerHTML = '<p class="mc-dim">Загрузка…</p>'; return; }
   if (S.sub === 'camps') return camps(ap, S, bd, sec);
+  if (S.sub === 'placed') return placed(ap, S, bd, sec);
   if (S.sub === 'body') return body(ap, S, bd, sec);
   if (S.sub === 'cfg') return cfg(ap, S, bd, sec);
   return mobs(ap, S, bd, sec);
@@ -174,6 +175,38 @@ function select(ap, S, id, sec) {
   S.sel = id; S.edit = { id, data, isNew: !m, hasDraft: !!dr }; S.status = dr ? `Черновик от ${new Date(dr.at).toLocaleString('ru-RU')} — не опубликован` : 'Опубликовано'; S.stCls = dr ? 'draft' : 'ok';
   mountBmMobs(ap, sec);
 }
+/** поставленные на карту лагеря (не шаблоны логов в 0,0) + фильтры вкладки «📌»: стихия, местность, мир */
+export const isPlaced = (c) => !!(c && (c.x || c.y));
+export function placedOf(S, camps, elsOf) {
+  return (camps || []).filter((c) => isPlaced(c) && (!S.pef || elsOf(c).includes(S.pef)) && (!S.pbi || (c.bio?.name || '—') === S.pbi) && (!S.pw || c.world === S.pw)
+    && (!S.pst || (S.pst === 'off' ? c.hidden : S.pst === 'dead' ? !c.hidden && c.live && !c.live.alive : S.pst === 'alive' ? !c.hidden && c.live?.alive > 0 : true)));
+}
+/** вкладка «📌 Поставленные лагеря»: что стоит в мире, кто там живёт, выключить/включить, сменить состав, удалить (с подтверждением).
+ *  Телепорта нет: в админке нет безопасной команды перемещения админа (есть только dev-путь), поэтому — координаты. */
+function placed(ap, S, bd, sec) {
+  const L = S.list, C0 = L.camps || [], mobsAll = [...(L.mobs || []).map((m) => ({ id: m.id, name: m.name, black: 1, el: m.el || m.elem || 'fire' })), ...(L.normal || [])];
+  const mobEl = (id) => mobsAll.find((m) => m.id === id && m.black) ? elOf(mobsAll.find((m) => m.id === id)) : '';
+  const campEls = (c) => [...new Set([...(c.mobs || []).map((x) => mobEl(x.mob)), mobEl(c.chief)].filter(Boolean))];
+  const P = C0.filter(isPlaced), C = placedOf(S, C0, campEls), mname = (id) => mobsAll.find((m) => m.id === id)?.name || id;
+  S.pEls = campEls; clearInterval(S.cti); S.cti = setInterval(() => { if (ap.tab !== 'bmmobs' || S.sub !== 'placed' || !ap.el?.isConnected || !sec.isConnected) { clearInterval(S.cti); return; } ap.send({ type: 'admin_bmm', op: 'camps' }); }, 2000);
+  const bios = [...new Set(P.map((c) => c.bio?.name || '—'))].sort(), worlds = [...new Set(P.map((c) => c.world))].sort();
+  const sel = (k, all, opts) => `<select data-pf="${k}"><option value="">${all}</option>${opts.map(([v, n]) => `<option value="${esc(v)}" ${S[k] === v ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+  const nAlive = P.filter((c) => !c.hidden && c.live?.alive > 0).length, nOff = P.filter((c) => c.hidden).length;
+  bd.innerHTML = `<p class="mc-dim">Лагеря, которые стоят на карте (шаблоны логов в 0,0 — во вкладке «⛺»). Всего ${P.length}: с живыми мобами ${nAlive}, выключено ${nOff}. «🗑» снимает лагерь и его мобов сразу; после перезапуска сервера он не вернётся. Встроенный лагерь (из кода) удалить нельзя — он выключается навсегда; логово из набора 30.10 возвращается в шаблоны. Телепорта нет — в админке нет безопасной команды перемещения, поэтому показаны координаты.</p>
+    ${elFilter(S, 'pef')}<div class="row" style="gap:6px;margin:4px 0">${sel('pbi', 'Любая местность', bios.map((b) => [b, b]))}${sel('pw', 'Все миры', worlds.map((w) => [w, w]))}${sel('pst', 'Любое состояние', [['alive', 'живые'], ['dead', 'разбиты'], ['off', 'выключены']])}<span class="mc-dim">показано ${C.length}</span></div>
+    <table data-pids="${esc(C.map((c) => c.id).sort().join(','))}"><tr><th>Лагерь</th><th>Стихия</th><th>Местность</th><th>Мир · x,y · r</th><th>Кто там</th><th>Сейчас</th><th></th></tr>${C.map((c) => `<tr data-pc="${esc(c.id)}" style="${c.hidden ? 'opacity:.55' : ''}"><td>${c.lair ? '🕳 ' : '⛺ '}${esc(c.name || c.id)}${c.builtin ? ' <small class="mc-dim">встроенный</small>' : ''}</td><td>${campEls(c).map(elTag).join('') || '—'}</td><td>${esc(c.bio?.name || '—')}${c.bio?.lvl ? ` <small class="mc-dim">ур. ${c.bio.lvl[0]}–${c.bio.lvl[1]}</small>` : ''}</td><td>${esc(c.world)} · <b>${c.x},${c.y}</b> · ${c.r}</td><td style="font-size:11px">${c.chief ? `👑 ${esc(mname(c.chief))}; ` : ''}${(c.mobs || []).map((x) => `${mobEl(x.mob) ? EL_ICON(mobEl(x.mob)) + ' ' : ''}${esc(mname(x.mob))}×${x.n}`).join(', ')}</td><td data-live="${esc(c.id)}">${esc(liveTxt(c))}</td>
+      <td style="white-space:nowrap"><button class="b" data-pe="${esc(c.id)}" title="изменить состав и место">✎ Состав</button> <button class="b" data-ph="${esc(c.id)}">${c.hidden ? '▶ Включить' : '⏸ Выключить'}</button> <button class="b" data-pd="${esc(c.id)}" style="color:#ff8a8a">🗑 Удалить</button></td></tr>`).join('')}</table>
+    ${C.length ? '' : '<p class="mc-dim">Ничего не найдено.</p>'}<div class="st ${S.pst2 || ''}">${esc(S.pstatus || '')}</div>`;
+  bindElFilter(ap, S, bd, sec);
+  bd.querySelectorAll('[data-pf]').forEach((x) => (x.onchange = () => { S[x.dataset.pf] = x.value; mountBmMobs(ap, sec); }));
+  const byId = (id) => C0.find((c) => c.id === id);
+  bd.querySelectorAll('[data-pe]').forEach((b) => (b.onclick = () => { const c = byId(b.dataset.pe); if (!c) return; S.camp = clone(c); ['live', 'err', 'bio', 'builtin'].forEach((k) => delete S.camp[k]); S.cstatus = ''; S.sub = 'camps'; mountBmMobs(ap, sec); }));
+  bd.querySelectorAll('[data-ph]').forEach((b) => (b.onclick = () => { const c = byId(b.dataset.ph); if (!c) return; ap.send({ type: 'admin_bmm', op: 'hide', kind: 'bmcamp', id: c.id, data: { hidden: !c.hidden } }); }));
+  bd.querySelectorAll('[data-pd]').forEach((b) => (b.onclick = () => { const c = byId(b.dataset.pd); if (!c) return;
+    const what = c.builtin ? 'Встроенный лагерь нельзя стереть — он будет выключен навсегда.' : /^bcx_c30_/.test(c.id) ? 'Логово вернётся в шаблоны (скрыто, 0,0).' : 'Лагерь будет удалён совсем.';
+    if (!confirm(`Удалить «${c.name || c.id}» (${c.world} ${c.x},${c.y})?\n${what}\nЖивые мобы лагеря исчезнут сразу и не возродятся, в том числе после перезапуска.`)) return;
+    S.pstatus = 'Удаляю…'; S.pst2 = ''; ap.send({ type: 'admin_bmm', op: 'cdel', id: c.id, data: { confirm: c.id } }); }));
+}
 function camps(ap, S, bd, sec) {
   const L = S.list, C0 = L.camps || [], mobsAll = [...(L.mobs || []).map((m) => ({ id: m.id, name: m.name, black: 1, el: m.el || m.elem || 'fire' })), ...(L.normal || [])];
   const e = S.camp; const mobOpt = (v) => optsByEl(mobsAll.filter((m) => m.black), v, (m) => `👹 ${m.name || m.id}`) + (`<optgroup label="Обычные мобы">${mobsAll.filter((m) => !m.black).map((m) => `<option value="${esc(m.id)}" ${v === m.id ? 'selected' : ''}>${esc(m.name || m.id)}</option>`).join('')}</optgroup>`);
@@ -276,13 +309,17 @@ export function onBmmResult(ap, d) {
     else { S.status = 'Не опубликовано: ' + (d.err || d.message || 'ошибка'); S.stCls = 'err'; } }
   else if (d.op === 'auto' && d.ok && S.edit) { Object.assign(S.edit.data, d.stats); S.status = 'Статы по уровню подставлены — черновик'; S.stCls = 'draft'; clearTimeout(S.dt); S.dt = setTimeout(() => ap.send({ type: 'admin_bmm', op: 'draft', id: S.edit.id, data: S.edit.data }), DRAFT_MS); }
   else if (d.op === 'here' && d.ok && S.camp) { Object.assign(S.camp, { world: d.world, x: d.x, y: d.y }); S.cstatus = `📍 ${d.world} ${d.x},${d.y}`; S.cst = ''; }
+  else if (d.op === 'cdel') { if (d.camps && S.list) S.list.camps = d.camps; S.pstatus = d.ok ? `✔ ${d.how || 'удалён'}: ${d.id}` : 'Не удалено: ' + (d.err || ''); S.pst2 = d.ok ? 'ok' : 'err'; if (d.ok && S.camp?.id === d.id) S.camp = null; }
+  else if (d.op === 'hide' && d.kind !== 'bmmob' && S.sub === 'placed') { S.pstatus = d.ok ? '✔ Готово' : 'Ошибка: ' + (d.err || ''); S.pst2 = d.ok ? 'ok' : 'err'; ap.send({ type: 'admin_bmm', op: 'camps' }); return; }
   else if (d.op === 'camps' && d.ok && S.list) { S.list.camps = d.camps; // живые таймеры — только ячейки «Сейчас», без перерисовки формы
     // опрос раз в 2 с: НИКОГДА не пересобирать форму, пока админ что-то правит (открытый выпадающий список/поле в фокусе, открыт лагерь) —
     // иначе <select> пересоздаётся и закрывается сам. Пересборка — только если поменялся набор лагерей и форма не открыта.
     const cells = ap.el?.querySelectorAll('.bmma [data-live]') || [];
     for (const td of cells) { const c = d.camps.find((x) => x.id === td.dataset.live); if (c) td.textContent = liveTxt(c); }
     const shown = [...cells].map((td) => td.dataset.live).sort().join(','), all = d.camps.map((c) => c.id).sort().join(',');
-    const sameSet = !S.cef ? shown === all : [...cells].every((td) => d.camps.some((c) => c.id === td.dataset.live));
+    const pt = ap.el?.querySelector('.bmma [data-pids]'); // вкладка «📌»: пересборка, если поменялся видимый набор или выключен/включён
+    const sameSet = S.sub === 'placed' ? !!pt && pt.dataset.pids === placedOf(S, d.camps, S.pEls || (() => [])).map((c) => c.id).sort().join(',') && [...ap.el.querySelectorAll('.bmma [data-ph]')].every((b) => b.textContent.includes('Включить') === !!d.camps.find((c) => c.id === b.dataset.ph)?.hidden)
+      : !S.cef ? shown === all : [...cells].every((td) => d.camps.some((c) => c.id === td.dataset.live));
     if (sameSet || S.camp || adminBusy(ap)) return; }
   else if (d.op === 'save') { const ok = d.ok, msg = ok ? '✔ Сохранено' : 'Ошибка: ' + (d.err || d.message || '');
     if (d.kind === 'bmcamp') { S.cstatus = msg; S.cst = ok ? 'ok' : 'err'; if (ok) { if (d.camps) S.list.camps = d.camps; if (sameObj(S.camp, d)) S.camp.id = d.id; } }
