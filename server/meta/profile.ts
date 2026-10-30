@@ -137,7 +137,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
   if (lookStat) for (const [k, v] of Object.entries(lookStat)) raw[k] = (raw[k] || 0) + (v || 0);
   // капы и убывающая отдача (см. docs/MORRISCURSE-BALANCE.md)
   const eff = {
-    maxHp: Math.round(base.maxHp + heroLevelHp(h.lvl) + raw.hp),
+    maxHp: Math.round((base.maxHp + heroLevelHp(h.lvl) + raw.hp + (Number(art?.stats.hp) || 0)) * (1 + (Number(art?.stats.hpp) || 0) / 100)), // t1062u: «Здоровье» артефакта (рукоять) — из слепка
     armor: Math.round(base.armor + raw.armor),
     damageReduction: 0,
     dmgPct: Math.round(softCap(raw.dmgPct, STAT_CAPS.dmgPct) * 10) / 10,

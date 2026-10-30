@@ -31,13 +31,14 @@ export function build() {
     if (!ranged && !MELEE_FORM(form) && form !== "rain") fail(`${blade}: ближнее лезвие с формой ${form}`);
     put(rows, "skdef", skId(r), { name, icon, desc, elem: el, form, cd, dmg: "black", ...f });
   }
-  // 2) детали: копии лезвий с навыком, рукояти без навыка и «с навыком», кристаллы-ядра
+  // 2) детали (t1062u: рукояти мобов — «Здоровье» рукояти да, предельная броня 0: архетип моба задаёт ядро, «стекло» без предельной)
+  // копии лезвий с навыком, рукояти без навыка и «с навыком», кристаллы-ядра
   for (const r of SKILLS) { const b: any = BM_PARTS[r[0]]; put(rows, "bpart", bladeCopyId(r[0]), copyPart(r[0], { name: `${b.name} · ${r[2]}`, skill: skId(r), desc: `Лезвие чёрного моба (контент 30.10): навык «${r[2]}».` })); }
   const handlesByEl: Record<string, string[]> = {};
   for (const h of Object.values(BM_PARTS).filter((p: any) => p.type === "handle" && !p.hidden && !String(p.id).startsWith("bpx_")) as any[]) {
-    (handlesByEl[h.elem] ||= []).push(h.id); put(rows, "bpart", handleCopyId(h.id), copyPart(h.id, { name: `${h.name} (без навыка)`, skill: "" }));
+    (handlesByEl[h.elem] ||= []).push(h.id); put(rows, "bpart", handleCopyId(h.id), copyPart(h.id, { name: `${h.name} (без навыка)`, skill: "", "stats.bcap": 0 }));
   }
-  for (const el of ELS) { const h: any = BM_PARTS[`${el}_handle`]; put(rows, "bpart", handleSecId(el), copyPart(h.id, { name: `${h.name} · ${SK_DEFS[SEC_SKILL[el]].name}`, skill: SEC_SKILL[el] })); }
+  for (const el of ELS) { const h: any = BM_PARTS[`${el}_handle`]; put(rows, "bpart", handleSecId(el), copyPart(h.id, { name: `${h.name} · ${SK_DEFS[SEC_SKILL[el]].name}`, skill: SEC_SKILL[el], "stats.bcap": 0 })); }
   for (const el of ELS) { const cr = Object.values(BM_PARTS).filter((p: any) => p.type === "crystal" && p.elem === el && !String(p.id).startsWith("bpx_")) as any[];
     TIERS.forEach((t, i) => put(rows, "bpart", coreId(el, t.t), copyPart(cr[i % cr.length].id, { name: `${t.name} (${t.bdmg} % / ${t.bcap || "—"})`, skill: "",
       "stats.bdmg": t.bdmg, "stats.bcap": t.bcap, "stats.barm": t.barm, desc: `Ядро архетипа «${t.arch}»: чёрный урон ${t.bdmg} % макс. ОЗ героя, предельная броня ${t.bcap || "нет"}${t.bcap ? " %" : ""}, чёрная броня ${t.barm}.` }))); }

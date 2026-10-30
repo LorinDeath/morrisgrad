@@ -40,7 +40,7 @@ export function forgeState(a: any, heroLvl: number) {
   for (const el of BP_ELEMS) for (const t of BP_TYPES) { const k = pieceId(el, t); pieces[k] = Math.max(0, Number(res[k]) || 0); }
   const shardsBy: Record<string, number> = {}; for (const el of BP_ELEMS) shardsBy[el] = Math.max(0, Number(res[shardId(el)]) || 0);
   return { parts, pieces, shards: shardsBy.fire, shardsBy, elems: BP_ELEMS, arts, max: BMA_CFG.maxArtifacts, salvage: { base: BMA_CFG.salvageBase, per: BMA_CFG.salvagePerPart },
-    cfg: { staffStatsAdd: !!BMA_CFG.staffStatsAdd, staffRangeTiles: BMA_CFG.staffRangeTiles, staffSpread: BMA_CFG.staffSpread, maxRangeTiles: BMA_CFG.maxRangeTiles, tile: BMA_CFG.tile } }; // превью кузни = расчёт сервера
+    cfg: { bcapSum: !!(BMA_CFG as any).bcapSum, staffStatsAdd: !!BMA_CFG.staffStatsAdd, staffRangeTiles: BMA_CFG.staffRangeTiles, staffSpread: BMA_CFG.staffSpread, maxRangeTiles: BMA_CFG.maxRangeTiles, tile: BMA_CFG.tile } }; // превью кузни = расчёт сервера
 }
 
 /** создать деталь из кусочков чертежа */

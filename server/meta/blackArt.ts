@@ -7,8 +7,8 @@ import { BM_WEAPON_PTS } from "./bmWeaponPts";
 import { BM_ELEM_NAMES } from "./bmElemNames";
 
 export type BmStats = { force: number; power: number; charge: number; bdmg: number; barm: number; bcap: number; bcrit: number; pfire: number; pice: number;
-  pwater: number; pstone: number; pnature: number; plightning: number }; // этап 2: чистый урон воды/камня/природы/молнии (новые поля — 0 у старых слепков)
-export const BM_KEYS: (keyof BmStats)[] = ["force", "power", "charge", "bdmg", "barm", "bcap", "bcrit", "pfire", "pice", "pwater", "pstone", "pnature", "plightning"];
+  pwater: number; pstone: number; pnature: number; plightning: number; hp: number; hpp: number }; // этап 2; t1062u: hp/hpp — ОЗ героя (рукоять), у старых слепков нет → 0: чистый урон воды/камня/природы/молнии (новые поля — 0 у старых слепков)
+export const BM_KEYS: (keyof BmStats)[] = ["force", "power", "charge", "bdmg", "barm", "bcap", "bcrit", "pfire", "pice", "pwater", "pstone", "pnature", "plightning", "hp", "hpp"];
 export const BM_NAMES: Record<keyof BmStats, { name: string; unit: string; icon: string; hint: string }> = {
   force: { name: "Сила атаки", unit: "%", icon: "✊", hint: "зажмите атаку: только ПОЛНЫЙ заряд умножает удар на (1 + сила %); отпустили раньше — обычный удар" },
   power: { name: "Мощность", unit: "%", icon: "💥", hint: "только на полном заряде: размер и дальность удара +мощность %" },
@@ -23,6 +23,8 @@ export const BM_NAMES: Record<keyof BmStats, { name: string; unit: string; icon:
   pstone: { name: "Чистый каменный урон", unit: "% ОЗ", icon: "🪨", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони" },
   pnature: { name: "Чистый урон природы", unit: "% ОЗ", icon: "🌿", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони" },
   plightning: { name: "Чистый урон молнии", unit: "% ОЗ", icon: "⚡", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони" },
+  hp: { name: "Здоровье", unit: " ОЗ", icon: "❤", hint: "+ к макс. ОЗ героя с этим артефактом (у чёрного моба — к его ОЗ)" },
+  hpp: { name: "Здоровье, %", unit: "%", icon: "💗", hint: "+% к макс. ОЗ героя (после плоского «Здоровья»)" },
 };
 /** 🜏 ОСЬ СТИХИЙ — единый реестр (данные, не код). Новая стихия = строка здесь + контент (детали/тела/кусочки/арт) + live:true.
  *  live:false — стихия заготовлена (цвет, иконка, чистый стат, набор fx), но в игре ещё не участвует: нет деталей, кусочков, выбора в админке.
@@ -50,7 +52,7 @@ export const ALL_ELEMS = ELEMENTS.map((e) => e.id);
 export const PURE_KEYS: Record<string, string> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.pure]));
 /** живой словарь цветов: читает правку админки при каждом обращении (цифры урона, мобы, превью — сразу новым цветом) */
 export const ELEM_COLOR: Record<string, string> = new Proxy({ ...ELEM_DEF_COLOR }, { get: (t, k: any) => (typeof k === "string" && k in t ? elemColor(k) : (t as any)[k]) });
-export const bmZero = (): BmStats => ({ force: 0, power: 0, charge: 0, bdmg: 0, barm: 0, bcap: 0, bcrit: 0, pfire: 0, pice: 0, pwater: 0, pstone: 0, pnature: 0, plightning: 0 });
+export const bmZero = (): BmStats => ({ force: 0, power: 0, charge: 0, bdmg: 0, barm: 0, bcap: 0, bcrit: 0, pfire: 0, pice: 0, pwater: 0, pstone: 0, pnature: 0, plightning: 0, hp: 0, hpp: 0 });
 
 /** Настройки чёрной магии (админка «🜏 Чёрная магия: настройки», kind bmagic/main). */
 /** полуугол дуги не шире 81° — ровно столько умеет рисовать спрайт конуса (визуал = хитбокс) */
@@ -73,6 +75,7 @@ export const BMA_CFG = {
   skMaxSpeedPct: 60,               // потолок прибавки скорости бега от модификаторов навыков, %
   rainLead: 450,                   // дождь навыка: метки на земле за столько мс до удара каждой капли (капля успевает упасть)
   staffSpread: 12,                 // посохи: угол между снарядами мульти-выстрела, градусы (2-й/3-й посох — свой снаряд)
+  bcapSum: false,                  // t1062u: предельная броня деталей — складывать (старое); выкл — берётся самая сильная (наименьшая > 0)
   staffStatsAdd: false,            // посохи во 2/3 слоте: складывать их боевые статы (выкл — каждый снаряд с уроном основного)
   staffRangeTiles: 8,              // посох без своей дальности: дальность снаряда, клетки
   muzzleScale: 0.6,               // снаряд вылетает из дула посоха: px листа (64×64) → px мира; 0 — из центра героя/моба
@@ -90,7 +93,7 @@ export const BMA_CFG = {
   forgeCityOnly: true,             // кузня — только в Альказаке (рядом со Знахарем)
   maxCustomParts: 300,             // своих деталей из конструктора (bpx_*) не больше
   maxCustomSkills: 200,            // 🛠 своих навыков конструктора (skx_*) не больше
-  caps: { force: 500, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100, ...Object.fromEntries(ELEMENTS.map((e) => [e.pure, 20])) } as Record<string, number>,
+  caps: { force: 500, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100, ...Object.fromEntries(ELEMENTS.map((e) => [e.pure, 20])), hp: 5000, hpp: 200 } as Record<string, number>,
   // этап ICE: чистый урон стихий (pfire/pice) = % макс. ОЗ АТАКУЮЩЕГО, сверху остального урона (TZ.md §ICE)
   pureMul: Object.fromEntries(ELEMENTS.map((e) => [e.id, 1])) as Record<string, number>,                 // глобальный множитель по стихии
   pureClassMul: { mob: 1, elite: 0.6, chief: 0.5, rare: 0.4, boss: 0.15, world: 0.05, player: 1 } as Record<string, number>, // по категории цели — по умолчанию те же множители, что classMul у чёрного урона (решение Алекса)
@@ -221,6 +224,12 @@ export const ELEM_SK: Record<string, { dash: string; lash: string; ring: string;
   nature: { dash: "bmn_vine_dash", lash: "bmn_thorn_lash", ring: "bmn_bramble_ring", rain: "bmn_spore_rain", bolt: "bmn_seed_bolt", icon: "🌿" },
   lightning: { dash: "bml_blink_dash", lash: "bml_spark_lash", ring: "bml_storm_ring", rain: "bml_thunder_rain", bolt: "bml_ball_bolt", icon: "⚡" },
 };
+/** t1062u: предельная броня двух деталей — самая сильная (меньший % > 0); 0 = нет */
+export const bcapJoin = (a: number, b: number) => (a > 0 && b > 0 ? Math.min(a, b) : a > 0 ? a : b > 0 ? b : 0);
+/** t1062u: рукоять по умолчанию даёт «Здоровье» и предельную броню (по редкости); правится в админке деталей.
+ *  Созданные артефакты — слепок: им не добавляется. */
+export const GRIP_DEF: Record<string, { hp: number; hpp?: number; bcap: number }> = {
+  common: { hp: 15, bcap: 45 }, uncommon: { hp: 20, bcap: 40 }, rare: { hp: 30, hpp: 5, bcap: 35 }, epic: { hp: 40, hpp: 10, bcap: 30 }, legendary: { hp: 50, hpp: 12, bcap: 25 }, mythic: { hp: 60, hpp: 15, bcap: 20 } };
 const R2 = (v: number) => Math.round(v * 100) / 100, R3 = (v: number) => Math.round(v * 1000) / 1000;
 export function ELEM_PARTS(el: string): Record<string, BmPart> {
   const F = ELEM_FLAVOR[el], K = ELEM_SK[el], N = BM_ELEM_NAMES.weapon[el] || {}, c = ELEM_DEF_COLOR[el], pk = ELEM_BY_ID0[el].pure, out: Record<string, BmPart> = {};
@@ -298,6 +307,8 @@ export const BM_PARTS: Record<string, BmPart> = {
   ...ICE_PARTS(),
   ...ELEM_PARTS("water"), ...ELEM_PARTS("stone"), ...ELEM_PARTS("nature"), ...ELEM_PARTS("lightning"),
 };
+for (const p of Object.values(BM_PARTS)) if (p.type === "handle") { const g = GRIP_DEF[p.rarity] || GRIP_DEF.rare, st: any = p.stats;
+  if (st.hp == null) st.hp = g.hp; if (st.hpp == null && g.hpp) st.hpp = g.hpp; if (st.bcap == null) st.bcap = g.bcap; }
 const RAR_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
 
 /** 5 стартовых огненных навыков артефактов. Это обычные навыки игры (cls "artifact"): попадают в единый список навыков
@@ -429,7 +440,8 @@ export function computeArtifact(parts: Record<string, string>, P: Record<string,
     const pe = elemOf(p.elem); if (!elems.includes(pe)) elems.push(pe);
     const extraStaff = (slot === "blade2" || slot === "blade3") && isStaff(p, slot);
     if (extraStaff) shots++;
-    for (const k of BM_KEYS) { if (extraStaff && !BMA_CFG.staffStatsAdd && BM_ATK_KEYS.includes(k)) continue; st[k] = r3(st[k] + (Number((p.stats as any)[k]) || 0)); }
+    for (const k of BM_KEYS) { if (extraStaff && !BMA_CFG.staffStatsAdd && BM_ATK_KEYS.includes(k)) continue; const v = Number((p.stats as any)[k]) || 0;
+      st[k] = k === "bcap" && !(BMA_CFG as any).bcapSum ? bcapJoin(st.bcap, v) : r3(st[k] + v); }
     if (p.skill && !skills.includes(p.skill)) skills.push(p.skill);
   }
   const staff = isStaff(b, "blade"), ranged = staff || !!b.ranged;
@@ -448,7 +460,7 @@ export function capBm(s: BmStats): BmStats {
   for (const k of BM_KEYS) { const c = Number(C[k]); if (!Number.isFinite(c)) continue;
     if (k === "charge") o.charge = o.charge > 0 ? Math.max(c, o.charge) : 0;
     else if (k === "bcap") o.bcap = o.bcap > 0 ? Math.max(c, o.bcap) : 0;
-    else o[k] = Math.min(c, o[k]); }
+    else o[k] = Math.min(c, Number(o[k]) || 0); } // старые слепки без новых ключей (hp/hpp) — 0
   return o;
 }
 

@@ -8,7 +8,7 @@
 import { ZONE_MOBS, MONSTER_LOOT, ITEM_BY_ID } from "./defs";
 import { BC_TIERS } from "./boardChestCfg";
 import { RESOURCES } from "./shared";
-import { BM_PARTS, BP_TYPES, BP_ELEMS, ALL_ELEMS, PURE_KEYS, ELEM_COLOR, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles, shotOf } from "./blackArt";
+import { BM_PARTS, BP_TYPES, BP_ELEMS, ALL_ELEMS, PURE_KEYS, ELEM_COLOR, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles, shotOf, bcapJoin } from "./blackArt";
 import { mobXp, tierOf } from "./balance";
 import { BM_ELEM_NAMES } from "./bmElemNames";
 
@@ -333,8 +333,9 @@ export function mobFinal(m: BmMob, items?: Record<string, any>) {
   let hp = 0, dmg = 0, ar = 0, sp = 0;
   for (const id of Object.values(m.body || {})) { const b = id && BM_BODY[id]; if (b) { hp += b.hp; dmg += b.dmg; ar += b.armor; sp += b.speed; } }
   const C = BMM_CFG.cls[m.cls] || { hp: 1, dmg: 1, speed: 1 }, w = mobWeapon(m, items), armed = !!w.blade;
+  let wh = 0, whp = 0; for (const id of Object.values(w)) { const p: any = id && BM_PARTS[id as string]; if (p) { wh += Number(p.stats?.hp) || 0; whp += Number(p.stats?.hpp) || 0; } } // t1062u: рукоять (любая деталь) «Здоровье» / «Здоровье, %»
   const ranged = m.cls === "archer" || m.cls === "mage" || !!(w.blade && (BM_PARTS[w.blade]?.ranged || isStaff(BM_PARTS[w.blade], "blade"))); // посох — дальний, как у игрока
-  return { hp: Math.max(1, Math.round(m.hp * (1 + hp / 100) * C.hp)), dmg: Math.max(0, Math.round(m.dmg * (1 + dmg / 100) * C.dmg * (armed ? 1 + (BMM_CFG.weaponDmgPct || 0) / 100 : 1) * 10) / 10),
+  return { hp: Math.max(1, Math.round((m.hp * (1 + hp / 100) * C.hp + wh) * (1 + whp / 100))), dmg: Math.max(0, Math.round(m.dmg * (1 + dmg / 100) * C.dmg * (armed ? 1 + (BMM_CFG.weaponDmgPct || 0) / 100 : 1) * 10) / 10),
     armor: Math.max(0, Math.round(m.armor + ar)), speed: Math.max(10, Math.round(m.speed * (1 + sp / 100) * C.speed * (m.move?.spd || 1))), weapon: w, ranged };
 }
 /** удар чёрного моба — как у игрока с этим лезвием: ближнее — дуга (радиус = досягаемость лезвия, полуугол = arc),
@@ -356,7 +357,7 @@ export const mobColor = (el: string) => (el === "fire" && ELEM_COLOR.fire === "#
 export function mobBm(m: BmMob, items?: Record<string, any>): { bdmg: number; barm: number; bcap: number; skills: string[] } {
   const w = mobWeapon(m, items); let bdmg = 0, barm = 0, bcap = 0; const skills: string[] = [];
   for (const slot of BP_TYPES) { const id = w[slot], p: any = id && BM_PARTS[id]; if (!p) continue;
-    bdmg += Number(p.stats?.bdmg) || 0; barm += Number(p.stats?.barm) || 0; bcap += Number(p.stats?.bcap) || 0;
+    bdmg += Number(p.stats?.bdmg) || 0; barm += Number(p.stats?.barm) || 0; { const v = Number(p.stats?.bcap) || 0; bcap = (BMA_CFG as any).bcapSum ? bcap + v : bcapJoin(bcap, v); }
     if (p.skill && !skills.includes(p.skill)) skills.push(p.skill); }
   const r3 = (v: number) => Math.round(v * 1000) / 1000, cc = Number((BMA_CFG as any).caps?.bcap) || 0;
   return { bdmg: r3(Math.max(0, bdmg)), barm: r3(Math.max(0, barm)), bcap: bcap > 0 ? r3(Math.max(cc, bcap)) : 0, skills: skills.slice(0, 5) };

@@ -78,7 +78,7 @@ ok(typeof validatePatch("bpart", "fire_blade", { "stats.bdmg": 0.2 }) !== "strin
   ok(artInHand(a, h), "артефакт в руке");
   const e1: any = heroEffective(a, h, "warrior", base);
   ok(e1.wtype === "artifact" && e1.bm && e1.art?.skills?.length === 5, "effective: чёрные статы и навыки");
-  ok(e1.maxHp < e0.maxHp && e1.itemDmgMin === 0 && e1.look === null, "снаряжение заглушено (ОЗ вещи не действуют, урон вещей 0)");
+  ok(Math.round(e1.maxHp / (1 + (e1.bm.hpp || 0) / 100)) - (e1.bm.hp || 0) < e0.maxHp && e1.itemDmgMin === 0 && e1.look === null, "снаряжение заглушено (ОЗ вещи не действуют, урон вещей 0)");
   ok(!unequip(h, arm.slot, a).ok, "замок: остальные слоты не снимаются");
   const arm2 = addItem(a, arm.id, "t", "warrior")!; ok(!equip(a, h, "warrior", arm2.uid).ok, "замок: остальные слоты не надеваются");
   ok(monsterAbilities(a, h).length === 0, "трофейные навыки заглушены");
