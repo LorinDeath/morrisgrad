@@ -362,7 +362,7 @@ export class Zone {
   rareNext: Record<string, { x: number; y: number; reg: string }> = {}; // заранее выбранное место следующего появления редкого (там же отсчёт для игроков)
   rareDirty = false;  // таймеры изменились — сервису пора сохранить их (чтобы перезапуск не сбрасывал отсчёт)
   rareHold = false;   // пока сохранённые таймеры не подгружены, новые не заводим
-  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, domeDrops: 0, domeMoved: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0 };
+  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, domeDrops: 0, domeMoved: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0, mobHeals: 0 };
   byId = new Map<number, ZMob>();
   buckets = new Map<number, ZMob[]>(); // чанк WORLD_CHUNK → мобы (интерес/выборки)
   awake = new Set<number>();           // чанки рядом с игроками (остальные спят: без ИИ)
@@ -653,6 +653,7 @@ export class Zone {
   bmMobVsPlayer(m: ZMob, d: any, best: ZPlayer, players: Map<string, ZPlayer>, now: number, mul: number, dist: number, ux: number, uy: number, sp: number, dt: number,
     onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number, how?: string) => void, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1);
+    if (d.bmSup) this.bmSupport(m, d, now); mul *= this.bmBuffDmg(m, now); // t1062u: лечение/бафф союзников; бафф урона — и на обычный удар
     (m as any).bmFl = faceLeftOf(ux, (m as any).bmFl); (m as any).bmFt = now + 600; // смотрит на цель (клиенту — биты 26/27)
     if (this.bmMoveStep(m, d, dist, ux, uy, A.kind === "proj" ? Math.min(A.range * 0.6, 220) : Math.max(d.radius + 10, A.range * 0.55), now, dt, A.kind === "proj")) return;
     if (A.kind === "proj") {
@@ -705,11 +706,39 @@ export class Zone {
     }
     return false;
   }
+  /** t1062u: союзники чёрного моба для лечения — живые чёрные мобы в радиусе (из лагеря моба, если он в лагере); tgt: self / allies / low */
+  bmSupTargets(m: ZMob, r: number, tgt: string): ZMob[] {
+    if (tgt === "self") return [m];
+    const fac = factionOf(m.type), al = this.near(m.x, m.y, r + 40).filter((o) => !o.dead && !o.reset && factionOf(o.type) === fac && (!m.camp || o.camp === m.camp || o === m) && Math.hypot(o.x - m.x, o.y - m.y) <= r);
+    if (!al.includes(m)) al.push(m);
+    if (tgt === "allies") return al;
+    let low: ZMob = m; for (const o of al) if (o.hp / Math.max(1, o.maxHp) < low.hp / Math.max(1, low.maxHp)) low = o; return [low];
+  }
+  /** лечение pct % макс. ОЗ целям поддержки (навык с модификатором «лечение» и поддержка моба); клиенту — mheal {id, x, y, t:[[id, +ОЗ, x, y]], b} */
+  bmHealAllies(m: ZMob, tgt: string, r: number, pct: number, buff?: { k: string; v: number; ms: number }) {
+    const L = this.bmSupTargets(m, r, tgt), out: any[] = [];
+    for (const o of L) {
+      const add = Math.min(o.maxHp - o.hp, o.maxHp * pct / 100); if (add > 0) o.hp += add;
+      if (buff) { if (buff.k === "shield") o.shieldUntil = Math.max(o.shieldUntil, this.now + buff.ms); else if (buff.k === "spd") o.burstUntil = Math.max(o.burstUntil, this.now + buff.ms); else skBuffAdd(((o as any).skb ||= []), "sup:" + m.id, { k: "dmg", op: "pct", v: buff.v, ms: buff.ms } as any, this.now); }
+      if (add > 0 || buff) out.push([o.id, Math.round(add), Math.round(o.x), Math.round(o.y)]);
+    }
+    if (out.length) { this.stats.mobHeals += out.length; this.events.push({ k: "mheal", id: m.id, x: Math.round(m.x), y: Math.round(m.y), t: out, ...(buff ? { b: buff.k } : {}) }); }
+    return out;
+  }
+  /** поддержка моба (bmSup): в бою, раз в cd — лечит/баффает свои цели, если есть раненые (или есть бафф) */
+  bmSupport(m: ZMob, d: any, now: number) {
+    const S = d.bmSup, X: any = m; if (!S || (X.supAt || 0) > now) return;
+    const L = this.bmSupTargets(m, S.r, S.tgt); if (!S.buff && !L.some((o) => o.hp < o.maxHp - 0.5)) return;
+    X.supAt = now + S.cd; this.bmHealAllies(m, S.tgt, S.r, S.pct, S.buff ? { k: S.buff, v: S.bv || 0, ms: S.bms || 4000 } : undefined);
+  }
+  /** множитель урона от баффов «урон» (навыки моба и поддержка союзника) */
+  bmBuffDmg(m: ZMob, now: number) { const sk = (m as any).skb; if (!sk) return 1; const q = skBuffSum(sk, "dmg", now); return (1 + q.pct / 100) * q.mul; }
   /** чёрный моб в драке с мобом — то же оружие, что против игроков */
   bmMobFight(m: ZMob, d: any, t: ZMob, dist: number, ux: number, uy: number, dt: number, onKill: (m: ZMob) => void, mul: number): boolean {
     const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1), td = ZONE_MOBS[t.type], sp = d.speed * (m.slowUntil > this.now ? 0.55 : 1) * dt;
     (m as any).bmFl = faceLeftOf(ux, (m as any).bmFl); (m as any).bmFt = this.now + 600;
-    const dmg = d.dmg * mul * (d.role === "tank" ? 1.25 : 1);
+    if (d.bmSup) this.bmSupport(m, d, this.now);
+    const dmg = d.dmg * mul * this.bmBuffDmg(m, this.now) * (d.role === "tank" ? 1.25 : 1);
     if (A.kind === "proj") {
       const want = Math.min(A.range * 0.6, 220);
       if (dist > want) { m.x += ux * sp; m.y += uy * sp; this.solid(m); }
@@ -1490,7 +1519,7 @@ export class Zone {
       const hooks = {
         hpFrac: () => m.hp / Math.max(1, m.maxHp), chargeFrac: () => 1,
         pay: (p: number) => { const c = m.maxHp * p / 100; if (m.hp <= c) return false; m.hp -= c; return true; },
-        mod: (md: any, i: number) => { if (md.k === "heal") { m.hp = Math.min(m.maxHp, m.hp + m.maxHp * (Number(md.v) || 0) / 100); return; } const b = skBuffAdd(((m as any).skb ||= []), id + ":" + i, md, this.now); if (b && md.k === "spd") m.burstUntil = Math.max(m.burstUntil, b.until); },
+        mod: (md: any, i: number) => { if (md.k === "heal") { const su = (ZONE_MOBS as any)[m.type]?.bmSup; if (su && su.tgt !== "self") { this.bmHealAllies(m, su.tgt, su.r, Number(md.v) || 0); return; } m.hp = Math.min(m.maxHp, m.hp + m.maxHp * (Number(md.v) || 0) / 100); return; } /* t1062u: лечение навыка — целям поддержки моба */ const b = skBuffAdd(((m as any).skb ||= []), id + ":" + i, md, this.now); if (b && md.k === "spd") m.burstUntil = Math.max(m.burstUntil, b.until); },
         selfHaste: (ms: number) => { m.burstUntil = Math.max(m.burstUntil, this.now + ms); },
         selfSlow: (ms: number) => { m.slowUntil = Math.max(m.slowUntil, this.now + ms); },
         dmgMul: () => { const q = skBuffSum((m as any).skb, "dmg", this.now); return (1 + q.pct / 100) * q.mul; },

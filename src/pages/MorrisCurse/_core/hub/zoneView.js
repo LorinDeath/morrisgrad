@@ -231,6 +231,11 @@ export class ZoneView {
         if (o) this.bmm.ghost(o, e, col);
         const dx = e.x1 - e.x0, dy = e.y1 - e.y0, len = Math.hypot(dx, dy) || 1;
         this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x0, y: e.y0, dx: dx / len, dy: dy / len, len, t: 0, life: e.t === 'blink' ? 0.25 : 0.35, col }); }
+      else if (e.k === 'mheal') { // t1062u: лекарь чёрных мобов — зелёный луч к союзнику и «+ОЗ» над ним; значок баффа над лекарем
+        for (const [tid, n, x, y] of e.t || []) { const o = this.mobs.get(tid), tx = o?.x ?? x, ty = o?.y ?? y;
+          if (n > 0) out.push({ k: 'float', x: tx, y: ty - 22, text: `+${n}`, color: '#4ade80' });
+          if (tid !== e.id) { const dx = tx - e.x, dy = ty - e.y, len = Math.hypot(dx, dy) || 1; this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x, y: e.y, dx: dx / len, dy: dy / len, len, t: 0, life: 0.5, col: [0.3, 0.95, 0.5] }); } }
+        if (e.b) out.push({ k: 'float', x: e.x, y: e.y - 34, text: e.b === 'shield' ? '🛡 щит' : e.b === 'dmg' ? '⚔ урон↑' : '💨 скорость', color: '#86efac' }); }
       else if (e.k === 'tele') { this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 }); this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: -(e.t || 0.55), life: 0.3, col: [1, 0.5, 0.45] }); } // рывок моба: телеграф, затем шлейф dash_trail
       else if (e.k === 'tele_line') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, w: e.w, t: 0, life: e.t || 0.55 });
       else if (e.k === 'pstatus') { if (e.to === myId) out.push(e); } // 🛠 навык моба по мне: замедление/заморозка/отброс (game.js)

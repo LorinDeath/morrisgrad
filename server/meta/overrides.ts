@@ -1,4 +1,4 @@
-import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, cleanGear, cleanChests, cleanCampLoot, cleanMove, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
+import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, cleanGear, cleanChests, cleanCampLoot, cleanMove, cleanSup, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
 import { ELEMENTS, BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, BP_ELEM_NAMES, PURE_KEYS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
@@ -116,7 +116,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     ...BP_TYPES.map((t) => ({ path: "weapon." + t, label: "Оружие: " + t, t: "text" as const })),
     { path: "drops", label: "Дроп [{res, chance, qty:[a,b]}]", t: "text" },
     { path: "gear", label: "Снаряжение [{item, chance}]", t: "text" }, { path: "chests", label: "Сундуки наград [{t: ярус, chance, c: проклятый %, L: уровень}]", t: "text" },
-    { path: "move", label: "Движение {spd, dash:{cd,len,spd}, blink:{cd,range}, ghost}", t: "text" }] },
+    { path: "move", label: "Движение {spd, dash:{cd,len,spd}, blink:{cd,range}, ghost}", t: "text" },
+    { path: "sup", label: "Поддержка {tgt: self|allies|low, r, pct % ОЗ, cd мс, buff: dmg|shield|spd, bv %, bms мс}", t: "text" }] },
   bmcamp: { name: "Лагеря чёрных мобов", fields: [{ path: "name", label: "Название", t: "ltext" }, { path: "world", label: "Мир", t: "enum", opts: ["arinar", "hellfire"] },
     N("x", "X, px", -1e6, 1e6, "int"), N("y", "Y, px", -1e6, 1e6, "int"), N("r", "Радиус, px", 40, 1200, "int"), { path: "chief", label: "Вожак (вид моба)", t: "text" },
     N("respawnMin", "Возрождение от, с", 5, 86400, "int"), N("respawnMax", "Возрождение до, с", 5, 86400, "int"), { path: "lair", label: "Логово (одиночный сильный)", t: "bool" },
@@ -694,6 +695,7 @@ function validateBm(kind: string, id: string, patch: any): any | string {
       if (kind === "bmmob" && k === "drops") { const d = cleanDrops(v); if (typeof d === "string") return d; out.drops = d; }
       else if (kind === "bmmob" && k === "gear") { const d = cleanGear(v); if (typeof d === "string") return d; out.gear = d; }
       else if (kind === "bmmob" && k === "chests") { const d = cleanChests(v); if (typeof d === "string") return d; out.chests = d; }
+      else if (kind === "bmmob" && k === "sup") { const d = cleanSup(v); if (typeof d === "string") return d; out.sup = d || {}; }
       else if (kind === "bmmob" && k === "move") { const d = cleanMove(v); if (typeof d === "string") return d; out.move = d || {}; }
       else if (kind === "bmcamp" && k === "loot") { const c = { ...P, ...(patch.mobs ? { mobs: patch.mobs } : {}), ...(patch.chief !== undefined ? { chief: patch.chief } : {}) }; const d = cleanCampLoot(v, c); if (typeof d === "string") return d; out.loot = d; }
       else if (kind === "bmcamp" && k === "mobs") { const d = cleanCampMobs(v); if (typeof d === "string") return d; out.mobs = d; }

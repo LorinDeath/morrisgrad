@@ -110,6 +110,8 @@ const MOVE: Record<Role, (j: number) => any> = {
   assassin: (j) => [{ spd: 1.3, dash: { cd: 4500, len: 230, spd: 1400 }, ghost: 2 }, { spd: 1.25, blink: { cd: 5000, range: 320 }, ghost: 3 }, { spd: 1.4, dash: { cd: 6000, len: 300, spd: 1600 }, blink: { cd: 9000, range: 260 }, ghost: 4 }][j % 3],
   summoner: (j) => (j % 3 === 2 ? { spd: 0.9, blink: { cd: 10000, range: 240 }, ghost: 1 } : { spd: 0.9 }),
 };
+/** t1062u: лекари лечат союзников (админка «Чёрные мобы» → «Поддержка»): по кругу — самого раненого со щитом, всех рядом с бафом урона, самого раненого с рывком скорости */
+export const HEAL_SUP = (j: number) => [{ tgt: "low", r: 280, pct: 8, cd: 5000, buff: "shield", bms: 2500 }, { tgt: "allies", r: 240, pct: 4, cd: 7000, buff: "dmg", bv: 15, bms: 4000 }, { tgt: "low", r: 300, pct: 10, cd: 6000, buff: "spd", bms: 3000 }][j % 3];
 export type MobRow = { id: string; el: El; role: Role; tier: Tier; blade: string; skill: string; sec: boolean; P: Record<string, any> };
 export function buildMobs(bladesByEl: Record<string, string[]>, handlesByEl: Record<string, string[]>, taken: Set<string>): MobRow[] {
   const out: MobRow[] = [], ptr: Record<string, number> = {}, cnt: Record<string, number> = {}, used = new Set<string>();
@@ -142,6 +144,7 @@ export function buildMobs(bladesByEl: Record<string, string[]>, handlesByEl: Rec
       "body.legL": `${b}_legL_${v(3)}`, "body.legR": `${b}_legR_${v(3)}`, "body.tail": i % 3 === 0 ? `${b}_tail_${v(4)}` : "",
       "weapon.handle": handle, "weapon.blade": bladeCopyId(blade), "weapon.crystal": coreId(el, tier.t),
       drops: [{ res: piece, chance: tier.arch === "fort" ? 14 : 9, qty: [1, 1] }, { res: shard, chance: 20, qty: [1, 2] }], chests, move: MOVE[role](j),
+      ...(role === "healer" ? { sup: HEAL_SUP(j) } : {}),
     };
     out.push({ id: `bmx_c30_${EL3[el]}_${role.slice(0, 4)}_${j + 1}`, el, role, tier, blade, skill: skId(sk), sec, P });
   }

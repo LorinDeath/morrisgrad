@@ -104,6 +104,7 @@ export interface BmMob {
   chests?: BmChestDrop[];                    // ЭТАП 2: сундуки наград (ярус, шанс %, проклятый %) — убийце/владельцу мешка, в окно «🎁 Сундуки»
   elem?: string;                             // ICE: стихия моба (нет — по лезвию/торсу); ледяные кусочки падают только с ледяных
   pctOnly?: boolean;                         // t1062u: урон по игрокам — только % (чёрный, навыки, чистый — от ОЗ игрока); «Урон (база)» — только по мобам
+  sup?: BmSup;                               // t1062u: лечение/бафф союзников (админка «Чёрные мобы» → «Поддержка»); нет — лечит только навыками себя
   move?: BmMove;                             // ЭТАП 2: движение (скорость ×, рывки, телепорт, послеобразы); нет — как раньше
 }
 /** параметры движения чёрного моба (всё — в админке «Чёрные мобы» → «Движение»):
@@ -123,6 +124,20 @@ export function cleanMove(v: any): BmMove | undefined | string {
   if (v.dash && Number(v.dash.cd) > 0) o.dash = { cd: n(v.dash.cd, 300, 60000)!, len: n(v.dash.len, 20, 600) ?? 140, spd: n(v.dash.spd, 200, 4000) ?? 1000 };
   if (v.blink && Number(v.blink.cd) > 0) o.blink = { cd: n(v.blink.cd, 500, 60000)!, range: n(v.blink.range, 40, 800) ?? 200 };
   const g = n(v.ghost, 0, 8); if (g) o.ghost = Math.round(g);
+  return o;
+}
+/** t1062u: поддержка чёрного моба. tgt — кого лечит: self — себя, allies — всех союзников в радиусе (и себя), low — одного союзника с наименьшей долей ОЗ;
+ *  r — радиус, px; pct — лечение, % макс. ОЗ цели; cd — перезарядка, мс; buff — бафф союзникам при лечении: dmg (+bv % урона), shield (щит −50 % урона), spd (рывок скорости);
+ *  bms — длительность баффа, мс. Навыки моба с модификатором «лечение» лечат те же цели. Срабатывает только в бою. */
+export interface BmSup { tgt: "self" | "allies" | "low"; r: number; pct: number; cd: number; buff?: "dmg" | "shield" | "spd"; bv?: number; bms?: number }
+export const SUP_TGT = ["self", "allies", "low"] as const, SUP_BUFF = ["", "dmg", "shield", "spd"] as const;
+export function cleanSup(v: any): BmSup | undefined | string {
+  if (v == null || v === "" || (typeof v === "object" && !Object.keys(v).length)) return undefined; if (typeof v !== "object") return "поддержка: объект";
+  const n = (x: any, a: number, b: number, d: number) => { const k = Number(x); return Number.isFinite(k) ? Math.max(a, Math.min(b, k)) : d; };
+  if (!v.tgt) return undefined; const tgt = v.tgt; if (!(SUP_TGT as readonly string[]).includes(tgt)) return "поддержка: цель self / allies / low";
+  const buff = v.buff || ""; if (!(SUP_BUFF as readonly string[]).includes(buff)) return "поддержка: бафф dmg / shield / spd";
+  const o: BmSup = { tgt, r: Math.round(n(v.r, 40, 1200, 260)), pct: n(v.pct, 0, 100, 0), cd: Math.round(n(v.cd, 500, 120000, 6000)) };
+  if (buff) { o.buff = buff; o.bms = Math.round(n(v.bms, 300, 60000, 4000)); if (buff === "dmg") o.bv = n(v.bv, 1, 300, 20); }
   return o;
 }
 /** стихия моба: явная → лезвие оружия → торс → огонь (старые записи без поля) */
@@ -297,6 +312,7 @@ export function mobErr(m: BmMob): string | null {
   if (m.gear !== undefined) { const g = cleanGear(m.gear); if (typeof g === "string") return g; }
   if (m.chests !== undefined) { const h = cleanChests(m.chests); if (typeof h === "string") return h; }
   if (m.move !== undefined) { const v = cleanMove(m.move); if (typeof v === "string") return v; }
+  if (m.sup !== undefined) { const v = cleanSup(m.sup); if (typeof v === "string") return v; }
   if (!(BM_CLASSES as readonly string[]).includes(m.cls)) return "класс: из списка";
   return null;
 }
@@ -352,7 +368,7 @@ export function registerBlackMobs(items?: Record<string, any>) {
     const mv0 = cleanMove(m.move), mv = mv0 && typeof mv0 === "object" ? mv0 : undefined;
     const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: Math.round(f.speed * (mv?.spd || 1)), aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobColor(mobElem(m, items)), lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
       black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: mv && (mv.dash || mv.blink) ? mv : undefined };
-    { const B = mobBm(m, items); def.bdmg = B.bdmg || undefined; def.bmDef = B.barm > 0 || B.bcap > 0 ? { barm: B.barm, bcap: B.bcap } : undefined; def.bmSkills = B.skills.length ? B.skills : undefined; def.bmPctOnly = m.pctOnly ? true : undefined; } // bmMz — дула посохов (снаряды вылетают из них)
+    { const B = mobBm(m, items); def.bdmg = B.bdmg || undefined; def.bmDef = B.barm > 0 || B.bcap > 0 ? { barm: B.barm, bcap: B.bcap } : undefined; def.bmSkills = B.skills.length ? B.skills : undefined; def.bmPctOnly = m.pctOnly ? true : undefined; const su = cleanSup(m.sup); def.bmSup = su && typeof su === "object" ? su : undefined; } // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));
