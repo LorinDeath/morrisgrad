@@ -116,8 +116,8 @@ export function mountSkillCraft(ap, sec) {
   const q = $('[data-q]'); q.oninput = () => { S.q = q.value; clearTimeout(S.qt); S.qt = setTimeout(() => { mountSkillCraft(ap, sec); const n = sec.querySelector('[data-q]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
   $('[data-nf]').onchange = (e) => (S.newForm = e.target.value); $('[data-ne]').onchange = (e) => (S.newElem = e.target.value);
   $('[data-x="reload"]').onclick = () => { S.list = null; S.asked = false; mountSkillCraft(ap, sec); };
-  $('[data-x="new"]').onclick = () => { if (E?.dirty && !confirm('Есть несохранённые правки. Бросить их?')) return; const v = flatOf(S, skBlank('skx_new', S.newForm, S.newElem)); S.sel = null; S.edit = { id: null, v, orig: clone(v), dirty: true }; S.status = 'Новый навык — ещё не сохранён'; S.stCls = 'draft'; mountSkillCraft(ap, sec); };
-  const dup = $('[data-x="dup"]'); if (dup) dup.onclick = () => { if (!E) return; const v = clone(E.v); v.name = String(v.name || 'Навык').slice(0, 40) + ' (копия)'; S.sel = null; S.edit = { id: null, v, orig: clone(v), dirty: true, from: E.id }; S.status = `Копия «${E.v.name}» — ещё не сохранена`; S.stCls = 'draft'; mountSkillCraft(ap, sec); };
+  $('[data-x="new"]').onclick = () => { if (E?.dirty && !confirm('Есть несохранённые правки. Бросить их?')) return; const v = flatOf(S, skBlank('skx_new', S.newForm, S.newElem)); S.sel = null; S.edit = { id: null, tmp: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), v, orig: clone(v), dirty: true }; S.status = 'Новый навык — ещё не сохранён'; S.stCls = 'draft'; mountSkillCraft(ap, sec); };
+  const dup = $('[data-x="dup"]'); if (dup) dup.onclick = () => { if (!E) return; const v = clone(E.v); v.name = String(v.name || 'Навык').slice(0, 40) + ' (копия)'; S.sel = null; S.edit = { id: null, tmp: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), v, orig: clone(v), dirty: true, from: E.id }; S.status = `Копия «${E.v.name}» — ещё не сохранена`; S.stCls = 'draft'; mountSkillCraft(ap, sec); };
   $$('[data-sid]').forEach((d) => (d.onclick = () => { if (E?.dirty && E.id !== d.dataset.sid && !confirm('Есть несохранённые правки. Бросить их?')) return; select(S, d.dataset.sid); mountSkillCraft(ap, sec); }));
   if (E) wireEditor(ap, sec, S);
 }
@@ -171,7 +171,7 @@ function wireEditor(ap, sec, S) {
   $('[data-all]').onchange = (e) => { S.all = e.target.checked; rerender(); };
   $$('[data-tpl]').forEach((b) => (b.onclick = () => { Object.assign(E.v, TEMPLATES[+b.dataset.tpl][1]); E.dirty = true; status('Шаблон наложен — проверьте превью и сохраните', 'draft'); rerender(); }));
   $$('[data-qm]').forEach((b) => (b.onclick = () => { let i = [0, 1, 2, 3].find((j) => !E.v[`mods.${j}.k`]); if (i == null) { status('Все 4 слота модификаторов заняты — очистите один («Что меняет» → —)', 'err'); return; } for (const [k, x] of Object.entries(QMODS[+b.dataset.qm][1])) E.v[`mods.${i}.${k}`] = x; E.dirty = true; status(`Модификатор ${i + 1} заполнен`, 'draft'); rerender(); }));
-  $('[data-x="save"]').onclick = () => { const e = skErr(defOf(E.v)); if (e) return status('⚠ ' + e, 'err'); status('Сохраняю…', 'draft'); ap.send({ type: 'admin_skc', op: 'save', id: E.id || '', data: E.v }); };
+  $('[data-x="save"]').onclick = () => { const e = skErr(defOf(E.v)); if (e) return status('⚠ ' + e, 'err'); status('Сохраняю…', 'draft'); ap.send({ type: 'admin_skc', op: 'save', id: E.id || '', tmp: E.id ? undefined : E.tmp, data: E.v }); };
   $('[data-x="undo"]').onclick = () => { E.v = clone(E.orig); E.dirty = false; status('Правки отменены', ''); rerender(); };
   const rs = $('[data-x="reset"]'); if (rs) rs.onclick = () => { if (confirm('Вернуть исходные числа пресета?')) ap.send({ type: 'admin_skc', op: 'reset', id: E.id }); };
   const dl = $('[data-x="del"]'); if (dl) dl.onclick = () => { if (confirm(`Удалить навык «${E.v.name}»?`)) ap.send({ type: 'admin_skc', op: 'reset', id: E.id }); };
@@ -187,7 +187,7 @@ export function onSkcResult(ap, d) {
   const rerender = () => { if (ap.tab === 'skillcraft' && ap.el) { const sec = ap.el.querySelector('section'); if (sec) mountSkillCraft(ap, sec); } };
   if (d.op === 'list' && d.ok) { S.list = d.list; S.fields = d.fields; S.list.max = d.max; S.asked = false; if (S.sel && !S.edit?.dirty) select(S, S.sel); }
   else if (d.op === 'save') {
-    if (d.ok) { if (d.list) { const max = S.list?.max; S.list = d.list; S.list.max = max; } select(S, d.id); S.status = `Сохранено ${new Date().toLocaleTimeString('ru-RU')} — у всех онлайн`; S.stCls = 'ok'; }
+    if (d.ok) { if (d.list) { const max = S.list?.max; S.list = d.list; S.list.max = max; } if (!S.edit || S.edit.id === d.id || (S.edit.tmp && S.edit.tmp === d.tmp)) select(S, d.id); S.status = `Сохранено ${new Date().toLocaleTimeString('ru-RU')} — у всех онлайн`; S.stCls = 'ok'; }
     else { S.status = 'Не сохранено: ' + (d.err || 'ошибка'); S.stCls = 'err'; }
   } else if (d.op === 'reset') {
     if (d.ok) { if (d.list) { const max = S.list?.max; S.list = d.list; S.list.max = max; } if (S.list.find((x) => x.id === d.id)) { select(S, d.id); S.status = 'Пресет сброшен к исходным числам'; } else { S.sel = null; S.edit = null; S.status = 'Удалено'; } S.stCls = 'ok'; }

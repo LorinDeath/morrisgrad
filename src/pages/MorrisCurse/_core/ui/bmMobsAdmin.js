@@ -207,7 +207,7 @@ function camps(ap, S, bd, sec) {
       <div class="w"><button class="b" data-x="here">📍 Поставить у меня</button> <button class="b pri" data-x="csave">💾 Сохранить лагерь</button> <span class="st ${S.cst || ''}">${esc(S.cstatus || '')}</span></div></div>` : ''}`;
   bindElFilter(ap, S, bd, sec);
   bd.querySelectorAll('[data-ce]').forEach((b) => (b.onclick = () => { const c = C.find((x) => x.id === b.dataset.ce); S.camp = clone(c); delete S.camp.live; delete S.camp.err; S.cstatus = ''; mountBmMobs(ap, sec); }));
-  bd.querySelector('[data-x="cnew"]').onclick = () => { S.camp = { id: '', name: 'Лагерь чёрных', world: 'arinar', x: 0, y: 0, r: 160, mobs: [], chief: '', respawnMin: 60, respawnMax: 120 }; S.cstatus = 'Новый — «Поставить у меня» и состав'; mountBmMobs(ap, sec); };
+  bd.querySelector('[data-x="cnew"]').onclick = () => { S.camp = { id: '', _tmp: newTmp(), name: 'Лагерь чёрных', world: 'arinar', x: 0, y: 0, r: 160, mobs: [], chief: '', respawnMin: 60, respawnMax: 120 }; S.cstatus = 'Новый — «Поставить у меня» и состав'; mountBmMobs(ap, sec); };
   bd.querySelector('[data-x="crefresh"]').onclick = () => ap.send({ type: 'admin_bmm', op: 'camps' });
   if (!e) return;
   bd.querySelectorAll('[data-c]').forEach((el) => (el.onchange = () => { const k = el.dataset.c; e[k] = el.type === 'checkbox' ? el.checked : el.dataset.n ? (el.value === '' && (k === 'take' || k === 'deal') ? 1 : Number(el.value)) : el.value; })); // пустой множитель лагеря — 1 (как было)
@@ -221,7 +221,7 @@ function camps(ap, S, bd, sec) {
   bd.querySelector('[data-x="lgadd"]').onclick = () => { if (!q('.lgi')) return; (LO().gear ||= []).push({ item: q('.lgi'), chance: Number(q('.lgc')) }); rr(); };
   bd.querySelector('[data-x="lcadd"]').onclick = () => { const c = { t: q('.lct'), chance: Number(q('.lcch')) }; if (Number(q('.lcc'))) c.c = Number(q('.lcc')); if (Number(q('.lcl'))) c.L = Number(q('.lcl')); (LO().chests ||= []).push(c); rr(); };
   bd.querySelector('[data-x="here"]').onclick = () => ap.send({ type: 'admin_bmm', op: 'here' });
-  bd.querySelector('[data-x="csave"]').onclick = () => { const { id, ...data } = e; S.cstatus = 'Сохранение…'; S.cst = ''; ap.send({ type: 'admin_bmm', op: 'save', kind: 'bmcamp', id: id || '', data }); };
+  bd.querySelector('[data-x="csave"]').onclick = () => { const { id, _tmp, ...data } = e; S.cstatus = 'Сохранение…'; S.cst = ''; ap.send({ type: 'admin_bmm', op: 'save', kind: 'bmcamp', id: id || '', tmp: id ? undefined : _tmp, data }); };
 }
 function body(ap, S, bd, sec) {
   const B0 = S.list.body || [], e = S.bpart, q = (S.bq || '').toLowerCase();
@@ -243,10 +243,10 @@ function body(ap, S, bd, sec) {
   bd.querySelectorAll('[data-bpv]').forEach((x) => (x.onclick = (ev) => { ev.stopPropagation(); hoverOn(S, x, B0.find((y) => y.id === x.dataset.bpv), 'atk'); }));
   const bcv = bd.querySelector('canvas.bpv'); if (bcv && e) { S.bpv?.stop(); S.bpv = new MobPreview(bcv); Object.assign(S.bpv, { grid: false, hero: false, rings: false, zoom: 1.3, anim: 'idle' }); S.bpv.set(bodyPreviewMob(S, e)); S.bpv.start(); bcv.onclick = () => { S.bpv.anim = S.bpv.anim === 'atk' ? 'idle' : 'atk'; }; }
   bd.querySelectorAll('[data-be]').forEach((b) => (b.onclick = () => { S.bpart = clone(B.find((x) => x.id === b.dataset.be)); delete S.bpart.custom; S.bstatus = ''; mountBmMobs(ap, sec); }));
-  bd.querySelector('[data-x="bnew"]').onclick = () => { const slot = bd.querySelector('.bslot').value; S.bpart = { id: '', slot, name: 'Своя часть', img: `${slot}_1`, hp: 0, dmg: 0, armor: 0, speed: 0 }; mountBmMobs(ap, sec); };
+  bd.querySelector('[data-x="bnew"]').onclick = () => { const slot = bd.querySelector('.bslot').value; S.bpart = { id: '', _tmp: newTmp(), slot, name: 'Своя часть', img: `${slot}_1`, hp: 0, dmg: 0, armor: 0, speed: 0 }; mountBmMobs(ap, sec); };
   if (!e) return;
   bd.querySelectorAll('[data-b]').forEach((el) => (el.onchange = () => { const k = el.dataset.b; e[k] = el.type === 'checkbox' ? el.checked : el.dataset.n ? Number(el.value) : el.value; if (S.bpv && (k === 'img' || k === 'elem')) S.bpv.set(bodyPreviewMob(S, e)); }));
-  bd.querySelector('[data-x="bsave"]').onclick = () => { const { id, ...data } = e; S.bstatus = 'Сохранение…'; ap.send({ type: 'admin_bmm', op: 'save', kind: 'bmbody', id: id || '', data }); };
+  bd.querySelector('[data-x="bsave"]').onclick = () => { const { id, _tmp, ...data } = e; S.bstatus = 'Сохранение…'; ap.send({ type: 'admin_bmm', op: 'save', kind: 'bmbody', id: id || '', tmp: id ? undefined : _tmp, data }); };
 }
 function cfg(ap, S, bd, sec) {
   const c = (S.cfgEdit ||= clone(S.list.cfg || {})), fields = ap.cat?.schema?.bmmcfg?.fields || [];
@@ -259,6 +259,9 @@ function cfg(ap, S, bd, sec) {
 
 /** ответ сервера admin_bmm */
 /** админ сейчас взаимодействует с полем формы (фокус на input/select/textarea внутри окна) — не пересобирать DOM */
+/** ответ «save» относится к открытой форме? (тот же id, или новый с тем же tmp) — иначе id чужого ответа не попадёт в другой лагерь/часть */
+export const sameObj = (o, d) => !!o && (o.id ? o.id === d.id : !!(o._tmp && o._tmp === d.tmp));
+export const newTmp = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 export const adminBusy = (ap) => { const a = document.activeElement; return !!(a && ap?.el?.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)); };
 export function onBmmResult(ap, d) {
   const S = (ap.bmm ||= { sub: 'mobs' });
@@ -282,8 +285,8 @@ export function onBmmResult(ap, d) {
     const sameSet = !S.cef ? shown === all : [...cells].every((td) => d.camps.some((c) => c.id === td.dataset.live));
     if (sameSet || S.camp || adminBusy(ap)) return; }
   else if (d.op === 'save') { const ok = d.ok, msg = ok ? '✔ Сохранено' : 'Ошибка: ' + (d.err || d.message || '');
-    if (d.kind === 'bmcamp') { S.cstatus = msg; S.cst = ok ? 'ok' : 'err'; if (ok) { if (d.camps) S.list.camps = d.camps; if (S.camp) S.camp.id = d.id; } }
-    else if (d.kind === 'bmbody') { S.bstatus = msg; if (ok) { if (d.body) S.list.body = d.body; if (S.bpart) S.bpart.id = d.id; } }
+    if (d.kind === 'bmcamp') { S.cstatus = msg; S.cst = ok ? 'ok' : 'err'; if (ok) { if (d.camps) S.list.camps = d.camps; if (sameObj(S.camp, d)) S.camp.id = d.id; } }
+    else if (d.kind === 'bmbody') { S.bstatus = msg; if (ok) { if (d.body) S.list.body = d.body; if (sameObj(S.bpart, d)) S.bpart.id = d.id; } }
     else { S.gstatus = msg; } }
   else if (!d.ok) ap.msg?.('Ошибка: ' + (d.err || ''));
   rerender();

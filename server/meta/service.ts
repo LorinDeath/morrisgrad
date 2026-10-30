@@ -130,8 +130,8 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }),
   bm_hold: S({ on: "b" }), bm_mode: S({ melee: "b" }), bm_test_artifact: S({ ranged: "b?", staff: "b?", elem: "s?", blade: "s?" }), admin_bm_recalc: S({}),
   bm_forge_open: S({}), bm_forge_craft: S({ part: "s", n: "n?" }), bm_forge_build: S({ handle: "s", blade: "s", blade2: "s?", blade3: "s?", crystal: "s?", name: "s" }), // 🔥 кузня Знахаря (этап Б)
-  admin_skc: S({ op: "s", id: "s?", data: "o?" }), // 🛠 конструктор навыков (админка)
-  admin_bmm: S({ op: "s", id: "s?", kind: "s?", data: "o?", lvl: "n?", cls: "s?" }), // 👹 конструктор чёрных мобов и лагерей (админка)
+  admin_skc: S({ op: "s", id: "s?", data: "o?", tmp: "s?" }), // 🛠 конструктор навыков (админка)
+  admin_bmm: S({ op: "s", id: "s?", kind: "s?", data: "o?", lvl: "n?", cls: "s?", tmp: "s?" }), // 👹 конструктор чёрных мобов и лагерей (админка)
   admin_bmf: S({ op: "s", id: "s?", data: "o?", type: "s?", mob: "s?", res: "s?", chance: "n?", qmin: "n?", qmax: "n?", name: "s?" }), // 🔥 конструктор оружия (админка) // 🜏 артефакты чёрной магии: заряд, тестовый артефакт (dev/админ), «Пересчитать все» // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
 };
 const ADMIN_PATCH_TYPES = new Set(["admin_save", "admin_save_sec", "admin_bchest_preview"]), ADMIN_PATCH_KEYS = 600;
@@ -2253,6 +2253,13 @@ export class MetaService {
   }
   /** 👹 админка «Чёрные мобы»: черновики мобов — bmc_mdraft (в игру не идут), публикация — game_overrides bmmob/bmbody/bmcamp/bmmcfg */
   /** 🛠 конструктор навыков (kind skdef): пресеты правятся, свои «skx_…» создаются/копируются/удаляются; где стоит навык — детали оружия */
+  /** новый объект админки: клиент шлёт одноразовый tmp — повторные «Сохранить» до ответа (двойной клик, медленная сеть) получают тот же id, не дубль */
+  newIds = new Map<string, string>();
+  newIdFor(kind: string, tmp: any, mk: () => string): string {
+    const k = typeof tmp === "string" && /^[a-z0-9]{6,24}$/i.test(tmp) ? `${kind}:${tmp}` : "";
+    const was = k ? this.newIds.get(k) : ""; if (was) return was;
+    const id = mk(); if (k) { this.newIds.set(k, id); if (this.newIds.size > 500) this.newIds.delete(this.newIds.keys().next().value!); } return id;
+  }
   async skcOp(ms: any, msg: any): Promise<any> {
     const A = this.admin, by = ms.pkey, F = (OV_SCHEMA as any).skdef.fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path);
     const used = (id: string) => Object.keys(BM_PARTS).filter((p) => (BM_PARTS as any)[p]?.skill === id);
@@ -2262,10 +2269,10 @@ export class MetaService {
       case "list": return { ok: true, list: list(), fields: (OV_SCHEMA as any).skdef.fields, presets: SK_PRESET_IDS, max: BMA_CFG.maxCustomSkills || 200 };
       case "save": { // id пусто — новый свой (из «Новый» или «Дублировать»): сервер выдаёт «skx_…»
         let id = String(msg.id || "");
-        if (!id) { for (let i = 0; i < 20 && (!id || SK_DEFS[id]); i++) id = `skx_${Math.random().toString(36).slice(2, 8)}`; }
+        if (!id) id = this.newIdFor("skdef", msg.tmp, () => { let x = ""; for (let i = 0; i < 20 && (!x || SK_DEFS[x]); i++) x = `skx_${Math.random().toString(36).slice(2, 8)}`; return x; }); // повторное «Сохранить» нового (до ответа) — тот же id, без дубля
         if (!SK_DEFS[id] && !CUSTOM_SK.test(id)) return { ok: false, err: "неверный id" };
         const patch = pick(msg.data); if (!Object.keys(patch).length) return { ok: false, err: "пусто" };
-        const r: any = await A.save(by, "skdef" as any, id, patch); return { ...r, id, list: list() };
+        const r: any = await A.save(by, "skdef" as any, id, patch); return { ...r, id, tmp: msg.tmp, list: list() };
       }
       case "reset": { const id = String(msg.id || ""); if (!SK_DEFS[id]) return { ok: false, err: "нет навыка" };
         const u = used(id); if (CUSTOM_SK.test(id) && u.length) return { ok: false, err: `навык стоит на деталях: ${u.slice(0, 6).join(", ")} — сначала снимите` };
@@ -2313,10 +2320,10 @@ export class MetaService {
         const r: any = await saveFull(kind, id, { hidden: !!msg.data?.hidden }); return { ...r, id }; }
       case "save": { // часть тела / лагерь / настройки (новые — id без префикса: сервер выдаст свой)
         const kind = String(msg.kind || ""); if (!["bmbody", "bmcamp", "bmmcfg"].includes(kind)) return { ok: false, err: "вид?" };
-        let id = String(msg.id || ""); if (kind === "bmmcfg") id = "main"; else if (!id) id = rid(kind === "bmbody" ? "bbx" : "bcx", kind === "bmbody" ? BM_BODY : BM_CAMPS);
+        let id = String(msg.id || ""); if (kind === "bmmcfg") id = "main"; else if (!id) id = this.newIdFor(kind, msg.tmp, () => rid(kind === "bmbody" ? "bbx" : "bcx", kind === "bmbody" ? BM_BODY : BM_CAMPS)); // повторное «Сохранить» нового — тот же id
         const r: any = await saveFull(kind, id, msg.data || {});
         if (r.ok && kind === "bmcamp") for (const z of Object.values(this.zones as any) as any[]) z?.syncBlackCamps?.(Date.now(), true);
-        return { ...r, id, kind, camps: kind === "bmcamp" ? campList() : undefined, body: kind === "bmbody" ? bodyList() : undefined }; }
+        return { ...r, id, kind, tmp: msg.tmp, camps: kind === "bmcamp" ? campList() : undefined, body: kind === "bmbody" ? bodyList() : undefined }; }
     }
     return { ok: false, err: "неизвестная операция" };
   }
