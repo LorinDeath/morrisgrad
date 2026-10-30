@@ -1,0 +1,485 @@
+{
+ "note": "подсказка: технология → icon_tech_<ключ>_64/_32 (пул аудита); узлы Вождя → icon_chief_*, умения → icon_skill_*",
+ "map": {
+  "horse": {
+   "name": "Коневодство",
+   "icon": "icon_tech_cav",
+   "fx": "knightDisc"
+  },
+  "ambush": {
+   "name": "Засада",
+   "icon": "icon_tech_ambush",
+   "fx": "ambush"
+  },
+  "steel": {
+   "name": "Сталь",
+   "icon": "icon_tech_atk",
+   "fx": "atk"
+  },
+  "drill": {
+   "name": "Муштра",
+   "icon": "icon_tech_ap",
+   "fx": "ap"
+  },
+  "warcry": {
+   "name": "Боевой клич",
+   "icon": "icon_tech_atk",
+   "fx": "atkK"
+  },
+  "siegecraft": {
+   "name": "Осадное дело",
+   "icon": "icon_tech_siege",
+   "fx": "atkEnemyT"
+  },
+  "masonry": {
+   "name": "Каменное дело",
+   "icon": "icon_tech_arm",
+   "fx": "armK"
+  },
+  "formation": {
+   "name": "Строй",
+   "icon": "icon_tech_defense",
+   "fx": "formation"
+  },
+  "bastion": {
+   "name": "Бастион",
+   "icon": "icon_tech_defense",
+   "fx": "armOwnT"
+  },
+  "beacons": {
+   "name": "Сигнальные огни",
+   "icon": "icon_tech_ap",
+   "fx": "ap"
+  },
+  "guardians": {
+   "name": "Гвардия",
+   "icon": "icon_tech_king",
+   "fx": "kingHp"
+  },
+  "citadel": {
+   "name": "Цитадель",
+   "icon": "icon_tech_siege",
+   "fx": "siege"
+  },
+  "trade": {
+   "name": "Торговля",
+   "icon": "icon_tech_trade",
+   "fx": "goldMV"
+  },
+  "merchants": {
+   "name": "Купцы",
+   "icon": "icon_tech_gold",
+   "fx": "goldTurn"
+  },
+  "guilds": {
+   "name": "Гильдии",
+   "icon": "icon_tech_discount",
+   "fx": "bldDisc"
+  },
+  "treasury": {
+   "name": "Казна",
+   "icon": "icon_tech_gold",
+   "fx": "goldTurn"
+  },
+  "caravans": {
+   "name": "Караваны",
+   "icon": "icon_tech_gold",
+   "fx": "goldCity"
+  },
+  "farming": {
+   "name": "Земледелие",
+   "icon": "icon_tech_growth",
+   "fx": "growth"
+  },
+  "settlers": {
+   "name": "Поселенцы",
+   "icon": "icon_tech_outpost",
+   "fx": "outposts"
+  },
+  "roads": {
+   "name": "Дороги",
+   "icon": "icon_tech_outpost",
+   "fx": "outR"
+  },
+  "empire": {
+   "name": "Империя",
+   "icon": "icon_tech_radius",
+   "fx": "capR"
+  },
+  "colonies": {
+   "name": "Колонии",
+   "icon": "icon_tech_glory",
+   "fx": "terrGlory"
+  },
+  "arcana": {
+   "name": "Тайное знание",
+   "icon": "icon_tech_unlock",
+   "fx": null
+  },
+  "scribes": {
+   "name": "Писцы",
+   "icon": "icon_tech_know",
+   "fx": "knowCity"
+  },
+  "battlemage": {
+   "name": "Боевая магия",
+   "icon": "icon_tech_shot",
+   "fx": "shot"
+  },
+  "academy": {
+   "name": "Академия",
+   "icon": "icon_tech_research",
+   "fx": "research"
+  },
+  "archmage": {
+   "name": "Архимаг",
+   "icon": "icon_tech_atk",
+   "fx": "atkK"
+  },
+  "wildfire": {
+   "name": "Пожар",
+   "icon": "icon_tech_burn",
+   "fx": "burnT"
+  },
+  "embers": {
+   "name": "Угли",
+   "icon": "icon_tech_burn",
+   "fx": "burnD"
+  },
+  "pyromancy": {
+   "name": "Пиромантия",
+   "icon": "icon_tech_shot",
+   "fx": "shot"
+  },
+  "fury": {
+   "name": "Ярость",
+   "icon": "icon_tech_atk",
+   "fx": "fury"
+  },
+  "phoenix": {
+   "name": "Феникс",
+   "icon": "icon_tech_king",
+   "fx": "kingHp"
+  },
+  "blaze": {
+   "name": "Зарево",
+   "icon": "icon_tech_kill",
+   "fx": "killGlory"
+  },
+  "deepfreeze": {
+   "name": "Глубокий холод",
+   "icon": "icon_tech_chill",
+   "fx": "chillT"
+  },
+  "frostarmor": {
+   "name": "Ледяная броня",
+   "icon": "icon_tech_arm",
+   "fx": "armK"
+  },
+  "icelance": {
+   "name": "Ледяное копьё",
+   "icon": "icon_tech_shot",
+   "fx": "shot"
+  },
+  "rime": {
+   "name": "Иней",
+   "icon": "icon_tech_chill",
+   "fx": "rime"
+  },
+  "winterking": {
+   "name": "Зимний король",
+   "icon": "icon_tech_king",
+   "fx": "kingHp"
+  },
+  "avalanche": {
+   "name": "Лавина",
+   "icon": "icon_tech_kill",
+   "fx": "killGlory"
+  },
+  "undertow": {
+   "name": "Отлив",
+   "icon": "icon_tech_heal",
+   "fx": "heal"
+  },
+  "tide": {
+   "name": "Прилив",
+   "icon": "icon_tech_growth",
+   "fx": "growth"
+  },
+  "pearls": {
+   "name": "Жемчуг",
+   "icon": "icon_tech_gold",
+   "fx": "goldCity"
+  },
+  "currents": {
+   "name": "Стремнина",
+   "icon": "icon_tech_outpost",
+   "fx": "outR"
+  },
+  "leviathan": {
+   "name": "Левиафан",
+   "icon": "icon_tech_king",
+   "fx": "kingHp"
+  },
+  "delta": {
+   "name": "Дельта",
+   "icon": "icon_tech_glory",
+   "fx": "terrGlory"
+  },
+  "bedrock": {
+   "name": "Скала",
+   "icon": "icon_tech_arm",
+   "fx": "armK"
+  },
+  "quarrymen": {
+   "name": "Каменотёсы",
+   "icon": "icon_tech_discount",
+   "fx": "bldDisc"
+  },
+  "rampart": {
+   "name": "Вал",
+   "icon": "icon_tech_defense",
+   "fx": "armOwnT"
+  },
+  "hammer": {
+   "name": "Молот гор",
+   "icon": "icon_tech_atk",
+   "fx": "atkK"
+  },
+  "mountainking": {
+   "name": "Горный король",
+   "icon": "icon_tech_king",
+   "fx": "kingHp"
+  },
+  "monolith": {
+   "name": "Монолит",
+   "icon": "icon_tech_siege",
+   "fx": "siege"
+  },
+  "thorns": {
+   "name": "Шипы",
+   "icon": "icon_tech_arm",
+   "fx": "armK"
+  },
+  "bloom": {
+   "name": "Цветение",
+   "icon": "icon_tech_know",
+   "fx": "knowCity"
+  },
+  "grove": {
+   "name": "Чаща",
+   "icon": "icon_tech_radius",
+   "fx": "capR"
+  },
+  "wildhunt": {
+   "name": "Дикая охота",
+   "icon": "icon_tech_atk",
+   "fx": "atkK"
+  },
+  "worldtree": {
+   "name": "Древо",
+   "icon": "icon_tech_king",
+   "fx": "kingHp"
+  },
+  "harvest": {
+   "name": "Урожай",
+   "icon": "icon_tech_gold",
+   "fx": "goldTurn"
+  },
+  "static": {
+   "name": "Статика",
+   "icon": "icon_tech_research",
+   "fx": null
+  },
+  "spark": {
+   "name": "Искра",
+   "icon": "icon_tech_ambush",
+   "fx": "ambush"
+  },
+  "stormcall": {
+   "name": "Зов бури",
+   "icon": "icon_tech_shot",
+   "fx": "shot"
+  },
+  "thunder": {
+   "name": "Гром",
+   "icon": "icon_tech_atk",
+   "fx": "atkK"
+  },
+  "eyestorm": {
+   "name": "Око бури",
+   "icon": "icon_tech_atk",
+   "fx": "atk"
+  },
+  "skyfire": {
+   "name": "Небесный огонь",
+   "icon": "icon_tech_kill",
+   "fx": "killGlory"
+  },
+  "warlords": {
+   "name": "Владыки войны",
+   "icon": "icon_tech_siege",
+   "fx": "atkEnemyT"
+  },
+  "blitzking": {
+   "name": "Гроза полей",
+   "icon": "icon_tech_atk",
+   "fx": "atk"
+  },
+  "bulwark": {
+   "name": "Незыблемость",
+   "icon": "icon_tech_defense",
+   "fx": "armOwnT"
+  },
+  "aegis": {
+   "name": "Эгида",
+   "icon": "icon_tech_king",
+   "fx": "kingHp"
+  },
+  "goldenage": {
+   "name": "Золотой век",
+   "icon": "icon_tech_gold",
+   "fx": "goldCity"
+  },
+  "patronage": {
+   "name": "Меценатство",
+   "icon": "icon_tech_gold",
+   "fx": "goldTurn"
+  },
+  "dominion": {
+   "name": "Владычество",
+   "icon": "icon_tech_territory",
+   "fx": "terrGrow"
+  },
+  "manifest": {
+   "name": "Предназначение",
+   "icon": "icon_tech_outpost",
+   "fx": "outposts"
+  },
+  "omniscience": {
+   "name": "Всеведение",
+   "icon": "icon_tech_know",
+   "fx": "knowCity"
+  },
+  "archon": {
+   "name": "Архонт",
+   "icon": "icon_tech_research",
+   "fx": "research"
+  },
+  "fire_wonder": {
+   "name": "Вечное пламя",
+   "icon": "icon_tech_wonder",
+   "fx": "wonderUlt"
+  },
+  "inferno": {
+   "name": "Преисподняя",
+   "icon": "icon_tech_burn",
+   "fx": "burnD"
+  },
+  "ice_wonder": {
+   "name": "Вечная мерзлота",
+   "icon": "icon_tech_wonder",
+   "fx": "wonderUlt"
+  },
+  "absolutezero": {
+   "name": "Абсолютный ноль",
+   "icon": "icon_tech_chill",
+   "fx": "chillT"
+  },
+  "water_wonder": {
+   "name": "Сердце океана",
+   "icon": "icon_tech_wonder",
+   "fx": "wonderUlt"
+  },
+  "maelstrom": {
+   "name": "Мальстрём",
+   "icon": "icon_tech_atk",
+   "fx": "atk"
+  },
+  "stone_wonder": {
+   "name": "Вечный колосс",
+   "icon": "icon_tech_wonder",
+   "fx": "wonderUlt"
+  },
+  "earthcore": {
+   "name": "Ядро земли",
+   "icon": "icon_tech_arm",
+   "fx": "arm"
+  },
+  "nature_wonder": {
+   "name": "Мировое древо",
+   "icon": "icon_tech_wonder",
+   "fx": "wonderUlt"
+  },
+  "overgrowth": {
+   "name": "Буйный рост",
+   "icon": "icon_tech_heal",
+   "fx": "heal"
+  },
+  "light_wonder": {
+   "name": "Небесный шпиль",
+   "icon": "icon_tech_wonder",
+   "fx": "wonderUlt"
+  },
+  "thunderlord": {
+   "name": "Владыка грома",
+   "icon": "icon_tech_shot",
+   "fx": "shot"
+  },
+  "fire_lord": {
+   "name": "Владыка пепла",
+   "icon": "icon_tech_unlock",
+   "fx": null
+  },
+  "ice_warden": {
+   "name": "Хозяин стужи",
+   "icon": "icon_tech_unlock",
+   "fx": null
+  },
+  "water_tide": {
+   "name": "Повелитель приливов",
+   "icon": "icon_tech_unlock",
+   "fx": null
+  },
+  "stone_thane": {
+   "name": "Горный тан",
+   "icon": "icon_tech_unlock",
+   "fx": null
+  },
+  "nature_keeper": {
+   "name": "Хранитель рощи",
+   "icon": "icon_tech_unlock",
+   "fx": null
+  },
+  "storm_caller": {
+   "name": "Громовержец",
+   "icon": "icon_tech_unlock",
+   "fx": null
+  },
+  "lunge": {
+   "name": "Выпад",
+   "icon": "icon_tech_research",
+   "fx": null
+  },
+  "charge2": {
+   "name": "Сшибка",
+   "icon": "icon_tech_research",
+   "fx": null
+  },
+  "bolt": {
+   "name": "Стрела силы",
+   "icon": "icon_tech_research",
+   "fx": null
+  },
+  "bastion2": {
+   "name": "Несокрушимость",
+   "icon": "icon_tech_research",
+   "fx": null
+  },
+  "cleave": {
+   "name": "Рассечение",
+   "icon": "icon_tech_research",
+   "fx": null
+  }
+ }
+}

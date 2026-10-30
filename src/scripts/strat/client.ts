@@ -30,6 +30,8 @@ import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pend
 
 const PROD_WS = "wss://morris-multiplayer.alexseylyou.workers.dev";
 const qs = new URLSearchParams(location.search);
+/** P2: одно слово-характер расы (на телефоне вместо списка свойств — макет ui_v2_phone_lobby). */
+const RACE_WORD: Record<string, string> = { fire: "натиск", ice: "оборона", water: "манёвр", stone: "осада", nature: "рост", lightning: "цепь" };
 /** dev: синтетическая раскладка для проверки walls-v2 — A(свой) | B(свой, общая стена) сверху, C(враг) снизу, дорога сквозь A и C. */
 let wallTest: { x: number; y: number; front?: boolean; open?: boolean } | null = null;
 function wallTestLayout(G0: any, T0: Int8Array, C0: Int16Array) {
@@ -484,7 +486,7 @@ function renderLobby() {
   if (drawL) { const h = lobbyDrawHtml(S, raceD(), isGuest); if (rdv.dataset.h !== h) { rdv.dataset.h = h; rdv.innerHTML = h; const fe = rdv.querySelector<HTMLButtonElement>("[data-favedit]"); if (fe) fe.onclick = () => openFavDlg(); } }
   if (!rc.dataset.built) { rc.dataset.built = "1"; rc.innerHTML = RACES.map((r) => `<button class="racecard r-${r}" data-race="${r}">
       <span class="rc-art"><img class="cr" src="/strat/ui/crests/crest_${r}.png" alt=""><img class="k" src="${unitArt(r, "king")}" alt="" onerror="this.remove()"><img class="a" src="${unitArt(r, "knight")}" alt="" onerror="this.remove()"><img class="b" src="${unitArt(r, "mage")}" alt="" onerror="this.remove()"></span>
-      <span class="rc-name"><b>${RACE_NAME[r]}</b></span><ul class="rc-tr"></ul><span class="rc-pas pas-row">${racePassives(cfgOf(S), r).map(pasIcon).join("")}</span><span class="rc-pick">${ic("check")}Выбрано</span></button>`).join("");
+      <span class="rc-name"><b>${RACE_NAME[r]}</b></span><span class="rc-word">${RACE_WORD[r] || ""}</span><ul class="rc-tr"></ul><span class="rc-pas pas-row">${racePassives(cfgOf(S), r).map(pasIcon).join("")}</span><span class="rc-pick">${ic("check")}Выбрано</span></button>`).join("");
     for (const b of rc.querySelectorAll<HTMLButtonElement>("[data-race]")) b.onclick = () => send({ type: "race", race: b.dataset.race }); }
   for (const b of rc.querySelectorAll<HTMLButtonElement>("[data-race]")) { b.classList.toggle("on", seats[me]?.race === b.dataset.race); b.disabled = me < 0;
     const ul = b.querySelector(".rc-tr")!, tr = raceTraits(b.dataset.race!); if (ul.textContent !== tr.join("")) { ul.innerHTML = ""; for (const t of tr) { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); } } }
@@ -528,7 +530,7 @@ async function renderLobbyMap(host: boolean) {
     gal.innerHTML = "";
     for (const m of mapList) {
       const b = document.createElement("button"); b.className = "mapcard"; b.dataset.map = m.id;
-      b.innerHTML = `<span class="mc-pv"></span><b></b><small></small>`;
+      b.innerHTML = `<span class="mc-fr"><span class="mc-pv"></span><b></b></span><small></small>`; // P2: map_card_frame — окно 208×136, табличка имени
       b.querySelector("b")!.textContent = m.name; b.querySelector("small")!.textContent = [`${S.size}×${S.size}`, m.author || (m.kind === "official" ? "официальная" : m.kind === "random" ? "новая каждый раз" : ""), m.kind === "mine" ? "моя" : "", ST_NAME[m.status] || ""].filter(Boolean).join(" · ");
       const pv = b.querySelector<HTMLElement>(".mc-pv")!;
       if (m.t && m.s) { const c = document.createElement("canvas"), w = 192; c.width = c.height = w; c.getContext("2d")!.drawImage(terrainLayer({ id: m.id, name: m.name, size: m.size || S.size, t: m.t, s: m.s } as any, w, false, [GOLD, "#b3261e"]), 0, 0); pv.appendChild(c); }

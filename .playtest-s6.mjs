@@ -1,4 +1,4 @@
-// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|v2|t2|walls|mob|all] → /workspace/minigame-tz/shots/s6-ui-*
+// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|v2|t2|walls|p2|mob|all] → /workspace/minigame-tz/shots/s6-ui-*
 import { createRequire } from "module"; const require = createRequire("/workspace/mc-ui-tools/");
 const { chromium } = require("playwright-core");
 const SITE = "http://127.0.0.1:4392/games/strategy", OUT = "/workspace/minigame-tz/shots/", WSQ = "&ws=ws://127.0.0.1:8872";
@@ -85,6 +85,17 @@ if (only === "all" || only === "mob") {
   const k = await king(M); await dev(M, "sel", k); await sleep(500);
   const bb = await M.$('[data-ca="build"]'); if (bb) { await bb.scrollIntoViewIfNeeded(); await bb.click(); await shot(M, "s6-ui-53-mobile-build-picker", 1200); await esc(M); } else errs.push("mob: no build button");
   await dev(M, "wpop", true); await shot(M, "s6-ui-54-mobile-wonder-popup", 1300);
+}
+if (only === "all" || only === "p2") {
+  // UI P2/P2b: фоны меню/лобби (+ портрет), карточки рас/карт, вкладки режима, шапка профиля, плитки, полосы рас
+  for (const [mob, sfx] of [[false, ""], [true, "-mobile"]]) {
+    const H = await player("s6_" + T + "_p2h" + (mob ? "m" : ""), "", mob); await noAdmin(H, "home" + sfx); await shot(H, `s6-ui-84${sfx}-p2-menu-bg`, 900);
+    const L = await player("s6_" + T + "_p2l" + (mob ? "m" : ""), "&demo=8&skirm=1", mob); await dev(L, "lobby8", "1v1", 2); await sleep(500);
+    await L.evaluate(() => document.querySelector("#modes")?.scrollIntoView({ block: "start" })); await L.mouse.move(5, 5); await shot(L, `s6-ui-85${sfx}-p2-lobby-modes-races`, 900);
+    await L.evaluate(() => document.querySelector("#races")?.scrollIntoView({ block: "center" })); await shot(L, `s6-ui-85b${sfx}-p2-race-cards`, 700);
+    await L.evaluate(() => document.querySelector("#maps")?.scrollIntoView({ block: "center" })); await shot(L, `s6-ui-86${sfx}-p2-lobby-map-cards`, 900);
+    const V = await player("s6_" + T + "_p2p" + (mob ? "m" : ""), "&demo=8&skirm=1", mob); await dev(V, "prof"); await shot(V, `s6-ui-87${sfx}-p2-profile`, 1300);
+  }
 }
 if (only === "all" || only === "walls") {
   // walls-v2: A|B свои (общая стена + столбики), C враг снизу (двойная стена / частокол front), дорога → ворота; LOD на телефоне

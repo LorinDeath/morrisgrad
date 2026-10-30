@@ -32,7 +32,7 @@ function publicHtml(p: Profile, d: Deps): string {
   const rows = Object.keys(d.raceName).map((r) => {
     const s = rs.find(([k]) => k === r)?.[1] || { games: 0, wins: 0 }, wr = pct(s.wins, s.games);
     return `<div class="prace ${s.games ? "" : "none"}" style="--rc:${d.raceCol(r)}"><span class="pr-cr">${d.crest(r)}</span><b class="pr-n">${d.raceName[r]}</b>
-      <span class="pr-bar" title="Партии"><i style="width:${(s.games / maxG) * 100}%"></i></span><span class="pr-g">${s.games}<small>парт.</small></span><span class="pr-w">${s.wins}<small>побед</small></span>
+      <span class="pr-bar" title="Партии"><i style="width:${(s.games / maxG) * 100}%;--bar:url(/strat/ui2/stats/bar_race_${r}.png)"></i></span><span class="pr-g">${s.games}<small>парт.</small></span><span class="pr-w">${s.wins}<small>побед</small></span>
       <span class="pr-wr ${s.games ? (wr >= 50 ? "hi" : "lo") : ""}">${s.games ? wr + "%" : "—"}</span></div>`;
   }).join("");
   return `<div class="pstats">${tile("flag", String(games), "партий")}${tile("crown", String(wins), "побед", "gold")}${tile("glory", games ? pct(wins, games) + "%" : "—", "винрейт")}${fav && fav[1].games ? `<div class="pstat fav"><span class="ps-cr">${d.crest(fav[0])}</span><b>${d.raceName[fav[0]]}</b><small>любимая раса</small></div>` : tile("user", "—", "любимая раса")}</div>
@@ -49,7 +49,7 @@ function privHtml(p: Profile, d: Deps): string {
   const v = p.priv || {}, rk = v.recordChiefKills;
   const lv = v.chiefLv || {}, lvRow = [1, 2, 3, 4, 5].map((k) => `<span class="plv lv${k}"><em>${k}</em><b>${num(lv[k])}</b></span>`).join("");
   return `<p class="ppriv-note">${ic("lock")}<span>Эту вкладку видите только вы.</span></p>
-    <div class="pstats">${tile("xp", String(num(v.chiefsLeveled)), "Вождей прокачано")}<div class="pstat rec"><span class="ps-ic">${ic("skull")}</span><b>${num(rk?.n)}</b><small>рекорд убийств Вождём${rk?.turn ? ` · к ${rk.turn}-му ходу` : ""}</small>${rk?.race && d.raceName[rk.race] ? `<span class="ps-cr sm">${d.crest(rk.race)}</span>` : ""}</div></div>
+    <div class="pstats">${tile("xp", String(num(v.chiefsLeveled)), "Вождей прокачано")}<div class="pstat rec"><img class="ps-medal" src="/strat/ui2/stats/medal_record.png" alt="" width="48" height="48"><b>${num(rk?.n)}</b><small>рекорд убийств Вождём${rk?.turn ? ` · к ${rk.turn}-му ходу` : ""}</small>${rk?.race && d.raceName[rk.race] ? `<span class="ps-cr sm">${d.crest(rk.race)}</span>` : ""}</div></div>
     <div class="plvrow"><small>Уровни ваших Вождей</small>${lvRow}</div>
     <div class="plists">${listHtml("Любимые технологии", "tech", v.techs, "раз")}${listHtml("Любимые таланты", "spark", v.talents, "раз")}${listHtml("Ульты", "ult", v.ults, "каст.")}</div>`;
 }
@@ -62,8 +62,12 @@ export async function openProfile(get: () => Promise<any>, d: Deps) {
   const priv = !!(p.own && p.priv);
   const coins = p.own && p.coins != null ? `<span class="pcoins" data-tip="Монеты: за победы в рейтинговых партиях">${ic("coin")}<b>${num(p.coins)}</b><small>монет</small></span>` : "";
   const sets = !!(p.own && d.fav && !d.fav.guest()), lib = !!(p.own && d.lib);
-  b.innerHTML = `<div class="phead"><span class="ph-cr">${ic("user")}</span><div><b class="ph-nick"></b><small>игровой профиль</small></div>${coins}</div>
-    ${priv || sets || lib ? `<div class="ptabs" role="tablist"><button class="ptab on" data-t="pub" role="tab">${ic("eye")}<span>Публичный</span></button>${priv ? `<button class="ptab" data-t="priv" role="tab">${ic("lock")}<span>Личное</span></button>` : ""}${sets ? `<button class="ptab" data-t="set" role="tab">${ic("crown")}<span>Любимые расы</span></button>` : ""}${lib ? `<button class="ptab" data-t="lib" role="tab">${ic("book")}<span>Библиотека партий</span></button>` : ""}</div>` : ""}
+  // P2: шапка profile_header (гнездо герба 112,100 r<56 — герб любимой расы; ник с x≥214); подпись — под шапкой (на телефоне 22px в шапке нечитаемы)
+  const favR = Object.entries(p.races || {}).filter(([r]) => d.raceName[r]).sort((a: any, c: any) => num(c[1]?.games) - num(a[1]?.games))[0];
+  const favK = favR && num((favR[1] as any)?.games) ? favR[0] : "";
+  b.innerHTML = `<div class="phead v2"><span class="ph-cr">${favK ? `<img src="/strat/ui/crests/crest_${favK}.png" alt="">` : ic("user")}</span><b class="ph-nick"></b></div>
+    <div class="phsub"><small>игровой профиль${favK ? ` · любимая раса: ${d.raceName[favK]}` : ""}</small>${coins}</div>
+    ${priv || sets || lib ? `<div class="ptabs" role="tablist"><button class="ptab on tpub" data-t="pub" role="tab">${ic("eye")}<span>Публичный</span></button>${priv ? `<button class="ptab tpriv" data-t="priv" role="tab">${ic("lock")}<span>Личное</span></button>` : ""}${sets ? `<button class="ptab" data-t="set" role="tab">${ic("crown")}<span>Любимые расы</span></button>` : ""}${lib ? `<button class="ptab" data-t="lib" role="tab">${ic("book")}<span>Библиотека партий</span></button>` : ""}</div>` : ""}
     <div class="ppane" data-p="pub">${publicHtml(p, d)}</div>${priv ? `<div class="ppane" data-p="priv" hidden>${privHtml(p, d)}</div>` : ""}${sets ? `<div class="ppane" data-p="set" hidden>${d.fav!.html()}</div>` : ""}${lib ? `<div class="ppane" data-p="lib" hidden>${d.lib!.html()}</div>` : ""}`;
   if (lib) d.lib!.bind(b.querySelector<HTMLElement>('.ppane[data-p="lib"]')!);
   if (sets) d.fav!.bind(b.querySelector<HTMLElement>('.ppane[data-p="set"]')!);
