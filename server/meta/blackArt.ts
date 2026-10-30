@@ -582,6 +582,19 @@ export function mobShotOrigins(mz: [number, number][], n: number, x: number, y: 
   }
   return out;
 }
+/** направления веера ИЗ ДУЛ на цель (tx, ty): дуло смещено от центра (рука/посох), поэтому каждый снаряд целится от своей точки вылета,
+ *  иначе он летит параллельно линии «центр → цель» и проходит мимо (на ~45 px выше). Смещение веера (staffSpread) сохраняется.
+ *  Цель ближе minD к дулу — прежнее направление (не разворачиваем назад). */
+export function aimDirs(D: [number, number][], O: [number, number][], tx: number, ty: number, ux: number, uy: number, minD = 24): [number, number][] {
+  const a0 = Math.atan2(uy, ux), out: [number, number][] = [];
+  for (let i = 0; i < D.length; i++) {
+    const o = O[i] || O[0], ex = tx - o[0], ey = ty - o[1];
+    if (!o || Math.hypot(ex, ey) < minD) { out.push(D[i]); continue; }
+    const a = Math.atan2(ey, ex) + (Math.atan2(D[i][1], D[i][0]) - a0);
+    out.push([Math.cos(a), Math.sin(a)]);
+  }
+  return out;
+}
 /** сторона взгляда моба на цель: |ux| мал (цель строго сверху/снизу) — прежняя сторона */
 export const faceLeftOf = (ux: number, prev: boolean) => (Math.abs(ux) > 0.2 ? ux < 0 : !!prev);
 export function staffDirs(n: number, dx: number, dy: number): [number, number][] {

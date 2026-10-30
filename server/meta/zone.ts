@@ -25,7 +25,7 @@ import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { pathWorld, steer, hbTouch } from "./skillCraft";
 import { mitigateDamage } from "./balance";
-import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf, swingEv } from "./blackArt";
+import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, aimDirs, faceLeftOf, swingEv } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, campElems, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
@@ -632,9 +632,10 @@ export class Zone {
     return seen.size;
   }
   /** выстрел чёрного моба по мобу: настоящий снаряд (урон при попадании, увернуться можно) */
-  bmShootMob(m: ZMob, d: any, ux: number, uy: number, dmg: number, onKill: (m: ZMob) => void) {
+  bmShootMob(m: ZMob, d: any, ux: number, uy: number, dmg: number, onKill: (m: ZMob) => void, tgt?: { x: number; y: number }) {
     const A = d.bmAtk, w = A.width || 20; let last: any = null;
-    const D = staffDirs(A.count || 1, ux, uy), O = mobShotOrigins(d.bmMz || [], D.length, m.x, m.y, !!(m as any).bmFl); // из дула посоха В РУКЕ (сторона взгляда)
+    const D0 = staffDirs(A.count || 1, ux, uy), O = mobShotOrigins(d.bmMz || [], D0.length, m.x, m.y, !!(m as any).bmFl); // из дула посоха В РУКЕ (сторона взгляда)
+    const D = tgt ? aimDirs(D0, O, tgt.x, tgt.y, ux, uy) : D0; // из дула — на цель
     for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i]; // посохи во 2/3 слоте: по снаряду на каждый, у каждого полный урон
       last = this.fire({ o: "m", mob: m.id, t: d.elem === "ice" ? "ice_bolt" : "fire_spark", x: O[i][0], y: O[i][1], dx: vx, dy: vy, range: A.range, w, max: 1, spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2), bm: 1,
         vm: 1, foe: this.bmFoe(m), onMob: (t: ZMob) => this.mobHit(m, t, dmg, onKill) } as any); }
@@ -652,7 +653,8 @@ export class Zone {
       else if (dist < want - 60) { m.x -= ux * sp * 0.6 * dt; m.y -= uy * sp * 0.6 * dt; this.solid(m); }
       if (dist <= A.range * 0.95 && m.atkCd <= 0) {
         const w = A.width || 20;
-        const D = staffDirs(A.count || 1, ux, uy), O = mobShotOrigins(d.bmMz || [], D.length, m.x, m.y, !!(m as any).bmFl); // из дула посоха в руке (риг зеркален при взгляде влево)
+        const D0 = staffDirs(A.count || 1, ux, uy), O = mobShotOrigins(d.bmMz || [], D0.length, m.x, m.y, !!(m as any).bmFl); // из дула посоха в руке (риг зеркален при взгляде влево)
+        const D = aimDirs(D0, O, best.x, best.y, ux, uy); // целимся из дула, а не из центра моба: иначе снаряд идёт параллельно и мимо
         for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i];
           this.cast(m, { kind: "line", at: now + Math.round(Math.max(0, Number(BMA_CFG.mobAimMs) || 0)), x: O[i][0], y: O[i][1], dx: vx, dy: vy, len: A.range, w, dmg: d.dmg * 1.2 * mul, ...(A.shot ? { shot: A.shot } : {}), ...(d.elem && d.elem !== "fire" && d.elem !== "ice" ? { el: d.elem } : {}), proj: d.elem === "ice" || d.elem === "water" || d.elem === "lightning" ? "ice_bolt" : "fire_spark", spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2) } as any); }
         m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); // без windup: он у мобов запускает рывок
@@ -703,7 +705,7 @@ export class Zone {
     if (A.kind === "proj") {
       const want = Math.min(A.range * 0.6, 220);
       if (dist > want) { m.x += ux * sp; m.y += uy * sp; this.solid(m); }
-      if (dist <= A.range * 0.95 && m.atkCd <= 0) { this.bmShootMob(m, d, ux, uy, dmg * 1.2, onKill); m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); }
+      if (dist <= A.range * 0.95 && m.atkCd <= 0) { this.bmShootMob(m, d, ux, uy, dmg * 1.2, onKill, t); m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); }
       return true;
     }
     const want = Math.max(d.radius + td.radius + 6, A.range * 0.55);
