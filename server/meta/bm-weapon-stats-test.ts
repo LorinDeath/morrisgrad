@@ -29,7 +29,7 @@ const mob = (id: string, el: string, core: string, extra: any = {}) => {
 const bladeBd = (el: string) => (Number(BM_PARTS[`${el}_handle`].stats.bdmg) || 0) + (Number(BM_PARTS[`${el}_blade`].stats.bdmg) || 0);
 const G = mob("bmx_t_glass", "fire", "bpx_t_core_glass"), F = mob("bmx_t_fort", "stone", "bpx_t_core_fort"), M = mob("bmx_t_mid", "water", "bpx_t_core_mid");
 ok(Math.abs(G.bdmg - (5 + bladeBd("fire"))) < 1e-6, `bdmg = сумма деталей (стекло ${G.bdmg})`);
-ok(!G.bmDef && F.bmDef?.bcap === Math.max(1, Number(BMA_CFG.caps.bcap) || 0) && F.bmDef?.barm >= 4 && M.bmDef?.bcap === 10, "barm/bcap деталей → защита моба");
+ok(G.bmDef?.bcap === Number(BM_PARTS.fire_handle.stats.bcap) && !G.bmDef?.barm && F.bmDef?.bcap === Math.max(1, Number(BMA_CFG.caps.bcap) || 0) && F.bmDef?.barm >= 4 && M.bmDef?.bcap === 10, "barm/bcap деталей → защита моба (рукоять по умолчанию — предельная броня)");
 ok(BM_MOBS.bmx_t_glass && G.bmSkills?.includes(BM_PARTS.fire_blade.skill) && ownSkills(G).includes(BM_PARTS.fire_blade.skill), "«Навык части» лезвия → навык моба");
 // ---------- бой: мир ----------
 function world() {
