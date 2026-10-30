@@ -4,6 +4,8 @@ const K = "#1a1420", G = "#e0b04a", G2 = "#f3d27a", I = "#f4ead2", R = "#b3261e"
 const s = (body: string) => `<g stroke="${K}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${body}</g>`;
 export const ICONS: Record<string, string> = {
   chat: s(`<path d="M3.5 5h17v11H10l-4.5 4v-4h-2z" fill="${I}"/><path d="M7.5 9.5h9M7.5 12.5h6" fill="none"/>`),
+  gear: s(`<path d="M10.3 2.5h3.4l.5 2.6 1.9.8 2.2-1.5 2.4 2.4-1.5 2.2.8 1.9 2.6.5v3.4l-2.6.5-.8 1.9 1.5 2.2-2.4 2.4-2.2-1.5-1.9.8-.5 2.6h-3.4l-.5-2.6-1.9-.8-2.2 1.5-2.4-2.4 1.5-2.2-.8-1.9-2.6-.5v-3.4l2.6-.5.8-1.9-1.5-2.2 2.4-2.4 2.2 1.5 1.9-.8z" fill="${I}"/><circle cx="12" cy="12" r="3.2" fill="${G}"/>`),
+  sound: s(`<path d="M4 9.5h4l5-4.5v14l-5-4.5H4z" fill="${I}"/><path d="M16 9.2a4 4 0 010 5.6M18.5 6.8a7.5 7.5 0 010 10.4" fill="none" stroke="${G}" stroke-width="2"/>`),
   mute: s(`<path d="M4 9.5h4l5-4.5v14l-5-4.5H4z" fill="${I}"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="${R}" stroke-width="2.2"/>`),
   ult: s(`<path d="M12 1.5l2.4 6.3 6.6-1.9-3.9 5.6 4.9 4.6-6.7.3L12 22.5l-3.3-6.1-6.7-.3 4.9-4.6L3 5.9l6.6 1.9z" fill="${R}"/><path d="M12 7l1.3 3.2 3.2.3-2.4 2.2.8 3.3L12 14.3 9.1 16l.8-3.3-2.4-2.2 3.2-.3z" fill="${G2}"/>`),
   zap: s(`<path d="M13.5 2L5 13.5h6L9.5 22 19 9.5h-6.2z" fill="${G}"/>`),
@@ -87,13 +89,24 @@ export function injectIcons() {
 }
 /** Разметка иконки: <svg class="ic"><use href="#i-name"></svg>. Неизвестное имя → «spark». */
 /** Ресурсные иконки из UI-набора Художника (ui-v1, icon_res_*): PNG вместо SVG-заглушек. */
-export const KIT_ICON: Record<string, string> = { gold: "gold", know: "knowledge", glory: "glory", ap: "ap", wheat: "growth", growth: "growth", shield: "armor", sword: "attack", heart: "hp" };
+export const KIT_ICON: Record<string, string> = { know: "knowledge", glory: "glory", ap: "ap", wheat: "growth", growth: "growth", shield: "armor", sword: "attack", heart: "hp" };
 const kitSrc = (name: string) => `/strat/ui/icons/icon_res_${KIT_ICON[name]}_64.png`;
 /** UI v2 (Художник, ui-v2/icons): 53 иконки 64/32 px. Имя игры → имя арта; нет в наборе — SVG-заглушка. */
-export const ART_ICONS = new Set("anvil arrow back bolt book boot build burn castle cauldron chat check chill clock close copy crown dice era eye flag flame heart horse leaf lock map menu mountain mute outpost plus recruit refresh report scales shield skull snow spark sword target tower turn coin ult user wall warn wave wheat whisper xp zap".split(" "));
-const ART_ALIAS: Record<string, string> = { play: "arrow", chevron: "arrow", tech: "book", know: "book", apoff: "warn", danger: "warn", ability: "zap", rp_play: "replay_play", rp_pause: "replay_pause", rp_back: "replay_step_back", rp_fwd: "replay_step_fwd", rp_start: "replay_to_start", rp_end: "replay_to_end", rp_save: "replay_save", rp_hist: "replay_history" };
+export const ART_ICONS = new Set("account_coin anvil arrow back bolt book boot build burn castle cauldron chat check chief_aura chief_banner chief_command chief_inspire chief_levy chief_rally chief_slayer chief_tough chief_ult chief_zeal chill clock close coin copy crown dice elem_fire elem_ice elem_lightning elem_nature elem_stone elem_water era eye flag flame gold_ingot gold_stack heart horse hs_dead hs_hurt hs_low hs_ok leaf lock map menu mountain mute outpost plus recruit refresh replay_history replay_pause replay_play replay_save replay_step_back replay_step_fwd replay_to_end replay_to_start report scales shield skill_fireball skill_heroic skill_quake skill_shieldwall skill_trample skull snow spark sword target tech_ambush tech_ap tech_arm tech_atk tech_burn tech_cav tech_chill tech_defense tech_discount tech_glory tech_gold tech_growth tech_heal tech_hp tech_kill tech_king tech_know tech_mage tech_move tech_outpost tech_radius tech_recruit tech_research tech_scout tech_shot tech_siege tech_summon tech_territory tech_trade tech_unlock tech_wonder tower turn ult user wall warn wave wheat whisper xp zap".split(" "));
+/** Аудит п.7: монета аккаунта ≠ золото партии; ульты/реплей — по серверным ключам. */
+const ART_ALIAS: Record<string, string> = { play: "arrow", chevron: "arrow", tech: "book", know: "book", apoff: "warn", danger: "warn", ability: "zap", tower: "tower", coin: "account_coin", gold: "gold_stack", ingot: "gold_ingot",
+  rp_play: "replay_play", rp_pause: "replay_pause", rp_back: "replay_step_back", rp_fwd: "replay_step_fwd", rp_start: "replay_to_start", rp_end: "replay_to_end", rp_save: "replay_save", rp_hist: "replay_history" };
+/** Мобильный набор 24 pt (ui-v2/icons_mobile): файл → @1x/@2x/@3x, показ 24 CSS px на телефоне. */
+const MOBILE = new Set("bot_mark icon_anvil icon_arrow icon_book icon_chat icon_chill icon_copy icon_era icon_map icon_mute icon_recruit icon_replay_history icon_replay_step_back icon_replay_step_fwd icon_replay_to_end icon_replay_to_start icon_scales icon_wheat icon_zap league_fast league_normal league_tactic provisional_mark".split(" "));
+const MOB_ALIAS: Record<string, string> = { bot: "bot_mark", provisional: "provisional_mark" };
+export const isPhone = () => typeof matchMedia !== "undefined" && matchMedia("(max-width: 720px), (max-height: 500px) and (pointer: coarse)").matches;
+export function mobIcon(name: string): string | null {
+  const a = MOB_ALIAS[name] || (ART_ICONS.has(name) ? name : ART_ALIAS[name]) || name; const f = MOBILE.has("icon_" + a) ? "icon_" + a : MOBILE.has(a) ? a : null;
+  if (!f) return null; const b = `/strat/ui2/icons_mobile/${f}_24m`; return `src="${b}.png" srcset="${b}.png 1x, ${b}@2x.png 2x, ${b}@3x.png 3x"`;
+}
 export const artIcon = (name: string, big = false) => { if (name === "bot") return "/strat/ui2/badges/bot_mark.png"; const a = ART_ICONS.has(name) ? name : ART_ALIAS[name]; return a ? `/strat/ui2/icons/icon_${a}_${big ? 64 : 32}.png` : null; };
 export const ic = (name: string, cls = "") => {
+  if (!/\b(mono|big)\b/.test(cls) && isPhone()) { const m = mobIcon(name); if (m) return `<img class="ic m24 i-${name} ${cls}" ${m} alt="" aria-hidden="true" draggable="false">`; }
   if (KIT_ICON[name]) return `<img class="ic kit ${cls}" src="${kitSrc(name)}" alt="" aria-hidden="true" draggable="false">`;
   const a = !/\bmono\b/.test(cls) && artIcon(name, /\bbig\b/.test(cls));
   return a ? `<img class="ic art i-${name} ${cls}" src="${a}" alt="" aria-hidden="true" draggable="false">` : `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${ICONS[name] ? name : "spark"}"/></svg>`;

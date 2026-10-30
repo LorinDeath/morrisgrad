@@ -15,8 +15,8 @@ import { canBuild, buildCost } from "../../../server/strat/econ";
 import { openMap, passable } from "../../../server/strat/terrain";
 import { ic, iconImg, BUILD_ICON } from "./icons";
 import { esc } from "./ui-kit";
-import { bSprite, bImg, drawAnchored, drawBanner, isBig, wonderStage, bCard, PLACEHOLDER, PH_ICON, E4_FRAME } from "./bldart";
-import { hpBarArt, HS_STEP, drawCapture, drawSettleRing, uImg, BUY_MARKER } from "./ui2art";
+import { bSprite, bImg, drawAnchored, drawBanner, isBig, wonderStage, bCard, bLod, LOD_MAX } from "./bldart";
+import { hpBarArt, hsBarArt, HS_STEP, drawCapture, drawSettleRing, uImg, BUY_MARKER } from "./ui2art";
 import { cfgOf, rv, bName, ECON_ERR, type Ctx } from "./econ-ui";
 
 type SX = (v: number) => number;
@@ -240,6 +240,7 @@ export function towerHp(G: GameState, t: any, cfg: StratCfg): BRow { const ec: a
 /** Полоса ОЗ постройки в рамке ui-v2 (hp_bar_frame / _enemy): x,w — жёлоб, рамка выступает на 1,25·h с боков. */
 function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fr: number, hs?: string, enemy = false, redraw?: () => void) {
   const fill = hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#c9a24a" : fr > 0.25 ? "#e07a2a" : "#c23a2a";
+  if (hs && hsBarArt(ctx, x - h * 1.25, y, w + h * 2.5, h, hs, redraw)) return; // аудит п.5: готовая полоса 3 ячейки
   hpBarArt(ctx, x - h * 1.25, y, w + h * 2.5, h, hs ? (HS_STEP[hs] ?? 0) / 3 : fr, fill, enemy, redraw, hs ? 3 : 0); // M4: скрытое — 3 ступени
 }
 /** Раскладка построек города по клеткам его земли (сервер позиций не шлёт): по порядку постройки, ближние клетки первыми;
@@ -286,12 +287,12 @@ export function drawBuildings(ctx: CanvasRenderingContext2D, c: Ctx, z: number, 
     for (const b of items) { const p = lay.get(b); if (!p || !vis(p.x, p.y)) continue; const ruin = !live.includes(b), r = rows.find((q) => q.b === b && !!q.ruin === ruin);
       const big = p.big, X0 = big ? Math.min(sx(p.x), sx(p.x + 1)) : sx(p.x), Y0 = big ? Math.min(sy(p.y), sy(p.y + 1)) : sy(p.y), W = big ? 2 * z : z;
       const st = b === "wonder" ? stg : 0, src = bSprite(b, race, { lv2: b === "forge" && lv2, stage: st && st < 4 ? st : 0 });
-      L.push({ Y: Y0 + W, sprite: () => { const im = src ? bImg(src, c.redraw) : null;
+      const lodSrc = !big && z <= LOD_MAX && !ruin ? bLod(b) : null; // телефон/дальний зум: плоский LOD 64
+      L.push({ Y: Y0 + W, sprite: () => { const lim = lodSrc ? bImg(lodSrc, c.redraw) : null, im = lim || (src ? bImg(src, c.redraw) : null);
         ctx.save(); if (ruin) { ctx.filter = "grayscale(1) brightness(0.55)"; ctx.globalAlpha = 0.85; }
         ctx.fillStyle = c.col(ct.owner) + "40"; ctx.beginPath(); ctx.ellipse(X0 + W / 2, Y0 + W * 0.86, W * 0.36, W * 0.09, 0, 0, 7); ctx.fill();
-        if (im) drawAnchored(ctx, im, X0 + W / 2, Y0 + W * 0.9, W * (big ? 1.25 : 1.15), big || isBig(b));
-        else if (PLACEHOLDER.includes(b)) { const fr = bImg(E4_FRAME, c.redraw), ii = iconImg(PH_ICON[b] || "build", c.redraw), s0 = W * 0.7, fx = X0 + W / 2 - s0 / 2, fy = Y0 + W * 0.88 - s0; // эпоха IV: рамка + значок
-          if (fr) ctx.drawImage(fr, fx, fy, s0, s0); if (ii) ctx.drawImage(ii, fx + s0 * 0.33, fy + s0 * (70 / 128) - s0 * 0.17, s0 * 0.34, s0 * 0.34); }
+        if (lim) drawAnchored(ctx, lim, X0 + W / 2, Y0 + W * 0.9, W, false, true);
+        else if (im) drawAnchored(ctx, im, X0 + W / 2, Y0 + W * 0.9, W * (big ? 1.25 : 1.15), big || isBig(b));
         else { const ii = iconImg(BUILD_ICON[b] || "build", c.redraw); ctx.fillStyle = "#1a1420cc"; ctx.strokeStyle = c.col(ct.owner); ctx.lineWidth = Math.max(1.2, z * 0.03); // заглушка: арта нет
           ctx.beginPath(); ctx.roundRect(X0 + W * 0.22, Y0 + W * 0.2, W * 0.56, W * 0.56, W * 0.1); ctx.fill(); ctx.stroke(); if (ii) ctx.drawImage(ii, X0 + W * 0.3, Y0 + W * 0.28, W * 0.4, W * 0.4); }
         ctx.restore(); },
@@ -305,8 +306,8 @@ export function drawBuildings(ctx: CanvasRenderingContext2D, c: Ctx, z: number, 
   L.sort((A, B) => A.Y - B.Y); for (const d of L) d.sprite(); for (const d of L) d.over(); for (const f of banners) f();
   for (const t of towersOf(G)) { if (!vis(t.x, t.y)) continue; const X = sx(t.x), Y = sy(t.y), r = towerHp(G, t, cfg);
     ctx.fillStyle = c.col(t.owner) + "55"; ctx.beginPath(); ctx.ellipse(X + z / 2, Y + z * 0.84, z * 0.3, z * 0.09, 0, 0, 7); ctx.fill();
-    const src = bSprite("watchtower", G.races[t.owner] || "fire"), im = src ? bImg(src, c.redraw) : null; // bld_watchtower (256, якорь 128,234)
-    if (im) drawAnchored(ctx, im, X + z / 2, Y + z * 0.9, z * 1.15, false); else { const ii = iconImg("tower", c.redraw); if (ii) ctx.drawImage(ii, X + z * 0.18, Y + z * 0.12, z * 0.64, z * 0.64); }
+    const lo = z <= LOD_MAX ? bImg(bLod("watchtower")!, c.redraw) : null, src = bSprite("watchtower", G.races[t.owner] || "fire"), im = src ? bImg(src, c.redraw) : null; // bld_watchtower (256, якорь 128,234) / LOD 64
+    if (lo) drawAnchored(ctx, lo, X + z / 2, Y + z * 0.9, z, false, true); else if (im) drawAnchored(ctx, im, X + z / 2, Y + z * 0.9, z * 1.15, false); else { const ii = iconImg("tower", c.redraw); if (ii) ctx.drawImage(ii, X + z * 0.18, Y + z * 0.12, z * 0.64, z * 0.64); }
     bar(ctx, X + z * 0.2, Y + z * 0.8, z * 0.6, bh, (r.hp ?? 0) / Math.max(1, r.max ?? 1), r.hs && r.hp == null ? r.hs : undefined, t.owner !== S.you, c.redraw); }
 }
 /** Цели удара по постройкам для фигуры: сервер (догадка S.raze[id]) или по тем же клеткам удара, что и атака. */

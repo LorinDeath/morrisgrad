@@ -1,30 +1,32 @@
 // Арт построек (buildings-v1 Художника): спрайты на доске, карточки/иконки в выборе стройки, слоты и рамки найма в окне
 // столицы, баннеры городов (3-slice), стадии и сцена Великого чуда. Файлы — плоско в /strat/buildings/ (manifest.json рядом).
-// Сопоставление id сервера → арт: quarry→quarry_r, sacredgrove→grove, lightningrod→rod; magetower — вариант расы;
+// Расовые — по серверным id (bld_quarry/sacredgrove/lightningrod — копии quarry_r/grove/rod из аудита); magetower — вариант расы;
 // forge — bld_forge_lv2, если Кузня в городе стоит дважды; wonder — чудо своей расы (fire→eternal_fire, ice→permafrost,
-// water→great_tide, stone→great_wall, nature→world_tree, lightning→storm_eye); observatory — заглушка 1×1 (аудит B1).
-// Без арта (заглушки: рамка эпохи IV + значок): warhall, stronghold, mint, metropolis, observatory. arena/lighthouse пока не привязаны.
+// water→great_tide, stone→great_wall, nature→world_tree, lightning→storm_eye). Легендарные эпохи IV (аудит): warhall, stronghold,
+// mint, metropolis, observatory — обычный слот 1×1 (256, якорь 128,234). LOD 64 (якорь 32,58) — при клетке ≤48 CSS px. arena/lighthouse не привязаны.
 // ДОГАДКА: сервер не шлёт стадий стройки чуда — читаются защитно city.wonder{stage|prog|left,total} | city.wb | city.build{b:"wonder"}.
 import { esc } from "./ui-kit";
 import { ic } from "./icons";
 
 export const BLD_DIR = "/strat/buildings/";
 const RACE_LIST = ["fire", "ice", "water", "stone", "nature", "lightning"];
-const SHARED = new Set(["barracks", "stable", "forge", "magetower", "library", "market", "granary", "wall", "watchtower", "warcouncil"]);
-const RACE_B: Record<string, string> = { crucible: "crucible", glacier: "glacier", harbor: "harbor", quarry: "quarry_r", sacredgrove: "grove", lightningrod: "rod" };
+const SHARED = new Set(["barracks", "stable", "forge", "magetower", "library", "market", "granary", "wall", "watchtower", "warcouncil",
+  "warhall", "stronghold", "mint", "metropolis", "observatory"]);
+const RACE_B: Record<string, string> = { crucible: "crucible", glacier: "glacier", harbor: "harbor", quarry: "quarry", sacredgrove: "sacredgrove", lightningrod: "lightningrod" };
+/** LOD 64×64 (buildings-v1/lod, 21 шт.) — дальний зум и телефон. */
+const LOD = new Set([...SHARED, ...Object.keys(RACE_B)]);
+export const LOD_MAX = 48;
+export const bLod = (b: string) => (LOD.has(b) ? BLD_DIR + "lod/bld_" + b + "_lod.png" : null);
 export const WONDER_ART: Record<string, string> = { fire: "eternal_fire", ice: "permafrost", water: "great_tide", stone: "great_wall", nature: "world_tree", lightning: "storm_eye" };
 /** Имена чудес рас (content-cfg WIP-сервера). */
 /** Имена заглушек, которых нет в BUILD клиента (имена — догадка до правил). */
 export const PH_NAME: Record<string, string> = { watchtower: "Сторожевая башня", warcouncil: "Военный совет", warhall: "Чертог войны", stronghold: "Несокрушимая твердыня", mint: "Монетный двор", metropolis: "Метрополия", observatory: "Обсерватория" };
 export const WONDER_NAME: Record<string, string> = { fire: "Вечное пламя", ice: "Ледяной трон", water: "Великий маяк", stone: "Сердце горы", nature: "Древо мира", lightning: "Небесный шпиль" };
-// Аудит B1: легендарная observatory — обычный слот 1×1 (256, якорь 128,234), wonder_observatory (2×2) для неё не годится → заглушка.
 const BIG: Record<string, string> = {};
-/** Легендарные постройки эпохи IV без арта: аккуратная заглушка (рамка era4_node_frame + значок), пока Художник не сдаст bld_*. */
-export const PLACEHOLDER = ["warhall", "stronghold", "mint", "metropolis", "observatory"];
-export const PH_ICON: Record<string, string> = { warhall: "sword", stronghold: "shield", mint: "gold", metropolis: "castle", observatory: "eye" };
-export const E4_FRAME = "/strat/ui2/frames/era4_node_frame.png";
+/** Легендарные постройки эпохи IV (для рамки/метки «IV» в UI). */
+export const LEGEND = ["warhall", "stronghold", "mint", "metropolis", "observatory"];
 /** Якоря из manifest: постройка 256² → (128,234); чудо 512² → (256,476), занимает 2×2 клетки. */
-export const ANCHOR = { b: { s: 256, x: 128, y: 234 }, w: { s: 512, x: 256, y: 476 } };
+export const ANCHOR = { b: { s: 256, x: 128, y: 234 }, w: { s: 512, x: 256, y: 476 }, l: { s: 64, x: 32, y: 58 } };
 
 const wId = (b: string, race: string) => (b === "wonder" ? WONDER_ART[race] || "eternal_fire" : BIG[b] || null);
 export const isBig = (b: string) => b === "wonder" || !!BIG[b];
@@ -68,8 +70,8 @@ export function bImg(src: string, onLoad?: () => void): HTMLImageElement | null 
   return im.complete && im.naturalWidth ? im : null;
 }
 /** Рисует спрайт с якорем: (ax, ay) — точка на экране, куда встаёт якорь; size — сторона кадра на экране. */
-export function drawAnchored(ctx: CanvasRenderingContext2D, im: HTMLImageElement, ax: number, ay: number, size: number, big: boolean) {
-  const A = big ? ANCHOR.w : ANCHOR.b, k = size / A.s; ctx.drawImage(im, ax - A.x * k, ay - A.y * k, size, size);
+export function drawAnchored(ctx: CanvasRenderingContext2D, im: HTMLImageElement, ax: number, ay: number, size: number, big: boolean, lod = false) {
+  const A = lod ? ANCHOR.l : big ? ANCHOR.w : ANCHOR.b, k = size / A.s; ctx.drawImage(im, ax - A.x * k, ay - A.y * k, size, size);
 }
 /** Баннер города 3-slice на холсте (cx — центр): L96 / середина 96..384 тянется / R96; имя — на середине. */
 export function drawBanner(ctx: CanvasRenderingContext2D, race: string, name: string, cx: number, y: number, h: number, redraw?: () => void) {
@@ -84,7 +86,7 @@ export function drawBanner(ctx: CanvasRenderingContext2D, race: string, name: st
 export const bannerHtml = (race: string, name: string, cls = "") => `<span class="cbanner ${cls}" style="--bn:url('${bannerSrc(race)}')"><span>${esc(name)}</span></span>`;
 /** Иконка постройки для чипов/строк: 64-px арт или SVG-заглушка. */
 export function bIconHtml(b: string, fallbackIcon: string): string { const s = bIcon64(b); if (s) return `<img class="ic img bico" src="${s}" alt="">`;
-  return PLACEHOLDER.includes(b) ? `<span class="e4fr ph" title="Арт в работе">${ic(PH_ICON[b] || fallbackIcon)}</span>` : ic(fallbackIcon); }
+  return ic(fallbackIcon); }
 
 /** Всплывающее окно «Чудо построено»: сцена 1024×768, текст — в приглушённом центре 640×480. */
 export function wonderPopup(o: { race: string; b?: string; title: string; city: string; who: string; eff: string; mine: boolean }): HTMLElement {

@@ -7,6 +7,7 @@ import { TECHS, BUILD, techSibling, UNLOCK, HERO_ERA, type BuildId, type Tech } 
 import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, canFound, sz } from "../../../server/strat/econ";
 import { mergeCfg } from "../../../server/strat/cfg";
 import { ic, BUILD_ICON, BRANCH_ICON, iconImg } from "./icons";
+import { TECH_ICON } from "./tech-icons";
 import { esc, modal, choiceDlg, confirmDlg } from "./ui-kit";
 import { pasIcon, buildPassive, techPassive, talentPassive, regPassive } from "./passives";
 import { bCard, bSprite, bIcon64, isBig, wonderStage, bannerHtml, SLOT, RECRUIT_FRAME, WONDER_NAME, PH_NAME } from "./bldart";
@@ -50,6 +51,12 @@ export function rv<T extends Record<string, any>>(o: T | undefined, race: string
   return v && typeof v === "object" ? { ...o, ...v } : o as any;
 }
 /** Иконка из данных: имя из набора SVG, путь к картинке (арт Художника) или запасная. */
+/** Иконка узла технологии: tech_icon_map Художника (96 id) → иконка стихии расы для ветки elem → серверная иконка → ветка. */
+export function techIc(n: { id: string; br: string; icon?: any }, race: string): string {
+  const t = TECH_ICON[n.id]; if (t) return ic(t);
+  if (n.br === "elem" && race) return ic("elem_" + race);
+  return dataIcon(n.icon || BRANCH_ICON[n.br] || "spark", BRANCH_ICON[n.br] || "spark");
+}
 export function dataIcon(icon: any, fallback: string): string {
   if (typeof icon === "string" && /^(\/|https?:)/.test(icon)) return `<img class="ic img" src="${esc(icon)}" alt="">`;
   if (typeof icon === "string" && /^[a-z0-9_]+$/.test(icon)) return ic(icon);
@@ -206,7 +213,7 @@ export function renderTech(c: Ctx) {
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
     return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
-      <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${dataIcon(n.icon || BRANCH_ICON[n.br] || "spark", BRANCH_ICON[n.br] || "spark")}</span>` : n.icon ? `<span class="tn-ic">${dataIcon(n.icon, BRANCH_ICON[n.br] || "spark")}</span>` : ""}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
+      <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
       <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>
       <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + cost(n.era)}</em></button>`; };
   const cell = (br: string, era: number) => {

@@ -36,21 +36,34 @@ const title = 'Партия Чёрных королей | Моррис Град'
       <img class="divider" src="/strat/ui/ornaments/divider_ornate.png" alt="" />
     </div>
     <div id="resume" class="panel resume" hidden></div>
+    <div id="cmdr" class="panel cmdr" aria-label="Полководец"></div>
     <div class="menu-grid">
-      <div class="panel newgame">
-        <h2 class="plate">Новая партия</h2>
+      <div class="panel newgame" id="playpanel">
+        <h2 class="plate">Играть</h2>
+        <div class="pmodes" role="radiogroup" aria-label="Тип партии">
+          <button type="button" class="pmode on" data-pm="normal" role="radio" aria-checked="true"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><b>Обычная</b><small>любая карта и настройки</small></button>
+          <button type="button" class="pmode" data-pm="ranked" role="radio" aria-checked="false"><svg class="ic" aria-hidden="true"><use href="#i-glory"/></svg><b>Рейтинговая</b><small>пул карт, лига по размеру</small></button>
+          <button type="button" class="pmode" data-pm="bot" role="radio" aria-checked="false"><svg class="ic" aria-hidden="true"><use href="#i-bot"/></svg><b>С ботом</b><small>хост сажает бота</small></button>
+        </div>
         <label class="fld"><span>Поле</span>
-          <select id="size"><option value="8" selected>8×8 — быстрая</option><option value="15">15×15 — большая</option><option value="5">5×5 — дуэль</option></select></label>
+          <select id="size"><option value="8" selected>8×8 — Быстрая лига</option><option value="15">15×15 — Обычная лига</option><option value="5">5×5 — дуэль, Быстрая лига</option></select></label>
         <label class="chk"><input type="checkbox" id="pub" checked /><span>Показывать лобби в общем списке</span></label>
         <button class="btn gold big" id="create"><svg class="ic" aria-hidden="true"><use href="#i-crown"/></svg><span>Создать лобби</span></button>
-        <img class="divider sm" src="/strat/ui/ornaments/divider_h.png" alt="" />
         <h3 class="deco-h"><span>Войти по коду</span></h3>
         <div class="joinrow"><input id="joincode" maxlength="6" placeholder="КОД" autocomplete="off" spellcheck="false" /><button class="btn" id="joinbtn"><span>Войти</span></button></div>
         <label class="fld"><span>Имя для игры гостем</span><input id="nick" maxlength="24" placeholder="необязательно" autocomplete="nickname" /></label>
-        <button class="btn ghost" id="profbtn"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg><span>Профиль</span></button>
-        <button class="btn ghost" id="topbtn"><svg class="ic" aria-hidden="true"><use href="#i-glory"/></svg><span>Таблицы лиг</span></button>
-        <button class="btn ghost" id="rulesbtn"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg><span>Правила</span></button>
       </div>
+      <nav class="panel mnav" aria-label="Разделы">
+        <h2 class="plate">Разделы</h2>
+        <div class="mtiles">
+          <button type="button" class="mtile" id="topbtn"><img src="/strat/ui2/leagues/league_fast_64.png" alt="" /><b>Рейтинг</b><small>лиги, моё место</small></button>
+          <button type="button" class="mtile" id="profbtn"><span class="mt-em" id="profem"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg></span><b>Профиль</b><small>статистика, расы, монеты</small></button>
+          <button type="button" class="mtile" id="libbtn"><img src="/strat/ui2/icons/icon_replay_history_64.png" alt="" /><b>Библиотека партий</b><small>недавние и сохранённые</small></button>
+          <button type="button" class="mtile" id="mapsbtn"><img src="/strat/ui2/icons/icon_map_64.png" alt="" /><b>Карты игроков</b><small>рейтинговый пул, хаб</small></button>
+          <button type="button" class="mtile" id="rulesbtn"><img src="/strat/ui2/icons/icon_book_64.png" alt="" /><b>Правила</b><small>как играть, правила лиг</small></button>
+          <button type="button" class="mtile" id="setbtn"><span class="mt-em"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></span><b>Настройки</b><small>вид, ОЗ, звук</small></button>
+        </div>
+      </nav>
       <div class="panel lobbies">
         <h2 class="plate">Ждут соперника</h2>
         <button class="btn sq ghost refresh" id="refresh" aria-label="Обновить"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
@@ -91,7 +104,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
             <h3 class="deco-h"><span>Размер поля</span></h3>
             <div id="sizes" class="sizes"></div>
             <label class="fld inline"><span>Свой размер</span><input id="csize" type="number" min="4" max="100" step="1" inputmode="numeric" /></label>
-            <label class="fld inline" hidden><span>Лимит ходов</span><select id="tl"><option value="">по умолчанию</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="40">40</option></select></label>
+            <label class="fld inline" hidden><span>Лимит ходов</span><select id="tl"><option value="">по умолчанию</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="40">40</option></select></label>
             <label class="fld inline"><span>Время на ход</span><select id="tsec"><option value="">по размеру карты</option><option value="60">1 мин</option><option value="120">2 мин</option><option value="180">3 мин</option><option value="300">5 мин</option><option value="600">10 мин</option><option value="900">15 мин</option><option value="1200">20 мин</option><option value="1800">30 мин</option></select></label>
             <div id="sizeinfo" class="sizeinfo"></div>
             <button class="btn" id="bot"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg><span>Играть с ботом</span></button>
@@ -210,6 +223,29 @@ const title = 'Партия Чёрных королей | Моррис Град'
       <ul><li><b>Река</b> непроходима, кроме мостов; <b>стены</b> и <b>горы</b> закрывают путь и обстрел; <b>лес</b> даёт броню; <b>башня</b> — ещё больше брони; <b>колодец</b> лечит в начале вашего хода. Наведите на значок пассивки — увидите точные числа.</li></ul>
       <h4 class="deco-h"><span>Время</span></h4>
       <ul><li>На ход — таймер и общий запас времени. Не успели — ход передаётся сам.</li></ul>
+      <h4 class="deco-h" id="rules-leagues"><span>Правила лиг</span></h4>
+      <p>Лига определяется размером поля: <b>Быстрая</b> — 5×5 и 8×8, <b>Обычная</b> — 15×15, <b>Тактическая</b> — 30×30 и больше. У каждой лиги свой рейтинг (Glicko-2); за рейтинговую победу дают монеты. Числа может поправить администратор.</p>
+      <div class="lrules"><table>
+        <thead><tr><th></th><th><img src="/strat/ui2/leagues/league_fast_64.png" alt="" />Быстрая</th><th><img src="/strat/ui2/leagues/league_normal_64.png" alt="" />Обычная</th><th><img src="/strat/ui2/leagues/league_tactic_64.png" alt="" />Тактическая</th></tr></thead>
+        <tbody>
+          <tr><td>База ОД</td><td>1</td><td>2</td><td>3</td></tr>
+          <tr><td>ОД-технологии (2, на выбор)</td><td>+1</td><td>+1</td><td>+2</td></tr>
+          <tr><td>«Военный совет»</td><td>+1</td><td>+3</td><td>+4, до 2 раз</td></tr>
+          <tr><td>Расовая ОД, потолок</td><td>1</td><td>2</td><td>3</td></tr>
+          <tr><td>Максимум ОД</td><td>6</td><td>7</td><td>12</td></tr>
+          <tr><td>Таймер хода / запас</td><td>20–40 с / 1–3 мин</td><td>60 с / 5 мин</td><td>по размеру</td></tr>
+          <tr><td>Рост земли, ходов</td><td>5–6</td><td>10–14</td><td>15–20</td></tr>
+          <tr><td>Отбить клетку (стоять)</td><td>4 хода</td><td>4 хода</td><td>5 ходов</td></tr>
+          <tr><td>Поселение (канал Вождя)</td><td>8 ходов</td><td>10</td><td>12</td></tr>
+          <tr><td>Возрождение Вождя</td><td>4 хода</td><td>5</td><td>6</td></tr>
+          <tr><td>Опыт фигур и Вождя</td><td>×1,25</td><td>×1</td><td>×0,8</td></tr>
+          <tr><td>Цена исследований</td><td>×0,8</td><td>×1</td><td>×1,25</td></tr>
+          <tr><td>Эпохи</td><td>5×5: 2 · 8×8: 3</td><td>4</td><td>4</td></tr>
+        </tbody></table></div>
+      <ul><li>Покупка клетки: 3 золота + 1 за каждую уже присоединённую; первые 4 хода — окно покупки, потом клетки растут бесплатно.</li>
+        <li>Без Вождя — −1 ОД, но не меньше 1. На 5×5 земля не растёт. Лимита ходов нет.</li>
+        <li>Интервал роста меняют раса (Природа −2, Вода −1, Лёд +1, Камень +2), Амбар/Священная роща −1, Метрополия −3 и технологии заселения −1.</li>
+        <li>Рейтинговая партия — карта из рейтингового пула и стандартные настройки. Первые партии в лиге — предварительный рейтинг (отмечен «?»).</li></ul>
     </div>
   </div>
 </div>

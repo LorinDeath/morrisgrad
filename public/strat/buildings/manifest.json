@@ -3,7 +3,7 @@
  "style": "art-deco comic, ink #1a1420, gold #e0b04a/#f3d27a, ivory #f4ead2",
  "game_dir": "public/strat/buildings/",
  "notes": "в игре все файлы лежат плоско в public/strat/buildings/; здесь разложены по buildings/, wonders/, ui/",
- "count": 109,
+ "count": 154,
  "items": [
   {
    "file": "bld_barracks.png",
@@ -654,7 +654,7 @@
     234
    ],
    "tz": "bld_<id>",
-   "name_ru": "Дозорная башня",
+   "name_ru": "Сторожевая башня",
    "notes": "защитная; ставится и за границей города; одинокая высокая башня с сигнальной жаровней",
    "order": "доп. заказ 2"
   },
@@ -670,7 +670,7 @@
    "category": "building_card",
    "opaque": true,
    "tz": "bld_<id>_card",
-   "name_ru": "Дозорная башня",
+   "name_ru": "Сторожевая башня",
    "notes": "защитная; ставится и за границей города; одинокая высокая башня с сигнальной жаровней",
    "order": "доп. заказ 2"
   },
@@ -685,7 +685,7 @@
    "mode": "RGBA",
    "category": "building_icon",
    "tz": "bld_<id>_icon",
-   "name_ru": "Дозорная башня",
+   "name_ru": "Сторожевая башня",
    "notes": "защитная; ставится и за границей города; одинокая высокая башня с сигнальной жаровней",
    "order": "доп. заказ 2"
   },
@@ -704,7 +704,7 @@
     234
    ],
    "tz": "bld_<id>",
-   "name_ru": "Совет вождей",
+   "name_ru": "Военный совет",
    "notes": "уникальная (строится один раз), даёт очки действия; шатёр вождей со столом и картой",
    "order": "доп. заказ 2"
   },
@@ -720,7 +720,7 @@
    "category": "building_card",
    "opaque": true,
    "tz": "bld_<id>_card",
-   "name_ru": "Совет вождей",
+   "name_ru": "Военный совет",
    "notes": "уникальная (строится один раз), даёт очки действия; шатёр вождей со столом и картой",
    "order": "доп. заказ 2"
   },
@@ -735,7 +735,7 @@
    "mode": "RGBA",
    "category": "building_icon",
    "tz": "bld_<id>_icon",
-   "name_ru": "Совет вождей",
+   "name_ru": "Военный совет",
    "notes": "уникальная (строится один раз), даёт очки действия; шатёр вождей со столом и картой",
    "order": "доп. заказ 2"
   },
@@ -1881,6 +1881,817 @@
     104,
     48
    ]
+  },
+  {
+   "file": "bld_warhall.png",
+   "src": "buildings/bld_warhall.png",
+   "game_path": "public/strat/buildings/bld_warhall.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Чертог войны",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_warhall_card.png",
+   "src": "buildings/bld_warhall_card.png",
+   "game_path": "public/strat/buildings/bld_warhall_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Чертог войны",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_warhall_icon.png",
+   "src": "buildings/bld_warhall_icon.png",
+   "game_path": "public/strat/buildings/bld_warhall_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Чертог войны",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_stronghold.png",
+   "src": "buildings/bld_stronghold.png",
+   "game_path": "public/strat/buildings/bld_stronghold.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Несокрушимая твердыня",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_stronghold_card.png",
+   "src": "buildings/bld_stronghold_card.png",
+   "game_path": "public/strat/buildings/bld_stronghold_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Несокрушимая твердыня",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_stronghold_icon.png",
+   "src": "buildings/bld_stronghold_icon.png",
+   "game_path": "public/strat/buildings/bld_stronghold_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Несокрушимая твердыня",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_mint.png",
+   "src": "buildings/bld_mint.png",
+   "game_path": "public/strat/buildings/bld_mint.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Монетный двор",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_mint_card.png",
+   "src": "buildings/bld_mint_card.png",
+   "game_path": "public/strat/buildings/bld_mint_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Монетный двор",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_mint_icon.png",
+   "src": "buildings/bld_mint_icon.png",
+   "game_path": "public/strat/buildings/bld_mint_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Монетный двор",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_metropolis.png",
+   "src": "buildings/bld_metropolis.png",
+   "game_path": "public/strat/buildings/bld_metropolis.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Метрополия",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_metropolis_card.png",
+   "src": "buildings/bld_metropolis_card.png",
+   "game_path": "public/strat/buildings/bld_metropolis_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Метрополия",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_metropolis_icon.png",
+   "src": "buildings/bld_metropolis_icon.png",
+   "game_path": "public/strat/buildings/bld_metropolis_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Метрополия",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо)"
+  },
+  {
+   "file": "bld_observatory.png",
+   "src": "buildings/bld_observatory.png",
+   "game_path": "public/strat/buildings/bld_observatory.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Обсерватория",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо); башня звездочёта с армиллярной сферой, без купола — не путать с wonder_observatory"
+  },
+  {
+   "file": "bld_observatory_card.png",
+   "src": "buildings/bld_observatory_card.png",
+   "game_path": "public/strat/buildings/bld_observatory_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Обсерватория",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо); башня звездочёта с армиллярной сферой, без купола — не путать с wonder_observatory"
+  },
+  {
+   "file": "bld_observatory_icon.png",
+   "src": "buildings/bld_observatory_icon.png",
+   "game_path": "public/strat/buildings/bld_observatory_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Обсерватория",
+   "legend": true,
+   "era": 4,
+   "slot": "1x1",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "легендарная постройка эпохи IV; золото + чёрный мраморный цоколь, без веера лучей (это не чудо); башня звездочёта с армиллярной сферой, без купола — не путать с wonder_observatory"
+  },
+  {
+   "file": "bld_quarry.png",
+   "src": "buildings/bld_quarry.png",
+   "game_path": "public/strat/buildings/bld_quarry.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "race": "stone",
+   "name_ru": "Каменоломня",
+   "alias_of": "bld_quarry_r.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id quarry; побайтовая копия bld_quarry_r.png (старый файл оставлен)",
+   "anchor": [
+    128,
+    234
+   ]
+  },
+  {
+   "file": "bld_quarry_card.png",
+   "src": "buildings/bld_quarry_card.png",
+   "game_path": "public/strat/buildings/bld_quarry_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "race": "stone",
+   "name_ru": "Каменоломня",
+   "alias_of": "bld_quarry_r_card.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id quarry; побайтовая копия bld_quarry_r_card.png (старый файл оставлен)",
+   "opaque": true
+  },
+  {
+   "file": "bld_quarry_icon.png",
+   "src": "buildings/bld_quarry_icon.png",
+   "game_path": "public/strat/buildings/bld_quarry_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "race": "stone",
+   "name_ru": "Каменоломня",
+   "alias_of": "bld_quarry_r_icon.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id quarry; побайтовая копия bld_quarry_r_icon.png (старый файл оставлен)"
+  },
+  {
+   "file": "bld_sacredgrove.png",
+   "src": "buildings/bld_sacredgrove.png",
+   "game_path": "public/strat/buildings/bld_sacredgrove.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "race": "nature",
+   "name_ru": "Священная роща",
+   "alias_of": "bld_grove.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id sacredgrove; побайтовая копия bld_grove.png (старый файл оставлен)",
+   "anchor": [
+    128,
+    234
+   ]
+  },
+  {
+   "file": "bld_sacredgrove_card.png",
+   "src": "buildings/bld_sacredgrove_card.png",
+   "game_path": "public/strat/buildings/bld_sacredgrove_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "race": "nature",
+   "name_ru": "Священная роща",
+   "alias_of": "bld_grove_card.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id sacredgrove; побайтовая копия bld_grove_card.png (старый файл оставлен)",
+   "opaque": true
+  },
+  {
+   "file": "bld_sacredgrove_icon.png",
+   "src": "buildings/bld_sacredgrove_icon.png",
+   "game_path": "public/strat/buildings/bld_sacredgrove_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "race": "nature",
+   "name_ru": "Священная роща",
+   "alias_of": "bld_grove_icon.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id sacredgrove; побайтовая копия bld_grove_icon.png (старый файл оставлен)"
+  },
+  {
+   "file": "bld_lightningrod.png",
+   "src": "buildings/bld_lightningrod.png",
+   "game_path": "public/strat/buildings/bld_lightningrod.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "race": "lightning",
+   "name_ru": "Громоотвод",
+   "alias_of": "bld_rod.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id lightningrod; побайтовая копия bld_rod.png (старый файл оставлен)",
+   "anchor": [
+    128,
+    234
+   ]
+  },
+  {
+   "file": "bld_lightningrod_card.png",
+   "src": "buildings/bld_lightningrod_card.png",
+   "game_path": "public/strat/buildings/bld_lightningrod_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "race": "lightning",
+   "name_ru": "Громоотвод",
+   "alias_of": "bld_rod_card.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id lightningrod; побайтовая копия bld_rod_card.png (старый файл оставлен)",
+   "opaque": true
+  },
+  {
+   "file": "bld_lightningrod_icon.png",
+   "src": "buildings/bld_lightningrod_icon.png",
+   "game_path": "public/strat/buildings/bld_lightningrod_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "race": "lightning",
+   "name_ru": "Громоотвод",
+   "alias_of": "bld_rod_icon.png",
+   "order": "аудит (art-audit.md §5)",
+   "notes": "серверный id lightningrod; побайтовая копия bld_rod_icon.png (старый файл оставлен)"
+  },
+  {
+   "file": "bld_barracks_lod.png",
+   "src": "lod/bld_barracks_lod.png",
+   "game_path": "public/strat/buildings/bld_barracks_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_stable_lod.png",
+   "src": "lod/bld_stable_lod.png",
+   "game_path": "public/strat/buildings/bld_stable_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_magetower_lod.png",
+   "src": "lod/bld_magetower_lod.png",
+   "game_path": "public/strat/buildings/bld_magetower_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_forge_lod.png",
+   "src": "lod/bld_forge_lod.png",
+   "game_path": "public/strat/buildings/bld_forge_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_wall_lod.png",
+   "src": "lod/bld_wall_lod.png",
+   "game_path": "public/strat/buildings/bld_wall_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_market_lod.png",
+   "src": "lod/bld_market_lod.png",
+   "game_path": "public/strat/buildings/bld_market_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_library_lod.png",
+   "src": "lod/bld_library_lod.png",
+   "game_path": "public/strat/buildings/bld_library_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_granary_lod.png",
+   "src": "lod/bld_granary_lod.png",
+   "game_path": "public/strat/buildings/bld_granary_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_watchtower_lod.png",
+   "src": "lod/bld_watchtower_lod.png",
+   "game_path": "public/strat/buildings/bld_watchtower_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_warcouncil_lod.png",
+   "src": "lod/bld_warcouncil_lod.png",
+   "game_path": "public/strat/buildings/bld_warcouncil_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_crucible_lod.png",
+   "src": "lod/bld_crucible_lod.png",
+   "game_path": "public/strat/buildings/bld_crucible_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_glacier_lod.png",
+   "src": "lod/bld_glacier_lod.png",
+   "game_path": "public/strat/buildings/bld_glacier_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_harbor_lod.png",
+   "src": "lod/bld_harbor_lod.png",
+   "game_path": "public/strat/buildings/bld_harbor_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_quarry_lod.png",
+   "src": "lod/bld_quarry_lod.png",
+   "game_path": "public/strat/buildings/bld_quarry_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_sacredgrove_lod.png",
+   "src": "lod/bld_sacredgrove_lod.png",
+   "game_path": "public/strat/buildings/bld_sacredgrove_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_lightningrod_lod.png",
+   "src": "lod/bld_lightningrod_lod.png",
+   "game_path": "public/strat/buildings/bld_lightningrod_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_warhall_lod.png",
+   "src": "lod/bld_warhall_lod.png",
+   "game_path": "public/strat/buildings/bld_warhall_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_stronghold_lod.png",
+   "src": "lod/bld_stronghold_lod.png",
+   "game_path": "public/strat/buildings/bld_stronghold_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_mint_lod.png",
+   "src": "lod/bld_mint_lod.png",
+   "game_path": "public/strat/buildings/bld_mint_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_metropolis_lod.png",
+   "src": "lod/bld_metropolis_lod.png",
+   "game_path": "public/strat/buildings/bld_metropolis_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
+  },
+  {
+   "file": "bld_observatory_lod.png",
+   "src": "lod/bld_observatory_lod.png",
+   "game_path": "public/strat/buildings/bld_observatory_lod.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_lod",
+   "anchor": [
+    32,
+    58
+   ],
+   "order": "аудит (art-audit.md §5)",
+   "notes": "дальний зум: плоский силуэт 64×64, низ y=58; как terrain-v2 tile_lod_*"
   }
  ]
 }

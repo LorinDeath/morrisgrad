@@ -66,7 +66,7 @@ export function renderSlots(root: HTMLElement, modesEl: HTMLElement, S: any, o: 
   }
   // цвет игрока (арт swatch_1..8): занятые чужими — недоступны. Протокол (догадка): {type:"color", col:0..7} → seat.col
   if (o.me >= 0 && S.seats[o.me]) { const mine = S.seats[o.me].col, taken = new Set(S.seats.map((x: any, k: number) => (k !== o.me && typeof x?.col === "number" ? x.col : -1)));
-    h += `<div class="colrow"><span class="lbl">Цвет</span>${PCOL.map((c, k) => `<button type="button" class="swb ${mine === k ? "on" : ""}" data-col="${k}" ${taken.has(k) ? "disabled" : ""} aria-label="${c.name}" data-tip="${c.name}${taken.has(k) ? " — занят" : ""}"><img src="/strat/ui2/players/swatch_${k + 1}.png" alt=""></button>`).join("")}</div>`; }
+    h += `<div class="colrow"><span class="lbl">Цвет</span>${PCOL.map((c, k) => `<button type="button" class="swb ${mine === k ? "on" : ""}" data-col="${k}" ${taken.has(k) ? "disabled" : ""} aria-label="${c.name}" data-tip="${c.name}${taken.has(k) ? " — занят" : ""}"><img src="/strat/ui2/players/swatch_${k + 1}${k === 3 || k === 6 ? "_dark" : ""}.png" alt=""></button>`).join("")}</div>`; }
   root.innerHTML = h;
   root.querySelectorAll<HTMLButtonElement>("[data-col]").forEach((b) => (b.onclick = () => o.send({ type: "color", col: +b.dataset.col! })));
   root.querySelectorAll<HTMLElement>(".slot").forEach((el) => { const i = +el.dataset.slot!, nk = el.querySelector(".nick"); if (nk && S.seats[i]) nk.textContent = S.seats[i].nick; });

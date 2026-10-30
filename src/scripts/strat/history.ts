@@ -1,9 +1,9 @@
 // История партии и повторы: просмотр прошлых ходов в партии, список ходов, плеер повтора, «Библиотека партий».
 // Серверной части пока нет — формы терпимые (ТЗ §14.G: неизвестные поля игнорируются), всё на догадках:
 //   в state:   S.hist? = [{turn, cur, g, ev}]          — если сервер когда-нибудь пришлёт историю сразу;
-//   hub:       {type:"replay_list"}        → {saved:[Item], recent:[Item]} | {list:[Item+saved]}
-//              {type:"replay_get", id}     → {replay:{frames|turns|log:[Frame…], meta…}} | {frames…}
-//              {type:"replay_save", code}  → {ok, id} | {err}
+//   hub (ТЗ §14.I): {type:"lib_list"} → {type:"lib", recent:[ReplayMeta+saved], saved:[ReplayMeta+title], keepDays, saveMax}
+//              {type:"lib_save", id, title?} / {type:"lib_unsave", id} → lib | err no_replay/live/lib_full/bad_id/guest
+//   HTTP:      GET /strat/replay?id= → {meta, log, moves:{turns,list}, rulesChanged}; &i=N → {n,i,diverged,frame}; &from=A&to=B → {frames:[{i,diverged,frame}]}
 //   Item = {id|code|matchId, at|endedAt|ended_at, races[], nicks[]|players[{nick}], winner, turns, league?, saved?}
 //   Frame = {turn, cur, g|state|st:{g}, ev|events}
 // Без сервера клиент сам пишет кадры текущей партии (каждое состояние = кадр) и хранит их в localStorage.
@@ -11,7 +11,7 @@ import { ic } from "./icons";
 import { esc } from "./ui-kit";
 
 export type Frame = { turn: number; cur: number; v?: number; g: any; ev: any[]; at: number };
-export type LibItem = { id: string; code?: string; at: number; races: string[]; nicks: string[]; winner?: number | null; turns?: number; league?: string; saved?: boolean; local?: boolean };
+export type LibItem = { id: string; code?: string; at: number; races: string[]; nicks: string[]; winner?: number | null; turns?: number; league?: string; saved?: boolean; local?: boolean; title?: string; rated?: boolean; srv?: boolean };
 export type Rec = LibItem & { you?: number; map?: any; frames: Frame[] };
 
 const num = (v: any, d = 0) => (Number.isFinite(+v) ? +v : d);
@@ -19,19 +19,20 @@ const num = (v: any, d = 0) => (Number.isFinite(+v) ? +v : d);
 export function framesFrom(x: any): Frame[] {
   const arr = Array.isArray(x) ? x : x?.frames || x?.turns || x?.hist || x?.log || x?.replay?.frames || x?.replay?.turns || [];
   if (!Array.isArray(arr)) return [];
-  return arr.map((f: any): Frame | null => { const g = f?.g || f?.state?.g || f?.st?.g || f?.state || null; if (!g?.pieces) return null;
-    return { turn: num(f.turn ?? g.turn, 1), cur: num(f.cur ?? g.cur), v: f.v ?? g.v, g, ev: Array.isArray(f.ev) ? f.ev : Array.isArray(f.events) ? f.events : [], at: num(f.at ?? f.t, 0) }; }).filter(Boolean) as Frame[];
+  return arr.map((f: any): Frame | null => { const g = f?.g || f?.frame?.g || f?.state?.g || f?.st?.g || f?.state || null; if (!g?.pieces) return null;
+    const ev = f.ev ?? f.frame?.ev ?? f.events; return { turn: num(f.turn ?? g.turn, 1), cur: num(f.cur ?? g.cur), v: f.v ?? g.v, g, ev: Array.isArray(ev) ? ev : [], at: num(f.at ?? f.t, 0) }; }).filter(Boolean) as Frame[];
 }
 export function itemFrom(x: any, saved?: boolean): LibItem | null {
   const id = String(x?.id ?? x?.matchId ?? x?.match_id ?? x?.code ?? ""); if (!id) return null;
   const nicks = Array.isArray(x.nicks) ? x.nicks.map(String) : Array.isArray(x.players) ? x.players.map((p: any) => String(p?.nick ?? p ?? "?")) : [];
   return { id, code: x.code, at: num(x.at ?? x.endedAt ?? x.ended_at ?? x.startedAt, Date.now()), races: Array.isArray(x.races) ? x.races.map(String) : [], nicks,
-    winner: x.winner ?? null, turns: x.turns != null ? num(x.turns) : undefined, league: x.league, saved: saved ?? !!x.saved };
+    winner: x.winner ?? null, turns: x.turns != null ? num(x.turns) : undefined, league: x.league, saved: saved ?? !!x.saved, title: x.title ? String(x.title).slice(0, 60) : undefined, rated: !!x.rated, srv: true };
 }
-export function libFrom(x: any): { saved: LibItem[]; recent: LibItem[] } | null {
+export function libFrom(x: any): { saved: LibItem[]; recent: LibItem[]; keepDays?: number; saveMax?: number } | null {
   if (!x || x.err) return null;
-  const all = [...(x.saved || []).map((i: any) => itemFrom(i, true)), ...(x.recent || []).map((i: any) => itemFrom(i, false)), ...(x.list || []).map((i: any) => itemFrom(i))].filter(Boolean) as LibItem[];
-  return { saved: all.filter((i) => i.saved), recent: all.filter((i) => !i.saved) };
+  // §14.I lib: {recent:[ReplayMeta+saved], saved:[ReplayMeta+title]} — «Недавние» остаются недавними, флаг saved лишь отмечает звёздочку
+  const L = (a: any, sv?: boolean) => (Array.isArray(a) ? a : []).map((i: any) => itemFrom(i, sv)).filter(Boolean) as LibItem[];
+  const list = L(x.list); return { saved: [...L(x.saved, true), ...list.filter((i) => i.saved)], recent: [...L(x.recent), ...list.filter((i) => !i.saved)], keepDays: num(x.keepDays) || undefined, saveMax: num(x.saveMax) || undefined };
 }
 
 // ---------- запись кадров (клиент) ----------
@@ -113,6 +114,7 @@ const colName = (x: number) => "abcdefghijklmnopqrstuvwxyz"[x] || String(x + 1);
 
 /** Разбор «почему столько»: сервер (догадка) e.why|e.parts|e.src = [{label|name|src, n|v}]; иначе — по статам фигур до удара. */
 export function evWhy(e: any, before: any, c: EvCtx, passives?: (p: any) => string[]): { title: string; rows: [string, string][]; foot?: string } | null {
+  const W = e?.why; if (W && typeof W === "object" && !Array.isArray(W) && (Array.isArray(W.atk) || Array.isArray(W.arm))) return whyObj(e, W, c);
   const srv = e?.why || e?.parts || e?.src;
   if (Array.isArray(srv) && srv.length) return { title: whyTitle(e), rows: srv.map((r: any) => [String(r.label ?? r.name ?? r.src ?? "?"), sgn(r.n ?? r.v ?? r.dmg)] as [string, string]), foot: e.dmg != null ? `Итог: −${e.dmg}` : undefined };
   const a = pc(before, e.id), t = pc(before, e.t);
@@ -125,6 +127,25 @@ export function evWhy(e: any, before: any, c: EvCtx, passives?: (p: any) => stri
   if (e.e === "bhit") return { title: "Удар по постройке", rows: [["Атака фигуры", "−" + e.dmg], ...(e.max ? [["Прочность", `${e.hp}/${e.max}`] as [string, string]] : [])] };
   if (e.e === "bcounter") return { title: "Ответный удар", rows: [["Стена/башня бьёт в ответ", "−" + e.dmg]], foot: e.hp != null ? `Осталось ${e.hp} ОЗ` : undefined };
   return null;
+}
+// ТЗ §14.I: why = {atk:[Part], arm:[Part], cover, mul, el, pow, dmg, min1, shield, on, via?, ult?, chiefMul?, raw?, spare?}; Part = {k, n, src, side}
+const ATK_K: Record<string, string> = { base: "Атака фигуры", race: "Раса", forge: "Кузница", atk: "Технология: атака", atkK: "Атака Вождя", atkEnemyT: "На чужой земле", auraAtk: "Аура атаки", slayer: "Убийца", ambush: "Засада", fury: "Ярость", rime: "Иней",
+  volley: "Залп", ult: "Ульта", era: "Рост с эпохой", ultPow: "Сила ульты (техн.)", wonderUlt: "Чудо: ульта", hidden: "Скрытые бонусы" };
+const ARM_K: Record<string, string> = { base: "Броня цели", race: "Раса", guard: "Стража", arm: "Технология: броня", armK: "Броня Вождя", auraArm: "Аура брони", founding: "Основание города", watchtower: "Сторожевая башня", formation: "Строй",
+  armKing2: "Рядом с Вождём", armOwnT: "На своей земле", armOutside: "Вне своей земли", wall: "Стена", hidden: "Скрытые бонусы" };
+const ON_K: Record<string, string> = { burn: "поджог", chill: "обморожение", chain: "цепная молния", lvl: "новый уровень", kill: "убийство", heal: "лечение" };
+function whyObj(e: any, W: any, _c: EvCtx): { title: string; rows: [string, string][]; foot?: string } {
+  const rows: [string, string][] = [], pn = (p: any) => num(p?.n);
+  for (const p of W.atk || []) if (pn(p) || p.k === "base") rows.push([ATK_K[p.k] || String(p.k), p.k === "base" || p.k === "ult" || p.k === "volley" ? String(pn(p)) : sgn(pn(p))]);
+  for (const p of W.arm || []) if (pn(p) || p.k === "base") rows.push([ARM_K[p.k] || String(p.k), pn(p) > 0 ? "−" + pn(p) : "+" + Math.abs(pn(p))]);
+  if (num(W.cover)) rows.push(["Укрытие (рельеф)", "−" + num(W.cover)]);
+  if (W.mul != null && num(W.mul, 1) !== 1) rows.push([`Стихии${Array.isArray(W.el) ? "" : ""}`, "×" + num(W.mul, 1)]);
+  if (num(W.pow)) rows.push(["Мощь", sgn(num(W.pow))]);
+  if (W.chiefMul != null) rows.push(["Множитель по Вождю", "×" + num(W.chiefMul, 1)]);
+  if (num(W.shield)) rows.push(["Щит поглотил", "+" + num(W.shield)]);
+  const notes = [W.min1 ? "сработал минимум 1" : "", W.spare ? "Вождь оставлен с 1 ОЗ" : "", ...(Array.isArray(W.on) ? W.on.map((k: any) => ON_K[String(k)] || String(k)) : [])].filter(Boolean);
+  const dmg = W.dmg ?? e.dmg, title = W.via === "volley" ? "Залп" : W.via === "ult" || e.ult ? "Ульта" : whyTitle(e);
+  return { title, rows, foot: `Итог: −${num(dmg)}${e.hp != null ? ` · осталось ${e.hp} ОЗ` : ""}${notes.length ? " · " + notes.join(", ") : ""}` };
 }
 const sgn = (v: any) => { const n = +v; return Number.isFinite(n) ? (n > 0 ? "+" + n : String(n)) : String(v ?? ""); };
 const whyTitle = (e: any) => (e.e === "zap" ? "Разряд" : e.e === "hit" ? "Удар" : e.e === "bhit" ? "Удар по постройке" : "Почему так");
@@ -144,7 +165,7 @@ export function viewBarHtml(o: { turn: number; side: string; live: boolean; repl
     ${o.canSave ? `<button class="btn sm ${o.saved ? "" : "gold"}" data-hv="save" ${o.saved ? "disabled" : ""}>${ic("rp_save")}<span>${o.saved ? "Сохранено" : "Сохранить"}</span></button>` : ""}
     ${o.replay ? `<button class="btn sm ghost" data-hv="close">${ic("close")}<span>Закрыть</span></button>` : `<button class="btn sm gold" data-hv="live">${ic("arrow")}<span>К игре</span></button>`}`;
 }
-export function libHtml(lib: { saved: LibItem[]; recent: LibItem[] } | null, d: { crest: (r: string) => string; loading?: boolean; offline?: boolean }): string {
+export function libHtml(lib: { saved: LibItem[]; recent: LibItem[]; keepDays?: number; saveMax?: number } | null, d: { crest: (r: string) => string; loading?: boolean; offline?: boolean }): string {
   if (d.loading) return `<div class="emptyrow">${ic("clock")}<span>Загрузка партий…</span></div>`;
   const row = (it: LibItem) => { const dt = new Date(it.at), when = `${dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })} ${dt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
     return `<div class="lib-row ${it.saved ? "saved" : ""}" data-id="${esc(it.id)}"><span class="lib-cr">${it.races.slice(0, 4).map((r) => d.crest(r)).join("")}</span>
@@ -152,5 +173,5 @@ export function libHtml(lib: { saved: LibItem[]; recent: LibItem[] } | null, d: 
       <button class="btn sm" data-lib="open" data-id="${esc(it.id)}">${ic("rp_play")}<span>Смотреть</span></button>${it.saved ? `<button class="btn sm ghost" data-lib="del" data-id="${esc(it.id)}" aria-label="Удалить" data-tip="Убрать из сохранённых">${ic("close")}</button>` : `<button class="btn sm ghost" data-lib="save" data-id="${esc(it.id)}" aria-label="Сохранить" data-tip="Сохранить в библиотеку">${ic("rp_save")}</button>`}</div>`; };
   const sec = (t: string, L: LibItem[], empty: string) => `<div class="lib-h">${esc(t)} <small>${L.length}</small></div>${L.length ? L.map(row).join("") : `<div class="emptyrow">${ic("book")}<span>${esc(empty)}</span></div>`}`;
   return `<div class="lib">${d.offline ? `<p class="lib-note">${ic("warn")}<span>Сервер повторов пока не отвечает — показаны партии, записанные на этом устройстве.</span></p>` : ""}
-    ${sec("Сохранённые", lib?.saved || [], "Нажмите «Сохранить» в конце партии или в просмотре ходов")}${sec("Недавние", lib?.recent || [], "Сыгранные партии появятся здесь")}</div>`;
+    ${sec("Сохранённые" + (lib?.saveMax ? ` · до ${lib.saveMax}` : ""), lib?.saved || [], "Нажмите «Сохранить» в конце партии или в просмотре ходов")}${sec("Недавние" + (lib?.keepDays ? ` · хранятся ${lib.keepDays} дн.` : ""), lib?.recent || [], "Сыгранные партии появятся здесь")}</div>`;
 }

@@ -1,4 +1,4 @@
-// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|v2|t2|walls|p2|mob|all] → /workspace/minigame-tz/shots/s6-ui-*
+// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|v2|t2|walls|p2|mob|menu|mobile|all] → /workspace/minigame-tz/shots/s6-ui-*
 import { createRequire } from "module"; const require = createRequire("/workspace/mc-ui-tools/");
 const { chromium } = require("playwright-core");
 const SITE = "http://127.0.0.1:4392/games/strategy", OUT = "/workspace/minigame-tz/shots/", WSQ = "&ws=ws://127.0.0.1:8872";
@@ -7,7 +7,8 @@ const T = Date.now() % 1e6, only = process.argv[2] || "all";
 const br = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox"] });
 const errs = [];
 async function player(uid, extra = "", mobile = false) {
-  const ctx = await br.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile });
+  const vp = typeof mobile === "object" ? mobile : mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, touch = !!mobile;
+  const ctx = await br.newContext({ viewport: vp, deviceScaleFactor: touch ? 2 : 1, isMobile: touch && vp.width < 1000, hasTouch: touch });
   await ctx.addCookies([{ name: "mg_dev_noclerk", value: "1", url: "http://127.0.0.1:4392" }]);
   const p = await ctx.newPage(); p.setDefaultTimeout(8000); p.on("pageerror", (e) => errs.push(uid + ": " + e.message));
   p.on("console", (m) => m.type() === "error" && !/favicon|Failed to load resource|WebSocket/.test(m.text()) && errs.push(uid + " console: " + m.text()));
@@ -138,6 +139,43 @@ if (only === "all" || only === "t2") {
   await L.evaluate(() => document.querySelector(".colrow")?.scrollIntoView({ block: "center" })); await shot(L, "s6-ui-78-audit-m10-player-swatches", 900);
   const M = await player("s6_" + T + "_t2m", "&demo=15&skirm=1", true); await dev(M, "s5", {}); const [, mx, my] = await myCity(M); await sleep(2000);
   await dev(M, "cam", mx, my, 16); await shot(M, "s6-ui-79-t2-mobile-lod64", 1500); await dev(M, "cam", mx, my, 30); await shot(M, "s6-ui-79b-t2-mobile-full-tiles", 1500);
+}
+if (only === "all" || only === "menu") {
+  // главное меню: заглушки (сервер ветки не знает rating_get/top_get/profile_get/lib_list) и демо-данные (?menudemo=1)
+  const VP = { desk: false, p390: { width: 390, height: 844 }, l844: { width: 844, height: 390 }, tab: { width: 820, height: 1180 } };
+  const small = async (P, nm) => { const n = await P.evaluate(() => [...document.querySelectorAll("#home button, #home select, #home input, .modal button")].filter((e) => { const r = e.getBoundingClientRect(); return r.width && r.height && (r.height < 44 && r.width < 44 || r.height < 30); }).map((e) => (e.id || e.className || e.tagName) + ":" + Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height))); if (n.length) console.log("small targets", nm, n.join(", ")); };
+  for (const [k, vp] of Object.entries(VP)) for (const md of ["", "&menudemo=1"]) {
+    const P = await player("s6_" + T + "_mn" + k + (md ? "d" : ""), md, vp); await sleep(1200); await noAdmin(P, "menu " + k);
+    const tag = k + (md ? "-demo" : "-placeholder"); await shot(P, "s6-ui-menu-" + tag, md ? 900 : 5500);
+    if (k !== "desk") await P.screenshot({ path: OUT + "s6-ui-menu-" + tag + "-full.png", fullPage: true });
+    await small(P, tag);
+    if (md || k === "desk") {
+      await P.click("#topbtn"); await shot(P, "s6-ui-menu-" + tag + "-leaderboard", md ? 1500 : 6000); await esc(P);
+      await P.click("#profbtn"); await shot(P, "s6-ui-menu-" + tag + "-profile", 1500); await esc(P);
+      await P.click("#libbtn"); await shot(P, "s6-ui-menu-" + tag + "-library", md ? 1500 : 6000); await esc(P);
+      if (md) { await P.click("#setbtn"); await shot(P, "s6-ui-menu-" + tag + "-settings", 700); await small(P, tag + " settings"); await esc(P);
+        await P.click("#mapsbtn"); await shot(P, "s6-ui-menu-" + tag + "-maps-hub", 700); await esc(P);
+        await P.click("#rulesbtn"); await sleep(500); await P.evaluate(() => document.getElementById("rules-leagues")?.scrollIntoView({ block: "start" })); await shot(P, "s6-ui-menu-" + tag + "-rules-leagues", 700); await esc(P);
+        await P.click('.pmode[data-pm="bot"]'); await shot(P, "s6-ui-menu-" + tag + "-mode-bot", 400); }
+    }
+    await P.context().close();
+  }
+}
+if (only === "all" || only === "mobile") {
+  // мобильный проход по игровым экранам: 390×844, 844×390, планшет 820×1180; ОД до 14; цели ≥44px; ничего не теряется
+  const VP = { p390: { width: 390, height: 844 }, l844: { width: 844, height: 390 }, tab: { width: 820, height: 1180 } };
+  const small = async (P, nm) => { const n = await P.evaluate(() => [...document.querySelectorAll("#match button:not([hidden]), #match [role=button], .modal button, .sheet button")].filter((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width && r.height && cs.visibility !== "hidden" && Math.max(r.width, r.height) < 44; }).map((e) => (e.id || e.getAttribute("data-ca") || e.className || e.tagName).toString().slice(0, 24) + ":" + Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height))); console.log("small targets", nm, n.length, [...new Set(n)].slice(0, 30).join(", ")); };
+  const missing = (P, nm) => P.evaluate(() => ["#end", ".apbox", "#score", "#techbtn", "#menubtn", "#goals", "#chatfab", "#turnbox"].map((q) => { const e = document.querySelector(q); if (!e) return q + ":none"; const r = e.getBoundingClientRect(); return r.width && r.height && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.left >= -1 && r.top >= -1 ? "" : q + ":off"; }).filter(Boolean)).then((m) => console.log("missing/offscreen", nm, m.join(" ") || "none"));
+  for (const [k, vp] of Object.entries(VP)) {
+    const M = await player("s6_" + T + "_mb" + k, "&demo=15&skirm=1", vp); await dev(M, "s5", {}); await dev(M, "s6", { stage: 2 }); await sleep(1200); await noAdmin(M, "mobile " + k);
+    await M.evaluate(() => { const { S } = window.__stratDev.dbg(); S.g.ap = 14; S.g.apMax = 14; window.__stratDev.render(); }); await sleep(400);
+    const [cid, cx, cy] = await myCity(M); await dev(M, "cam", cx, cy, 50);
+    await shot(M, "s6-ui-mobile-" + k + "-board-ap14", 1200); await small(M, k + " board"); await missing(M, k + " board");
+    const kk = await king(M); await dev(M, "sel", kk); await shot(M, "s6-ui-mobile-" + k + "-selected-chief", 900); await small(M, k + " sel");
+    await dev(M, "sel", -1); await dev(M, "city", cid); await shot(M, "s6-ui-mobile-" + k + "-city-sheet", 1100); await small(M, k + " city"); await esc(M); await closeDlg(M);
+    const tb = await M.$("#techbtn:visible"); if (tb) { await tb.click(); await shot(M, "s6-ui-mobile-" + k + "-tech", 1100); await esc(M); await closeDlg(M); }
+    await M.context().close();
+  }
 }
 await br.close();
 console.log(errs.length ? "ERRORS:\n" + [...new Set(errs)].join("\n") : "no errors");

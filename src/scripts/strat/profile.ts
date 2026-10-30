@@ -10,7 +10,7 @@ import { LEAGUES, leagueBadge, type LeagueId, type LStat } from "./rating";
 
 export type RStat = { games: number; wins: number };
 export type Profile = {
-  nick: string; own?: boolean; coins?: number; races?: Record<string, RStat>; leagues?: Partial<Record<LeagueId, LStat>>;
+  nick: string; own?: boolean; coins?: number; commander?: { level: number; xp?: number; next?: number; frac?: number } | null; races?: Record<string, RStat>; leagues?: Partial<Record<LeagueId, LStat>>;
   priv?: { techs?: { id?: string; name: string; n: number }[]; chiefsLeveled?: number; chiefLv?: Record<string, number>; recordChiefKills?: { n: number; turn?: number; race?: string };
     talents?: { name: string; n: number }[]; ults?: { kind?: string; name: string; n: number }[] };
 };
@@ -64,9 +64,10 @@ export async function openProfile(get: () => Promise<any>, d: Deps) {
   const sets = !!(p.own && d.fav && !d.fav.guest()), lib = !!(p.own && d.lib);
   // P2: шапка profile_header (гнездо герба 112,100 r<56 — герб любимой расы; ник с x≥214); подпись — под шапкой (на телефоне 22px в шапке нечитаемы)
   const favR = Object.entries(p.races || {}).filter(([r]) => d.raceName[r]).sort((a: any, c: any) => num(c[1]?.games) - num(a[1]?.games))[0];
-  const favK = favR && num((favR[1] as any)?.games) ? favR[0] : "";
+  const favK = favR && num((favR[1] as any)?.games) ? favR[0] : "", wlv = Math.max(0, Math.min(100, num(p.commander?.level)));
   b.innerHTML = `<div class="phead v2"><span class="ph-cr">${favK ? `<img src="/strat/ui/crests/crest_${favK}.png" alt="">` : ic("user")}</span><b class="ph-nick"></b></div>
     <div class="phsub"><small>игровой профиль${favK ? ` · любимая раса: ${d.raceName[favK]}` : ""}</small>${coins}</div>
+    ${wlv ? `<div class="pwar"><img src="/strat/ui2/badges/warlord_emblem_${Math.max(1, Math.min(10, Math.ceil(wlv / 10)))}.png" alt="" width="64" height="64"><div><b>Полководец · ур. ${wlv}</b><small>из 100 · только звание и эмблема, без игровых бонусов</small>${p.commander?.frac != null ? `<div class="meter xp"><i style="width:${Math.round(Math.max(0, Math.min(1, num(p.commander.frac))) * 100)}%"></i></div>` : ""}</div></div>` : ""}
     ${priv || sets || lib ? `<div class="ptabs" role="tablist"><button class="ptab on tpub" data-t="pub" role="tab">${ic("eye")}<span>Публичный</span></button>${priv ? `<button class="ptab tpriv" data-t="priv" role="tab">${ic("lock")}<span>Личное</span></button>` : ""}${sets ? `<button class="ptab" data-t="set" role="tab">${ic("crown")}<span>Любимые расы</span></button>` : ""}${lib ? `<button class="ptab" data-t="lib" role="tab">${ic("book")}<span>Библиотека партий</span></button>` : ""}</div>` : ""}
     <div class="ppane" data-p="pub">${publicHtml(p, d)}</div>${priv ? `<div class="ppane" data-p="priv" hidden>${privHtml(p, d)}</div>` : ""}${sets ? `<div class="ppane" data-p="set" hidden>${d.fav!.html()}</div>` : ""}${lib ? `<div class="ppane" data-p="lib" hidden>${d.lib!.html()}</div>` : ""}`;
   if (lib) d.lib!.bind(b.querySelector<HTMLElement>('.ppane[data-p="lib"]')!);
@@ -80,7 +81,7 @@ export async function openProfile(get: () => Promise<any>, d: Deps) {
 
 /** Демо-данные для локального просмотра (только ?demo). */
 export function demoProfile(nick: string): Profile {
-  return { nick, own: true, coins: 145, races: { fire: { games: 31, wins: 19 }, ice: { games: 12, wins: 5 }, water: { games: 6, wins: 4 }, lightning: { games: 9, wins: 3 }, stone: { games: 2, wins: 1 } },
+  return { nick, own: true, coins: 145, commander: { level: 37, xp: 2310, next: 2460, frac: 0.42 }, races: { fire: { games: 31, wins: 19 }, ice: { games: 12, wins: 5 }, water: { games: 6, wins: 4 }, lightning: { games: 9, wins: 3 }, stone: { games: 2, wins: 1 } },
     leagues: { fast: { r: 1612, rd: 64, games: 38, w: 22, l: 14, d: 2, peak: 1655 }, normal: { r: 1488, rd: 120, games: 7, w: 3, l: 4, d: 0 } },
     priv: { chiefsLeveled: 14, chiefLv: { 1: 60, 2: 41, 3: 25, 4: 14, 5: 6 }, recordChiefKills: { n: 7, turn: 23, race: "fire" },
       techs: [{ name: "Сталь", n: 28 }, { name: "Торговля", n: 22 }, { name: "Пожар", n: 17 }, { name: "Муштра", n: 11 }, { name: "Писцы", n: 6 }],
