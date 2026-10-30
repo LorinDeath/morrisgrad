@@ -165,15 +165,27 @@ if (only === "all" || only === "mobile") {
   // мобильный проход по игровым экранам: 390×844, 844×390, планшет 820×1180; ОД до 14; цели ≥44px; ничего не теряется
   const VP = { p390: { width: 390, height: 844 }, l844: { width: 844, height: 390 }, tab: { width: 820, height: 1180 } };
   const small = async (P, nm) => { const n = await P.evaluate(() => [...document.querySelectorAll("#match button:not([hidden]), #match [role=button], .modal button, .sheet button")].filter((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width && r.height && cs.visibility !== "hidden" && Math.max(r.width, r.height) < 44; }).map((e) => (e.id || e.getAttribute("data-ca") || e.className || e.tagName).toString().slice(0, 24) + ":" + Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height))); console.log("small targets", nm, n.length, [...new Set(n)].slice(0, 30).join(", ")); };
-  const missing = (P, nm) => P.evaluate(() => ["#end", ".apbox", "#score", "#techbtn", "#menubtn", "#goals", "#chatfab", "#turnbox"].map((q) => { const e = document.querySelector(q); if (!e) return q + ":none"; const r = e.getBoundingClientRect(); return r.width && r.height && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.left >= -1 && r.top >= -1 ? "" : q + ":off"; }).filter(Boolean)).then((m) => console.log("missing/offscreen", nm, m.join(" ") || "none"));
+  const missing = (P, nm) => P.evaluate(() => (getComputedStyle(document.getElementById("mtabs")).display !== "none" ? ["#end", ".apbox", "#techbtn", "#menubtn", "#chatfab", "#turnbox", "#mtabs"] : ["#end", ".apbox", "#score", "#techbtn", "#menubtn", "#goals", document.getElementById("chatfab")?.offsetParent ? "#chatfab" : "#chat", "#turnbox"]).map((q) => { const e = document.querySelector(q); if (!e) return q + ":none"; const inV = () => { const r = e.getBoundingClientRect(); return r.width && r.height && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.left >= -1 && r.top >= -1; }; if (inV()) return ""; const sy = scrollY; e.scrollIntoView({ block: "nearest" }); const ok = inV() && scrollY === sy; return q + (ok ? ":in-column-scroll" : ":off"); }).filter(Boolean)).then((m) => console.log("missing/offscreen", nm, m.join(" ") || "none"));
   for (const [k, vp] of Object.entries(VP)) {
     const M = await player("s6_" + T + "_mb" + k, "&demo=15&skirm=1", vp); await dev(M, "s5", {}); await dev(M, "s6", { stage: 2 }); await sleep(1200); await noAdmin(M, "mobile " + k);
     await M.evaluate(() => { const { S } = window.__stratDev.dbg(); S.g.ap = 14; S.g.apMax = 14; window.__stratDev.render(); }); await sleep(400);
     const [cid, cx, cy] = await myCity(M); await dev(M, "cam", cx, cy, 50);
-    await shot(M, "s6-ui-mobile-" + k + "-board-ap14", 1200); await small(M, k + " board"); await missing(M, k + " board");
+    await shot(M, "s6-ui-mobile-" + k + "-board-ap14", 1200); await small(M, k + " board"); await missing(M, k + " board"); console.log("vp", k, await M.evaluate(() => { const r = document.getElementById("mtabs").getBoundingClientRect(); return [innerWidth, innerHeight, document.documentElement.scrollWidth, visualViewport?.height, Math.round(r.top), Math.round(r.bottom)].join(","); }));
     const kk = await king(M); await dev(M, "sel", kk); await shot(M, "s6-ui-mobile-" + k + "-selected-chief", 900); await small(M, k + " sel");
     await dev(M, "sel", -1); await dev(M, "city", cid); await shot(M, "s6-ui-mobile-" + k + "-city-sheet", 1100); await small(M, k + " city"); await esc(M); await closeDlg(M);
     const tb = await M.$("#techbtn:visible"); if (tb) { await tb.click(); await shot(M, "s6-ui-mobile-" + k + "-tech", 1100); await esc(M); await closeDlg(M); }
+    // портрет: шторки по вкладкам — всё, что ушло с экрана, должно открываться
+    if (await M.$("#mtabs:visible")) for (const [ms, q] of [["players", "#score"], ["goals", "#goals"], ["moves", "#moves"], ["view", "#pstyle"]]) {
+      await M.click(`#mtabs [data-ms=${ms}]`); await sleep(350);
+      const vis = await M.evaluate((q) => { const e = document.querySelector(q); if (!e) return "none"; const r = e.getBoundingClientRect(); return r.width && r.height && r.top >= 0 && r.bottom <= innerHeight + 1 ? "ok" : "off"; }, q);
+      console.log("sheet", k, ms, q, vis); await shot(M, "s6-ui-mobile-" + k + "-sheet-" + ms, 500); await small(M, k + " sheet " + ms);
+      await M.click(`#mtabs [data-ms=${ms}]`); await sleep(200);
+    }
+    // долгое нажатие по клетке доски — подсказка шторкой; затем тап не должен сделать ход
+    const lp = await M.evaluate(async () => { const c = document.getElementById("board"), r = c.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, o = { pointerId: 77, pointerType: "touch", clientX: x, clientY: y, bubbles: true, isPrimary: true };
+      c.dispatchEvent(new PointerEvent("pointerdown", o)); await new Promise((f) => setTimeout(f, 650)); const t = document.getElementById("tip"), on = !!t?.classList.contains("on") && t.classList.contains("sheet");
+      c.dispatchEvent(new PointerEvent("pointerup", o)); return on; });
+    console.log("longpress", k, lp ? "sheet ok" : "NO SHEET"); await shot(M, "s6-ui-mobile-" + k + "-longpress-tip", 400);
     await M.context().close();
   }
 }

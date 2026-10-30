@@ -186,11 +186,17 @@ const title = 'Партия Чёрных королей | Моррис Град'
           <small id="endsub" class="endsub"></small>
           <div class="endbtns">
             <button class="btn sm claim" id="claim" hidden><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span>Соперник не за столом — завершить</span></button>
-            <button class="btn ghost sm" id="forfeit"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><span>Сдаться</span></button>
+            <button class="btn ghost sm" id="forfeit" aria-label="Сдаться"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><span>Сдаться</span></button>
             <button class="btn gold sm" id="rematch" hidden><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span>Реванш</span></button>
           </div>
         </div>
       </aside>
+      <nav id="mtabs" class="mtabs" aria-label="Панели партии">
+        <button type="button" data-ms="players" aria-label="Игроки"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg><span>Игроки</span></button>
+        <button type="button" data-ms="goals" aria-label="Цели"><svg class="ic" aria-hidden="true"><use href="#i-glory"/></svg><span>Цели</span></button>
+        <button type="button" data-ms="moves" aria-label="Ходы"><svg class="ic" aria-hidden="true"><use href="#i-hist"/></svg><span>Ходы</span></button>
+        <button type="button" data-ms="view" aria-label="Вид и сдача"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg><span>Вид</span></button>
+      </nav>
     </div>
   </section>
 

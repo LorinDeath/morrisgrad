@@ -7,7 +7,7 @@ import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick
 import { TERRAIN, STRUCT, TER_RULES, openMap, type MapData } from "../../../server/strat/terrain";
 import { moveTargets, attackTargets, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
 import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
-import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips } from "./ui-kit";
+import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips, openSheet } from "./ui-kit";
 import { GOALS, goalDef, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, type Goal, type CNode } from "./goals";
 import { fogView, unveilCls, fogNode } from "./fog";
 import { t2, t2Tint, t2OnLoad } from "./t2";
@@ -787,7 +787,7 @@ function fitCam(force: boolean) {
   else if (sizeChanged) clampCam();
   const c = cv(), dpr = devicePixelRatio || 1; c.style.width = W + "px"; c.style.height = H + "px";
   if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
-  $("#minimapbox").hidden = !big(); $("#camctl").hidden = !big();
+  $("#minimapbox").hidden = !big(); $("#camctl").hidden = !big(); document.body.classList.toggle("bigmap", big());
 }
 function clampCam() {
   const n = cam.n; cam.z = Math.max(cam.fit, Math.min(120, cam.z));
@@ -986,21 +986,36 @@ function bindMinimap() {
   c.onpointerdown = (e) => { down = true; c.setPointerCapture(e.pointerId); go(e); }; c.onpointermove = (e) => down && go(e); c.onpointerup = () => (down = false);
 }
 
+// ---------- телефон (портрет): нижние вкладки-шторки ----------
+function setMSheet(k: string) {
+  document.body.dataset.msheet = k;
+  document.querySelectorAll<HTMLElement>("#mtabs [data-ms]").forEach((b) => { const on = b.dataset.ms === k; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
+}
+function initMobileTabs() {
+  document.querySelectorAll<HTMLElement>("#mtabs [data-ms]").forEach((b) => (b.onclick = () => setMSheet(document.body.dataset.msheet === b.dataset.ms ? "" : b.dataset.ms!)));
+  $("#stage").addEventListener("pointerdown", () => { if (document.body.dataset.msheet) setMSheet(""); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.dataset.msheet) setMSheet(""); });
+}
+
 // ---------- ввод: клик, перетаскивание, щипок, колесо ----------
 function bindBoard() {
   const c = cv(), pts = new Map<number, { x: number; y: number }>(); let moved = false, start: { x: number; y: number } | null = null, pinch0 = 0, z0 = 0;
   const local = (e: { clientX: number; clientY: number }) => { const r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  c.addEventListener("pointerdown", (e) => { c.setPointerCapture(e.pointerId); pts.set(e.pointerId, local(e)); moved = false; start = local(e);
-    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); z0 = cam.z; } });
+  // долгое нажатие на касании — подсказка по клетке шторкой (вместо наведения), без хода
+  let lpT = 0, lpFired = false;
+  c.addEventListener("pointerdown", (e) => { try { c.setPointerCapture(e.pointerId); } catch {} pts.set(e.pointerId, local(e)); moved = false; start = local(e);
+    clearTimeout(lpT); lpFired = false;
+    if (e.pointerType !== "mouse" && pts.size === 1) { const p0 = local(e); lpT = window.setTimeout(() => { if (moved || pts.size !== 1) return; lpFired = true; hoverTip(p0.x, p0.y, 0, 0, true); }, 450); }
+    if (pts.size === 2) { clearTimeout(lpT); const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); z0 = cam.z; } });
   c.addEventListener("pointermove", (e) => {
     const p = local(e);
     if (!pts.has(e.pointerId)) { if (ultAim) { const at = cellAt(p.x, p.y); if (at && (at[0] !== aimCell?.[0] || at[1] !== aimCell?.[1])) { aimCell = at; draw(); } return; } hoverTip(p.x, p.y, e.clientX, e.clientY); return; }
     const prev = pts.get(e.pointerId)!; pts.set(e.pointerId, p);
     if (pts.size === 2 && big()) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y); moved = true; zoomAt((z0 * d) / Math.max(1, pinch0) / cam.z, (a.x + b.x) / 2, (a.y + b.y) / 2); return; }
-    if (start && Math.hypot(p.x - start.x, p.y - start.y) > 6) moved = true;
+    if (start && Math.hypot(p.x - start.x, p.y - start.y) > 6) { moved = true; clearTimeout(lpT); }
     if (moved && big()) { cam.cx -= (p.x - prev.x) / cam.z; cam.cy -= (p.y - prev.y) / cam.z; clampCam(); draw(); hideTip(); }
   });
-  const up = (e: PointerEvent) => { const was = pts.has(e.pointerId); pts.delete(e.pointerId); if (pts.size) return; if (was && !moved) { const p = local(e); onBoard(p.x, p.y); } start = null; };
+  const up = (e: PointerEvent) => { clearTimeout(lpT); const was = pts.has(e.pointerId); pts.delete(e.pointerId); if (pts.size) return; if (lpFired) { lpFired = false; start = null; return; } if (was && !moved) { const p = local(e); onBoard(p.x, p.y); } start = null; };
   c.addEventListener("pointerup", up); c.addEventListener("pointercancel", (e) => { pts.delete(e.pointerId); start = null; });
   c.addEventListener("pointerleave", () => hideTip());
   c.addEventListener("wheel", (e) => { if (!big()) return; e.preventDefault(); const p = local(e); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, p.x, p.y); }, { passive: false });
@@ -1012,8 +1027,8 @@ function bindBoard() {
 }
 let cityIdx = -1, hoverKey = "", hoverCell: [number, number] | null = null;
 /** Наведение на доску (мышь): короткая подсказка о фигуре или клетке. */
-function hoverTip(px: number, py: number, cx: number, cy: number) {
-  if (!matchMedia("(hover: hover)").matches || !S?.g) return; const at = cellAt(px, py); if (!at) { hideTip(); hoverKey = ""; if (hoverCell) { hoverCell = null; draw(); } return; }
+function hoverTip(px: number, py: number, cx: number, cy: number, sheet = false) {
+  if ((!sheet && !matchMedia("(hover: hover)").matches) || !S?.g) return; if (sheet) hoverKey = ""; const at = cellAt(px, py); if (!at) { hideTip(); hoverKey = ""; if (hoverCell) { hoverCell = null; draw(); } return; }
   const [x, y] = at, g = S.g, p = g.pieces.find((q: any) => q.x === x && q.y === y), m: MapData = g.map || openMap(g.size), t = m.t[y * g.size + x], st = m.s[y * g.size + x];
   const key = `${x},${y},${p?.id},${p?.hp},${S.g.v ?? S.g.turn}`; if (key === hoverKey) return; hoverKey = key; if (!hoverCell || hoverCell[0] !== x || hoverCell[1] !== y) { hoverCell = [x, y]; draw(); } { const hp0 = p?.id ?? -1; if (hp0 !== hoverPid) { hoverPid = hp0; if (hideHp) draw(); } }
   let h = "";
@@ -1024,6 +1039,7 @@ function hoverTip(px: number, py: number, cx: number, cy: number) {
     const city = G0.ec.cities.find((c) => c.x === x && c.y === y); if (city) { const rows = cityBld(S, G0, city, cfgOf(S)); if (rows.length) h += "<br><small>" + rows.map((r) => `${esc(bName(r.b, G0.races[city.owner]))}: ${r.ruin ? "руины" : r.hp != null ? r.hp + "/" + r.max : HS_NAME[r.hs || ""] || "?"}`).join(" · ") + "</small>"; }
     const tw = towersOf(G0).find((t) => t.x === x && t.y === y); if (tw) { const hp = g.ec.tbhp?.[tw.id], hs = g.ec.tbhs?.[tw.id]; h += `${h ? "<br>" : ""}<b>Сторожевая башня</b> · ${esc(tw.owner === S.you ? "ваша" : S.seats[tw.owner]?.nick || "?")}<br><small>${hp != null ? "Прочность " + hp + "/" + ((cfgOf(S) as any).econ?.tower?.hp ?? 16) : hs ? HS_NAME[hs] : ""}</small>`; } }
   const tp = terrainPassive(t, (TERRAIN as any)[t]?.name || t); h += `${h ? "<br>" : ""}<small>${esc((TERRAIN as any)[t]?.name || t)}${tp ? " · " + tp.effs.map((e) => esc(effLine(e))).join(", ") : ""}${st !== "." ? " · " + esc((STRUCT as any)[st]?.name || "") : ""}</small>`;
+  if (sheet) { openSheet(`<div class="tip-b">${h}</div>`); return; }
   showTip(`<div class="tip-b">${h}</div>`, cx + 14, cy + 14);
 }
 const await0 = <T,>(p: Promise<T>) => p;
@@ -1247,7 +1263,7 @@ export function boot() {
   $<HTMLInputElement>("#ranked").onchange = (e) => send({ type: "cfg", ranked: (e.target as HTMLInputElement).checked });
   { const pb = document.getElementById("profbtn"); if (pb) pb.onclick = () => showProfile(); }
   { const tb = document.getElementById("topbtn"); if (tb) tb.onclick = () => openLeaderboard(topGet, myNick(), "fast"); }
-  initMenu();
+  initMenu(); initMobileTabs();
   $("#claim").onclick = async () => { if (await confirmDlg("Завершить партию?", "Соперник не за столом и пропустил 5 ходов подряд. Партия завершится вашей победой — решение проверит сервер.", "Завершить", { icon: "flag" })) send({ type: "claim_away" }); };
   $<HTMLSelectElement>("#tsec").onchange = (e) => { const v = (e.target as HTMLSelectElement).value; send({ type: "cfg", turnSec: v === "" ? null : +v }); };
   $<HTMLSelectElement>("#tl").onchange = (e) => { const v = (e.target as HTMLSelectElement).value; send({ type: "cfg", turnLimit: v === "" ? null : +v }); };
