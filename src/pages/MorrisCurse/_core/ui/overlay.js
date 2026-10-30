@@ -103,10 +103,10 @@ export class Overlay {
   }
 
   // --- всплывающий текст (урон, лечение) в 3D-координатах; позиция проецируется в updateFloats ---
-  float(wx, wy, wz, text, color = '#fff', crit = false) {
+  float(wx, wy, wz, text, color = '#fff', crit = false, cls = '') {
     if (this.floats.length > 70) { const f = this.floats.shift(); f.el.remove(); }
     const el = document.createElement('div');
-    el.className = 'mc3d-float' + (crit ? ' crit' : '');
+    el.className = 'mc3d-float' + (crit ? ' crit' : '') + (cls ? ' ' + cls : '');
     el.textContent = text;
     if (!crit) el.style.color = color;
     this.layer.appendChild(el);

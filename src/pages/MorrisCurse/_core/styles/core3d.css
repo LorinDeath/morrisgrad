@@ -12,6 +12,8 @@
 .mc3d-bubble { position: absolute; transform: translate(-50%, -100%); max-width: 180px; background: rgba(15, 10, 28, 0.92); border: 1px solid #c59b27; border-radius: 8px; padding: 4px 8px; font-size: 11px; white-space: normal; text-align: center; }
 .mc3d-float { position: absolute; transform: translate(-50%, -50%); font-weight: 900; font-size: 13px; text-shadow: 0 1px 0 #000, 0 0 3px #000; pointer-events: none; will-change: transform, opacity; }
 .mc3d-float.crit { font-size: 17px; color: #fde047; }
+.mc3d-float.pl { font-size: 16px; text-shadow: 0 1px 0 #000, 0 0 3px #000, 0 0 5px #000; } /* урон по другому игроку: крупнее, тень плотнее */
+.mc3d-float.pl.crit { font-size: 19px; }
 .mc3d-toasts { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 4px; align-items: center; width: 92%; }
 .mc3d-toast { background: rgba(12, 8, 22, 0.9); border: 1px solid #3b2c52; border-radius: 6px; padding: 5px 10px; font-size: 12px; animation: mc3dToast 2.6s forwards; text-align: center; }
 @keyframes mc3dToast { 0% { opacity: 0; transform: translateY(-6px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }

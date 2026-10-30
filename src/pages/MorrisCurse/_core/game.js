@@ -703,7 +703,7 @@ async function boot(canvasId, username, userId, api) {
         const PL = pureList(e), pp = PL.reduce((s, [, n]) => s + n, 0); // ICE: чистый урон стихий и в дуэли — свои цвета
         const tx = e.to === myId ? player.x : (others.get(e.to)?.x ?? e.x), ty = e.to === myId ? player.y : (others.get(e.to)?.y ?? e.y);
         if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d - pp}`, e.crit ? '#fb923c' : '#f87171', !!e.crit); }
-        else { overlay.float(toX(tx), 3.4, toZ(ty) - 0.5, `${e.crit ? '✦' : ''}${e.d - pp}`, e.crit ? '#fde047' : '#ffe4e6', !!e.crit); } // выше подписи имени
+        else { overlay.float(toX(tx), 3.4, toZ(ty) - 0.5, `${e.crit ? '✦' : ''}${e.d - pp}`, e.crit ? '#fde047' : '#ffe4e6', !!e.crit, 'pl'); } // выше подписи имени
         PL.forEach(([el, n], i) => overlay.float(toX(tx) + (i % 2 ? -0.6 : 0.6), 3.0 + 0.3 * (i >> 1), toZ(ty), `${BP_ELEM_ICONS[el] || '✦'}-${n}`, ELEM_COLOR[el] || '#fff'));
       }
     }
@@ -963,7 +963,7 @@ async function boot(canvasId, username, userId, api) {
         overlay.float(toX(player.x), 2.6, toZ(player.y), e.z ? `0 урона · −${e.d - pp}` : `-${e.d - pp}`, e.z ? '#cbd5e1' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#f87171') : '#f87171');
         PL.forEach(([el, n], i) => overlay.float(toX(player.x) + (i % 2 ? -0.6 : 0.6), 3.0 + 0.3 * (i >> 1), toZ(player.y), `${BP_ELEM_ICONS[el] || '✦'}-${n}`, ELEM_COLOR[el] || '#fff')); } // ICE: чистый урон стихий оси
       else if (e.k === 'ohit') { const o = others.get(e.sid); if (o) { dpsMeter.add(e.d); const PL = pureList(e), pp = PL.reduce((s, [, n]) => s + n, 0); // PK: мой урон по игроку — над ним, цвет стихии
-        overlay.float(toX(o.x), 3.4, toZ(o.y) - 0.5, e.z ? '0 урона' : `${e.crit ? '✦' : ''}${e.d - pp}`, e.crit ? '#fde047' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#ffe4e6') : '#ffe4e6', !!e.crit); // выше подписи имени (камера сверху: сдвиг по Z)
+        overlay.float(toX(o.x), 3.4, toZ(o.y) - 0.5, e.z ? '0 урона' : `${e.crit ? '✦' : ''}${e.d - pp}`, e.crit ? '#fde047' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#ffe4e6') : '#ffe4e6', !!e.crit, 'pl'); // выше подписи имени (камера сверху: сдвиг по Z)
         PL.forEach(([el, n], i) => overlay.float(toX(o.x) + (i % 2 ? -0.6 : 0.6), 3.8 + 0.3 * (i >> 1), toZ(o.y) - 0.8, `${BP_ELEM_ICONS[el] || '✦'}${n}`, ELEM_COLOR[el] || '#fff')); } }
       else if (e.k === 'died') overlay.toast('Вы пали! Возрождение через 5 с…', '#fca5a5');
     }
