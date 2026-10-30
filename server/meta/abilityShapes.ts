@@ -96,9 +96,10 @@ export const PROJ_SPRITES = new Set(["fireball", "war_axe", "fire_spark", "moon_
   "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws", ...ENEMY_SPRITES]);
 // спрайт снаряда автоатаки по типу оружия (открытый мир и дуэли)
 /** Точка вылета и прицел выстрела. Клиент присылает свою отрисованную позицию героя (ox, oy) и точку курсора (tx, ty):
- *  сервер принимает исходную точку, только если она ближе SHOT_TOL к серверной позиции (лаг движения ≤ ~100 мс при 175–250 px/с),
- *  иначе — серверная позиция. Направление — от принятой точки к курсору (так снаряд идёт ровно в курсор), иначе — вектор dx/dy. */
-export const SHOT_TOL = 96;
+ *  сервер принимает исходную точку, только если она ближе SHOT_TOL к серверной позиции (лаг движения ≤ ~150 мс при 175–250 px/с;
+ *  «рука/оружие» — сервер добавляет сам: дула посохов, MOB_HAND), иначе — серверная позиция. Точка курсора (tx, ty) НИКОГДА не точка вылета:
+ *  только направление — от принятой точки к курсору (так снаряд идёт ровно в курсор), иначе — вектор dx/dy. */
+export const SHOT_TOL = 48;
 export function shotAim(sx: number, sy: number, msg: any, lo = -Infinity, hi = Infinity): { x: number; y: number; dx: number; dy: number; client: boolean } {
   const ox = Number(msg?.ox), oy = Number(msg?.oy);
   const client = Number.isFinite(ox) && Number.isFinite(oy) && Math.hypot(ox - sx, oy - sy) <= SHOT_TOL;
