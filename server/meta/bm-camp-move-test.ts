@@ -46,7 +46,7 @@ function d1() {
 }
 await (async () => {
   const D = d1(), A = new AdminStore(D); await A.sync(true);
-  const P: any = MetaService.prototype, svc: any = { store: { db: null }, admin: A, zones: { arinar: z }, newIds: new Map(), newIdFor: P.newIdFor };
+  const P: any = MetaService.prototype, svc: any = { store: { db: null }, admin: A, zones: { arinar: z }, newIds: new Map(), newIdFor: P.newIdFor, newIdSeen: P.newIdSeen };
   const bmm = (msg: any) => P.bmmOp.call(svc, { pkey: "t" }, { world: "arinar", x: nx + 50, y: ny + 50 }, msg);
   const skc = (msg: any) => P.skcOp.call(svc, { pkey: "t" }, msg);
   const rows = (k: string) => (D.raw.query("SELECT COUNT(*) n FROM game_overrides WHERE kind = ?").get(k) as any).n;
@@ -80,5 +80,11 @@ await (async () => {
   const nP = Object.keys(BM_PARTS).length, f0 = await P.bmfOp.call(svc, { pkey: "t" }, { op: "new", ptype: "handle" });
   const f1 = await P.bmfOp.call(svc, { pkey: "t" }, { op: "publish", id: f0.id, data: f0.data }), f2 = await P.bmfOp.call(svc, { pkey: "t" }, { op: "publish", id: f0.id, data: { ...f0.data, name: "Рукоять 2" } });
   ok(f0.ok && f1.ok && f2.ok && Object.keys(BM_PARTS).length === nP + 1 && BM_PARTS[f0.id]?.name === "Рукоять 2", `деталь: публикация и правка — тот же id ${f0.err || f1.err || f2.err || ""}`);
+  // «＋ Новый» моб/деталь: двойной клик (один tmp) → один черновик; без tmp — как раньше
+  { const d0 = rows("bmc_mdraft"), [n1, n2] = await Promise.all([bmm({ op: "new", lvl: 8, cls: "warrior", tmp: "tmpnewmob01" }), bmm({ op: "new", lvl: 8, cls: "warrior", tmp: "tmpnewmob01" })]);
+    ok(n1.ok && n2.ok && n1.id === n2.id && rows("bmc_mdraft") === d0 + 1, `новый моб, двойной клик: один черновик (${n1.id} / ${n2.id}, +${rows("bmc_mdraft") - d0})`);
+    const pd0 = rows("bmc_draft"), [q1, q2] = await Promise.all([P.bmfOp.call(svc, { pkey: "t" }, { op: "new", ptype: "handle", tmp: "tmpnewpart01" }), P.bmfOp.call(svc, { pkey: "t" }, { op: "new", ptype: "handle", tmp: "tmpnewpart01" })]);
+    ok(q1.ok && q2.ok && q1.id === q2.id && rows("bmc_draft") === pd0 + 1, `новая деталь, двойной клик: один черновик (${q1.id} / ${q2.id}, +${rows("bmc_draft") - pd0})`);
+    const q3 = await P.bmfOp.call(svc, { pkey: "t" }, { op: "new", ptype: "handle", tmp: "tmpnewpart02" }); ok(q3.ok && q3.id !== q1.id && rows("bmc_draft") === pd0 + 2, "следующий клик (новый tmp) — новый черновик"); }
 })();
 console.log(`\n${pass} PASS / ${fail} FAIL`); if (fail) process.exit(1);

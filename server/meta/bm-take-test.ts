@@ -52,7 +52,7 @@ await (async () => {
     CREATE TABLE quest_dialogues (quest_id TEXT PRIMARY KEY, data TEXT, version INTEGER, updated_by TEXT, updated_at INTEGER);`);
   const st = (sql: string, a: any[] = []): any => ({ bind: (...x: any[]) => st(sql, x), first: async () => db.query(sql).get(...a) ?? null, all: async () => ({ results: db.query(sql).all(...a) }), run: async () => { db.query(sql).run(...a); return {}; }, _run: () => db.query(sql).run(...a) });
   const A = new AdminStore({ prepare: (q: string) => st(q), batch: async (x: any[]) => { db.transaction(() => x.forEach((y) => y._run()))(); return []; } }); await A.sync(true);
-  const P: any = MetaService.prototype, svc: any = { store: { db: null }, admin: A, zones: {}, newIds: new Map(), newIdFor: P.newIdFor };
+  const P: any = MetaService.prototype, svc: any = { store: { db: null }, admin: A, zones: {}, newIds: new Map(), newIdFor: P.newIdFor, newIdSeen: P.newIdSeen };
   const bmm = (msg: any) => P.bmmOp.call(svc, { pkey: "t" }, {}, msg);
   const old = Object.keys(BM_CAMPS).find((id) => !BM_CAMPS[id].take && !id.includes("c30"))!;
   const r1 = await bmm({ op: "save", kind: "bmcamp", id: old, data: { name: "Правка" } });

@@ -138,7 +138,7 @@ function mobs(ap, S, bd, sec) {
   bd.innerHTML = `<div class="cols"><div>${elFilter(S, 'mef')}<div class="pl">${list}</div></div><div>${form}</div><div>${pvBox}</div></div>`;
   bindElFilter(ap, S, bd, sec);
   bd.querySelectorAll('[data-m]').forEach((el) => (el.onclick = () => select(ap, S, el.dataset.m, sec)));
-  bd.querySelector('[data-new]').onclick = () => { S.status = 'Создание…'; ap.send({ type: 'admin_bmm', op: 'new', lvl: 8, cls: 'warrior' }); };
+  bd.querySelector('[data-new]').onclick = () => { if (S.newAt && Date.now() - S.newAt < 5000) return; S.newAt = Date.now(); S.status = 'Создание…'; ap.send({ type: 'admin_bmm', op: 'new', lvl: 8, cls: 'warrior', tmp: newTmp() }); }; // двойной клик — один черновик
   if (!e) return;
   const cv = bd.querySelector('canvas'); S.pv?.stop(); S.pv = new MobPreview(cv); Object.assign(S.pv, { anim: S.anim, grid: S.grid, hero: S.hero, rings: S.rings, faceL: !!S.faceL }); preview(S); S.pv.start();
   cv.style.cursor = 'pointer'; cv.onclick = () => { S.anim = S.anim === 'atk' ? 'all' : 'atk'; S.pv.anim = S.anim; const sl = bd.querySelector('[data-pv="anim"]'); if (sl) sl.value = S.anim; };
@@ -300,7 +300,8 @@ export function onBmmResult(ap, d) {
   const S = (ap.bmm ||= { sub: 'mobs' });
   const rerender = () => { if (ap.tab === 'bmmobs' && ap.el) { const sec = ap.el.querySelector('section'); if (sec) mountBmMobs(ap, sec); } };
   if (d.op === 'list' && d.ok) { S.list = d; S.asked = false; S.cfgEdit = null; if (S.sel && !S.edit) S.sel = null; }
-  else if (d.op === 'new' && d.ok && S.list) { (S.list.drafts ||= []).unshift({ id: d.id, data: d.data, at: Date.now() }); S.sel = d.id; S.edit = { id: d.id, data: clone(d.data), isNew: true, hasDraft: true }; S.status = 'Новый моб — черновик (в игру не идёт до публикации)'; S.stCls = 'draft'; }
+  else if (d.op === 'new' && !d.ok) S.newAt = 0;
+  else if (d.op === 'new' && d.ok && S.list) { S.newAt = 0; if (!(S.list.drafts ||= []).some((x) => x.id === d.id)) S.list.drafts.unshift({ id: d.id, data: d.data, at: Date.now() }); S.sel = d.id; S.edit = { id: d.id, data: clone(d.data), isNew: true, hasDraft: true }; S.status = 'Новый моб — черновик (в игру не идёт до публикации)'; S.stCls = 'draft'; }
   else if (d.op === 'draft') { if (d.ok) { const L = (S.list.drafts ||= []); const x = L.find((y) => y.id === d.id); const data = clone(S.edit?.id === d.id ? S.edit.data : x?.data || {}); if (x) { x.data = data; x.at = Date.now(); } else L.unshift({ id: d.id, data, at: Date.now() });
       if (S.edit?.id === d.id) { S.edit.hasDraft = true; S.status = `Черновик сохранён ${new Date().toLocaleTimeString('ru-RU')} — не опубликован`; S.stCls = 'draft'; } } else { S.status = 'Черновик не сохранён: ' + (d.err || 'ошибка'); S.stCls = 'err'; }
     const st = ap.el?.querySelector('.bmma .st'); if (st && S.sub === 'mobs') { st.className = 'st ' + S.stCls; st.textContent = S.status; const dc = ap.el.querySelector('.bmma [data-x="discard"]'); if (dc) dc.disabled = !S.edit?.hasDraft; } return; }

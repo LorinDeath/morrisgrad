@@ -2227,8 +2227,9 @@ export class MetaService {
       case "draft": { const id = String(msg.id || ""); if (!BM_PARTS[id] && !CUSTOM_BP.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_draft", id, msg.data || {}); return { ...r, id }; }
       case "discard": { const id = String(msg.id || ""); await A.bmcDel("bmc_draft", id); return { ok: true, id }; }
       case "new": { const t = String(msg.ptype || "blade"); if (!BP_TYPES.includes(t as any)) return { ok: false, err: "тип?" };
-        let id = ""; for (let i = 0; i < 20 && (!id || BM_PARTS[id]); i++) id = `bpx_${t}_${Math.random().toString(36).slice(2, 7)}`;
-        const data = { type: t, elem: "fire", name: "Новая деталь" }; await A.bmcSave(by, "bmc_draft", id, data); return { ok: true, id, data }; }
+        const dup = this.newIdSeen("bpnew", msg.tmp); // двойной клик «＋» (тот же tmp) — тот же черновик, второй не создаём
+        const id = this.newIdFor("bpnew", msg.tmp, () => { let x = ""; for (let i = 0; i < 20 && (!x || BM_PARTS[x]); i++) x = `bpx_${t}_${Math.random().toString(36).slice(2, 7)}`; return x; });
+        const data = { type: t, elem: "fire", name: "Новая деталь" }; if (!dup) await A.bmcSave(by, "bmc_draft", id, data); return { ok: true, id, data, tmp: msg.tmp, dup }; }
       case "publish": { const id = String(msg.id || ""); const raw = msg.data && typeof msg.data === "object" ? msg.data : null; if (!raw) return { ok: false, err: "пустой черновик" };
         // черновик — вложенный объект детали (stats: {...}); правка — плоские пути схемы («stats.force»), лишнее (id, custom…) отбрасываем
         const paths = new Set((OV_SCHEMA as any).bpart.fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path)); const patch: any = {};
@@ -2255,6 +2256,7 @@ export class MetaService {
   /** 🛠 конструктор навыков (kind skdef): пресеты правятся, свои «skx_…» создаются/копируются/удаляются; где стоит навык — детали оружия */
   /** новый объект админки: клиент шлёт одноразовый tmp — повторные «Сохранить» до ответа (двойной клик, медленная сеть) получают тот же id, не дубль */
   newIds = new Map<string, string>();
+  newIdSeen(kind: string, tmp: any): boolean { return typeof tmp === "string" && /^[a-z0-9]{6,24}$/i.test(tmp) && this.newIds.has(`${kind}:${tmp}`); }
   newIdFor(kind: string, tmp: any, mk: () => string): string {
     const k = typeof tmp === "string" && /^[a-z0-9]{6,24}$/i.test(tmp) ? `${kind}:${tmp}` : "";
     const was = k ? this.newIds.get(k) : ""; if (was) return was;
@@ -2321,7 +2323,8 @@ export class MetaService {
       case "draft": { const id = String(msg.id || ""); if (!BM_MOBS[id] && !CUSTOM_BM.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_mdraft", id, msg.data || {}); return { ...r, id }; }
       case "discard": { const id = String(msg.id || ""); await A.bmcDel("bmc_mdraft", id); return { ok: true, id }; }
       case "new": { if (Object.keys(BM_MOBS).filter((k) => isCustomBm(k)).length >= (BMM_CFG.maxCustomMobs || 200)) return { ok: false, err: "лимит своих мобов" };
-        const id = rid("bmx", BM_MOBS), data: any = makeMob(id, Number(msg.lvl) || 5, String(msg.cls || "warrior")); delete data.id; await A.bmcSave(by, "bmc_mdraft", id, data); return { ok: true, id, data }; }
+        const dup = this.newIdSeen("bmnew", msg.tmp); // двойной клик «＋» (тот же tmp) — тот же черновик, второй не создаём
+        const id = this.newIdFor("bmnew", msg.tmp, () => rid("bmx", BM_MOBS)), data: any = makeMob(id, Number(msg.lvl) || 5, String(msg.cls || "warrior")); delete data.id; if (!dup) await A.bmcSave(by, "bmc_mdraft", id, data); return { ok: true, id, data, tmp: msg.tmp, dup }; }
       case "publish": { const id = String(msg.id || ""); const raw = msg.data && typeof msg.data === "object" ? msg.data : null; if (!raw) return { ok: false, err: "пустой черновик" };
         const isNew = !BM_MOBS[id]; const r: any = await saveFull("bmmob", id, raw); if (r.ok) await A.bmcDel("bmc_mdraft", id);
         return { ...r, id, isNew, mobs: mobList() }; }

@@ -30,7 +30,7 @@ const live = (id: string) => z.mobs.filter((m: any) => m.bmc === id && !m.dead &
 const inZone = (id: string) => z.mobs.filter((m: any) => m.bmc === id).length;
 const now = Date.now();
 if (phase === "1") {
-  const P: any = MetaService.prototype, svc: any = { store: { db: null }, admin: A, zones: { arinar: z }, newIds: new Map(), newIdFor: P.newIdFor };
+  const P: any = MetaService.prototype, svc: any = { store: { db: null }, admin: A, zones: { arinar: z }, newIds: new Map(), newIdFor: P.newIdFor, newIdSeen: P.newIdSeen };
   const base = z.camps.find((c) => !z.safeAt(c.x, c.y, 2500))!;
   const bmm = (msg: any) => P.bmmOp.call(svc, { pkey: "t" }, { world: "arinar", x: base.x, y: base.y }, msg);
   const mk = (i: number) => ({ name: "Поставлен " + i, world: "arinar", x: base.x + 1200 + i * 1400, y: base.y + 1200, r: 120, mobs: [{ mob: "bmx_ash_warden", n: 3 }], respawnMin: 300, respawnMax: 300 });

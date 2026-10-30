@@ -97,7 +97,7 @@ function parts(ap, S, bd, sec) {
   bd.querySelectorAll('[data-ef]').forEach((b) => (b.onclick = () => { S.elf = b.dataset.ef; mountBmForge(ap, sec); }));
   { const qi = bd.querySelector('[data-pq]'); if (qi) qi.oninput = () => { S.pq = qi.value; clearTimeout(S.qt); S.qt = setTimeout(() => { mountBmForge(ap, sec); const n = sec.querySelector('[data-pq]'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); }; }
   bd.querySelectorAll('.pl [data-p]').forEach((el) => { el.onmouseenter = () => hoverOn(el, el.dataset.p, L); el.onmouseleave = hoverOff; });
-  bd.querySelectorAll('[data-new]').forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); S.status = 'Создание…'; S.stCls = ''; ap.send({ type: 'admin_bmf', op: 'new', ptype: b.dataset.new }); }));
+  bd.querySelectorAll('[data-new]').forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); if (S.newAt && Date.now() - S.newAt < 5000) return; S.newAt = Date.now(); S.newTmp = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); S.status = 'Создание…'; S.stCls = ''; ap.send({ type: 'admin_bmf', op: 'new', ptype: b.dataset.new, tmp: S.newTmp }); })); // двойной клик — один черновик (и сервер: тот же tmp → тот же id)
   if (!e) return;
   const pv = (S.pv && S.pv.cv.isConnected) ? S.pv : null; const cv = bd.querySelector('canvas');
   S.pv?.stop(); S.pv = new WeaponPreview(cv); S.pv.labels = true; S.pv.anim = S.pvAnim || 'cycle'; preview(S); S.pv.start(); void pv;
@@ -170,7 +170,8 @@ function drops(ap, S, bd) {
 export function onBmfResult(ap, d) {
   const S = (ap.bmf ||= { sub: 'parts' });
   if (d.op === 'list' && d.ok) { S.list = d; S.asked = false; if (S.sel && !S.edit) S.sel = null; }
-  if (d.op === 'new' && d.ok && S.list) { (S.list.drafts ||= []).unshift({ id: d.id, data: d.data, at: Date.now() }); S.sel = d.id; S.edit = { id: d.id, data: { ...d.data }, isNew: true, hasDraft: true }; S.status = 'Новая деталь — черновик'; S.stCls = 'draft'; }
+  if (d.op === 'new') S.newAt = 0;
+  if (d.op === 'new' && d.ok && S.list) { if (!(S.list.drafts ||= []).some((x) => x.id === d.id)) S.list.drafts.unshift({ id: d.id, data: d.data, at: Date.now() }); S.sel = d.id; S.edit = { id: d.id, data: { ...d.data }, isNew: true, hasDraft: true }; S.status = 'Новая деталь — черновик'; S.stCls = 'draft'; }
   if (d.op === 'draft') { if (d.ok) { const L = (S.list.drafts ||= []); const x = L.find((y) => y.id === d.id); if (x) { x.data = JSON.parse(JSON.stringify(S.edit?.data || x.data)); x.at = Date.now(); } else L.unshift({ id: d.id, data: JSON.parse(JSON.stringify(S.edit?.data || {})), at: Date.now() });
       if (S.edit?.id === d.id) { S.edit.hasDraft = true; S.status = `Черновик сохранён ${new Date().toLocaleTimeString('ru-RU')} — не опубликован`; S.stCls = 'draft'; } } else { S.status = 'Черновик не сохранён: ' + (d.err || 'ошибка'); S.stCls = 'err'; }
     const st = ap.el?.querySelector('.bmfa .st'); if (st && S.sub === 'parts') { st.className = 'st ' + S.stCls; st.textContent = S.status; const dc = ap.el.querySelector('.bmfa [data-x="discard"]'); if (dc) dc.disabled = !S.edit?.hasDraft; } return; }
