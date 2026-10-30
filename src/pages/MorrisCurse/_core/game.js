@@ -2191,7 +2191,7 @@ async function boot(canvasId, username, userId, api) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
       w2s: (x, y, h = 0) => { const q = stage.project(toX(x), h, toZ(y)), r = stage.canvas.getBoundingClientRect(); return q && { x: r.left + q.x * r.width / stage.width, y: r.top + q.y * r.height / stage.height }; }, // плейтест: мир → экран (наведение мышью; точка на земле)
-      me: () => ({ x: player.x, y: player.y }),
+      me: () => ({ x: player.x, y: player.y, hp: zone.me?.hp, maxHp: zone.me?.maxHp, alive: zone.me?.alive }),
       inspect: (sid) => inspectPlayer(sid), charSheet: () => toggleCharSheet(),
       // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
       charsBlk: () => !/^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? null : Object.fromEntries([...hub.chars].map(([k, c]) => [k, { bk: c.bk | 0, on: !!c.ch?.blk?.visible }])), // очернение героев на экране (плейтест)

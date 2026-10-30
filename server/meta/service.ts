@@ -2463,6 +2463,7 @@ export class MetaService {
     if (o.blk != null && h) { const v = Math.max(0, Math.min(100, Number(o.blk) || 0)); for (const uid of Object.values(h.equip || {})) { const it = a.inv.find((i) => i.uid === uid); if (it) { if (v > 0) it.blk = v; else delete it.blk; } } }
     if (o.blkUid) { const it = a.inv.find((i) => i.uid === String(o.blkUid.uid)); if (it) { const v = Math.max(0, Math.min(100, Number(o.blkUid.v) || 0)); if (v > 0) it.blk = v; else delete it.blk; } }
     if (o.hits) bm.hits.set(session.id, { n: Number(o.hits) | 0, at: now });
+    if (o.hurtMob && typeof o.hurtMob === "object") { const z: any = this.zoneOf(session), m = z?.byId.get(Number(o.hurtMob.id)); if (m && !m.dead) { const pct = Math.max(0, Math.min(0.9, Number(o.hurtMob.pct) || 0)); m.hp = Math.max(1, Math.round(m.hp - m.maxHp * pct)); this.send(ws, { type: "dev_mob_hurt", id: m.id, hp: m.hp, maxHp: m.maxHp }); } } // dev: ранить моба (проверка лекарей), без смерти и награды
     if (o.hurt) this.bmHurt(session.id, Number(o.hurt.pct) || 0, o.hurt.src === "arrow" ? "arrow" : "expl", Number(o.hurt.blk) || 0); // dev: урон/очернение мага по себе (как взрыв)
     if (o.die) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = Date.now() + 5000; this.bmDeath(session.id, ms); } // dev: смерть от мага (+N очернения, N — попадания)
     if (o.mortal) { ms.invulnUntil = 0; ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp; }
