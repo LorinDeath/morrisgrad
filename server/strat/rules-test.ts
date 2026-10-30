@@ -1,5 +1,5 @@
 // Тесты движка «Партии Чёрных королей» (этап 1): bun server/strat/rules-test.ts
-import { newGame, apply, moveTargets, attackTargets, damage, elementMul, inCheck, botAction, view, at, STRAT_CFG, type GameState, type Piece } from "./rules";
+import { newGame, apply, moveTargets, attackTargets, damage, elementMul, inCheck, botAction, view, at, STRAT_CFG, validTurnLimit, TURN_LIMIT, type GameState, type Piece } from "./rules";
 let fails = 0, n = 0; const ok = (c: any, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
 const has = (arr: [number, number][], x: number, y: number) => arr.some(([a, b]) => a === x && b === y);
 // пустая доска с выбранными фигурами
@@ -127,6 +127,18 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   for (let i = 0; i < 100 && g2.winner === -1; i++) apply(g2, g2.cur, { a: "end" });
   ok(g2.winner === 2, "равные очки → ничья");
   ok(g2.turn === STRAT_CFG.sizes[5].turnLimit + 1, "лимит считает полные круги");
+}
+// --- лимит ходов из лобби
+{
+  ok(validTurnLimit(null) === null && validTurnLimit(0) === 0 && validTurnLimit(5) === 5 && validTurnLimit(200) === 200, "лимит ходов: null/0/5/200 допустимы");
+  ok([4, 201, -1, 2.5, "10", true].every((v) => validTurnLimit(v) === undefined), "лимит ходов: 4, 201, −1, дробь, строка — отклоняются");
+  ok(newGame(8, ["fire", "ice"], 0, STRAT_CFG, 12).turnLimit === 12 && newGame(8, ["fire", "ice"], 0, STRAT_CFG, null).turnLimit === 25, "свой лимит / по умолчанию для размера");
+  const g = newGame(5, ["fire", "fire"], 0, STRAT_CFG, 0); g.pieces = g.pieces.filter((p) => p.kind === "king");
+  for (let i = 0; i < 2 * TURN_LIMIT.max + 50; i++) apply(g, g.cur, { a: "end" });
+  ok(g.winner === -1 && g.turn > TURN_LIMIT.max, "без лимита: партия не кончается по ходам");
+  const g3 = newGame(5, ["fire", "ice"], 1, STRAT_CFG, 5); g3.pieces = g3.pieces.filter((p) => p.kind === "king");
+  for (let i = 0; i < 30 && g3.winner === -1; i++) apply(g3, g3.cur, { a: "end" });
+  ok(g3.reason === "limit" && g3.turn === 6, "свой лимит 5 срабатывает после 5 полных кругов");
 }
 // --- самопроверка: бот против бота всегда доигрывает, правила не ломаются
 {

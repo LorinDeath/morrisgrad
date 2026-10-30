@@ -4,7 +4,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { admitMessage, originAllowed, isLocalRequest, isDevRequest, MSG_BURST } from "../limits";
 import { identify, type Ident } from "./ident";
-import { newGame, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, type GameState, type Race, type Action, type Ev, type Kind } from "./rules";
+import { newGame, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, validTurnLimit, type GameState, type Race, type Action, type Ev, type Kind } from "./rules";
 
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без O/0, I/1
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
@@ -16,6 +16,7 @@ type SeatS = { pkey: string; nick: string; verified: boolean; race: Race | null;
 type Clock = { turnStart: number; reserve: [number, number] };
 type L = {
   code: string; created: number; touched: number; size: number; pub: boolean; fair: boolean;
+  turnLimit?: number | null; // null/нет = по умолчанию для размера; 0 = без лимита; иначе TURN_LIMIT.min..max
   phase: "lobby" | "play" | "over"; seats: [SeatS | null, SeatS | null];
   game: GameState | null; clock: Clock | null; result?: { winner: number; reason: string };
   devTurnMs?: number; // только локальные плейтесты (MC_DEV_TRUST_USERID=1 + localhost): короткий таймер хода без запаса
@@ -124,6 +125,7 @@ export class StratMatch extends DurableObject {
         if (m.size !== undefined) { if (!SIZES.includes(m.size)) return "bad_size"; L.size = m.size; }
         if (m.pub !== undefined) L.pub = !!m.pub;
         if (m.fair !== undefined) L.fair = !!m.fair;
+        if (m.turnLimit !== undefined) { const t = validTurnLimit(m.turnLimit); if (t === undefined) return "bad_turn_limit"; L.turnLimit = t; }
         for (const s of L.seats) if (s && !s.bot) s.ready = false; // настройки поменялись — «Готов» сбрасывается
         break;
       }
@@ -177,7 +179,7 @@ export class StratMatch extends DurableObject {
   start() {
     const L = this.L!;
     const first = (crypto.getRandomValues(new Uint8Array(1))[0] & 1) as 0 | 1; // кто ходит первым — случайно
-    L.game = newGame(L.size, [L.seats[0]!.race!, L.seats[1]!.race!], first);
+    L.game = newGame(L.size, [L.seats[0]!.race!, L.seats[1]!.race!], first, STRAT_CFG, L.turnLimit);
     const sc = STRAT_CFG.sizes[L.size], res = L.devTurnMs ? 0 : sc.reserveSec * 1000;
     L.clock = { turnStart: Date.now(), reserve: [res, res] };
     L.phase = "play"; this.lastEv = [{ e: "turn", cur: first, turn: 1 }];
@@ -213,8 +215,8 @@ export class StratMatch extends DurableObject {
   /** Итог партии в D1 (strat_matches; миграция 0025). Опыт Полководца — этап 7. */
   async record() {
     const L = this.L!, g = L.game!, db = this.env.GAME_DB; if (!db) return;
-    await db.prepare("INSERT OR REPLACE INTO strat_matches (id, code, size, p0, p1, race0, race1, first, winner, reason, turns, cfg_version, started_at, ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(L.code + ":" + L.created + ":" + (L.clock?.turnStart || 0), L.code, L.size, L.seats[0]!.pkey, L.seats[1]!.pkey, g.races[0], g.races[1], g.first, g.winner, g.reason, g.turn, STRAT_CFG.version, L.created, Date.now()).run();
+    await db.prepare("INSERT OR REPLACE INTO strat_matches (id, code, size, p0, p1, race0, race1, first, winner, reason, turns, turn_limit, cfg_version, started_at, ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(L.code + ":" + L.created + ":" + (L.clock?.turnStart || 0), L.code, L.size, L.seats[0]!.pkey, L.seats[1]!.pkey, g.races[0], g.races[1], g.first, g.winner, g.reason, g.turn, g.turnLimit, STRAT_CFG.version, L.created, Date.now()).run();
   }
 
   // ---------- бот ----------
@@ -270,7 +272,7 @@ export class StratMatch extends DurableObject {
     const hideRace = L.phase === "lobby"; // выбор вслепую: чужую расу не видно до старта
     const seats = L.seats.map((s, i) => s && { nick: s.nick, guest: !s.verified && !s.bot, bot: !!s.bot, ready: s.ready, picked: !!s.race,
       race: hideRace && i !== seat ? null : s.race, online: !s.goneAt, rematch: !!(s as any).rematch });
-    const out: any = { type: "st", code: L.code, phase: L.phase, size: L.size, pub: L.pub, fair: L.fair, you: seat, seats, ev, now: Date.now() };
+    const out: any = { type: "st", code: L.code, phase: L.phase, size: L.size, pub: L.pub, fair: L.fair, turnLimit: L.turnLimit ?? null, you: seat, seats, ev, now: Date.now() };
     if (L.game) {
       const g = L.game; out.g = view(g); out.check = [inCheck(g, 0), inCheck(g, 1)];
       if (L.clock && L.phase === "play") out.clock = { deadline: this.deadline(), turnEnds: L.clock.turnStart + this.turnMs(), reserve: L.clock.reserve };

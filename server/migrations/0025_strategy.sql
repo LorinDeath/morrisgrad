@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS strat_matches (
   winner INTEGER NOT NULL,          -- 0 / 1 / 2 = ничья
   reason TEXT NOT NULL,             -- king / limit / forfeit / disconnect
   turns INTEGER NOT NULL,
+  turn_limit INTEGER NOT NULL DEFAULT 0,  -- лимит ходов партии (0 = без лимита)
   cfg_version INTEGER NOT NULL,
   started_at INTEGER NOT NULL,
   ended_at INTEGER NOT NULL

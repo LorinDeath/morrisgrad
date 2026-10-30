@@ -103,6 +103,8 @@ const title = 'Партия Чёрных королей | Моррис Град'
     </div>
     <div class="card" id="lobby">
       <div class="row">Поле: <button class="btn sm" data-size="5">5×5</button><button class="btn sm" data-size="8">8×8</button><button class="btn sm" data-size="15">15×15</button></div>
+      <div class="row">Лимит ходов: <select id="tl"><option value="">по умолчанию</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="40">40</option><option value="60">60</option><option value="100">100</option><option value="200">200</option><option value="0">без лимита</option></select>
+        <span class="muted">на лимите побеждает тот, у кого больше очков</span></div>
       <div class="muted" id="sizeinfo"></div>
       <div class="row">Раса (вслепую): <button class="btn sm" data-race="fire">🔥 Огонь</button><button class="btn sm" data-race="ice">❄ Лёд</button></div>
       <div class="row"><button class="btn gold" id="ready">Готов!</button><button class="btn ghost" id="bot">Играть с ботом</button></div>

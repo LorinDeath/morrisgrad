@@ -36,6 +36,14 @@ export const STRAT_CFG = {
 };
 export type StratCfg = typeof STRAT_CFG;
 export const SIZES = [5, 8, 15];
+/** Лимит ходов задаёт хост в лобби: по умолчанию — из размера поля; 0 = без лимита (партия до гибели Вождя / сдачи / таймаута). */
+export const TURN_LIMIT = { min: 5, max: 200, none: 0 };
+/** null — «по умолчанию»; число — допустимый лимит; undefined — неверное значение (сервер отвечает bad_turn_limit). */
+export function validTurnLimit(v: unknown): number | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== "number" || !Number.isInteger(v)) return undefined;
+  return v === TURN_LIMIT.none || (v >= TURN_LIMIT.min && v <= TURN_LIMIT.max) ? v : undefined;
+}
 
 // круг стихий: BEATS[a] = кого a бьёт сильнее
 const CYCLE = ["water", "fire", "ice", "nature", "stone", "lightning"];
@@ -68,9 +76,9 @@ export type Action =
 
 const PROMO_OK: Kind[] = ["knight", "mage", "rook"];
 
-export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg: StratCfg = STRAT_CFG): GameState {
+export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg: StratCfg = STRAT_CFG, turnLimit?: number | null): GameState {
   const sc = cfg.sizes[size]; if (!sc) throw new Error("bad size");
-  const g: GameState = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: sc.turnLimit, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [] };
+  const g: GameState = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: turnLimit ?? sc.turnLimit, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [] };
   for (const owner of [0, 1] as const) {
     sc.army.forEach((row, r) => {
       const x0 = Math.floor((size - row.length) / 2);
@@ -216,7 +224,7 @@ function endTurn(g: GameState, ev: Ev[], cfg: StratCfg) {
   for (const p of g.pieces) if (p.owner === prev) { p.acted = false; if (p.chill > 0) p.chill--; }
   const next = (1 - prev) as 0 | 1;
   if (next === g.first) g.turn++; // номер хода растёт, когда круг вернулся к первому игроку
-  if (g.turn > g.turnLimit) {
+  if (g.turnLimit > 0 && g.turn > g.turnLimit) { // 0 = без лимита
     const a = score(g, 0, cfg), b = score(g, 1, cfg);
     finish(g, Math.abs(a - b) < 0.5 ? 2 : a > b ? 0 : 1, "limit", ev); return;
   }
