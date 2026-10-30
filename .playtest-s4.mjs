@@ -71,7 +71,10 @@ if (only === "all" || only === "new") {
   await dev(D, "ffa", 2); await dev(D, "over", 0); await shot(D, "s4-ui-38-victory-rating", 1500); await D.keyboard.press("Escape"); await sleep(300);
   await dev(D, "lobby8", "2v2", 4); await D.evaluate(() => { window.__stratS().ranked = true; window.__stratDev.render(); }); await shot(D, "s4-ui-39-lobby-2v2-ranked", 700);
   await dev(D, "lobby8", "ffa", 8); await shot(D, "s4-ui-40-lobby-ffa8-bots", 700);
+  await dev(D, "prof"); await shot(D, "s4-ui-43-profile-public", 900);
+  await D.click("#profdlg .ptab[data-t=priv]"); await shot(D, "s4-ui-44-profile-private", 600); await D.keyboard.press("Escape"); await sleep(300);
   await dev(D, "resume"); await shot(D, "s4-ui-41-home-resume", 700);
   const M = await player("s4_" + T + "_mobchat", "&demo=8&skirm=1", true); await dev(M, "chat"); await shot(M, "s4-ui-42-mobile-chat-sheet", 700);
+  await M.evaluate(() => document.querySelector(".chat")?.classList.remove("open")); await dev(M, "prof"); await shot(M, "s4-ui-45-mobile-profile", 900);
 }
 console.log(errs.join("\n") || "no errors"); await br.close();

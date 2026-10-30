@@ -27,7 +27,7 @@ export function leagueBadge(id: LeagueId, s: LStat | null | undefined): string {
     <small>${s.games} парт. · <span class="w">${s.w}</span>/<span class="l">${s.l}</span>/<span class="d">${s.d}</span></small>${s.peak ? `<small class="pk">пик ${fmtR(s.peak)}</small>` : ""}</div>`;
 }
 export function profileHtml(ls: Partial<Record<LeagueId, LStat>> | null): string {
-  return `<div class="profile"><div class="pf-h">${ic("user")}<b class="pf-nick"></b><button class="btn sm ghost" data-top>${ic("glory")}<span>Таблицы лиг</span></button></div>
+  return `<div class="profile"><div class="pf-h">${ic("user")}<b class="pf-nick"></b><button class="btn sm ghost" data-prof>${ic("user")}<span>Профиль</span></button><button class="btn sm ghost" data-top>${ic("glory")}<span>Таблицы лиг</span></button></div>
     <div class="lbadges">${LEAGUES.map((l) => leagueBadge(l.id, ls?.[l.id])).join("")}</div>${ls ? "" : `<small class="muted">Рейтинг появится после первой рейтинговой партии.</small>`}</div>`;
 }
 /** Экран таблиц лиг. */

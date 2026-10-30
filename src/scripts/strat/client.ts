@@ -15,6 +15,7 @@ import { setTipResolver } from "./ui-kit";
 import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius } from "./ult-fx";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
+import { openProfile, demoProfile } from "./profile";
 import { profileHtml, openLeaderboard, ratingDelta, leagueOf, leagueName, LEAGUES } from "./rating";
 import { localFell, resetFell, blacklistOf } from "./goals";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
@@ -826,6 +827,8 @@ function renderResume() {
 }
 /** Таблица лиги: hub {type:"top_get", league} → {list}; в демо — локальные данные. */
 function topGet(league: string): Promise<any> { return demo ? Promise.resolve((window as any).__stratTopDemo?.(league) || {}) : hubReq("top_get", { league }); }
+/** Игровой профиль: hub {type:"profile_get"}; личная вкладка — только если сервер подтвердил владельца. */
+function showProfile() { return openProfile(() => (demo ? Promise.resolve(demoProfile(S?.seats?.[S.you]?.nick || $("#me").textContent || "Гость")) : hubReq("profile_get")), { crest, raceName: RACE_NAME, raceCol: (r) => (RACE_COL[r] || [GOLD])[0] }); }
 async function loadResume() {
   const j: any = await hubReq("resume_get");
   if (j?.game || j?.code) { resumeInfo = j.game || j; renderResume(); }
@@ -855,6 +858,7 @@ function openMenu() {
     <button class="btn ghost" id="leave2">${ic("back")}<span>В главное меню</span></button></div>` });
   const q = (id: string) => m.el.querySelector<HTMLButtonElement>("#" + id);
   q("m-cont")!.onclick = () => m.close(null);
+  m.el.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest("[data-prof]")) showProfile(); });
   const pf = m.el.querySelector<HTMLElement>(".profile")!; pf.querySelector(".pf-nick")!.textContent = S?.seats?.[S.you]?.nick || ($("#me").textContent || "Гость");
   pf.querySelector<HTMLButtonElement>("[data-top]")!.onclick = () => openLeaderboard(topGet, S?.seats?.[S.you]?.nick || "", leagueOf(S?.g?.size || S?.size || 8));
   (demo ? Promise.resolve((window as any).__stratRatingDemo?.() || {}) : hubReq("rating_get")).then((r: any) => { if (!r?.leagues || !pf.isConnected) return; const nk = pf.querySelector(".pf-nick")!.textContent; pf.outerHTML = profileHtml(r.leagues);
@@ -909,6 +913,7 @@ export function boot() {
   $("#copy").onclick = async () => { const u = location.origin + location.pathname + "?join=" + S.code; try { await navigator.clipboard.writeText(u); toast("Ссылка скопирована", "good", "copy"); } catch { toast("Код лобби: " + S.code, "info", "copy"); } };
   $("#goals").addEventListener("click", (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>("[data-bl]"); if (b) openBlacklist(+b.dataset.bl!); });
   $<HTMLInputElement>("#ranked").onchange = (e) => send({ type: "cfg", ranked: (e.target as HTMLInputElement).checked });
+  { const pb = document.getElementById("profbtn"); if (pb) pb.onclick = () => showProfile(); }
   { const tb = document.getElementById("topbtn"); if (tb) tb.onclick = () => openLeaderboard(topGet, "", "fast"); }
   $("#claim").onclick = async () => { if (await confirmDlg("Завершить партию?", "Соперник не за столом и пропустил 5 ходов подряд. Партия завершится вашей победой — решение проверит сервер.", "Завершить", { icon: "flag" })) send({ type: "claim_away" }); };
   $<HTMLSelectElement>("#tsec").onchange = (e) => { const v = (e.target as HTMLSelectElement).value; send({ type: "cfg", turnSec: v === "" ? null : +v }); };
@@ -951,6 +956,7 @@ if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
   tech: () => { eui.tech = true; renderTech(ectx()); }, city: (id: number) => { eui.city = id; renderCity(ectx()); },
   goal: (i: number) => { const gl = goalsOf(S, gs()!, cfgOf(S)); goalPopup(S.you, gl.sides[S.you][i], 2, 3); },
   over: (w: number) => { S.phase = "over"; S.ranked = true; S.result = { winner: w, reason: "goals", rating: { [S.you]: w === S.you ? { league: "normal", before: 1532, after: 1550, delta: 18 } : { league: "normal", before: 1532, after: 1520, delta: -12 } } }; render(); showEnd(); },
+  prof: () => showProfile(),
   bl: (k = 1) => { localFell[k] = { turn: 7, by: S.you }; render(); openBlacklist(S.you); },
   bots: () => { S.seats[1] = { nick: "Бот", race: "ice", bot: true, botLv: "hard", ready: true }; S.seats.length > 2 && (S.seats[2] = null); render(); },
   claim: () => { S.seats[1].online = false; S.seats[1].skips = 5; render(); }, toast: (t: string, k: string, i: string) => toast(t, k as any, i),
