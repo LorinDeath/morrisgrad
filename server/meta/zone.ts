@@ -23,7 +23,8 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 // Навыки боссов и проклятых (ids — базы навыков бестиария). Обычный босс — ровно 1 навык, проклятый — 2–5.
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
-import { pathWorld, steer, hbTouch } from "./skillCraft";
+import { pathWorld, steer, hbTouch, SK_DEFS, castCraft, skBuffAdd, skBuffSum } from "./skillCraft";
+import { projSprite } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
 import { BMA_CFG, bmSkillPct, bmPure, bmDefendEx, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, aimDirs, faceLeftOf, swingEv } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, campElems, type BmCamp } from "./blackMobs";
@@ -260,7 +261,11 @@ export class Zone {
     const P = p.pth!;
     if (P.p === "homing") {
       let tg = p.tg;
-      if (!tg || tg.dead) {
+      if (p.o === "m" && (!tg || !tg.alive)) { // снаряд моба наводится на игроков
+        tg = null; let best = Infinity;
+        for (const q of (this.pl || new Map()).values()) { if (!q.alive || p.hit.has(q.sid)) continue; const ex = q.x - p.x, ey = q.y - p.y, d = Math.hypot(ex, ey), fw = (ex * p.dx + ey * p.dy) / (d || 1); if (d > (P.seek || 420) || fw < -0.2) continue; const sc = d * (1.6 - fw); if (sc < best) { best = sc; tg = q; } }
+        p.tg = tg; if (tg) this.events.push({ k: "ptg", id: p.id, m: "p:" + tg.sid });
+      } else if (p.o !== "m" && (!tg || tg.dead)) {
         tg = null; let best = Infinity;
         for (const m of this.near(p.x, p.y, P.seek || 420)) { if (m.dead || p.hit.has(m.id)) continue; const ex = m.x - p.x, ey = m.y - p.y, d = Math.hypot(ex, ey), fw = (ex * p.dx + ey * p.dy) / (d || 1); if (fw < -0.2) continue; const sc = d * (1.6 - fw); if (sc < best) { best = sc; tg = m; } }
         p.tg = tg; if (tg) this.events.push({ k: "ptg", id: p.id, m: tg.id });
@@ -1205,8 +1210,9 @@ export class Zone {
 
   // players: sid → состояние игрока в мире. onHit(sid, dmg) — урон игроку; onKill(mob) — смерть моба.
   update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number, how?: string) => void, onKill: (m: ZMob) => void) {
-    this.now = now; this.pl = players;
+    this.now = now; this.pl = players; this.curHit = onHit;
     this.syncBlackCamps(now);
+    this.runMfx(now);
     if (this.projs.length) this.updateProjs(dt, players);
     const scale = Math.max(1, Math.min(4, players.size)); // ХП босса растёт с числом игроков (ограниченно)
     if (this.proc) {
@@ -1354,6 +1360,7 @@ export class Zone {
         continue;
       }
       if ((m as any).frozenUntil > now) continue; // заморожен: ни шага, ни удара, ни навыка
+      if ((m as any).castUntil > now) continue; // 🛠 навык конструктора: телеграф — моб стоит (уклониться можно)
       if (best) {
         const dx = best.x - m.x, dy = best.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
         const sp = d.speed * ((m as any).frozenUntil > now ? 0 : 1) * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? (isWorld ? ((ZONE_GEN as any).bossEnrageSpeed || 1.75) : 1.3) : 1) * (m.burstUntil > now ? 1.6 : 1) * (isKiller(m) ? (ZONE_GEN.cursedSpeed || 1.5) : 1) * (isWorld ? ((ZONE_GEN as any).bossCombatSpeed || 1.25) : 1);
@@ -1458,7 +1465,63 @@ export class Zone {
     const s: any = shapeOf(id), pw = Math.min(Math.max(0.8, Number((CURSE as any).mobSkillPowerCap) || 1.8), Math.max(0.8, (ABILITY_BY_ID as any)[id]?.power || 1)), D = dmg * pw, k = Math.max(0.8, big);
     const AD: any = (ABILITY_BY_ID as any)[id]; // 🜏 навык артефакта у любого моба: % ОЗ игрока = pct + k × чёрный урон моба (обычный моб — 0)
     this.bmCast = AD?.cls === "artifact" && BMA_CFG.on && AD.bm ? { pct: bmSkillPct(AD.bm, Number(d?.bdmg) || 0), D } : null;
+    const sk = SK_DEFS[id];
+    if (sk && BMA_CFG.skillCraft !== false) { const pct = this.bmCast && sk.dmg !== "normal" ? this.bmCast.pct : 0; this.bmCast = null; this.mobCraft(m, id, sk, t, now, D, k, sk.form === "proj" ? 550 : tele, ux, uy, pct); return; }
     try { this.heroCastShape(m, s, id, t, now, D, k, tele, ux, uy); } finally { this.bmCast = null; }
+  }
+  /** 🛠 навык конструктора у моба — ВСЕ параметры конструктора (castCraft, как у героя): траектории, число/разброс снарядов,
+   *  ×урона, тики, взрыв, пробивание, хитбокс/масштаб, замедление/заморозка/отброс игроков, лечение/неуязвимость/защита/скорость моба,
+   *  модификаторы, цена ОЗ. Цели — игроки. Сначала телеграф (моб стоит), через tele — удар; листы навыка у клиента (без огненной подмены).
+   *  pct > 0 — чёрный/чистый навык: % макс. ОЗ игрока (pct + k × чёрный урон моба) × множитель формы; иначе — плоский урон моба D. */
+  mobCraft(m: ZMob, id: string, sk: any, t: ZPlayer, now: number, D: number, k: number, tele: number, ux: number, uy: number, pct: number) {
+    const R = (v: number) => Math.round(v), ev = (e: any) => this.events.push(e);
+    const ox = m.x, oy = m.y, tx = t.x, ty = t.y, tl = Math.max(250, tele) / 1000;
+    if (sk.form === "cone") ev({ k: "tele_cone", id: m.id, fx: id, x: R(ox), y: R(oy), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: R(sk.len * k), arc: +(sk.arc / 57.29578).toFixed(3), t: tl });
+    else if (sk.form === "nova") ev({ k: "tele_circle", id: m.id, x: R(ox), y: R(oy), r: R(sk.r * k), t: tl });
+    else if (sk.form === "rain") ev({ k: "tele_circle", id: m.id, x: R(tx), y: R(ty), r: R(sk.area * k + sk.r), t: tl });
+    else ev({ k: "tele", id: m.id, x: R(ox), y: R(oy), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: R(sk.form === "dash" ? sk.len : Math.min(600, sk.len || 400) * k), t: tl });
+    (m as any).castUntil = now + tele;
+    this.mlater(tele, () => {
+      if (m.dead || m.reset) return;
+      const onHit = this.curHit; if (!onHit) return;
+      const area = sk.form === "rain" ? sk.area * k * 1.1 : 0; // дождь: центр — на цели (у героя — перед ним по прицелу)
+      const hooks = {
+        hpFrac: () => m.hp / Math.max(1, m.maxHp), chargeFrac: () => 1,
+        pay: (p: number) => { const c = m.maxHp * p / 100; if (m.hp <= c) return false; m.hp -= c; return true; },
+        mod: (md: any, i: number) => { if (md.k === "heal") { m.hp = Math.min(m.maxHp, m.hp + m.maxHp * (Number(md.v) || 0) / 100); return; } const b = skBuffAdd(((m as any).skb ||= []), id + ":" + i, md, this.now); if (b && md.k === "spd") m.burstUntil = Math.max(m.burstUntil, b.until); },
+        selfHaste: (ms: number) => { m.burstUntil = Math.max(m.burstUntil, this.now + ms); },
+        selfSlow: (ms: number) => { m.slowUntil = Math.max(m.slowUntil, this.now + ms); },
+        dmgMul: () => { const q = skBuffSum((m as any).skb, "dmg", this.now); return (1 + q.pct / 100) * q.mul; },
+      };
+      const P = () => [...(this.pl || new Map()).values()].filter((p) => p.alive);
+      const c: any = {
+        sk: hooks, sid: "mob:" + m.id, x: area ? tx - ux * area : m.x, y: area ? ty - uy * area : m.y, dx: ux, dy: uy, now: this.now, dmg: D, radiusMult: k,
+        zone: { mobsAround: (x: number, y: number, r: number) => P().filter((p) => Math.hypot(p.x - x, p.y - y) <= r + 14) },
+        hit: (p: ZPlayer, mult: number) => { if (!p.alive) return 0; onHit(p.sid, D * mult, m.type, m, pct > 0 ? pct * mult : undefined, "skill:" + id); return D * mult; },
+        status: (p: ZPlayer, st: any, fx?: number, fy?: number) => { // игроку: замедление/заморозка — клиент (как на арене), отброс — сдвиг
+          if (st.freeze) ev({ k: "pstatus", to: p.sid, s: "freeze", ms: Math.min(3000, Number(st.freeze) || 1000), x: R(p.x), y: R(p.y) });
+          else if (st.slow) ev({ k: "pstatus", to: p.sid, s: "slow", ms: 1200, x: R(p.x), y: R(p.y) });
+          if (st.knock) { const ex = p.x - (fx ?? m.x), ey = p.y - (fy ?? m.y), L = Math.hypot(ex, ey) || 1, kd = Math.min(400, Number(st.knock) || 0); ev({ k: "pstatus", to: p.sid, s: "knock", dx: +(ex / L).toFixed(3), dy: +(ey / L).toFixed(3), d: R(kd), x: R(p.x), y: R(p.y) }); }
+        },
+        move: (x: number, y: number) => { m.x = this.clamp(x); m.y = this.clamp(y); this.solid(m); },
+        bounds: (x: number, y: number) => [this.clamp(x), this.clamp(y)],
+        buff: (b: any) => { if (b.heal) m.hp = Math.min(m.maxHp, m.hp + b.heal); if (b.invuln || b.dr) m.shieldUntil = Math.max(m.shieldUntil, this.now + Math.min(4000, (b.invuln || 0) + (b.dr || 0))); },
+        later: (ms: number, fn: () => void) => this.mlater(ms, () => { if (!m.dead) fn(); }),
+        ev: (e: any) => ev({ ...e, sid: undefined, o: "m", mob: m.id, ...(BMA_CFG.skillArt === false ? { art: 0 } : {}), ...((Number(BMA_CFG.skillFxScale) || 1) !== 1 ? { fs: Number(BMA_CFG.skillFxScale) } : {}) }),
+        fire: (o: any) => { const oh = o.onHit, oe = o.onEnd; return this.fire({ ...o, o: "m", mob: m.id, onHit: oh ? (p: any, i: number) => oh(p, i) : undefined, onEnd: oe } as any); },
+      };
+      try { castCraft(id, sk, c, k, BMA_CFG.skillArt !== false, () => this.rand(), projSprite(id, "fireball")); } catch (e) { void e; }
+    });
+  }
+  private mfx: { at: number; fn: () => void }[] = [];
+  private curHit: ((sid: string, dmg: number, src: string, mob?: ZMob, bm?: number, how?: string) => void) | null = null;
+  /** отложенные шаги навыков мобов (телеграф → удар, тики, дождь, след рывка); не больше 2000 в очереди */
+  mlater(ms: number, fn: () => void) { if (this.mfx.length < 2000) this.mfx.push({ at: (this.now || Date.now()) + Math.max(0, ms), fn }); }
+  runMfx(now: number) {
+    if (!this.mfx.length) return;
+    const due = this.mfx.filter((f) => f.at <= now); if (!due.length) return;
+    this.mfx = this.mfx.filter((f) => f.at > now);
+    for (const f of due) f.fn();
   }
   private heroCastShape(m: ZMob, s: any, id: string, t: ZPlayer, now: number, D: number, k: number, tele: number, ux: number, uy: number) {
     switch (s.k) {

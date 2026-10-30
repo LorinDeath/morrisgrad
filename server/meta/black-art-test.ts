@@ -9,6 +9,7 @@ import { itemCard } from "./library";
 import { validatePatch } from "./overrides";
 import { shapeOf } from "./abilityShapes";
 import { Zone } from "./zone";
+import { SK_DEFS } from "./skillCraft";
 
 let pass = 0, fail = 0;
 const ok = (c: any, m: string) => { if (c) pass++; else fail++; console.log((c ? "PASS " : "FAIL ") + m); };
@@ -104,8 +105,11 @@ ok(typeof validatePatch("bpart", "fire_blade", { "stats.bdmg": 0.2 }) !== "strin
   if (m) { const hp = m.hp; const r1 = z.damage(m, "p1", 7.4, () => {}, { black: true } as any, "ba"); ok(r1 === 7 && m.hp === hp - 7, "zone.damage black: без брони");
     const r0 = z.damage(m, "p1", 0.2, () => {}, { black: true } as any, "ba"); ok(r0 === 0, "zone.damage black: 0 возможен");
     m.casts = []; const t: any = { sid: "p1", x: m.x + 40, y: m.y, hp: 100, maxHp: 100, armorRed: 0, alive: true, respawnAt: 0 };
-    z.heroCast(m, { bdmg: 0 }, "bmf_magma_ring", t, new Map([["p1", t]]), Date.now(), 10, 1, 300, 1, 0);
-    ok(m.casts.length > 0 && m.casts.every((c: any) => near(c.bm, ABILITY_BY_ID.bmf_magma_ring.bm.pct, 1e-3)), "моб: навык артефакта несёт bm = pct (обычный моб, bdmg 0)");
+    // навык конструктора у моба идёт через castCraft (bm-mob-craft-test): удар после телеграфа, % — в onHit
+    const bmH: number[] = [], n0 = Date.now(); (z as any).pl = new Map([["p1", t]]); (z as any).curHit = (_s: string, _d: number, _src: string, _m: any, bm?: number) => bmH.push(bm || 0); (z as any).now = n0;
+    z.heroCast(m, { bdmg: 0 }, "bmf_magma_ring", t, new Map([["p1", t]]), n0, 10, 1, 300, 1, 0); for (let i = 1; i <= 60; i++) (z as any).runMfx(n0 + i * 100);
+    const sdef: any = SK_DEFS.bmf_magma_ring, mult = (Number(sdef.mul) || 1) * ((sdef.ticks || 1) > 1 ? 1 / Math.sqrt(sdef.ticks) : 1);
+    ok(bmH.length > 0 && bmH.every((b) => near(b, ABILITY_BY_ID.bmf_magma_ring.bm.pct * mult, 1e-3)), `моб: навык артефакта несёт bm = pct (обычный моб, bdmg 0): ${bmH.map((b) => b.toFixed(2)).join(",")}`);
     m.casts = []; z.heroCast(m, { bdmg: 0 }, "fireball", t, new Map([["p1", t]]), Date.now(), 10, 1, 300, 1, 0); ok(m.casts.every((c: any) => !c.bm), "моб: обычный навык без bm");
   } else ok(false, "в зоне нет моба для проверки");
 }
