@@ -15,6 +15,8 @@ import { canBuild, buildCost } from "../../../server/strat/econ";
 import { openMap, passable } from "../../../server/strat/terrain";
 import { ic, iconImg, BUILD_ICON } from "./icons";
 import { esc } from "./ui-kit";
+import { bSprite, bImg, drawAnchored, drawBanner, isBig, wonderStage, bCard } from "./bldart";
+import { hpBarArt, drawCapture, drawSettleRing, uImg, BUY_MARKER } from "./ui2art";
 import { cfgOf, rv, bName, ECON_ERR, type Ctx } from "./econ-ui";
 
 type SX = (v: number) => number;
@@ -58,7 +60,7 @@ export function loadWalls(redraw: () => void) {
     for (const f of m.files) if (f?.path && f?.tier && f.tier in TIER_PX) { if (f.band && f.kind !== "owner_band") band[f.tier as Tier] ||= +f.band; }
     band.small ||= band.walls / 2; band.lod ||= band.small / 2; // ширина полосы и квадрат угла — из manifest (48/36/18), не константа
     for (const f of m.files) if (f?.path && f?.tier) files.set(f.tier + "/" + (f.key || f.path.split("/").pop().replace(".png", "")), "/strat/walls/" + f.path);
-    for (const d of "nesw") for (const t of ["walls", "small"]) files.set(`${t}/wall_owner_band_${d}`, `/strat/walls/${t}/wall_owner_band_${d}.png`);
+    for (const d of "nesw") for (const t of ["walls", "small", "lod"]) files.set(`${t}/wall_owner_band_${d}`, `/strat/walls/${t}/wall_owner_band_${d}.png`);
     wallMan = { races: new Set(Object.keys(m.races || {})), files, band }; redraw();
   }).catch(() => {});
 }
@@ -74,7 +76,7 @@ function wallPiece(race: string, piece: string, col: string, tier: Tier): HTMLCa
   const ck = `${tier}|${race}|${piece}|${col}`, hit = tintCache.get(ck); if (hit) return hit;
   const w = wimg(tier, `wall_${race}_${piece}`); if (!w) return null;
   const [kind, a] = piece.split("_"), edges = kind === "straight" || kind === "end" ? [a] : a.split("").map((c) => c);
-  const bands = edges.map((e) => wimg(tier === "lod" ? "small" : tier, "wall_owner_band_" + e)); if (bands.some((b) => !b)) return null; // в lod/ лент нет — берём 128 (36/128 = 18/64, та же доля) и сжимаем
+  const bands = edges.map((e) => wimg(tier, "wall_owner_band_" + e)); if (bands.some((b) => !b)) return null; // lod/ — своя тонкая лента ≈6 px (walls-v1 v1.1)
   const S = TIER_PX[tier], cv = document.createElement("canvas"); cv.width = cv.height = S; const c = cv.getContext("2d")!;
   for (const b of bands) c.drawImage(b!, 0, 0, S, S);
   if (kind === "outer" || kind === "inner") { const [x0, y0, bw, bh] = cornerBox(a, S, wallMan!.band[tier] || S * 0.1875); c.clearRect(x0, y0, bw, bh); }
@@ -185,25 +187,70 @@ export function cityBld(S: any, G: GameState, c: any, cfg: StratCfg): BRow[] {
 }
 export const towersOf = (G: GameState): any[] => ((G.ec as any)?.towers || []) as any[];
 export function towerHp(G: GameState, t: any, cfg: StratCfg): BRow { const ec: any = G.ec; return { b: "watchtower", hp: ec?.tbhp?.[t.id] ?? (ec?.tbhs ? undefined : bMax(cfg, "watchtower")), max: bMax(cfg, "watchtower"), hs: ec?.tbhs?.[t.id] }; }
-function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fr: number, hs?: string) {
-  ctx.fillStyle = "#140f18"; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-  if (hs) { ctx.fillStyle = HS_COL[hs] || "#888"; ctx.fillRect(x, y, w, h); return; }
-  ctx.fillStyle = fr > 0.5 ? "#c9a24a" : fr > 0.25 ? "#e07a2a" : "#c23a2a"; ctx.fillRect(x, y, w * Math.max(0, fr), h);
-  ctx.fillStyle = "#ffffff30"; ctx.fillRect(x, y, w * Math.max(0, fr), h * 0.4);
+/** Полоса ОЗ постройки в рамке ui-v2 (hp_bar_frame / _enemy): x,w — жёлоб, рамка выступает на 1,25·h с боков. */
+function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fr: number, hs?: string, enemy = false, redraw?: () => void) {
+  const fill = hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#c9a24a" : fr > 0.25 ? "#e07a2a" : "#c23a2a";
+  hpBarArt(ctx, x - h * 1.25, y, w + h * 2.5, h, hs ? 1 : fr, fill, enemy, redraw);
 }
-/** Полосы HP построек над городом (по одной на постройку, до 4; больше — сводная) и башни. */
-export function drawBuildings(ctx: CanvasRenderingContext2D, c: Ctx, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, hideOwn: boolean) {
+/** Раскладка построек города по клеткам его земли (сервер позиций не шлёт): по порядку постройки, ближние клетки первыми;
+ *  чудо/легенда — первый свободный блок 2×2. Ключ — состав, так что старые постройки не «прыгают» при новых. */
+const layCache = new Map<number, { k: string; v: Map<string, { x: number; y: number; big: boolean }> }>();
+export function cityLayout(G: GameState, C: Int16Array | null, ct: any, items: string[]): Map<string, { x: number; y: number; big: boolean }> {
+  const n = G.size, m: any = (G as any).map || openMap(n), k = items.join(",") + "|" + (C ? C.length : 0) + "|" + n + "|" + (C ? Array.from(C).reduce((a, v, i) => (v === ct.id ? a + i : a), 0) : 0);
+  const hit = layCache.get(ct.id); if (hit && hit.k === k) return hit.v;
+  const towers = new Set(towersOf(G).map((t) => t.y * n + t.x)), cities = new Set((G.ec?.cities || []).map((q: any) => q.y * n + q.x));
+  const R = 1, near = (x: number, y: number) => Math.max(Math.abs(x - ct.x), Math.abs(y - ct.y));
+  // своя земля города; если мест не хватает — ничья клетка рядом (до 2), только для картинки
+  const ok = (x: number, y: number) => { if (x < 0 || y < 0 || x >= n || y >= n) return false; const i = y * n + x;
+    if (C ? !(C[i] === ct.id || (C[i] < 0 && near(x, y) <= 2)) : near(x, y) > R) return false; if (cities.has(i) || towers.has(i)) return false;
+    const t = m.t?.[i] || "."; if (t === "#" || t === "w" || t === "m") return false; const st = m.s?.[i]; return !st || st === "."; };
+  const cand: [number, number][] = []; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (ok(x, y)) cand.push([x, y]);
+  const d = (c: [number, number]) => Math.max(Math.abs(c[0] - ct.x), Math.abs(c[1] - ct.y)) * 10 + Math.abs(c[0] - ct.x) + Math.abs(c[1] - ct.y);
+  const own = (c: [number, number]) => (C && C[c[1] * n + c[0]] !== ct.id ? 1000 : 0);
+  cand.sort((A, B) => own(A) + d(A) - own(B) - d(B) || A[1] - B[1] || A[0] - B[0]);
+  const used = new Set<number>(), out = new Map<string, { x: number; y: number; big: boolean }>(), free = (x: number, y: number) => ok(x, y) && !used.has(y * n + x);
+  for (const b of items) { const big = isBig(b);
+    if (big) { const c = cand.find(([x, y]) => free(x, y) && free(x + 1, y) && free(x, y + 1) && free(x + 1, y + 1)) || cand.find(([x, y]) => free(x, y));
+      if (!c) continue; const [x, y] = c; const full = free(x + 1, y) && free(x, y + 1) && free(x + 1, y + 1);
+      for (const [dx, dy] of full ? [[0, 0], [1, 0], [0, 1], [1, 1]] : [[0, 0]]) used.add((y + dy) * n + x + dx); out.set(b, { x, y, big: full }); continue; }
+    const c = cand.find(([x, y]) => free(x, y)); if (!c) continue; used.add(c[1] * n + c[0]); out.set(b, { x: c[0], y: c[1], big: false }); }
+  layCache.set(ct.id, { k, v: out }); return out;
+}
+/** Постройки на доске: спрайты Художника на клетках земли города + полоса HP под каждой; баннер с именем над городом; башни. */
+export function drawBuildings(ctx: CanvasRenderingContext2D, c: Ctx, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, hideOwn: boolean, C: Int16Array | null = null) {
   const { G, S } = c, cfg = cfgOf(S); if (!G.ec || z < 14) return;
-  for (const ct of G.ec.cities as any[]) { if (!vis(ct.x, ct.y)) continue; const rows = cityBld(S, G, ct, cfg).filter((r) => !r.ruin); if (!rows.length) continue;
-    if (hideOwn && ct.owner === S.you && rows.every((r) => (r.hp ?? 1) >= (r.max ?? 1))) continue;
-    const X = sx(ct.x) + z * 0.06, w = z * 0.6, h = Math.max(2.5, z * 0.05), list = rows.length > 4 ? [{ b: "*", hp: rows.reduce((a, r) => a + (r.hp ?? 0), 0), max: rows.reduce((a, r) => a + (r.max ?? 0), 0), hs: rows.find((r) => r.hs)?.hs }] : rows;
-    list.forEach((r, i) => bar(ctx, X, sy(ct.y) + z * 0.05 + i * (h + 2), w, h, (r.hp ?? 0) / Math.max(1, r.max ?? 1), r.hs && r.hp == null ? r.hs : undefined));
-    if ((ct.ruin || []).length) { const im = iconImg("burn", c.redraw); if (im) ctx.drawImage(im, sx(ct.x) + z * 0.04, sy(ct.y) + z * 0.66, z * 0.28, z * 0.28); } }
+  const n = G.size, bh = Math.max(4, z * 0.075);
+  type DI = { Y: number; sprite: () => void; over: () => void };
+  const L: DI[] = [], banners: (() => void)[] = [];
+  for (const ct of G.ec.cities as any[]) { if (!vis(ct.x, ct.y)) continue; const race = G.races[ct.owner] || "fire";
+    const rows = cityBld(S, G, ct, cfg), live = [...new Set<string>(ct.bld || [])], ruins = rows.filter((r) => r.ruin).map((r) => r.b);
+    const stg = wonderStage(ct); if (stg && stg < 4 && !live.includes("wonder")) live.push("wonder");
+    const items = [...live, ...ruins.filter((b) => !live.includes(b))], lay = cityLayout(G, C, ct, items);
+    const showBar = !(hideOwn && ct.owner === S.you && rows.every((r) => (r.hp ?? 1) >= (r.max ?? 1)));
+    const lv2 = (ct.bld || []).filter((b: string) => b === "forge").length >= 2;
+    for (const b of items) { const p = lay.get(b); if (!p || !vis(p.x, p.y)) continue; const ruin = !live.includes(b), r = rows.find((q) => q.b === b && !!q.ruin === ruin);
+      const big = p.big, X0 = big ? Math.min(sx(p.x), sx(p.x + 1)) : sx(p.x), Y0 = big ? Math.min(sy(p.y), sy(p.y + 1)) : sy(p.y), W = big ? 2 * z : z;
+      const st = b === "wonder" ? stg : 0, src = bSprite(b, race, { lv2: b === "forge" && lv2, stage: st && st < 4 ? st : 0 });
+      L.push({ Y: Y0 + W, sprite: () => { const im = src ? bImg(src, c.redraw) : null;
+        ctx.save(); if (ruin) { ctx.filter = "grayscale(1) brightness(0.55)"; ctx.globalAlpha = 0.85; }
+        ctx.fillStyle = c.col(ct.owner) + "40"; ctx.beginPath(); ctx.ellipse(X0 + W / 2, Y0 + W * 0.86, W * 0.36, W * 0.09, 0, 0, 7); ctx.fill();
+        if (im) drawAnchored(ctx, im, X0 + W / 2, Y0 + W * 0.9, W * (big ? 1.25 : 1.15), big || isBig(b));
+        else { const ii = iconImg(BUILD_ICON[b] || "build", c.redraw); ctx.fillStyle = "#1a1420cc"; ctx.strokeStyle = c.col(ct.owner); ctx.lineWidth = Math.max(1.2, z * 0.03); // заглушка: арта нет
+          ctx.beginPath(); ctx.roundRect(X0 + W * 0.22, Y0 + W * 0.2, W * 0.56, W * 0.56, W * 0.1); ctx.fill(); ctx.stroke(); if (ii) ctx.drawImage(ii, X0 + W * 0.3, Y0 + W * 0.28, W * 0.4, W * 0.4); }
+        ctx.restore(); },
+      over: () => {
+        if (ruin) { const bi = iconImg("burn", c.redraw); if (bi) ctx.drawImage(bi, X0 + W * 0.36, Y0 + W * 0.36, W * 0.28, W * 0.28); }
+        if (st && st < 4) { // стадия стройки чуда
+          const bx = X0 + W * 0.2, by = Y0 + W * 0.8, bw = W * 0.6; hpBarArt(ctx, bx - bh * 1.25, by, bw + bh * 2.5, bh, st / 4, "#7fb6e0", ct.owner !== S.you, c.redraw);
+          if (z >= 28) { ctx.font = `600 ${Math.round(z * 0.18)}px "Oswald", sans-serif`; ctx.fillStyle = "#f6ead0"; ctx.textAlign = "center"; ctx.shadowColor = "#000"; ctx.shadowBlur = 3; ctx.fillText(`стройка ${st}/3`, X0 + W / 2, by - 4); ctx.shadowBlur = 0; ctx.textAlign = "start"; } }
+        else if (showBar && r && !ruin) bar(ctx, X0 + W * 0.2, Y0 + W * 0.8, W * 0.6, bh, (r.hp ?? 0) / Math.max(1, r.max ?? 1), r.hs && r.hp == null ? r.hs : undefined, ct.owner !== S.you, c.redraw); } }); }
+    if (z >= 40) banners.push(() => { const h = Math.max(14, z * 0.28); drawBanner(ctx, race, cityName(G, ct.id) || "Город", sx(ct.x) + z * 0.5, sy(ct.y) + z - h * 1.1, h, c.redraw); }); }
+  L.sort((A, B) => A.Y - B.Y); for (const d of L) d.sprite(); for (const d of L) d.over(); for (const f of banners) f();
   for (const t of towersOf(G)) { if (!vis(t.x, t.y)) continue; const X = sx(t.x), Y = sy(t.y), r = towerHp(G, t, cfg);
     ctx.fillStyle = c.col(t.owner) + "55"; ctx.beginPath(); ctx.ellipse(X + z / 2, Y + z * 0.84, z * 0.3, z * 0.09, 0, 0, 7); ctx.fill();
-    const im = iconImg("tower", c.redraw); if (im) ctx.drawImage(im, X + z * 0.18, Y + z * 0.12, z * 0.64, z * 0.64);
-    ctx.fillStyle = c.col(t.owner); ctx.fillRect(X + z * 0.62, Y + z * 0.1, z * 0.16, z * 0.1);
-    bar(ctx, X + z * 0.17, Y + z * 0.86, z * 0.66, Math.max(2.5, z * 0.05), (r.hp ?? 0) / Math.max(1, r.max ?? 1), r.hs && r.hp == null ? r.hs : undefined); }
+    const src = bSprite("watchtower", G.races[t.owner] || "fire"), im = src ? bImg(src, c.redraw) : null; // bld_watchtower (256, якорь 128,234)
+    if (im) drawAnchored(ctx, im, X + z / 2, Y + z * 0.9, z * 1.15, false); else { const ii = iconImg("tower", c.redraw); if (ii) ctx.drawImage(ii, X + z * 0.18, Y + z * 0.12, z * 0.64, z * 0.64); }
+    bar(ctx, X + z * 0.2, Y + z * 0.8, z * 0.6, bh, (r.hp ?? 0) / Math.max(1, r.max ?? 1), r.hs && r.hp == null ? r.hs : undefined, t.owner !== S.you, c.redraw); }
 }
 /** Цели удара по постройкам для фигуры: сервер (догадка S.raze[id]) или по тем же клеткам удара, что и атака. */
 export function razeTargets(S: any, G: GameState, P: Piece): { city: number; x: number; y: number; b: string[]; tower?: boolean }[] {
@@ -241,14 +288,14 @@ export function towerCells(G: GameState, T: Int8Array, side: number, k: Piece, c
   return out;
 }
 /** Карточки выбора постройки (для choiceDlg) с ценой и причиной недоступности. */
-export function buildChoices(c: Ctx, k: Piece, T: Int8Array): { id: string; title: string; text: string; icon: string; foot: string; off?: boolean }[] {
+export function buildChoices(c: Ctx, k: Piece, T: Int8Array): { id: string; title: string; text: string; icon: string; img?: string; foot: string; off?: boolean }[] {
   const { G, me } = c, cfg = cfgOf(c.S), race = G.races[me], site = chiefSite(G, T, me, k), gold = G.ec.res[me].gold;
   return buildList(cfg, race).map((b) => { const B = bDef(cfg, b, race); let err: string | null = null, cost = B.cost ?? 0;
     if (b === "watchtower") { const mine = towersOf(G).filter((t) => t.owner === me).length, max = (cfg as any).econ?.tower?.max ?? 3;
       err = mine >= max ? `Башен уже ${mine} из ${max}` : !towerCells(G, T, me, k, cfg).length ? "Рядом с Вождём нет подходящей клетки" : gold < cost ? ECON_ERR.no_gold || "Не хватает золота" : null; }
     else if (!site) err = "Вождь должен стоять на своей земле";
     else { try { cost = buildCost(G, me, b as BuildId, cfg); const e = (site.bld || []).includes(b) && b !== "forge" ? "built" : canBuild(G, me, site, b as BuildId, cfg, b === "forge" ? "rook" : undefined); err = e && !/acted/.test(e) ? (e === "built" ? "Уже построено" : ECON_ERR[e] || e) : null; } catch { err = null; } }
-    return { id: b, title: B.name || bName(b, race), text: (B.eff || "") + (err ? ` · ${err}` : "") + (b !== "watchtower" && site ? ` · в городе ${site.name || "Столица"}` : ""), icon: BUILD_ICON[b] || (b === "watchtower" ? "tower" : "build"), foot: `${ic("gold")}${cost}`, off: !!err }; });
+    return { id: b, title: B.name || bName(b, race), text: (B.eff || "") + (err ? ` · ${err}` : "") + (b !== "watchtower" && site ? ` · в городе ${site.name || "Столица"}` : ""), icon: BUILD_ICON[b] || (b === "watchtower" ? "tower" : "build"), img: bCard(b, race) || undefined, foot: `${ic("gold")}${cost}`, off: !!err }; });
 }
 
 // ---------- покупка клетки / прирост / захват / поселение ----------
@@ -261,27 +308,30 @@ export function drawWorldOverlay(ctx: CanvasRenderingContext2D, c: Ctx, z: numbe
     ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1.5, z * 0.045); if (dash) ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(X + 3, Y + 3, z - 6, z - 6); ctx.setLineDash([]); };
   const k = G.pieces.find((q) => q.owner === me && q.kind === "king");
   if (W.mode?.k === "build" && k) {
-    if (W.mode.tower) for (const [x, y] of towerCells(G, T, me, k, cfgOf(S))) { cell(x, y, `rgba(243,210,122,${0.2 + 0.15 * pulse})`, "#f3d27a"); const im = iconImg("tower", c.redraw); if (im) ctx.drawImage(im, sx(x) + z * 0.28, sy(y) + z * 0.28, z * 0.44, z * 0.44); }
+    if (W.mode.tower) for (const [x, y] of towerCells(G, T, me, k, cfgOf(S))) { cell(x, y, `rgba(243,210,122,${0.2 + 0.15 * pulse})`, "#f3d27a"); const src = bSprite("watchtower", G.races[me] || "fire"), im = src ? bImg(src, c.redraw) : null; if (im) { ctx.save(); ctx.globalAlpha = 0.55 + 0.25 * pulse; drawAnchored(ctx, im, sx(x) + z / 2, sy(y) + z * 0.9, z * 1.0, false); ctx.restore(); } }
     else { const site = chiefSite(G, T, me, k); if (site) for (let i = 0; i < T.length; i++) if (C[i] === site.id) { const x = i % n, y = (i / n) | 0; if (vis(x, y)) { ctx.fillStyle = `rgba(243,210,122,${0.1 + 0.08 * pulse})`; ctx.fillRect(sx(x), sy(y), z, z); } } }
   }
+  // покупка клетки (ui-v2 map/buy_marker): в режиме покупки — крупно с ценой; иначе готовые к покупке клетки помечены тихо
+  const buy = uImg(BUY_MARKER, c.redraw);
   if (W.mode?.k === "claim") { const tc = terrCities(S).find((q) => q.city === (W.mode as any).city);
-    for (const [x, y] of tc?.cells || []) { if (!vis(x, y)) continue; cell(x, y, `rgba(127,194,90,${0.18 + 0.14 * pulse})`, "#9fe07a", true);
-      if (z >= 22) { ctx.font = `700 ${Math.round(z * 0.22)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 3; ctx.strokeStyle = "#140f18";
-        const s = String(tc.cost ?? "?"); ctx.strokeText(s, sx(x) + z * 0.58, sy(y) + z / 2); ctx.fillStyle = "#f3d27a"; ctx.fillText(s, sx(x) + z * 0.58, sy(y) + z / 2);
-        const im = iconImg("gold", c.redraw); if (im) ctx.drawImage(im, sx(x) + z * 0.14, sy(y) + z * 0.36, z * 0.28, z * 0.28); } } }
-  // захват: враг стоит на клетке N ходов — кольцо прогресса цвета захватчика
+    for (const [x, y] of tc?.cells || []) { if (!vis(x, y)) continue; cell(x, y, `rgba(127,194,90,${0.12 + 0.1 * pulse})`, "#9fe07a", true);
+      const ms = z * (0.6 + 0.04 * pulse); if (buy) ctx.drawImage(buy, sx(x) + (z - ms) / 2, sy(y) + z * 0.42 - ms / 2, ms, ms);
+      if (z >= 22) { ctx.font = `700 ${Math.round(z * 0.2)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 3; ctx.strokeStyle = "#140f18";
+        const s = String(tc.cost ?? "?"); ctx.strokeText(s, sx(x) + z / 2, sy(y) + z * 0.82); ctx.fillStyle = "#f3d27a"; ctx.fillText(s, sx(x) + z / 2, sy(y) + z * 0.82); } } }
+  else if (buy && z >= 30 && !W.mode) for (const tc of claimable(S)) for (const [x, y] of tc.cells || []) { if (!vis(x, y)) continue;
+    const ms = z * 0.42; ctx.save(); ctx.globalAlpha = 0.55 + 0.25 * pulse; ctx.drawImage(buy, sx(x) + (z - ms) / 2, sy(y) + (z - ms) / 2, ms, ms); ctx.restore(); }
+  // захват: враг стоит на клетке N ходов — map/capture_ring_frame + сегменты цвета захватчика (по часовой от верха), в центре — сколько осталось
   const capMax = leagueCfg(S).capture ?? 4;
-  for (const [ks, v] of Object.entries<any>(ec.ct || {})) { const i = +ks, x = i % n, y = (i / n) | 0; if (!vis(x, y) || !v) continue; const fr = Math.min(1, (v.n ?? 0) / capMax), X = sx(x) + z / 2, Y = sy(y) + z * 0.1, R = Math.max(5, z * 0.13);
-    ctx.fillStyle = "#140f18cc"; ctx.beginPath(); ctx.arc(X, Y, R + 2, 0, 7); ctx.fill(); ctx.strokeStyle = c.col(v.o); ctx.lineWidth = Math.max(2, R * 0.45);
-    ctx.beginPath(); ctx.arc(X, Y, R, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); ctx.stroke();
-    if (z >= 26) { ctx.fillStyle = "#f4ead2"; ctx.font = `700 ${Math.round(R * 1.1)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(Math.max(0, capMax - (v.n ?? 0))), X, Y + 1); } }
-  // поселение: кольцо на Вожде (свои — из S.terr.fnd / ec.fnd)
+  for (const [ks, v] of Object.entries<any>(ec.ct || {})) { const i = +ks, x = i % n, y = (i / n) | 0; if (!vis(x, y) || !v) continue; const left = Math.max(0, capMax - (v.n ?? 0)), sz = Math.max(18, z * 0.46);
+    drawCapture(ctx, sx(x) + z / 2, sy(y) + sz * 0.42, sz, v.n ?? 0, capMax, c.col(v.o), String(left), c.redraw); }
+  // поселение: кольцо map/settlement_ring (маска цвета игрока + золото по прогрессу) на Вожде (свои — из S.terr.fnd / ec.fnd)
   const fl = Array.isArray(ec.fnd) ? ec.fnd : [S?.terr?.fnd && { ...S.terr.fnd, side: me }];
   fl.forEach((f: any, side: number) => { if (!f || f.left == null) return; const p = G.pieces.find((q) => q.id === f.id) || (f.x != null ? { x: f.x, y: f.y } : null); if (!p || !vis(p.x, p.y)) return;
     const total = leagueCfg(S).found ?? (cfgOf(S) as any).econ?.found?.turns ?? 10, fr = Math.max(0, Math.min(1, 1 - f.left / total)), X = sx(p.x) + z / 2, Y = sy(p.y) + z / 2, R = z * 0.47;
-    ctx.strokeStyle = "#140f18aa"; ctx.lineWidth = Math.max(3, z * 0.08); ctx.beginPath(); ctx.arc(X, Y, R, 0, 7); ctx.stroke();
-    ctx.strokeStyle = c.col(f.side ?? side); ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.05, z * 0.03]); ctx.beginPath(); ctx.arc(X, Y, R, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-    if (z >= 24) { const im = iconImg("outpost", c.redraw), s = z * 0.26; ctx.fillStyle = "#140f18"; ctx.beginPath(); ctx.arc(X + R * 0.72, Y - R * 0.72, s * 0.62, 0, 7); ctx.fill(); if (im) ctx.drawImage(im, X + R * 0.72 - s / 2, Y - R * 0.72 - s / 2, s, s); } });
+    if (!drawSettleRing(ctx, X, Y, z * 1.28, fr, c.col(f.side ?? side), c.redraw)) {
+      ctx.strokeStyle = "#140f18aa"; ctx.lineWidth = Math.max(3, z * 0.08); ctx.beginPath(); ctx.arc(X, Y, R, 0, 7); ctx.stroke();
+      ctx.strokeStyle = c.col(f.side ?? side); ctx.lineWidth = Math.max(2, z * 0.05); ctx.beginPath(); ctx.arc(X, Y, R, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); ctx.stroke(); }
+    if (z >= 24) { const im = iconImg("outpost", c.redraw), s = z * 0.26; ctx.fillStyle = "#140f18"; ctx.beginPath(); ctx.arc(X + R * 0.78, Y - R * 0.78, s * 0.62, 0, 7); ctx.fill(); if (im) ctx.drawImage(im, X + R * 0.78 - s / 2, Y - R * 0.78 - s / 2, s, s); } });
 }
 /** Город (свой), чью клетку можно купить сейчас; null — нечего. */
 export const claimable = (S: any) => terrCities(S).filter((q) => q.ready && (q.cells || []).length);

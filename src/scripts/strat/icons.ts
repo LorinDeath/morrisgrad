@@ -90,8 +90,8 @@ export function injectIcons() {
 export const KIT_ICON: Record<string, string> = { gold: "gold", know: "knowledge", glory: "glory", ap: "ap", wheat: "growth", growth: "growth", shield: "armor", sword: "attack", heart: "hp" };
 const kitSrc = (name: string) => `/strat/ui/icons/icon_res_${KIT_ICON[name]}_64.png`;
 /** UI v2 (Художник, ui-v2/icons): 53 иконки 64/32 px. Имя игры → имя арта; нет в наборе — SVG-заглушка. */
-export const ART_ICONS = new Set("anvil arrow back bolt book boot build burn castle cauldron chat check chill clock close copy crown dice era eye flag flame heart horse leaf lock map menu mountain mute outpost plus recruit refresh report scales shield skull snow spark sword target tower turn ult user wall warn wave wheat whisper xp zap".split(" "));
-const ART_ALIAS: Record<string, string> = { play: "arrow", chevron: "arrow", tech: "book", know: "book", apoff: "warn", danger: "warn", ability: "zap" };
+export const ART_ICONS = new Set("anvil arrow back bolt book boot build burn castle cauldron chat check chill clock close copy crown dice era eye flag flame heart horse leaf lock map menu mountain mute outpost plus recruit refresh report scales shield skull snow spark sword target tower turn coin ult user wall warn wave wheat whisper xp zap".split(" "));
+const ART_ALIAS: Record<string, string> = { play: "arrow", chevron: "arrow", tech: "book", know: "book", apoff: "warn", danger: "warn", ability: "zap", rp_play: "replay_play", rp_pause: "replay_pause", rp_back: "replay_step_back", rp_fwd: "replay_step_fwd", rp_start: "replay_to_start", rp_end: "replay_to_end", rp_save: "replay_save", rp_hist: "replay_history" };
 export const artIcon = (name: string, big = false) => { if (name === "bot") return "/strat/ui2/badges/bot_mark.png"; const a = ART_ICONS.has(name) ? name : ART_ALIAS[name]; return a ? `/strat/ui2/icons/icon_${a}_${big ? 64 : 32}.png` : null; };
 export const ic = (name: string, cls = "") => {
   if (KIT_ICON[name]) return `<img class="ic kit ${cls}" src="${kitSrc(name)}" alt="" aria-hidden="true" draggable="false">`;

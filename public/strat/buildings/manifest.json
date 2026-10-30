@@ -1,0 +1,1886 @@
+{
+ "pack": "black-kings buildings-v1",
+ "style": "art-deco comic, ink #1a1420, gold #e0b04a/#f3d27a, ivory #f4ead2",
+ "game_dir": "public/strat/buildings/",
+ "notes": "в игре все файлы лежат плоско в public/strat/buildings/; здесь разложены по buildings/, wonders/, ui/",
+ "count": 109,
+ "items": [
+  {
+   "file": "bld_barracks.png",
+   "src": "buildings/bld_barracks.png",
+   "game_path": "public/strat/buildings/bld_barracks.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Казарма"
+  },
+  {
+   "file": "bld_barracks_card.png",
+   "src": "buildings/bld_barracks_card.png",
+   "game_path": "public/strat/buildings/bld_barracks_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Казарма"
+  },
+  {
+   "file": "bld_barracks_icon.png",
+   "src": "buildings/bld_barracks_icon.png",
+   "game_path": "public/strat/buildings/bld_barracks_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Казарма"
+  },
+  {
+   "file": "bld_stable.png",
+   "src": "buildings/bld_stable.png",
+   "game_path": "public/strat/buildings/bld_stable.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Конюшня"
+  },
+  {
+   "file": "bld_stable_card.png",
+   "src": "buildings/bld_stable_card.png",
+   "game_path": "public/strat/buildings/bld_stable_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Конюшня"
+  },
+  {
+   "file": "bld_stable_icon.png",
+   "src": "buildings/bld_stable_icon.png",
+   "game_path": "public/strat/buildings/bld_stable_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Конюшня"
+  },
+  {
+   "file": "bld_magetower.png",
+   "src": "buildings/bld_magetower.png",
+   "game_path": "public/strat/buildings/bld_magetower.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Башня магов"
+  },
+  {
+   "file": "bld_magetower_card.png",
+   "src": "buildings/bld_magetower_card.png",
+   "game_path": "public/strat/buildings/bld_magetower_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Башня магов"
+  },
+  {
+   "file": "bld_magetower_icon.png",
+   "src": "buildings/bld_magetower_icon.png",
+   "game_path": "public/strat/buildings/bld_magetower_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Башня магов"
+  },
+  {
+   "file": "bld_forge.png",
+   "src": "buildings/bld_forge.png",
+   "game_path": "public/strat/buildings/bld_forge.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Кузня"
+  },
+  {
+   "file": "bld_forge_card.png",
+   "src": "buildings/bld_forge_card.png",
+   "game_path": "public/strat/buildings/bld_forge_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Кузня"
+  },
+  {
+   "file": "bld_forge_icon.png",
+   "src": "buildings/bld_forge_icon.png",
+   "game_path": "public/strat/buildings/bld_forge_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Кузня"
+  },
+  {
+   "file": "bld_wall.png",
+   "src": "buildings/bld_wall.png",
+   "game_path": "public/strat/buildings/bld_wall.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Стена"
+  },
+  {
+   "file": "bld_wall_card.png",
+   "src": "buildings/bld_wall_card.png",
+   "game_path": "public/strat/buildings/bld_wall_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Стена"
+  },
+  {
+   "file": "bld_wall_icon.png",
+   "src": "buildings/bld_wall_icon.png",
+   "game_path": "public/strat/buildings/bld_wall_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Стена"
+  },
+  {
+   "file": "bld_market.png",
+   "src": "buildings/bld_market.png",
+   "game_path": "public/strat/buildings/bld_market.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Рынок"
+  },
+  {
+   "file": "bld_market_card.png",
+   "src": "buildings/bld_market_card.png",
+   "game_path": "public/strat/buildings/bld_market_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Рынок"
+  },
+  {
+   "file": "bld_market_icon.png",
+   "src": "buildings/bld_market_icon.png",
+   "game_path": "public/strat/buildings/bld_market_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Рынок"
+  },
+  {
+   "file": "bld_library.png",
+   "src": "buildings/bld_library.png",
+   "game_path": "public/strat/buildings/bld_library.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Библиотека"
+  },
+  {
+   "file": "bld_library_card.png",
+   "src": "buildings/bld_library_card.png",
+   "game_path": "public/strat/buildings/bld_library_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Библиотека"
+  },
+  {
+   "file": "bld_library_icon.png",
+   "src": "buildings/bld_library_icon.png",
+   "game_path": "public/strat/buildings/bld_library_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Библиотека"
+  },
+  {
+   "file": "bld_granary.png",
+   "src": "buildings/bld_granary.png",
+   "game_path": "public/strat/buildings/bld_granary.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Амбар"
+  },
+  {
+   "file": "bld_granary_card.png",
+   "src": "buildings/bld_granary_card.png",
+   "game_path": "public/strat/buildings/bld_granary_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Амбар"
+  },
+  {
+   "file": "bld_granary_icon.png",
+   "src": "buildings/bld_granary_icon.png",
+   "game_path": "public/strat/buildings/bld_granary_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Амбар"
+  },
+  {
+   "file": "bld_crucible.png",
+   "src": "buildings/bld_crucible.png",
+   "game_path": "public/strat/buildings/bld_crucible.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "race": "fire",
+   "name_ru": "Горнило"
+  },
+  {
+   "file": "bld_crucible_card.png",
+   "src": "buildings/bld_crucible_card.png",
+   "game_path": "public/strat/buildings/bld_crucible_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "race": "fire",
+   "name_ru": "Горнило"
+  },
+  {
+   "file": "bld_crucible_icon.png",
+   "src": "buildings/bld_crucible_icon.png",
+   "game_path": "public/strat/buildings/bld_crucible_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "race": "fire",
+   "name_ru": "Горнило"
+  },
+  {
+   "file": "bld_glacier.png",
+   "src": "buildings/bld_glacier.png",
+   "game_path": "public/strat/buildings/bld_glacier.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "race": "ice",
+   "name_ru": "Ледник"
+  },
+  {
+   "file": "bld_glacier_card.png",
+   "src": "buildings/bld_glacier_card.png",
+   "game_path": "public/strat/buildings/bld_glacier_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "race": "ice",
+   "name_ru": "Ледник"
+  },
+  {
+   "file": "bld_glacier_icon.png",
+   "src": "buildings/bld_glacier_icon.png",
+   "game_path": "public/strat/buildings/bld_glacier_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "race": "ice",
+   "name_ru": "Ледник"
+  },
+  {
+   "file": "bld_harbor.png",
+   "src": "buildings/bld_harbor.png",
+   "game_path": "public/strat/buildings/bld_harbor.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "race": "water",
+   "name_ru": "Гавань"
+  },
+  {
+   "file": "bld_harbor_card.png",
+   "src": "buildings/bld_harbor_card.png",
+   "game_path": "public/strat/buildings/bld_harbor_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "race": "water",
+   "name_ru": "Гавань"
+  },
+  {
+   "file": "bld_harbor_icon.png",
+   "src": "buildings/bld_harbor_icon.png",
+   "game_path": "public/strat/buildings/bld_harbor_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "race": "water",
+   "name_ru": "Гавань"
+  },
+  {
+   "file": "bld_quarry_r.png",
+   "src": "buildings/bld_quarry_r.png",
+   "game_path": "public/strat/buildings/bld_quarry_r.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "race": "stone",
+   "name_ru": "Каменоломня"
+  },
+  {
+   "file": "bld_quarry_r_card.png",
+   "src": "buildings/bld_quarry_r_card.png",
+   "game_path": "public/strat/buildings/bld_quarry_r_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "race": "stone",
+   "name_ru": "Каменоломня"
+  },
+  {
+   "file": "bld_quarry_r_icon.png",
+   "src": "buildings/bld_quarry_r_icon.png",
+   "game_path": "public/strat/buildings/bld_quarry_r_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "race": "stone",
+   "name_ru": "Каменоломня"
+  },
+  {
+   "file": "bld_grove.png",
+   "src": "buildings/bld_grove.png",
+   "game_path": "public/strat/buildings/bld_grove.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "race": "nature",
+   "name_ru": "Роща"
+  },
+  {
+   "file": "bld_grove_card.png",
+   "src": "buildings/bld_grove_card.png",
+   "game_path": "public/strat/buildings/bld_grove_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "race": "nature",
+   "name_ru": "Роща"
+  },
+  {
+   "file": "bld_grove_icon.png",
+   "src": "buildings/bld_grove_icon.png",
+   "game_path": "public/strat/buildings/bld_grove_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "race": "nature",
+   "name_ru": "Роща"
+  },
+  {
+   "file": "bld_rod.png",
+   "src": "buildings/bld_rod.png",
+   "game_path": "public/strat/buildings/bld_rod.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "race": "lightning",
+   "name_ru": "Громоотвод"
+  },
+  {
+   "file": "bld_rod_card.png",
+   "src": "buildings/bld_rod_card.png",
+   "game_path": "public/strat/buildings/bld_rod_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "race": "lightning",
+   "name_ru": "Громоотвод"
+  },
+  {
+   "file": "bld_rod_icon.png",
+   "src": "buildings/bld_rod_icon.png",
+   "game_path": "public/strat/buildings/bld_rod_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "race": "lightning",
+   "name_ru": "Громоотвод"
+  },
+  {
+   "file": "bld_watchtower.png",
+   "src": "buildings/bld_watchtower.png",
+   "game_path": "public/strat/buildings/bld_watchtower.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Дозорная башня",
+   "notes": "защитная; ставится и за границей города; одинокая высокая башня с сигнальной жаровней",
+   "order": "доп. заказ 2"
+  },
+  {
+   "file": "bld_watchtower_card.png",
+   "src": "buildings/bld_watchtower_card.png",
+   "game_path": "public/strat/buildings/bld_watchtower_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Дозорная башня",
+   "notes": "защитная; ставится и за границей города; одинокая высокая башня с сигнальной жаровней",
+   "order": "доп. заказ 2"
+  },
+  {
+   "file": "bld_watchtower_icon.png",
+   "src": "buildings/bld_watchtower_icon.png",
+   "game_path": "public/strat/buildings/bld_watchtower_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Дозорная башня",
+   "notes": "защитная; ставится и за границей города; одинокая высокая башня с сигнальной жаровней",
+   "order": "доп. заказ 2"
+  },
+  {
+   "file": "bld_warcouncil.png",
+   "src": "buildings/bld_warcouncil.png",
+   "game_path": "public/strat/buildings/bld_warcouncil.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "tz": "bld_<id>",
+   "name_ru": "Совет вождей",
+   "notes": "уникальная (строится один раз), даёт очки действия; шатёр вождей со столом и картой",
+   "order": "доп. заказ 2"
+  },
+  {
+   "file": "bld_warcouncil_card.png",
+   "src": "buildings/bld_warcouncil_card.png",
+   "game_path": "public/strat/buildings/bld_warcouncil_card.png",
+   "size": [
+    320,
+    200
+   ],
+   "mode": "RGBA",
+   "category": "building_card",
+   "opaque": true,
+   "tz": "bld_<id>_card",
+   "name_ru": "Совет вождей",
+   "notes": "уникальная (строится один раз), даёт очки действия; шатёр вождей со столом и картой",
+   "order": "доп. заказ 2"
+  },
+  {
+   "file": "bld_warcouncil_icon.png",
+   "src": "buildings/bld_warcouncil_icon.png",
+   "game_path": "public/strat/buildings/bld_warcouncil_icon.png",
+   "size": [
+    64,
+    64
+   ],
+   "mode": "RGBA",
+   "category": "building_icon",
+   "tz": "bld_<id>_icon",
+   "name_ru": "Совет вождей",
+   "notes": "уникальная (строится один раз), даёт очки действия; шатёр вождей со столом и картой",
+   "order": "доп. заказ 2"
+  },
+  {
+   "file": "bld_forge_lv2.png",
+   "src": "buildings/bld_forge_lv2.png",
+   "game_path": "public/strat/buildings/bld_forge_lv2.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building",
+   "anchor": [
+    128,
+    234
+   ],
+   "name_ru": "Кузня ур. 2",
+   "tz": "bld_forge_lv2"
+  },
+  {
+   "file": "bld_magetower_fire.png",
+   "src": "buildings/bld_magetower_fire.png",
+   "game_path": "public/strat/buildings/bld_magetower_fire.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building_extra",
+   "race": "fire",
+   "anchor": [
+    128,
+    234
+   ],
+   "name_ru": "Башня магов (Огонь)",
+   "notes": "дополнительно, не по ТЗ: окно светится цветом расы"
+  },
+  {
+   "file": "bld_magetower_ice.png",
+   "src": "buildings/bld_magetower_ice.png",
+   "game_path": "public/strat/buildings/bld_magetower_ice.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building_extra",
+   "race": "ice",
+   "anchor": [
+    128,
+    234
+   ],
+   "name_ru": "Башня магов (Лёд)",
+   "notes": "дополнительно, не по ТЗ: окно светится цветом расы"
+  },
+  {
+   "file": "bld_magetower_water.png",
+   "src": "buildings/bld_magetower_water.png",
+   "game_path": "public/strat/buildings/bld_magetower_water.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building_extra",
+   "race": "water",
+   "anchor": [
+    128,
+    234
+   ],
+   "name_ru": "Башня магов (Вода)",
+   "notes": "дополнительно, не по ТЗ: окно светится цветом расы"
+  },
+  {
+   "file": "bld_magetower_stone.png",
+   "src": "buildings/bld_magetower_stone.png",
+   "game_path": "public/strat/buildings/bld_magetower_stone.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building_extra",
+   "race": "stone",
+   "anchor": [
+    128,
+    234
+   ],
+   "name_ru": "Башня магов (Камень)",
+   "notes": "дополнительно, не по ТЗ: окно светится цветом расы"
+  },
+  {
+   "file": "bld_magetower_nature.png",
+   "src": "buildings/bld_magetower_nature.png",
+   "game_path": "public/strat/buildings/bld_magetower_nature.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building_extra",
+   "race": "nature",
+   "anchor": [
+    128,
+    234
+   ],
+   "name_ru": "Башня магов (Природа)",
+   "notes": "дополнительно, не по ТЗ: окно светится цветом расы"
+  },
+  {
+   "file": "bld_magetower_lightning.png",
+   "src": "buildings/bld_magetower_lightning.png",
+   "game_path": "public/strat/buildings/bld_magetower_lightning.png",
+   "size": [
+    256,
+    256
+   ],
+   "mode": "RGBA",
+   "category": "building_extra",
+   "race": "lightning",
+   "anchor": [
+    128,
+    234
+   ],
+   "name_ru": "Башня магов (Молния)",
+   "notes": "дополнительно, не по ТЗ: окно светится цветом расы"
+  },
+  {
+   "file": "wonder_observatory.png",
+   "src": "wonders/wonder_observatory.png",
+   "game_path": "public/strat/buildings/wonder_observatory.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "name_ru": "Обсерватория"
+  },
+  {
+   "file": "wonder_observatory_build_1.png",
+   "src": "wonders/wonder_observatory_build_1.png",
+   "game_path": "public/strat/buildings/wonder_observatory_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Обсерватория"
+  },
+  {
+   "file": "wonder_observatory_build_2.png",
+   "src": "wonders/wonder_observatory_build_2.png",
+   "game_path": "public/strat/buildings/wonder_observatory_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Обсерватория"
+  },
+  {
+   "file": "wonder_observatory_build_3.png",
+   "src": "wonders/wonder_observatory_build_3.png",
+   "game_path": "public/strat/buildings/wonder_observatory_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Обсерватория"
+  },
+  {
+   "file": "wonder_observatory_scene.png",
+   "src": "wonders/wonder_observatory_scene.png",
+   "game_path": "public/strat/buildings/wonder_observatory_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "name_ru": "Обсерватория"
+  },
+  {
+   "file": "wonder_arena.png",
+   "src": "wonders/wonder_arena.png",
+   "game_path": "public/strat/buildings/wonder_arena.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "name_ru": "Арена"
+  },
+  {
+   "file": "wonder_arena_build_1.png",
+   "src": "wonders/wonder_arena_build_1.png",
+   "game_path": "public/strat/buildings/wonder_arena_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Арена"
+  },
+  {
+   "file": "wonder_arena_build_2.png",
+   "src": "wonders/wonder_arena_build_2.png",
+   "game_path": "public/strat/buildings/wonder_arena_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Арена"
+  },
+  {
+   "file": "wonder_arena_build_3.png",
+   "src": "wonders/wonder_arena_build_3.png",
+   "game_path": "public/strat/buildings/wonder_arena_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Арена"
+  },
+  {
+   "file": "wonder_arena_scene.png",
+   "src": "wonders/wonder_arena_scene.png",
+   "game_path": "public/strat/buildings/wonder_arena_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "name_ru": "Арена"
+  },
+  {
+   "file": "wonder_lighthouse.png",
+   "src": "wonders/wonder_lighthouse.png",
+   "game_path": "public/strat/buildings/wonder_lighthouse.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "name_ru": "Маяк"
+  },
+  {
+   "file": "wonder_lighthouse_build_1.png",
+   "src": "wonders/wonder_lighthouse_build_1.png",
+   "game_path": "public/strat/buildings/wonder_lighthouse_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Маяк"
+  },
+  {
+   "file": "wonder_lighthouse_build_2.png",
+   "src": "wonders/wonder_lighthouse_build_2.png",
+   "game_path": "public/strat/buildings/wonder_lighthouse_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Маяк"
+  },
+  {
+   "file": "wonder_lighthouse_build_3.png",
+   "src": "wonders/wonder_lighthouse_build_3.png",
+   "game_path": "public/strat/buildings/wonder_lighthouse_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "name_ru": "Маяк"
+  },
+  {
+   "file": "wonder_lighthouse_scene.png",
+   "src": "wonders/wonder_lighthouse_scene.png",
+   "game_path": "public/strat/buildings/wonder_lighthouse_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "name_ru": "Маяк"
+  },
+  {
+   "file": "wonder_eternal_fire.png",
+   "src": "wonders/wonder_eternal_fire.png",
+   "game_path": "public/strat/buildings/wonder_eternal_fire.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "race": "fire",
+   "name_ru": "Вечный огонь"
+  },
+  {
+   "file": "wonder_eternal_fire_build_1.png",
+   "src": "wonders/wonder_eternal_fire_build_1.png",
+   "game_path": "public/strat/buildings/wonder_eternal_fire_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "fire",
+   "name_ru": "Вечный огонь"
+  },
+  {
+   "file": "wonder_eternal_fire_build_2.png",
+   "src": "wonders/wonder_eternal_fire_build_2.png",
+   "game_path": "public/strat/buildings/wonder_eternal_fire_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "fire",
+   "name_ru": "Вечный огонь"
+  },
+  {
+   "file": "wonder_eternal_fire_build_3.png",
+   "src": "wonders/wonder_eternal_fire_build_3.png",
+   "game_path": "public/strat/buildings/wonder_eternal_fire_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "fire",
+   "name_ru": "Вечный огонь"
+  },
+  {
+   "file": "wonder_eternal_fire_scene.png",
+   "src": "wonders/wonder_eternal_fire_scene.png",
+   "game_path": "public/strat/buildings/wonder_eternal_fire_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "race": "fire",
+   "name_ru": "Вечный огонь"
+  },
+  {
+   "file": "wonder_permafrost.png",
+   "src": "wonders/wonder_permafrost.png",
+   "game_path": "public/strat/buildings/wonder_permafrost.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "race": "ice",
+   "name_ru": "Вечная мерзлота"
+  },
+  {
+   "file": "wonder_permafrost_build_1.png",
+   "src": "wonders/wonder_permafrost_build_1.png",
+   "game_path": "public/strat/buildings/wonder_permafrost_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "ice",
+   "name_ru": "Вечная мерзлота"
+  },
+  {
+   "file": "wonder_permafrost_build_2.png",
+   "src": "wonders/wonder_permafrost_build_2.png",
+   "game_path": "public/strat/buildings/wonder_permafrost_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "ice",
+   "name_ru": "Вечная мерзлота"
+  },
+  {
+   "file": "wonder_permafrost_build_3.png",
+   "src": "wonders/wonder_permafrost_build_3.png",
+   "game_path": "public/strat/buildings/wonder_permafrost_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "ice",
+   "name_ru": "Вечная мерзлота"
+  },
+  {
+   "file": "wonder_permafrost_scene.png",
+   "src": "wonders/wonder_permafrost_scene.png",
+   "game_path": "public/strat/buildings/wonder_permafrost_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "race": "ice",
+   "name_ru": "Вечная мерзлота"
+  },
+  {
+   "file": "wonder_great_tide.png",
+   "src": "wonders/wonder_great_tide.png",
+   "game_path": "public/strat/buildings/wonder_great_tide.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "race": "water",
+   "name_ru": "Великий прилив"
+  },
+  {
+   "file": "wonder_great_tide_build_1.png",
+   "src": "wonders/wonder_great_tide_build_1.png",
+   "game_path": "public/strat/buildings/wonder_great_tide_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "water",
+   "name_ru": "Великий прилив"
+  },
+  {
+   "file": "wonder_great_tide_build_2.png",
+   "src": "wonders/wonder_great_tide_build_2.png",
+   "game_path": "public/strat/buildings/wonder_great_tide_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "water",
+   "name_ru": "Великий прилив"
+  },
+  {
+   "file": "wonder_great_tide_build_3.png",
+   "src": "wonders/wonder_great_tide_build_3.png",
+   "game_path": "public/strat/buildings/wonder_great_tide_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "water",
+   "name_ru": "Великий прилив"
+  },
+  {
+   "file": "wonder_great_tide_scene.png",
+   "src": "wonders/wonder_great_tide_scene.png",
+   "game_path": "public/strat/buildings/wonder_great_tide_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "race": "water",
+   "name_ru": "Великий прилив"
+  },
+  {
+   "file": "wonder_great_wall.png",
+   "src": "wonders/wonder_great_wall.png",
+   "game_path": "public/strat/buildings/wonder_great_wall.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "race": "stone",
+   "name_ru": "Великая стена"
+  },
+  {
+   "file": "wonder_great_wall_build_1.png",
+   "src": "wonders/wonder_great_wall_build_1.png",
+   "game_path": "public/strat/buildings/wonder_great_wall_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "stone",
+   "name_ru": "Великая стена"
+  },
+  {
+   "file": "wonder_great_wall_build_2.png",
+   "src": "wonders/wonder_great_wall_build_2.png",
+   "game_path": "public/strat/buildings/wonder_great_wall_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "stone",
+   "name_ru": "Великая стена"
+  },
+  {
+   "file": "wonder_great_wall_build_3.png",
+   "src": "wonders/wonder_great_wall_build_3.png",
+   "game_path": "public/strat/buildings/wonder_great_wall_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "stone",
+   "name_ru": "Великая стена"
+  },
+  {
+   "file": "wonder_great_wall_scene.png",
+   "src": "wonders/wonder_great_wall_scene.png",
+   "game_path": "public/strat/buildings/wonder_great_wall_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "race": "stone",
+   "name_ru": "Великая стена"
+  },
+  {
+   "file": "wonder_world_tree.png",
+   "src": "wonders/wonder_world_tree.png",
+   "game_path": "public/strat/buildings/wonder_world_tree.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "race": "nature",
+   "name_ru": "Мировое древо"
+  },
+  {
+   "file": "wonder_world_tree_build_1.png",
+   "src": "wonders/wonder_world_tree_build_1.png",
+   "game_path": "public/strat/buildings/wonder_world_tree_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "nature",
+   "name_ru": "Мировое древо"
+  },
+  {
+   "file": "wonder_world_tree_build_2.png",
+   "src": "wonders/wonder_world_tree_build_2.png",
+   "game_path": "public/strat/buildings/wonder_world_tree_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "nature",
+   "name_ru": "Мировое древо"
+  },
+  {
+   "file": "wonder_world_tree_build_3.png",
+   "src": "wonders/wonder_world_tree_build_3.png",
+   "game_path": "public/strat/buildings/wonder_world_tree_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "nature",
+   "name_ru": "Мировое древо"
+  },
+  {
+   "file": "wonder_world_tree_scene.png",
+   "src": "wonders/wonder_world_tree_scene.png",
+   "game_path": "public/strat/buildings/wonder_world_tree_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "race": "nature",
+   "name_ru": "Мировое древо"
+  },
+  {
+   "file": "wonder_storm_eye.png",
+   "src": "wonders/wonder_storm_eye.png",
+   "game_path": "public/strat/buildings/wonder_storm_eye.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder",
+   "anchor": [
+    256,
+    476
+   ],
+   "tz": "wonder_<id>",
+   "race": "lightning",
+   "name_ru": "Око бури"
+  },
+  {
+   "file": "wonder_storm_eye_build_1.png",
+   "src": "wonders/wonder_storm_eye_build_1.png",
+   "game_path": "public/strat/buildings/wonder_storm_eye_build_1.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 1,
+   "notes": "леса/фундамент",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "lightning",
+   "name_ru": "Око бури"
+  },
+  {
+   "file": "wonder_storm_eye_build_2.png",
+   "src": "wonders/wonder_storm_eye_build_2.png",
+   "game_path": "public/strat/buildings/wonder_storm_eye_build_2.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 2,
+   "notes": "каркас",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "lightning",
+   "name_ru": "Око бури"
+  },
+  {
+   "file": "wonder_storm_eye_build_3.png",
+   "src": "wonders/wonder_storm_eye_build_3.png",
+   "game_path": "public/strat/buildings/wonder_storm_eye_build_3.png",
+   "size": [
+    512,
+    512
+   ],
+   "mode": "RGBA",
+   "category": "wonder_build",
+   "stage": 3,
+   "notes": "почти готово",
+   "anchor": [
+    256,
+    476
+   ],
+   "race": "lightning",
+   "name_ru": "Око бури"
+  },
+  {
+   "file": "wonder_storm_eye_scene.png",
+   "src": "wonders/wonder_storm_eye_scene.png",
+   "game_path": "public/strat/buildings/wonder_storm_eye_scene.png",
+   "size": [
+    1024,
+    768
+   ],
+   "mode": "RGBA",
+   "category": "wonder_scene",
+   "opaque": true,
+   "calm_center": [
+    192,
+    144,
+    640,
+    480
+   ],
+   "race": "lightning",
+   "name_ru": "Око бури"
+  },
+  {
+   "file": "slot_empty.png",
+   "src": "ui/slot_empty.png",
+   "game_path": "public/strat/buildings/slot_empty.png",
+   "size": [
+    96,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "slot",
+   "notes": "пунктирный ромб, центр ромба (48,58)"
+  },
+  {
+   "file": "slot_locked.png",
+   "src": "ui/slot_locked.png",
+   "game_path": "public/strat/buildings/slot_locked.png",
+   "size": [
+    96,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "slot",
+   "notes": "закрытый слот: замок на ромбе"
+  },
+  {
+   "file": "recruit_card_frame.png",
+   "src": "ui/recruit_card_frame.png",
+   "game_path": "public/strat/buildings/recruit_card_frame.png",
+   "size": [
+    200,
+    240
+   ],
+   "mode": "RGBA",
+   "category": "recruit_frame",
+   "window": [
+    16,
+    12,
+    168,
+    150
+   ],
+   "price_plate": [
+    22,
+    184,
+    156,
+    38
+   ],
+   "price_text_anchor": [
+    66,
+    203
+   ],
+   "notes": "окно прозрачное, спрайт подкладывается ПОД рамку; цена текстом игры справа от монеты"
+  },
+  {
+   "file": "city_banner_fire.png",
+   "src": "ui/city_banner_fire.png",
+   "game_path": "public/strat/buildings/city_banner_fire.png",
+   "size": [
+    480,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "city_banner",
+   "race": "fire",
+   "slice": {
+    "left": 96,
+    "right": 96,
+    "mode": "3-slice, середина 96..384 однородна по X"
+   },
+   "name_text_anchor": [
+    104,
+    48
+   ]
+  },
+  {
+   "file": "city_banner_ice.png",
+   "src": "ui/city_banner_ice.png",
+   "game_path": "public/strat/buildings/city_banner_ice.png",
+   "size": [
+    480,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "city_banner",
+   "race": "ice",
+   "slice": {
+    "left": 96,
+    "right": 96,
+    "mode": "3-slice, середина 96..384 однородна по X"
+   },
+   "name_text_anchor": [
+    104,
+    48
+   ]
+  },
+  {
+   "file": "city_banner_water.png",
+   "src": "ui/city_banner_water.png",
+   "game_path": "public/strat/buildings/city_banner_water.png",
+   "size": [
+    480,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "city_banner",
+   "race": "water",
+   "slice": {
+    "left": 96,
+    "right": 96,
+    "mode": "3-slice, середина 96..384 однородна по X"
+   },
+   "name_text_anchor": [
+    104,
+    48
+   ]
+  },
+  {
+   "file": "city_banner_stone.png",
+   "src": "ui/city_banner_stone.png",
+   "game_path": "public/strat/buildings/city_banner_stone.png",
+   "size": [
+    480,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "city_banner",
+   "race": "stone",
+   "slice": {
+    "left": 96,
+    "right": 96,
+    "mode": "3-slice, середина 96..384 однородна по X"
+   },
+   "name_text_anchor": [
+    104,
+    48
+   ]
+  },
+  {
+   "file": "city_banner_nature.png",
+   "src": "ui/city_banner_nature.png",
+   "game_path": "public/strat/buildings/city_banner_nature.png",
+   "size": [
+    480,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "city_banner",
+   "race": "nature",
+   "slice": {
+    "left": 96,
+    "right": 96,
+    "mode": "3-slice, середина 96..384 однородна по X"
+   },
+   "name_text_anchor": [
+    104,
+    48
+   ]
+  },
+  {
+   "file": "city_banner_lightning.png",
+   "src": "ui/city_banner_lightning.png",
+   "game_path": "public/strat/buildings/city_banner_lightning.png",
+   "size": [
+    480,
+    96
+   ],
+   "mode": "RGBA",
+   "category": "city_banner",
+   "race": "lightning",
+   "slice": {
+    "left": 96,
+    "right": 96,
+    "mode": "3-slice, середина 96..384 однородна по X"
+   },
+   "name_text_anchor": [
+    104,
+    48
+   ]
+  }
+ ]
+}

@@ -281,3 +281,80 @@ body.hist-view #end, body.hist-view .abar, body.hist-view .uc-acts { filter: gra
   .histbar .btn.sm { min-height: 28px; padding: 0 8px; }
 }
 .mvlist:empty::before { content: "История появится после первого хода"; display: block; opacity: .65; padding: 4px 2px 2px; }
+
+/* ===== s6: арт построек (buildings-v1) ===== */
+/* баннер города 3-slice: L96 / середина тянется / R96 */
+.cbanner { --bh: 40px; display: inline-flex; align-items: center; height: var(--bh); min-width: calc(var(--bh) * 3.2); box-sizing: border-box; border-style: solid; border-width: 0 var(--bh);
+  border-image-source: var(--bn); border-image-slice: 0 96 fill; border-image-width: 0 var(--bh); border-image-repeat: stretch; padding: 0 calc(var(--bh) * .2) 0 calc(var(--bh) * .08);
+  font: 600 calc(var(--bh) * .44)/1 var(--f-disp); letter-spacing: .04em; color: #f6ead0; text-shadow: 0 1px 2px #000a; white-space: nowrap; text-transform: none; }
+.cbanner > span { overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+h3.cityttl { margin: 0; } .dlg.city .dlg-h .dlg-ic { display: none; }
+/* слоты построек в окне столицы */
+.bslots { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; margin: 6px 0 4px; }
+.bslot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 5px 6px; background: var(--panel-lo); border: 1px solid var(--gold-lo); font-size: .76rem; text-align: center; min-height: 112px; }
+.bslot b { font: 700 .8rem/1.1 var(--f-disp); letter-spacing: .03em; color: var(--ivory); }
+.bslot small { color: var(--ivory-3); display: inline-flex; align-items: center; gap: 3px; } .bslot small .ic { width: 13px; height: 13px; color: var(--red-hi); }
+.bs-art { width: 100%; aspect-ratio: 320 / 200; object-fit: cover; border: 1px solid #0008; box-shadow: inset 0 0 0 1px var(--gold-dk); }
+.bs-art.big { object-fit: contain; background: radial-gradient(ellipse at 50% 70%, #f3d27a33, transparent 70%), #1a1420; }
+.bs-ph { width: 100%; aspect-ratio: 320 / 200; display: grid; place-items: center; align-content: center; gap: 2px; background: repeating-linear-gradient(135deg, #2a2230 0 8px, #241d2a 8px 16px); border: 1px dashed var(--gold-dk); }
+.bs-ph .ic, .bs-ph img { width: 30px; height: 30px; color: var(--gold); } .bs-ph small { font-size: .66rem; color: var(--ivory-3); }
+.bslot .bhp { width: 86%; } .bslot.wonder { border-color: var(--gold); box-shadow: 0 0 10px #f3d27a33; } .bslot.wonder.build small { color: #9fd0f0; }
+.bslot.ruin .bs-art { filter: grayscale(1) brightness(.55); } .bslot.ruin { border-style: dashed; }
+.bslot.empty, .bslot.locked { background: transparent; border-style: dashed; border-color: var(--gold-dk); justify-content: center; }
+.bs-slot { width: 72px; height: 72px; object-fit: contain; } .bslot.locked { opacity: .8; }
+/* карточки найма в рамке recruit_card_frame 200×240: окно x16..184 y12..162, табличка цены y184..222, монета (44,203), текст с x≈70 */
+.ucards:has(.rframe) { grid-template-columns: repeat(auto-fill, minmax(124px, 150px)); justify-content: center; }
+.ucard.rframe { aspect-ratio: 200 / 240; padding: 0; gap: 0; border: 0; background: var(--rf) center / 100% 100% no-repeat; display: block; }
+.ucard.rframe.on { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 18px #f3d27a66; }
+.ucard.rframe:hover:not([aria-disabled]) { filter: drop-shadow(0 0 10px #f3d27a55); }
+.ucard.rframe .u-art { position: absolute; left: 8%; right: 8%; top: 5%; height: 62.5%; display: grid; place-items: end center; overflow: hidden; background: radial-gradient(ellipse at 50% 85%, #3a2e44, #18121e 75%); }
+.ucard.rframe .u-art img { height: 88%; max-width: 92%; object-fit: contain; }
+.ucard.rframe .u-st { position: absolute; left: 8%; right: 8%; top: 5.5%; justify-content: center; padding: 2px 0; background: linear-gradient(#000a, transparent); font-size: .72rem; }
+.ucard.rframe b { position: absolute; left: 8%; right: 8%; top: 56%; height: 11.5%; display: flex; align-items: center; justify-content: center; background: linear-gradient(transparent, #000c 40%); font-size: .8rem; color: var(--gold-hi); }
+.ucard.rframe em { position: absolute; left: 35%; right: 12%; top: 76.7%; height: 15.8%; justify-content: flex-start; font-size: 1rem; }
+.ucard.rframe .lockn { position: absolute; left: 10%; right: 10%; top: 24%; justify-content: center; padding: 4px; background: #140f18e0; border: 1px solid #c23a2a88; font-size: .68rem; }
+/* выбор стройки Вождём: карточка 320×200 вместо круга */
+.choose.builds .choice[data-art] .ch-art { width: 78%; aspect-ratio: 320 / 200; border-radius: 3px; top: 33%; box-shadow: 0 0 0 1px var(--gold-dk), 0 4px 10px #0008; background: #1a1420; }
+.choose.builds .choice[data-art] .ch-art img { object-fit: cover; } .choose.builds .choice[data-art] .ch-art img[src*="wonder_"] { object-fit: contain; }
+.choose.builds .choice[data-ph] .ch-art { background: repeating-linear-gradient(135deg, #2a2230 0 8px, #241d2a 8px 16px); }
+.choose.builds .choice[data-ph] .ch-art::after { content: "арт позже"; position: absolute; bottom: 10%; font-size: .6rem; color: var(--ivory-3); }
+.choose.builds .dlg { width: min(1040px, 96vw); }
+/* «Чудо построено»: сцена 1024×768, текст в приглушённом центре 640×480 (x192..832, y144..624) */
+.wonderpop { display: grid; place-items: center; background: #0b0810d0; z-index: 90; position: fixed; inset: 0; animation: wpFade .3s; }
+@keyframes wpFade { from { opacity: 0; } }
+.wonderpop.out { opacity: 0; transition: opacity .2s; }
+.wp-scene { position: relative; width: min(920px, 96vw, 122vh); aspect-ratio: 1024 / 768; background: center / 100% 100% no-repeat; box-shadow: 0 0 0 2px var(--gold), 0 20px 60px #000; animation: wpIn .5s var(--ease); }
+@keyframes wpIn { from { transform: scale(.86); opacity: 0; } }
+.wp-txt { position: absolute; left: 18.75%; top: 18.75%; width: 62.5%; height: 62.5%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; text-align: center; gap: 6px; padding: 0 4% 4%; box-sizing: border-box; }
+.wp-txt small { font: 700 .82rem var(--f-disp); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); text-shadow: 0 1px 3px #000; }
+.wp-txt h3 { margin: 0; font: 700 clamp(1.3rem, 4vw, 2.3rem)/1.05 var(--f-disp); color: #fff3d0; text-shadow: 0 2px 0 #000, 0 0 18px #000; }
+.wp-txt p { margin: 0; color: var(--ivory); text-shadow: 0 1px 3px #000; font-size: clamp(.74rem, 1.8vw, .95rem); } .wp-txt .wp-eff { background: #140f18b8; padding: 4px 10px; border: 1px solid var(--gold-dk); }
+.wp-txt .btn { margin-top: 4px; }
+@media (max-width: 640px) {
+  .cbanner { --bh: 32px; } .bslots { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } .bslot { min-height: 96px; font-size: .7rem; }
+  .ucards:has(.rframe) { grid-template-columns: repeat(3, 1fr); gap: 6px; } .ucard.rframe .u-st { font-size: .6rem; gap: 3px; } .ucard.rframe .u-st .ic { width: 11px; height: 11px; }
+  .ucard.rframe b { font-size: .68rem; } .ucard.rframe em { font-size: .82rem; } .ucard.rframe .lockn { font-size: .58rem; top: 18%; }
+  .wp-txt { left: 6%; width: 88%; top: 12%; height: 80%; } .wp-txt .wp-eff { display: none; }
+}
+
+/* Эпоха IV — рамка узла ui-v2 frames/era4_node_frame(+_active/_locked): окно r34 в центре (64,70) из 128 */
+.e4fr { --s: 56px; width: var(--s); height: var(--s); flex: none; position: relative; display: grid; background: url(/strat/ui2/frames/era4_node_frame.png) center / contain no-repeat; }
+.e4fr.active { background-image: url(/strat/ui2/frames/era4_node_frame_active.png); } .e4fr.locked { background-image: url(/strat/ui2/frames/era4_node_frame_locked.png); }
+.e4fr > * { position: absolute; left: 50%; top: calc(70 / 128 * 100%); transform: translate(-50%, -50%); }
+.e4fr > .ic, .e4fr > img { width: calc(var(--s) * .3); height: calc(var(--s) * .3); }
+.tnode.e4q { opacity: .8; border-style: dashed; } .tnode.e4q .e4fr .fogq { font: 700 1.25rem/1 var(--f-disp); transform: translate(-50%, -50%); }
+.tn-h .e4fr { --s: 40px; margin: -6px 0; }
+/* Полоса повтора — рамка ui-v2 frames/replay_bar_frame (480×64, 3-slice 88/88; текст в x88..W−88) */
+.histbar { background: none; border: 0; box-shadow: none; border-image: url(/strat/ui2/frames/replay_bar_frame.png) 0 88 fill / 0 56px stretch; padding: 10px 66px; min-height: 64px; filter: drop-shadow(0 6px 12px rgba(0,0,0,.45)); }
+.histbar .hv-b .ic.art { width: 20px; height: 20px; } .histbar .hv-b.play .ic.art { width: 24px; height: 24px; }
+@media (max-width: 720px) { .histbar { padding: 8px 34px; border-image-width: 0 34px; min-height: 0; } }
+/* Барабан жребия — рамка ui-v2 frames/race_drum_frame 160×224 (×0.75): окно x26..134 y34..190, линия выигрыша y=112 */
+.drum { width: 124px; }
+.drum-fr { position: relative; width: 120px; height: 168px; }
+.drum-fr::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: url(/strat/ui2/frames/race_drum_frame.png) center / 100% 100% no-repeat; z-index: 2; }
+.drum-fr .drum-win { position: absolute; left: 19.5px; top: 25.5px; width: 81px; height: 117px; border: 0; background: #0d0a10; }
+.drum-fr .drum-strip { padding-top: 16.5px; }
+.drum.stop .drum-fr .drum-win { border: 0; box-shadow: inset 0 0 22px var(--pc, var(--gold)); animation: none; }
+.drum.stop .drum-fr { filter: drop-shadow(0 0 10px var(--pc, var(--gold))); animation: pop .3s var(--ease); }
+.drum-fr .drum-strip .dc .crestimg, .drum-fr .drum-strip .dc img, .drum-fr .drum-strip .dc svg { width: 60px; height: 60px; }
+@media (max-width: 520px) { .drum { width: 98px; } .drum-fr { transform: scale(.8); margin: -17px -12px; } .drum-row { gap: 4px; } .drum-fr .drum-win { width: 81px; height: 117px; } }

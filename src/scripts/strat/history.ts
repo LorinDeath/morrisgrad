@@ -135,13 +135,13 @@ export function whyHtml(w: { title: string; rows: [string, string][]; foot?: str
 // ---------- разметка ----------
 export function viewBarHtml(o: { turn: number; side: string; live: boolean; replay: boolean; idx: number; max: number; playing: boolean; speed: number; canSave: boolean; saved: boolean }): string {
   const sp = [0.5, 1, 2, 4];
-  return `<div class="hv-l">${ic("hist")}<span class="hv-t">${o.replay ? "Повтор" : "Просмотр"} · ход <b>${o.turn}</b></span><small class="hv-s"></small></div>
-    <div class="hv-c"><button class="hv-b" data-hv="first" aria-label="В начало" data-tip="В начало">${ic("first", "mono")}</button><button class="hv-b" data-hv="prev" aria-label="Ход назад" data-tip="Назад (←)">${ic("stepb", "mono")}</button>
-    ${o.replay ? `<button class="hv-b play" data-hv="play" aria-label="${o.playing ? "Пауза" : "Воспроизвести"}" data-tip="${o.playing ? "Пауза" : "Воспроизвести"} (пробел)">${ic(o.playing ? "pause" : "play", "mono")}</button>` : ""}
-    <button class="hv-b" data-hv="next" aria-label="Ход вперёд" data-tip="Вперёд (→)">${ic("stepf", "mono")}</button><button class="hv-b" data-hv="last" aria-label="${o.replay ? "В конец" : "К игре"}" data-tip="${o.replay ? "В конец" : "К текущему ходу"}">${ic("last", "mono")}</button></div>
+  return `<div class="hv-l">${ic("rp_hist")}<span class="hv-t">${o.replay ? "Повтор" : "Просмотр"} · ход <b>${o.turn}</b></span><small class="hv-s"></small></div>
+    <div class="hv-c"><button class="hv-b" data-hv="first" aria-label="В начало" data-tip="В начало">${ic("rp_start")}</button><button class="hv-b" data-hv="prev" aria-label="Ход назад" data-tip="Назад (←)">${ic("rp_back")}</button>
+    ${o.replay ? `<button class="hv-b play" data-hv="play" aria-label="${o.playing ? "Пауза" : "Воспроизвести"}" data-tip="${o.playing ? "Пауза" : "Воспроизвести"} (пробел)">${ic(o.playing ? "rp_pause" : "rp_play")}</button>` : ""}
+    <button class="hv-b" data-hv="next" aria-label="Ход вперёд" data-tip="Вперёд (→)">${ic("rp_fwd")}</button><button class="hv-b" data-hv="last" aria-label="${o.replay ? "В конец" : "К игре"}" data-tip="${o.replay ? "В конец" : "К текущему ходу"}">${ic("rp_end")}</button></div>
     <input class="hv-scrub" type="range" min="0" max="${Math.max(0, o.max)}" value="${o.idx}" aria-label="Ход партии">
     ${o.replay ? `<div class="hv-sp" role="group" aria-label="Скорость">${sp.map((s) => `<button class="hv-spb ${s === o.speed ? "on" : ""}" data-sp="${s}">${s}×</button>`).join("")}</div>` : ""}
-    ${o.canSave ? `<button class="btn sm ${o.saved ? "" : "gold"}" data-hv="save" ${o.saved ? "disabled" : ""}>${ic("save", "mono")}<span>${o.saved ? "Сохранено" : "Сохранить"}</span></button>` : ""}
+    ${o.canSave ? `<button class="btn sm ${o.saved ? "" : "gold"}" data-hv="save" ${o.saved ? "disabled" : ""}>${ic("rp_save")}<span>${o.saved ? "Сохранено" : "Сохранить"}</span></button>` : ""}
     ${o.replay ? `<button class="btn sm ghost" data-hv="close">${ic("close")}<span>Закрыть</span></button>` : `<button class="btn sm gold" data-hv="live">${ic("arrow")}<span>К игре</span></button>`}`;
 }
 export function libHtml(lib: { saved: LibItem[]; recent: LibItem[] } | null, d: { crest: (r: string) => string; loading?: boolean; offline?: boolean }): string {
@@ -149,7 +149,7 @@ export function libHtml(lib: { saved: LibItem[]; recent: LibItem[] } | null, d: 
   const row = (it: LibItem) => { const dt = new Date(it.at), when = `${dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })} ${dt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
     return `<div class="lib-row ${it.saved ? "saved" : ""}" data-id="${esc(it.id)}"><span class="lib-cr">${it.races.slice(0, 4).map((r) => d.crest(r)).join("")}</span>
       <div class="lib-b"><b class="lib-n" data-i="${esc(it.id)}"></b><small>${esc(when)}${it.turns ? ` · ${it.turns} ход.` : ""}${it.local ? " · на этом устройстве" : ""}</small></div>
-      <button class="btn sm" data-lib="open" data-id="${esc(it.id)}">${ic("play", "mono")}<span>Смотреть</span></button>${it.saved ? `<button class="btn sm ghost" data-lib="del" data-id="${esc(it.id)}" aria-label="Удалить" data-tip="Убрать из сохранённых">${ic("close")}</button>` : `<button class="btn sm ghost" data-lib="save" data-id="${esc(it.id)}" aria-label="Сохранить" data-tip="Сохранить в библиотеку">${ic("save", "mono")}</button>`}</div>`; };
+      <button class="btn sm" data-lib="open" data-id="${esc(it.id)}">${ic("rp_play")}<span>Смотреть</span></button>${it.saved ? `<button class="btn sm ghost" data-lib="del" data-id="${esc(it.id)}" aria-label="Удалить" data-tip="Убрать из сохранённых">${ic("close")}</button>` : `<button class="btn sm ghost" data-lib="save" data-id="${esc(it.id)}" aria-label="Сохранить" data-tip="Сохранить в библиотеку">${ic("rp_save")}</button>`}</div>`; };
   const sec = (t: string, L: LibItem[], empty: string) => `<div class="lib-h">${esc(t)} <small>${L.length}</small></div>${L.length ? L.map(row).join("") : `<div class="emptyrow">${ic("book")}<span>${esc(empty)}</span></div>`}`;
   return `<div class="lib">${d.offline ? `<p class="lib-note">${ic("warn")}<span>Сервер повторов пока не отвечает — показаны партии, записанные на этом устройстве.</span></p>` : ""}
     ${sec("Сохранённые", lib?.saved || [], "Нажмите «Сохранить» в конце партии или в просмотре ходов")}${sec("Недавние", lib?.recent || [], "Сыгранные партии появятся здесь")}</div>`;

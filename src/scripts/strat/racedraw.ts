@@ -46,7 +46,7 @@ export function drumReveal(S: any, d: D & { nick: (s: number) => string; me: num
   const seats = rolls.slice().sort((a, b) => a.seat - b.seat);
   ov.innerHTML = `<div class="drum-panel"><h3>${ic("dice", "dice")}<span>Жребий рас</span></h3><div class="drum-row">${seats.map((r) => {
     const strip = Array.from({ length: 18 }, (_, i) => d.races[(i * 5 + r.seat * 3) % d.races.length]).concat([r.race]);
-    return `<div class="drum ${r.seat === d.me ? "me" : ""}" data-seat="${r.seat}" style="--pc:${d.col(r.race)}"><small class="dn"></small><div class="drum-win"><div class="drum-strip" style="--n:${strip.length - 1}">${strip.map((x) => `<span class="dc">${d.crest(x)}</span>`).join("")}</div></div>
+    return `<div class="drum ${r.seat === d.me ? "me" : ""}" data-seat="${r.seat}" style="--pc:${d.col(r.race)}"><small class="dn"></small><div class="drum-fr"><div class="drum-win"><div class="drum-strip" style="--n:${strip.length - 1}">${strip.map((x) => `<span class="dc">${d.crest(x)}</span>`).join("")}</div></div></div>
       <b class="dr">${esc(d.name[r.race] || r.race)}</b><em class="df">${r.fromFav ? "из любимых" : ""}</em></div>`; }).join("")}</div>
     <small class="drum-v">${R.seed ? `${ic("lock")}семя ${esc(String(R.seed).slice(0, 10))}… совпадает с заверенным хэшем` : ""}</small><button class="btn gold" data-dok hidden>${ic("check")}<span>В бой</span></button></div>`;
   document.body.appendChild(ov);

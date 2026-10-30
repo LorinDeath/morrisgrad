@@ -60,7 +60,7 @@ export async function openProfile(get: () => Promise<any>, d: Deps) {
   const p: Profile | null = await get().catch(() => null); const b = m.el.querySelector<HTMLElement>(".dlg-b")!;
   if (!p || !p.nick) { b.innerHTML = `<div class="emptyrow">${ic("warn")}<span>Профиль недоступен — нет связи с сервером</span></div>`; return m; }
   const priv = !!(p.own && p.priv);
-  const coins = p.own && p.coins != null ? `<span class="pcoins" data-tip="Монеты: за победы в рейтинговых партиях">${ic("gold")}<b>${num(p.coins)}</b><small>монет</small></span>` : "";
+  const coins = p.own && p.coins != null ? `<span class="pcoins" data-tip="Монеты: за победы в рейтинговых партиях">${ic("coin")}<b>${num(p.coins)}</b><small>монет</small></span>` : "";
   const sets = !!(p.own && d.fav && !d.fav.guest()), lib = !!(p.own && d.lib);
   b.innerHTML = `<div class="phead"><span class="ph-cr">${ic("user")}</span><div><b class="ph-nick"></b><small>игровой профиль</small></div>${coins}</div>
     ${priv || sets || lib ? `<div class="ptabs" role="tablist"><button class="ptab on" data-t="pub" role="tab">${ic("eye")}<span>Публичный</span></button>${priv ? `<button class="ptab" data-t="priv" role="tab">${ic("lock")}<span>Личное</span></button>` : ""}${sets ? `<button class="ptab" data-t="set" role="tab">${ic("crown")}<span>Любимые расы</span></button>` : ""}${lib ? `<button class="ptab" data-t="lib" role="tab">${ic("book")}<span>Библиотека партий</span></button>` : ""}</div>` : ""}

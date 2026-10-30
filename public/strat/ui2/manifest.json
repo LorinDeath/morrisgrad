@@ -2157,5 +2157,405 @@
   ],
   "slice": null,
   "note": "значок ульты фигуры 5-го уровня"
+ },
+ "hp_bar_frame": {
+  "cat": "frames",
+  "png": "frames/hp_bar_frame.png",
+  "svg": "svg/frames/hp_bar_frame.svg",
+  "size": [
+   128,
+   24
+  ],
+  "slice": [
+   16,
+   null,
+   16,
+   null
+  ],
+  "note": "рамка полоски ОЗ здания, 3-slice; прозрачный жёлоб x 10..W-10, y 8..16 — заливку рисует игра"
+ },
+ "hp_bar_frame_enemy": {
+  "cat": "frames",
+  "png": "frames/hp_bar_frame_enemy.png",
+  "svg": "svg/frames/hp_bar_frame_enemy.svg",
+  "size": [
+   128,
+   24
+  ],
+  "slice": [
+   16,
+   null,
+   16,
+   null
+  ],
+  "note": "то же в стали (чужое здание); жёлоб тот же"
+ },
+ "capture_marker_0": {
+  "cat": "map",
+  "png": "map/capture_marker_0.png",
+  "svg": "svg/map/capture_marker_0.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "маркер захвата клетки, кадр 0/4 (заполнено 0 из 4 сегментов по часовой от верха)"
+ },
+ "capture_marker_1": {
+  "cat": "map",
+  "png": "map/capture_marker_1.png",
+  "svg": "svg/map/capture_marker_1.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "маркер захвата клетки, кадр 1/4 (заполнено 1 из 4 сегментов по часовой от верха)"
+ },
+ "capture_marker_2": {
+  "cat": "map",
+  "png": "map/capture_marker_2.png",
+  "svg": "svg/map/capture_marker_2.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "маркер захвата клетки, кадр 2/4 (заполнено 2 из 4 сегментов по часовой от верха)"
+ },
+ "capture_marker_3": {
+  "cat": "map",
+  "png": "map/capture_marker_3.png",
+  "svg": "svg/map/capture_marker_3.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "маркер захвата клетки, кадр 3/4 (заполнено 3 из 4 сегментов по часовой от верха)"
+ },
+ "capture_marker_4": {
+  "cat": "map",
+  "png": "map/capture_marker_4.png",
+  "svg": "svg/map/capture_marker_4.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "маркер захвата клетки, кадр 4/4 (заполнено 4 из 4 сегментов по часовой от верха)"
+ },
+ "capture_ring_frame": {
+  "cat": "map",
+  "png": "map/capture_ring_frame.png",
+  "svg": "svg/map/capture_ring_frame.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "кольцо захвата: 4 пустых гнезда, окно r<21 полностью прозрачно (игра кладёт эмблему/число)"
+ },
+ "capture_ring_segment": {
+  "cat": "map",
+  "png": "map/capture_ring_segment.png",
+  "svg": "svg/map/capture_ring_segment.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "один белый сегмент (ход 1, верх-право); повернуть на 90°·k вокруг (48,48), тонировать умножением"
+ },
+ "buy_marker": {
+  "cat": "map",
+  "png": "map/buy_marker.png",
+  "svg": "svg/map/buy_marker.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "маркер покупки клетки: стопка монет и «+»"
+ },
+ "settlement_ring": {
+  "cat": "map",
+  "png": "map/settlement_ring.png",
+  "svg": "svg/map/settlement_ring.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "кольцо основания поселения, золото; центр r<38 прозрачен"
+ },
+ "settlement_ring_white": {
+  "cat": "map",
+  "png": "map/settlement_ring_white.png",
+  "svg": "svg/map/settlement_ring_white.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "то же, белая маска для тонировки цветом игрока умножением"
+ },
+ "era4_node_frame": {
+  "cat": "frames",
+  "png": "frames/era4_node_frame.png",
+  "svg": "svg/frames/era4_node_frame.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "рамка узла Эпохи IV; окно — восьмиугольник r34 с центром (64,70), чистый круг r≈28"
+ },
+ "era4_node_frame_active": {
+  "cat": "frames",
+  "png": "frames/era4_node_frame_active.png",
+  "svg": "svg/frames/era4_node_frame_active.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "узел Эпохи IV, доступен/выбран: красная подложка и лучи"
+ },
+ "era4_node_frame_locked": {
+  "cat": "frames",
+  "png": "frames/era4_node_frame_locked.png",
+  "svg": "svg/frames/era4_node_frame_locked.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "узел Эпохи IV, закрыт: серый, замок"
+ },
+ "icon_coin_64": {
+  "cat": "icons",
+  "png": "icons/icon_coin_64.png",
+  "svg": "svg/icons/icon_coin_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "монета (золото, корона)"
+ },
+ "icon_coin_32": {
+  "cat": "icons",
+  "png": "icons/icon_coin_32.png",
+  "svg": "svg/icons/icon_coin_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "монета; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "race_drum_frame": {
+  "cat": "frames",
+  "png": "frames/race_drum_frame.png",
+  "svg": "svg/frames/race_drum_frame.svg",
+  "size": [
+   160,
+   224
+  ],
+  "slice": null,
+  "note": "рамка барабана случайной расы; окно x 26..134, y 34..190 прозрачно, линия выигрыша y=112 (стрелки)"
+ },
+ "icon_replay_pause_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_pause_64.png",
+  "svg": "svg/icons/icon_replay_pause_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: пауза"
+ },
+ "icon_replay_pause_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_pause_32.png",
+  "svg": "svg/icons/icon_replay_pause_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: пауза; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_replay_play_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_play_64.png",
+  "svg": "svg/icons/icon_replay_play_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: воспроизведение (пара к паузе)"
+ },
+ "icon_replay_play_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_play_32.png",
+  "svg": "svg/icons/icon_replay_play_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: воспроизведение (пара к паузе); отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_replay_step_back_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_step_back_64.png",
+  "svg": "svg/icons/icon_replay_step_back_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: шаг назад"
+ },
+ "icon_replay_step_back_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_step_back_32.png",
+  "svg": "svg/icons/icon_replay_step_back_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: шаг назад; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_replay_step_fwd_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_step_fwd_64.png",
+  "svg": "svg/icons/icon_replay_step_fwd_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: шаг вперёд"
+ },
+ "icon_replay_step_fwd_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_step_fwd_32.png",
+  "svg": "svg/icons/icon_replay_step_fwd_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: шаг вперёд; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_replay_to_start_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_to_start_64.png",
+  "svg": "svg/icons/icon_replay_to_start_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: в начало"
+ },
+ "icon_replay_to_start_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_to_start_32.png",
+  "svg": "svg/icons/icon_replay_to_start_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: в начало; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_replay_to_end_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_to_end_64.png",
+  "svg": "svg/icons/icon_replay_to_end_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: в конец"
+ },
+ "icon_replay_to_end_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_to_end_32.png",
+  "svg": "svg/icons/icon_replay_to_end_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: в конец; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_replay_save_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_save_64.png",
+  "svg": "svg/icons/icon_replay_save_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: сохранить повтор"
+ },
+ "icon_replay_save_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_save_32.png",
+  "svg": "svg/icons/icon_replay_save_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: сохранить повтор; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_replay_history_64": {
+  "cat": "icons",
+  "png": "icons/icon_replay_history_64.png",
+  "svg": "svg/icons/icon_replay_history_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "плеер повтора: история партий"
+ },
+ "icon_replay_history_32": {
+  "cat": "icons",
+  "png": "icons/icon_replay_history_32.png",
+  "svg": "svg/icons/icon_replay_history_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "плеер повтора: история партий; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "replay_bar_frame": {
+  "cat": "frames",
+  "png": "frames/replay_bar_frame.png",
+  "svg": "svg/frames/replay_bar_frame.svg",
+  "size": [
+   480,
+   64
+  ],
+  "slice": [
+   88,
+   null,
+   88,
+   null
+  ],
+  "note": "полоса «Просмотр хода N», 3-slice; текст рисует игра в средней части x 88..W-88, по центру y=32"
  }
 }

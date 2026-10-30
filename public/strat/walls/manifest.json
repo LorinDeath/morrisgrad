@@ -245,7 +245,7 @@
   "outer": "если стенами помечены оба края a и b угла ab — outer_ab (вместо двух straight)",
   "straight": "иначе для каждого края-стены d — straight_d; если ровно один боковой сосед вдоль стены — \"без стены\", ставится end (открыт со стороны продолжения, руина к воде)",
   "inner": "если оба соседа a и b — клетки города, а диагональ ab — нет (и не \"без стены\"), — inner_ab",
-  "owner_band": "для каждой детали сложить wall_owner_band_<её краёв>, обрезать по альфе детали, у outer/inner очистить угловой квадрат B×B (48 на walls/, 36 на small/), умножить на цвет владельца, положить поверх",
+  "owner_band": "для каждой детали сложить wall_owner_band_<её краёв>, обрезать по альфе детали, у outer/inner очистить угловой квадрат B×B (48 на walls/, 36 на small/, 18 на lod/), умножить на цвет владельца, положить поверх",
   "reference": "src/assemble.py: pieces_for(), owner_overlay(), tint()"
  },
  "not_included": [
@@ -7473,6 +7473,66 @@
    "key": "walls_demo",
    "path": "previews/walls_demo.png",
    "tier": "preview"
+  },
+  {
+   "key": "wall_owner_band_n",
+   "path": "lod/wall_owner_band_n.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "kind": "owner_band",
+   "edges": [
+    "n"
+   ],
+   "band": 18,
+   "desc": "белая лента с флажками ≈6 px по лицевой стороне стены края N (lod, отдельная прорисовка src/lod_bands.py); тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_e",
+   "path": "lod/wall_owner_band_e.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "kind": "owner_band",
+   "edges": [
+    "e"
+   ],
+   "band": 18,
+   "desc": "белая лента с флажками ≈6 px по лицевой стороне стены края E (lod, отдельная прорисовка src/lod_bands.py); тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_s",
+   "path": "lod/wall_owner_band_s.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "kind": "owner_band",
+   "edges": [
+    "s"
+   ],
+   "band": 18,
+   "desc": "белая лента с флажками ≈6 px по лицевой стороне стены края S (lod, отдельная прорисовка src/lod_bands.py); тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_w",
+   "path": "lod/wall_owner_band_w.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "kind": "owner_band",
+   "edges": [
+    "w"
+   ],
+   "band": 18,
+   "desc": "белая лента с флажками ≈6 px по лицевой стороне стены края W (lod, отдельная прорисовка src/lod_bands.py); тонировать цветом владельца умножением"
   }
  ]
 }

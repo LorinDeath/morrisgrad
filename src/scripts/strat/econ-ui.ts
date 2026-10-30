@@ -9,6 +9,7 @@ import { mergeCfg } from "../../../server/strat/cfg";
 import { ic, BUILD_ICON, BRANCH_ICON, iconImg } from "./icons";
 import { esc, modal, choiceDlg, confirmDlg } from "./ui-kit";
 import { pasIcon, buildPassive, techPassive, talentPassive, regPassive } from "./passives";
+import { bCard, bSprite, bIcon64, isBig, wonderStage, bannerHtml, SLOT, RECRUIT_FRAME, WONDER_NAME, PH_NAME } from "./bldart";
 import { cityBld, HS_NAME, W, terrCities, leagueCfg, type BRow } from "./world";
 import { redacted, fogView, unveilCls, fogNode, type FogView } from "./fog";
 
@@ -51,8 +52,8 @@ export function dataIcon(icon: any, fallback: string): string {
   if (typeof icon === "string" && /^[a-z0-9_]+$/.test(icon)) return ic(icon);
   return ic(fallback);
 }
-export const bName = (b: string, race: string) => rv((BUILD as any)[b], race).name || b;
-const bIcon = (b: string, race: string) => { const B = rv((BUILD as any)[b], race); return dataIcon(B.svg ?? (/^[a-z0-9_]+$/.test(B.icon || "") || /^\//.test(B.icon || "") ? B.icon : null), BUILD_ICON[b] || "build"); };
+export const bName = (b: string, race: string) => rv((BUILD as any)[b], race).name || (b === "wonder" ? WONDER_NAME[race] || "Великое чудо" : PH_NAME[b] || b);
+const bIcon = (b: string, race: string) => { const a = bIcon64(b); if (a) return `<img class="ic img bico" src="${a}" alt="">`; const B = rv((BUILD as any)[b], race); return dataIcon(B.svg ?? (/^[a-z0-9_]+$/.test(B.icon || "") || /^\//.test(B.icon || "") ? B.icon : null), BUILD_ICON[b] || "build"); };
 
 // ---------- модель древа технологий (по данным; новые поля баланса подхватываются, если есть) ----------
 const arr = (v: any): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
@@ -141,24 +142,32 @@ export function renderCity(c: Ctx) {
     if (k === "hero" && err === "need_era") why = "Откроется в " + ERA_NAME(HERO_ERA);
     const cost = recruitCost(G, city, k, cfg), u = cfg.units[k];
     const st = err === "locked" || gate ? "locked" : err ? "off" : "can";
-    return `<button class="ucard ${st} ${ui.recruit?.kind === k ? "on" : ""}" data-k="${k}" ${!my || err ? 'aria-disabled="true"' : ""}>
+    return `<button class="ucard rframe ${st} ${ui.recruit?.kind === k ? "on" : ""}" data-k="${k}" ${!my || err ? 'aria-disabled="true"' : ""} style="--rf:url('${RECRUIT_FRAME}')">
       <span class="u-art"><img src="${unitArt(race, k)}" alt="" onerror="this.remove()"></span>
-      <b>${KIND_NAME[k]}</b><span class="u-st">${ic("heart")}${u?.hp ?? "?"} ${ic("sword")}${u?.atk ?? "?"} ${ic("shield")}${u?.arm ?? "?"}</span>
-      ${why ? lock(why) : ""}<em class="${R.gold < cost ? "neg" : ""}">${ic("gold")}${cost}</em></button>`;
+      <span class="u-st">${ic("heart")}${u?.hp ?? "?"} ${ic("sword")}${u?.atk ?? "?"} ${ic("shield")}${u?.arm ?? "?"}</span>
+      <b>${KIND_NAME[k]}</b>${why ? lock(why) : ""}<em class="${R.gold < cost ? "neg" : ""}">${cost}</em></button>`;
   }).join("");
   const hpRows = cityBld(S, G, city, cfg), hpOf = (b: string) => hpRows.find((r) => r.b === b && !r.ruin);
-  const hpTxt = (r?: BRow) => (!r ? "" : r.hp != null ? `<i class="bhp"><u style="width:${Math.round((r.hp / Math.max(1, r.max || 1)) * 100)}%"></u></i><small>${r.hp}/${r.max}</small>` : r.hs ? `<small class="hs hs-${r.hs}">${HS_NAME[r.hs]}</small>` : "");
-  const bl = [...new Set(city.bld)].map((b) => `<span class="bchip" data-tip="${esc(rv(BUILD[b] as any, race).eff || "")}">${bIcon(b, race)}${esc(bName(b, race))}${hpTxt(hpOf(b))}</span>`).join("")
-    + hpRows.filter((r) => r.ruin).map((r) => `<span class="bchip ruin" data-tip="Разрушено — можно восстановить">${ic("burn")}${esc(bName(r.b, race))}<small>руины</small></span>`).join("") + Array.from({ length: Math.max(0, slots - used) }, () => `<span class="bchip empty">свободно</span>`).join("");
+  const hpTxt = (r?: BRow) => (!r ? "" : r.hp != null ? `<i class="bhp"><u style="width:${Math.min(100, Math.round((r.hp / Math.max(1, r.max || 1)) * 100))}%"></u></i><small>${r.hp}/${r.max}</small>` : r.hs ? `<small class="hs hs-${r.hs}">${HS_NAME[r.hs]}</small>` : "");
+  const lv2 = city.bld.filter((b) => b === "forge").length >= 2, stg = wonderStage(city);
+  const card = (b: string) => { const src = bCard(b, race), sp = b === "forge" && lv2 ? bSprite("forge", race, { lv2: true }) : null;
+    return src ? `<img class="bs-art ${isBig(b) ? "big" : ""}" src="${sp || src}" alt="">` : `<span class="bs-ph">${bIcon(b, race)}<small>арт позже</small></span>`; };
+  const capAll: number[] = city.cap ? (sizeOf(G, cfg).capSlots || []) : [], maxSlots = city.cap ? Math.max(slots, capAll[capAll.length - 1] ?? slots) : slots;
+  const lockLv = (i: number) => { const l = capAll.findIndex((v) => v > i); return l >= 0 ? l + 1 : 0; };
+  const bl = [...new Set(city.bld)].map((b) => `<span class="bslot on ${isBig(b) ? "wonder" : ""}" data-tip="${esc(rv(BUILD[b] as any, race).eff || "")}">${card(b)}<b>${esc(bName(b, race))}${b === "forge" && lv2 ? " II" : ""}</b>${hpTxt(hpOf(b))}</span>`).join("")
+    + (stg && stg < 4 ? `<span class="bslot on wonder build" data-tip="Великое чудо строится"><img class="bs-art big" src="${bSprite("wonder", race, { stage: stg })}" alt=""><b>${esc(bName("wonder", race))}</b><small>стройка ${stg}/3</small></span>` : "")
+    + hpRows.filter((r) => r.ruin).map((r) => `<span class="bslot ruin" data-tip="Разрушено — можно восстановить">${card(r.b)}<b>${esc(bName(r.b, race))}</b><small>${ic("burn")}руины</small></span>`).join("")
+    + Array.from({ length: Math.max(0, slots - used) }, () => `<span class="bslot empty"><img class="bs-slot" src="${SLOT.empty}" alt=""><small>свободно</small></span>`).join("")
+    + Array.from({ length: Math.max(0, maxSlots - Math.max(slots, used)) }, (_, i) => `<span class="bslot locked"><img class="bs-slot" src="${SLOT.locked}" alt=""><small>${lockLv(slots + i) ? "откроется на ур. " + lockLv(slots + i) : "закрыто"}</small></span>`).join("");
   box.innerHTML = `<div class="dlg deco city">
-    <div class="dlg-h"><span class="dlg-ic">${ic(city.cap ? "castle" : "outpost")}</span><div><h3>${esc(city.name)}</h3>
+    <div class="dlg-h"><span class="dlg-ic">${ic(city.cap ? "castle" : "outpost")}</span><div><h3 class="cityttl">${bannerHtml(race, city.name || (city.cap ? "Столица" : "Застава"))}</h3>
       <p class="dlg-sub">${city.cap ? (/столиц/i.test(city.name || "") ? "" : "Столица · ") + "уровень " + (city.lvl + 1) : (city as any).set ? "Поселение" : "Застава"} · постройки ${used}/${slots}${city.forge.length ? " · Кузня: " + city.forge.map((k) => KIND_NAME[k]).join(", ") : ""}</p></div>
       <div class="dlg-res"><span>${ic("gold")}<b>${R.gold}</b></span><span>${ic("know")}<b>${R.know}</b></span></div>
       <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
     ${city.cap ? `<div class="growth"><span>Рост</span><div class="meter"><i style="width:${next ? Math.min(100, (city.growth / next) * 100) : 100}%"></i></div><b>${next ? city.growth + "/" + next : "макс."}</b></div>` : ""}
     ${city.acted ? `<div class="warnline">${ic("turn")} Город уже действовал в этот ход — найм и стройка снова на следующем ходу</div>` : !my ? `<div class="warnline">${ic("turn")} Сейчас ход соперника</div>` : ""}
     ${landRow(S, city)}
-    <div class="bchips">${bl}</div>
+    <div class="bslots">${bl}</div>
     <p class="cityhint">${ic("build")} Строит Вождь: выберите его на доске и нажмите «Построить».</p>
     <div class="dlg-b">
       <section><h4 class="deco-h">${ic("recruit")}Найм <small>фигура появится на клетке ${city.cap ? "столицы" : "города"}${G.pieces.some((q) => q.x === city.x && q.y === city.y) ? " — она занята, выберите клетку рядом" : ""}</small></h4><div class="ucards">${units}</div></section>
@@ -194,12 +203,12 @@ export function renderTech(c: Ctx) {
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
     return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
-      <span class="tn-h">${n.icon ? `<span class="tn-ic">${dataIcon(n.icon, BRANCH_ICON[n.br] || "spark")}</span>` : ""}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
+      <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${dataIcon(n.icon || BRANCH_ICON[n.br] || "spark", BRANCH_ICON[n.br] || "spark")}</span>` : n.icon ? `<span class="tn-ic">${dataIcon(n.icon, BRANCH_ICON[n.br] || "spark")}</span>` : ""}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
       <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>
       <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + cost(n.era)}</em></button>`; };
   const cell = (br: string, era: number) => {
     const ns = nodes.filter((n) => n.br === br && n.era === era);
-    if (!ns.length && era >= 4) return `<div class="tcell e4">${[0, 1].map((i) => `${i ? '<span class="and"></span>' : ""}<span class="tnode fog e4q" data-tip="Эпоха IV: узел откроется позже"><span class="fogq">?</span><small>Эпоха IV</small></span>`).join("")}</div>`;
+    if (!ns.length && era >= 4) return `<div class="tcell e4">${[0, 1].map((i) => `${i ? '<span class="and"></span>' : ""}<span class="tnode fog e4q" data-tip="Эпоха IV: узел откроется позже"><span class="e4fr locked"><span class="fogq">?</span></span><small>Эпоха IV</small></span>`).join("")}</div>`;
     if (!ns.length) return `<div class="tcell empty">${br === "elem" && era === 1 ? "Ветвь расы — скоро" : ""}</div>`;
     // узлы, исключающие друг друга, — рядом через «или»
     let h = ""; ns.forEach((n, i) => { if (i) h += ns[i - 1].excl.includes(n.id) || n.excl.includes(ns[i - 1].id) ? `<span class="or"><i>или</i></span>` : `<span class="and"></span>`; h += card(n); });

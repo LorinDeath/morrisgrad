@@ -19,10 +19,12 @@ import { openProfile, demoProfile } from "./profile";
 import { lobbyLeagueHtml, profileHtml, openLeaderboard, ratingDelta, leagueOf, leagueName, LEAGUES } from "./rating";
 import { localFell, resetFell, blacklistOf } from "./goals";
 import { favRaces, setFavLocal, lobbyDrawHtml, favPickerHtml, bindFavPicker, drumReveal } from "./racedraw";
+import { wonderPopup } from "./bldart";
 import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, razeTargets, buildChoices, towerCells, claimable, cityName, apTip, HS_NAME, HS_COL, hsByHp, loadWalls, cityBld, towersOf, terrCities } from "./world";
 import { bName } from "./econ-ui";
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type EvCtx, type LibItem } from "./history";
+import { hpBarArt } from "./ui2art";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
 
 const PROD_WS = "wss://morris-multiplayer.alexseylyou.workers.dev";
@@ -203,6 +205,9 @@ const POSE_MS = 420, DEATH_MS = 750, FX_MS = 480, MOVE_MS = 280, NUM_MS = 1200;
 const sticky: Set<string>[] = Array.from({ length: 8 }, () => new Set<string>()); const lastHit = new Map<number, number>(); // цели, отмеченные навсегда («Пал Вождь врага» — только первый)
 let prevGoals: Goal[][] | null = null, prevChief: { alive: boolean; pend: number } | null = null, endShown = false, introShown = false;
 const crest = (r: string) => `<img class="crestimg" src="/strat/ui/crests/crest_${r}.png" alt="">`;
+function showWonder(c: any) { const g = S.g, race = g.races[c.owner] || "fire", cfg: any = cfgOf(S);
+  wonderPopup({ race, title: bName("wonder", race), city: c.name || (c.cap ? "Столица" : "Город"), who: S.seats[c.owner]?.nick || "Игрок", mine: c.owner === S.you,
+    eff: cfg.build?.wonder?.eff || "+2 Славы за ход; ультимейт Вождя сильнее (+3 силы, перезарядка −2)" }); }
 function resetMatchUi() { resetUlt(); chatReset(); ultAim = null; aimCell = null; sticky.forEach((x) => x.clear()); lastHit.clear(); resetFell(); prevGoals = null; prevChief = null; endShown = false; introShown = false; cam.n = 0; document.getElementById("endscreen")?.remove(); const lg = $("#log"); if (lg) lg.innerHTML = ""; }
 function onState(prev: any) {
   if (S.code !== prev?.code) resetMatchUi();
@@ -210,6 +215,8 @@ function onState(prev: any) {
   if (S.g && prev?.g && S.g.cur !== prev.g.cur) sel = null;
   const now = performance.now(), g = S.g, me = S.you;
   if (g && prev?.g) for (const p of g.pieces) { const q = prev.g.pieces.find((z: any) => z.id === p.id); if (q && (q.x !== p.x || q.y !== p.y)) tweens.set(p.id, { fx: q.x, fy: q.y, t: now }); }
+  if (g?.ec && prev?.g?.ec && !hv && S.code === prev.code) for (const c of g.ec.cities as any[]) { const pc = prev.g.ec.cities.find((q: any) => q.id === c.id);
+    if ((c.bld || []).includes("wonder") && pc && !(pc.bld || []).includes("wonder")) showWonder(c); }
   for (const e of S.ev || []) {
     if (!g) break;
     { const u = parseUlt(e, g, now); if (u) { addCast(u, g.turn); ultBanner(u, u.side === me, S.seats[u.side]?.nick || ""); draw(); } }
@@ -676,7 +683,7 @@ function bindChiefActs(P: any, box: HTMLElement) {
     if (k === "found") return send({ type: "act", act: { a: "found", id: P.id } });
     if (k === "found_cancel") return send({ type: "act", act: { a: "found_cancel", id: P.id } });
     const G = gs()!, T = worldT(), list = buildChoices(ectx(), P, T);
-    const pick = await choiceDlg("Построить", "Вождь строит на своей земле — постройка достаётся ближайшему городу. Башню — рядом с Вождём, в том числе за границей.", list.map((o) => ({ id: o.id, title: o.title, text: o.text, icon: o.icon, foot: o.foot, disabled: o.off })), "builds");
+    const pick = await choiceDlg("Построить", "Вождь строит на своей земле — постройка достаётся ближайшему городу. Башню — рядом с Вождём, в том числе за границей.", list.map((o) => ({ id: o.id, title: o.title, text: o.text, icon: o.icon, img: o.img, foot: o.foot, disabled: o.off, attrs: o.img ? 'data-art="1"' : 'data-ph="1"' })), "builds");
     if (!pick) return;
     if (pick === "watchtower") { W.mode = { k: "build", b: pick, tower: true }; renderHint(); draw(); return; }
     let kind: string | undefined; if (pick === "forge") { const kk = await choiceDlg("Кузня", "Какому типу фигур дать +1 АТК?", (Object.keys(KIND_NAME) as Kind[]).map((q) => ({ id: q, title: KIND_NAME[q], img: unitArt(G.races[S.you], q), text: "+1 АТК" })), "kinds"); if (!kk) return; kind = kk; }
@@ -796,7 +803,7 @@ function drawNow() {
   // видимая область (в координатах карты) — рисуем только её
   const m = 1, vis = (x: number, y: number) => { const X = scrX(x), Y = scrY(y); return X > -z * m && Y > -z * m && X < cam.W + z * (m - 1) + z && Y < cam.H + z * (m - 1) + z; };
   const sx = scrX, sy = scrY;
-  if (T && WT) { const ec0 = ectx(); drawEcon(ctx, ec0, z, sx, sy, T, vis, () => drawWalls(ctx, G0, WT.T, WT.C, z, sx, sy, vis, raceCol)); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
+  if (T && WT) { const ec0 = ectx(); drawEcon(ctx, ec0, z, sx, sy, T, vis, () => drawWalls(ctx, G0, WT.T, WT.C, z, sx, sy, vis, raceCol)); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp, WT.C); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
   const zs = zonesOf(g); if (zs.length) drawZones(ctx, zs, n, sx, sy, z, performance.now());
   const GP = new Map(G0.pieces.map((q) => [q.id, q]));
   if (selCell) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(sx(selCell[0]) + 2, sy(selCell[1]) + 2, z - 4, z - 4); ctx.setLineDash([]); }
@@ -824,8 +831,8 @@ function drawNow() {
     if (p.k === "king" && S.check?.[p.o]) { ctx.strokeStyle = "#e6623f"; ctx.lineWidth = 3; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.arc(cx, cy, z * 0.46, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     // полоса здоровья: чернильная рамка, заливка по доле
     // «Скрывать ОЗ» (настройка): полоса только у выбранной/наведённой; скрытое здоровье лобби: у врага только grade (hs)
-    if (!hideHp || p.id === sel || p.id === hoverPid) { const bw = z * 0.66, bx = cx - bw / 2, by = Y + z * 0.9, bh = Math.max(3, z * 0.07), hs = p.hp == null ? p.hs : null, fr = hs ? (hs === "ok" ? 1 : hs === "hurt" ? 0.55 : 0.2) : Math.max(0, p.hp / p.mh);
-      ctx.fillStyle = INK; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2); ctx.fillStyle = hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#7fc25a" : fr > 0.25 ? "#e0b04a" : "#c23a2a"; ctx.fillRect(bx, by, bw * fr, bh);
+    if (!hideHp || p.id === sel || p.id === hoverPid) { const bw = z * 0.6, bx = cx - bw / 2, by = Y + z * 0.86, bh = Math.max(4, z * 0.075), hs = p.hp == null ? p.hs : null, fr = hs ? (hs === "ok" ? 1 : hs === "hurt" ? 0.55 : 0.2) : Math.max(0, p.hp / p.mh);
+      hpBarArt(ctx, bx - bh * 1.25, by, bw + bh * 2.5, bh, fr, hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#7fc25a" : fr > 0.25 ? "#e0b04a" : "#c23a2a", p.owner !== S.you, draw); // рамка ui-v2 hp_bar_frame(_enemy)
       if (hs && z >= 30) { ctx.font = `700 ${Math.round(z * 0.15)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.strokeText(HS_NAME[hs] || "", cx, by - 1); ctx.fillStyle = HS_COL[hs] || "#ccc"; ctx.fillText(HS_NAME[hs] || "", cx, by - 1); } }
     const badge = (name: string, i: number) => { const im = iconImg(name, draw); if (im) { const s = z * 0.24; ctx.drawImage(im, X + z * 0.74, Y + z * 0.04 + i * s, s, s); } };
     { const Q = GP.get(p.id); if (Q) drawLvBadge(ctx, X, Y - hop, z, pieceLevel(Q, cfg), p.o === S.you && !!pendingTalent(Q, cfg)); }
@@ -1207,6 +1214,16 @@ if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
       enC.bhs = { barracks: "hurt", magetower: "ok" }; }
     S.clock = { turnEnds: Date.now() - (S.skew || 0) + (o.left ?? 47000), turnMs: o.total ?? 90000, reserve: [60000, 60000] };
     gsCache = { s: null, g: null } as any; render(); tick(); },
+  // ---- s6: арт построек; стадии чуда — догадка city.wonder{stage} ----
+  s6: (o: any = {}) => { const g = S.g, ec = g.ec, me = S.you, en = 1 - me; const myC = ec.cities.find((c: any) => c.owner === me && c.cap) || ec.cities.find((c: any) => c.owner === me), enC = ec.cities.find((c: any) => c.owner === en);
+    const rb: Record<string, string> = { fire: "crucible", ice: "glacier", water: "harbor", stone: "quarry", nature: "sacredgrove", lightning: "lightningrod" };
+    myC.lvl = o.lvl ?? 1; myC.bld = o.bld || ["barracks", "magetower", "forge", "library", "market", rb[g.races[me]] || "granary"]; myC.bhp = { barracks: 7, magetower: 9, forge: 10, library: 4, market: 10 };
+    if (o.lv2) myC.bld.push("forge"); if (o.ph) myC.bld.push(...o.ph);
+    enC.bld = o.enBld || ["barracks", "stable", "granary", rb[g.races[en]] || "wall"]; enC.bhp = { barracks: 6, stable: 12, granary: 10 }; enC.ruin = ["wall"];
+    delete myC.wonder; if (o.stage) { if (o.stage >= 4) myC.bld.push("wonder"); else myC.wonder = { stage: o.stage }; }
+    ec.res[me].gold = Math.max(ec.res[me].gold || 0, 80); gsCache = { s: null, g: null } as any; render(); },
+  dbg: () => ({ S, G: gs() }),
+  wpop: (mine = true) => { const c = S.g.ec.cities.find((q: any) => (mine ? q.owner === S.you : q.owner !== S.you)); showWonder(c); },
   cam: (x: number, y: number, z?: number) => { if (z) cam.z = z; centerOn(x, y); },
   wmode: (m: any) => { W.mode = m; draw(); },
   fx: (e: any) => { const r: any = worldEvent(e, S.you, gs()!, (i: number) => S.seats[i]?.nick || "?"); const now = performance.now(); if (r?.fx) fx.push({ ...r.fx, t: now }); if (r?.dust) rubble.push({ ...r.dust, t: now }); if (r?.toast) toast(r.toast[0], r.toast[1], r.toast[2]); draw(); return r; },
