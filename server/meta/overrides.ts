@@ -121,7 +121,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   bmcamp: { name: "Лагеря чёрных мобов", fields: [{ path: "name", label: "Название", t: "ltext" }, { path: "world", label: "Мир", t: "enum", opts: ["arinar", "hellfire"] },
     N("x", "X, px", -1e6, 1e6, "int"), N("y", "Y, px", -1e6, 1e6, "int"), N("r", "Радиус, px", 40, 1200, "int"), { path: "chief", label: "Вожак (вид моба)", t: "text" },
     N("respawnMin", "Возрождение от, с", 5, 86400, "int"), N("respawnMax", "Возрождение до, с", 5, 86400, "int"), { path: "lair", label: "Логово (одиночный сильный)", t: "bool" },
-    { path: "hidden", label: "Выключен", t: "bool" }, N("take", "Мобы получают урон, × (сложность лагеря; 1 — как было)", 0.1, 20), N("deal", "Мобы наносят урон, × (по игрокам; 1 — как было)", 0.05, 5), { path: "mobs", label: "Состав [{mob, n}]", t: "text" },
+    { path: "hidden", label: "Выключен", t: "bool" }, N("take", "Мобы получают урон, × (сложность лагеря; 1 или 0 — как было)", 0, 20), N("deal", "Мобы наносят урон, × (по игрокам; 1 или 0 — как было)", 0, 5), { path: "mobs", label: "Состав [{mob, n}]", t: "text" },
     { path: "loot", label: "Добыча лагеря {drops, gear, chests} — сверх мобов, в сундук зачистки", t: "text" }] },
   bmmcfg: { name: "Чёрные мобы: настройки", fields: [{ path: "on", label: "Чёрные мобы и лагеря в мире", t: "bool" },
     N("fightNearTiles", "Драка с обычными мобами: игрок ближе, клеток", 0, 64, "int"), N("maxCampMobs", "Мобов в лагере, макс.", 1, 200, "int"), { path: "strictElemDrops", label: "Кусочки стихии — только с мобов этой стихии (ледяные мобы — только ледяные)", t: "bool" }, N("maxCamps", "Лагерей, макс.", 0, 500, "int"),

@@ -2284,7 +2284,7 @@ export class MetaService {
     const flat = (kind: string, raw: any) => { const paths = new Set((OV_SCHEMA as any)[kind].fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path)); const patch: any = {};
       const walk = (o: any, pre: string) => { for (const [k, v] of Object.entries(o || {})) { const p = pre + k; if (paths.has(p)) patch[p] = v; else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, p + "."); } };
       walk(raw, ""); return patch; };
-    const saveFull = async (kind: string, id: string, data: any) => { const patch = { ...(((OV_SCHEMA as any)[kind] && (BM_MOBS[id] || BM_BODY[id] || BM_CAMPS[id] || id === "main")) ? flat(kind, vals(kind, id) || {}) : {}), ...flat(kind, data) };
+    const saveFull = async (kind: string, id: string, data: any) => { const patch = { ...(((OV_SCHEMA as any)[kind] && (BM_MOBS[id] || BM_BODY[id] || BM_CAMPS[id] || id === "main")) ? flat(kind, Object.fromEntries(Object.entries(vals(kind, id) || {}).filter(([, x]) => x != null))) : {}), ...flat(kind, data) }; // незаданные (null) поля не переносим: иначе «снаряжение: список до 12» / множитель 0 и правка не сохраняется
       if (!Object.keys(patch).length) return { ok: false, err: "пусто" }; return A.save(by, kind as any, id, patch); };
     const rid = (pre: string, T: Record<string, any>) => { let id = ""; for (let i = 0; i < 20 && (!id || T[id]); i++) id = `${pre}_${Math.random().toString(36).slice(2, 8)}`; return id; };
     switch (msg.op) {

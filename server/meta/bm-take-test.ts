@@ -39,6 +39,27 @@ const d0 = P(), d1 = P(eid); ok(d0 > 0 && Math.abs(d1 - d0 * EASY.deal) <= 1, `�
 // 5) админка: поля правятся, тот же id
 const n0 = Object.keys(BM_CAMPS).length; const pc = validatePatch("bmcamp", eid, { take: 3, deal: 0.5 }); ok(typeof pc !== "string", "админка лагеря: take / deal принимаются");
 if (typeof pc !== "string") applyOverride("bmcamp", eid, pc); ok(BM_CAMPS[eid].take === 3 && BM_CAMPS[eid].deal === 0.5 && Object.keys(BM_CAMPS).length === n0, "админка лагеря: тот же лагерь, без дубля");
-ok(typeof validatePatch("bmcamp", eid, { deal: 0 }) === "string" && typeof validatePatch("bmcamp", eid, { take: 50 }) === "string", "админка лагеря: вне диапазона — отказ");
+ok(typeof validatePatch("bmcamp", eid, { deal: -1 }) === "string" && typeof validatePatch("bmcamp", eid, { deal: 6 }) === "string" && typeof validatePatch("bmcamp", eid, { take: 50 }) === "string", "админка лагеря: вне диапазона — отказ");
+ok(typeof validatePatch("bmcamp", eid, { take: 0, deal: 0 }) === "object" && campMul({ bmc: "__none" }, "take") === 1, "множитель 0 — как 1 (старые строки без поля)");
+// регрессия: «Сохранить» существующего лагеря / «Опубликовать» существующего моба без снаряжения — незаданные (null) поля не ломают проверку
+await (async () => {
+  const { Database } = await import("bun:sqlite"), { AdminStore } = await import("./admin"), { MetaService } = await import("./service");
+  const db = new Database(":memory:");
+  db.exec(`CREATE TABLE game_overrides (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, updated_by TEXT, updated_at INTEGER, PRIMARY KEY (kind, id));
+    CREATE TABLE game_override_audit (aid INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, target_id TEXT, before TEXT, after TEXT, version INTEGER, granted_by TEXT, at INTEGER);
+    CREATE TABLE game_config_version (k TEXT PRIMARY KEY, v INTEGER NOT NULL DEFAULT 0); INSERT INTO game_config_version VALUES ('overrides', 1);
+    CREATE TABLE custom_quests (id TEXT PRIMARY KEY, data TEXT, enabled INTEGER, version INTEGER, updated_by TEXT, updated_at INTEGER);
+    CREATE TABLE quest_dialogues (quest_id TEXT PRIMARY KEY, data TEXT, version INTEGER, updated_by TEXT, updated_at INTEGER);`);
+  const st = (sql: string, a: any[] = []): any => ({ bind: (...x: any[]) => st(sql, x), first: async () => db.query(sql).get(...a) ?? null, all: async () => ({ results: db.query(sql).all(...a) }), run: async () => { db.query(sql).run(...a); return {}; }, _run: () => db.query(sql).run(...a) });
+  const A = new AdminStore({ prepare: (q: string) => st(q), batch: async (x: any[]) => { db.transaction(() => x.forEach((y) => y._run()))(); return []; } }); await A.sync(true);
+  const P: any = MetaService.prototype, svc: any = { store: { db: null }, admin: A, zones: {}, newIds: new Map(), newIdFor: P.newIdFor };
+  const bmm = (msg: any) => P.bmmOp.call(svc, { pkey: "t" }, {}, msg);
+  const old = Object.keys(BM_CAMPS).find((id) => !BM_CAMPS[id].take && !id.includes("c30"))!;
+  const r1 = await bmm({ op: "save", kind: "bmcamp", id: old, data: { name: "Правка" } });
+  ok(r1.ok && r1.id === old, `существующий лагерь ${old} без «take/deal»: правка сохраняется ${r1.err || ""}`);
+  const mob = Object.keys(BM_MOBS).find((id) => !BM_MOBS[id].gear?.length && !id.includes("c30"))!;
+  const r2 = await bmm({ op: "publish", id: mob, data: { name: "Правка моба" } });
+  ok(r2.ok && r2.id === mob && !r2.isNew, `существующий моб ${mob} без снаряжения: публикация правки проходит ${r2.err || ""}`);
+})();
 ok(typeof validatePatch("bmmob", c30g, { take: 50 }) !== "string" && typeof validatePatch("bmmob", c30g, { take: 5000 }) === "string", "админка моба: «получаемый урон» 0…1000");
 console.log(`\n${pass} PASS / ${fail} FAIL`); if (fail) process.exit(1);
