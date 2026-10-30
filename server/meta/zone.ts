@@ -1221,7 +1221,7 @@ export class Zone {
       // убитые/исчезнувшие процедурные мобы удаляются (их место займёт режиссёр)
       for (let i = this.mobs.length - 1; i >= 0; i--) {
         const m = this.mobs[i];
-        if (m.dead && !m.fixed) {
+        if (m.dead && (!m.fixed || m.respawnAt === -1)) { // −1 — моб снят (лагерь перенесён/убран): удаляется и неподвижный
           if (m.special === "boss") {
             const bk = (m as any).bossKey || m.type;
             const b = this.gen.bosses.find((x) => (x.key || x.type) === bk);
@@ -1280,7 +1280,7 @@ export class Zone {
         if (Math.abs(m.kbx) + Math.abs(m.kby) < 0.5) { m.kbx = 0; m.kby = 0; }
       }
       if (m.dead) {
-        if (m.fixed && now >= m.respawnAt) {
+        if (m.fixed && m.respawnAt >= 0 && now >= m.respawnAt) { // −1 — снят навсегда, не воскрешать
           if (m.roam) { m.sx = m.roam.home[0]; m.sy = m.roam.home[1]; m.roam.i = 1; (m as any).spOk = 0; }
           m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
           if (m.camp && !m.chief) { m.elite = (m as any).bmc ? !!(m as any).bmElite : this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); } // чёрный лагерь/логово: элитность из таблицы, не по шансу региона
