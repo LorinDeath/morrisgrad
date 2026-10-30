@@ -230,6 +230,7 @@ async function boot(canvasId, username, userId, api) {
 
   const hub = new HubWorld(THREE, stage);
   const zone = new ZoneView(THREE, hub.root);
+  zone.playerPos = (sid) => { if (sid === myId) return [player.x, player.y]; const o = others.get(sid); return o ? [o.x, o.y] : null; }; // 🛠 самонаведение снарядов мобов на игроков
   const cityView = new CityView(THREE, hub.root); // купол Альказака (арт Историка): оболочка 0.9/0.02 с переходом, обод, отталкивание
   const dpsMeter = new DpsMeter(); // DPS / DPM героя (по событиям сервера)
   const cityRoom = new CityRoomView(THREE, hub.root); // интерьеры зданий города (server/meta/cityBuild.ts)
@@ -965,6 +966,12 @@ async function boot(canvasId, username, userId, api) {
       else if (e.k === 'ohit') { const o = others.get(e.sid); if (o) { dpsMeter.add(e.d); const PL = pureList(e), pp = PL.reduce((s, [, n]) => s + n, 0); // PK: мой урон по игроку — над ним, цвет стихии
         overlay.float(toX(o.x), 3.4, toZ(o.y) - 0.5, e.z ? '0 урона' : `${e.crit ? '✦' : ''}${e.d - pp}`, e.crit ? '#fde047' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#ffe4e6') : '#ffe4e6', !!e.crit, 'pl'); // выше подписи имени (камера сверху: сдвиг по Z)
         PL.forEach(([el, n], i) => overlay.float(toX(o.x) + (i % 2 ? -0.6 : 0.6), 3.8 + 0.3 * (i >> 1), toZ(o.y) - 0.8, `${BP_ELEM_ICONS[el] || '✦'}${n}`, ELEM_COLOR[el] || '#fff')); } }
+      else if (e.k === 'pstatus') { // 🛠 навык моба (мир): замедление/заморозка/отброс — как статусы дуэли
+        const pn = performance.now(), T = { slow: ['Замедление', '#7dd3fc'], freeze: ['Заморозка', '#bae6fd'], knock: ['Отброс', '#e2e8f0'] }[e.s];
+        if (e.s === 'slow') pvpSt.slowUntil = Math.max(pvpSt.slowUntil, pn + (e.ms || 1200));
+        else if (e.s === 'freeze') pvpSt.frozenUntil = Math.max(pvpSt.frozenUntil, pn + Math.min(3000, e.ms || 1000));
+        else if (e.s === 'knock' && e.d > 0) pvpSt.kb = { vx: (e.dx || 0) * e.d / 0.25, vy: (e.dy || 0) * e.d / 0.25, until: pn + 250 };
+        if (T) overlay.float(toX(player.x), 3, toZ(player.y), T[0], T[1]); }
       else if (e.k === 'died') overlay.toast('Вы пали! Возрождение через 5 с…', '#fca5a5');
     }
   });
@@ -1857,7 +1864,7 @@ async function boot(canvasId, username, userId, api) {
       const l = Math.hypot(dash.dirX, dash.dirY) || 1; dash.dirX /= l; dash.dirY /= l;
     }
     input.dashPressed = false; input.abilityPressed = false;
-    const pn = performance.now(), slowK = world === 'arena' ? (pn < pvpSt.frozenUntil ? 0 : pn < pvpSt.slowUntil ? 0.6 : 1) : 1; // статусы дуэли
+    const pn = performance.now(), slowK = pn < pvpSt.frozenUntil ? 0 : pn < pvpSt.slowUntil ? 0.6 : 1; // статусы дуэли и навыков мобов в мире (раньше — только арена)
     // скорость героя из талантов/снаряжения/души (eff.speedPct, сервер уже применил мягкий кап и нижнюю границу −20%)
     // Порыв сияния (+25% на 2 с) — и в открытом мире, и на арене
     const swiftK = (pn < swiftSt.until || pn < pvpSt.swiftUntil) ? 1.25 : 1;
@@ -1868,6 +1875,7 @@ async function boot(canvasId, username, userId, api) {
       dash.timer -= dt;
       if (dash.timer <= 0) dash.active = false;
     }
+    if (pvpSt.kb && pn < pvpSt.kb.until && !dash.active) { vx += pvpSt.kb.vx; vy += pvpSt.kb.vy; } // отброс навыком моба
     if (duel.inArena && duel.lastPh !== 'fight') { vx = 0; vy = 0; } // отсчёт дуэли: стоим (сервер тоже не двигает)
     player.moving = Math.hypot(vx, vy) > 1;
     if (player.moving) {

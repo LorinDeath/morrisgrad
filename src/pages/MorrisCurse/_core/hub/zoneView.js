@@ -102,7 +102,7 @@ export class ZoneView {
     // выстрелы базовой атаки и вспышки попаданий — PNG-спрайты (вид снаряда зависит от типа оружия)
     this.pfx = new ProjFx(THREE, this.root, { max: 600, glowMax: 600 });
     this.pax = new ProjAtlasFx(THREE, this.root, toX, toZ); // настоящие снаряды сервера (FX atlas v2)
-    this.pax.mobPos = (id) => { const o = this.mobs.get(id); return o ? [o.x, o.y] : null; }; // 🛠 самонаведение снарядов конструктора
+    this.pax.mobPos = (id) => { if (typeof id === 'string' && id.startsWith('p:')) return this.playerPos?.(id.slice(2)) || null; const o = this.mobs.get(id); return o ? [o.x, o.y] : null; }; // 'p:sid' — снаряд моба наводится на игрока (playerPos задаёт game.js) // 🛠 самонаведение снарядов конструктора
     this.bmm = new BmMobLayer(THREE, this.root);
     this.bmv = new BmView(THREE, this.root); // Чёрный маг: маг, купола, стрелы, взрывы, розы, проклятая земля (hub/bmView.js)
     this.hits = [];
@@ -182,7 +182,7 @@ export class ZoneView {
     for (const e of s.ev || []) {
       if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
       // 🜏 навыки артефактов: листы Художника (хлыст/кольцо/снаряд/дождь/рывок) вместо код-эффекта, если лист стихии есть
-      if ((e.k === 'acone' || e.k === 'ability' || e.k === 'aline' || e.k === 'arain') && skillEvent(e, (t) => { if (this.teles.length < (FX_LIM.low ? FX_LIM.skfMax * 0.6 : FX_LIM.skfMax)) this.teles.push(t); }, (x, y, r) => [...this.mobs.values()].filter((o) => !o.demo && Math.hypot(o.x - x, o.y - y) <= r))) continue;
+      if ((e.k === 'acone' || e.k === 'ability' || e.k === 'aline' || e.k === 'arain') && skillEvent(e, (t) => { if (this.teles.length < (FX_LIM.low ? FX_LIM.skfMax * 0.6 : FX_LIM.skfMax)) this.teles.push(t); }, e.o === 'm' ? null : (x, y, r) => [...this.mobs.values()].filter((o) => !o.demo && Math.hypot(o.x - x, o.y - y) <= r))) continue; // навык моба: метки плети не на мобах
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
       if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; const PL = pureList(e), pp = PL.reduce((q, [, n]) => q + n, 0), ice = e.el === 'ice';
         out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pp)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#ffb347') : '#ffb347') : '#fff', crit: e.crit ? 1 : undefined }); // чёрный удар — цвет своей стихии (вода/камень/природа/молния — не оранжевым)
@@ -233,6 +233,7 @@ export class ZoneView {
         this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x0, y: e.y0, dx: dx / len, dy: dy / len, len, t: 0, life: e.t === 'blink' ? 0.25 : 0.35, col }); }
       else if (e.k === 'tele') { this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 }); this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: -(e.t || 0.55), life: 0.3, col: [1, 0.5, 0.45] }); } // рывок моба: телеграф, затем шлейф dash_trail
       else if (e.k === 'tele_line') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, w: e.w, t: 0, life: e.t || 0.55 });
+      else if (e.k === 'pstatus') { if (e.to === myId) out.push(e); } // 🛠 навык моба по мне: замедление/заморозка/отброс (game.js)
       else if (e.k === 'tele_ring') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
       else if (e.k === 'tele_cone') { this.teles.push({ kind: 'tcone', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: 0, life: e.t || 0.6 }); if (CONE_FX[e.fx]) this.teles.push({ kind: 'cone', fx: CONE_FX[e.fx], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: -(e.t || 0.6), life: 0.45 }); }
       else if (e.k === 'acone') { const id = String(e.id || '').replace(/^rs:/, ''); this.teles.push({ kind: 'cone', fx: CONE_FX[id] || 'gear_spin_cone', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: 0, life: 0.45 }); }
