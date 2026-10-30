@@ -22,7 +22,7 @@ import { BMA_CFG, swingEv, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsD
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
-import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob, mobElem, rollBmChests, rollCampLoot } from "./blackMobs";
+import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob, campMul, mobElem, rollBmChests, rollCampLoot } from "./blackMobs";
 import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
 import { enchDropMult, artModeKey } from "./profile";
@@ -2352,7 +2352,7 @@ export class MetaService {
     if (w === "arinar" && (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms))) return; // купол Чёрного мага / город: неуязвим
     if (w === "arinar") this.pkCombat(sid, "hit"); // получил урон — PK-отсчёт сброшен
     const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
-    const dr = ((ms as any).drUntil || 0) > now ? 0.5 : 1, vbm = (ms.zp as any).bm;
+    const dr = (((ms as any).drUntil || 0) > now ? 0.5 : 1) * campMul(mob, "deal"), vbm = (ms.zp as any).bm; // t1062u: × «Мобы наносят урон» лагеря
     // 🜏 навык артефакта у моба: % макс. ОЗ игрока × vsPlayer (без брони и разницы уровней); чёрная цель — своя защита (0 возможен)
     const vsP = Math.max(0, Number(BMA_CFG.vsPlayer) || 0), md: any = ZONE_MOBS[src];
     // «Урон по игрокам — только %» (флажок моба, t1062u): без плоского урона и разницы уровней — только bdmg% / навык % / чистый % от ОЗ ИГРОКА

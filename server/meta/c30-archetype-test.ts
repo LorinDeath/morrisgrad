@@ -58,8 +58,9 @@ for (const t of TIERS) {
   const bigExp = expCap ? Math.round(mh * expCap / 100) : mh;
   ok(expCap ? big === bigExp : big >= mh, `${mob.id}: удар 1e6 по ${mh} ОЗ → ${big} (ждали ${expCap ? bigExp : "≥ " + mh})`);
   const ma = z.addMob(mob.id, X + 330, Y); ma.maxHp = 100; ma.hp = 100; const ex = z.damage(ma, "p", 100, () => {}, { black: true });
-  const exExp = Math.round(expCap ? Math.min(Math.max(0, 100 - expArm), expCap) : Math.max(0, 100 - expArm));
-  ok(ex === exExp, `${mob.id}: пример Алекса — 100 ОЗ, удар 100 → ${ex} (ждали ${exExp})`);
+  const tk = Number((ZONE_MOBS as any)[mob.id].bmTake) || 1, inD = 100 * tk; // t1062u: «Получаемый чёрный урон, ×» моба — до брони
+  const exExp = Math.round(expCap ? Math.min(Math.max(0, inD - expArm), expCap) : Math.max(0, inD - expArm));
+  ok(ex === exExp, `${mob.id}: пример Алекса — 100 ОЗ, удар 100 (×${tk}) → ${ex} (ждали ${exExp})`);
   (BMA_CFG as any).bmMinDmg = mn0;
   rows.push(`| ${t.arch} | ${t.t} | ${mob.P.name} (${mob.id}) | ${expBd.toFixed(3)} / ${d.bdmg.toFixed(3)} | +${swingExp} / +${swingAct} | ${sk.name}: ${skExp.toFixed(2)} / ${skAct.toFixed(2)} | ${expCap || "—"} / ${d.bmDef?.bcap || "—"} | ${expArm} | ${expCap ? bigExp : "все " + mh} / ${big} | ${exExp} / ${ex} |`);
 }

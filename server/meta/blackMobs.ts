@@ -103,6 +103,7 @@ export interface BmMob {
   scale: number; drops: BmDrop[]; gear?: BmGear[]; hidden?: boolean;
   chests?: BmChestDrop[];                    // ЭТАП 2: сундуки наград (ярус, шанс %, проклятый %) — убийце/владельцу мешка, в окно «🎁 Сундуки»
   elem?: string;                             // ICE: стихия моба (нет — по лезвию/торсу); ледяные кусочки падают только с ледяных
+  take?: number;                             // t1062u: «Получаемый чёрный урон, ×» — множитель чёрного урона ИГРОКОВ по этому мобу (удары, навыки, чистый; до предельной брони); нет/1 — как раньше
   pctOnly?: boolean;                         // t1062u: урон по игрокам — только % (чёрный, навыки, чистый — от ОЗ игрока); «Урон (база)» — только по мобам
   sup?: BmSup;                               // t1062u: лечение/бафф союзников (админка «Чёрные мобы» → «Поддержка»); нет — лечит только навыками себя
   move?: BmMove;                             // ЭТАП 2: движение (скорость ×, рывки, телепорт, послеобразы); нет — как раньше
@@ -220,7 +221,9 @@ for (const [id, name, cls, lvl, body, weapon, drops] of BUILTIN) {
 }
 
 export interface BmCampMob { mob: string; n: number }
-export interface BmCamp { id: string; name: string; world: string; x: number; y: number; r: number; mobs: BmCampMob[]; chief: string; respawnMin: number; respawnMax: number; hidden?: boolean; lair?: boolean; loot?: BmCampLoot }
+export interface BmCamp { id: string; name: string; world: string; x: number; y: number; r: number; mobs: BmCampMob[]; chief: string; respawnMin: number; respawnMax: number; hidden?: boolean; lair?: boolean; loot?: BmCampLoot;
+  /** t1062u: сложность лагеря — «Мобы получают урон, ×» (чёрный урон игроков) и «Мобы наносят урон, ×» (по игрокам); нет / 1 — как было */
+  take?: number; deal?: number }
 export const CUSTOM_BC = /^bcx_[a-z0-9_]{2,32}$/;
 export const BM_CAMPS: Record<string, BmCamp> = {};
 export function makeCamp(id: string): BmCamp { return { id, name: "Лагерь чёрных", world: "arinar", x: 0, y: 0, r: 160, mobs: [], chief: "", respawnMin: 60, respawnMax: 120 }; }
@@ -369,7 +372,7 @@ export function registerBlackMobs(items?: Record<string, any>) {
     const mv0 = cleanMove(m.move), mv = mv0 && typeof mv0 === "object" ? mv0 : undefined;
     const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: Math.round(f.speed * (mv?.spd || 1)), aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobColor(mobElem(m, items)), lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
       black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: mv && (mv.dash || mv.blink) ? mv : undefined };
-    { const B = mobBm(m, items); def.bdmg = B.bdmg || undefined; def.bmDef = B.barm > 0 || B.bcap > 0 ? { barm: B.barm, bcap: B.bcap } : undefined; def.bmSkills = B.skills.length ? B.skills : undefined; def.bmPctOnly = m.pctOnly ? true : undefined; const su = cleanSup(m.sup); def.bmSup = su && typeof su === "object" ? su : undefined; } // bmMz — дула посохов (снаряды вылетают из них)
+    { const B = mobBm(m, items); def.bdmg = B.bdmg || undefined; def.bmDef = B.barm > 0 || B.bcap > 0 ? { barm: B.barm, bcap: B.bcap } : undefined; def.bmSkills = B.skills.length ? B.skills : undefined; def.bmPctOnly = m.pctOnly ? true : undefined; { const tk = Number(m.take); def.bmTake = Number.isFinite(tk) && tk > 0 && tk !== 1 ? Math.min(1000, tk) : undefined; } const su = cleanSup(m.sup); def.bmSup = su && typeof su === "object" ? su : undefined; } // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));
@@ -403,3 +406,6 @@ export const bmxTypeAt = (idx: number) => (idx >= BMX_BASE ? BM_ORDER[idx - BMX_
 /** случайная длительность возрождения лагеря, с */
 export const campRespawn = (c: BmCamp, R: () => number = Math.random) => { const a = Math.max(5, c.respawnMin || 60), b = Math.max(a, c.respawnMax || a); return a + (b - a) * R(); };
 export { CUSTOM_BP };
+
+/** t1062u: множитель лагеря (take / deal) для живого моба; 1 — нет лагеря или поле пусто */
+export function campMul(m: any, k: "take" | "deal"): number { const c: any = m?.bmc ? BM_CAMPS[m.bmc] : null; const v = Number(c?.[k]); return v > 0 && Number.isFinite(v) ? v : 1; }

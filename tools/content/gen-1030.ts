@@ -5,7 +5,7 @@ import { validatePatch, applyOverride, currentValues, SCHEMA } from "../../serve
 import { BM_PARTS } from "../../server/meta/blackArt";
 import { BM_MOBS, BM_CAMPS } from "../../server/meta/blackMobs";
 import { SK_DEFS } from "../../server/meta/skillCraft";
-import { SKILLS, skId, bladeCopyId, isRangedBlade, MELEE_FORM, TIERS, coreId, handleCopyId, handleSecId, SEC_SKILL, ELS, buildMobs, LAIRS, type El, type MobRow } from "./c30-data";
+import { SKILLS, skId, bladeCopyId, isRangedBlade, MELEE_FORM, TIERS, coreId, handleCopyId, handleSecId, SEC_SKILL, ELS, buildMobs, LAIRS, HARD_LAIRS, EASY, type El, type MobRow } from "./c30-data";
 
 export type Row = { kind: string; id: string; data: Record<string, any> };
 const OUT = process.env.C30_OUT || "/workspace/content-1030/sql";
@@ -58,10 +58,11 @@ export function build() {
     for (const p of L.picks) { const m = pick(p[0], p[1], p[3]); const e = list.find((x) => x.mob === m.id); if (e) e.n += p[2]; else list.push({ mob: m.id, n: p[2] }); }
     const els = [...new Set([chief.el, ...list.map((x) => mobs.find((m) => m.id === x.mob)!.el)])];
     const drops = els.flatMap((el) => [{ res: `bp_${el}_crystal`, chance: Math.round(60 / els.length), qty: [1, 1] }, { res: `bp_${el}_blade3`, chance: Math.round(40 / els.length), qty: [1, 1] }, { res: `bm_shard_${el}`, chance: 50, qty: [1, 3] }]).slice(0, 12);
-    const id = `bcx_c30_${L.id}`;
-    put(rows, "bmcamp", id, { name: L.name, world: "arinar", x: 0, y: 0, r: L.r, lair: true, hidden: true, chief: chief.id, respawnMin: 240, respawnMax: 420, mobs: list,
+    const id = `bcx_c30_${L.id}`, hard = HARD_LAIRS.has(L.id);
+    if (!hard) { const e = list.find((x) => x.mob === chief.id); if (e) e.n++; else list.unshift({ mob: chief.id, n: 1 }); } // t1062u: лёгкое логово — без вожака (он — обычный моб)
+    put(rows, "bmcamp", id, { name: L.name, world: "arinar", x: 0, y: 0, r: L.r, lair: true, hidden: true, chief: hard ? chief.id : "", respawnMin: 240, respawnMax: 420, mobs: list, ...(hard ? {} : { take: EASY.take, deal: EASY.deal }),
       loot: { drops, chests: [{ t: L.chest, chance: 100 }, { t: "uncommon", chance: 40 }] } });
-    lairs.push({ id, name: L.name, idea: L.idea, chief: chief.id, mobs: list, total: list.reduce((a, x) => a + x.n, 1), els });
+    lairs.push({ id, name: L.name, idea: L.idea, chief: hard ? chief.id : "", hard, mul: hard ? null : EASY, mobs: list, total: list.reduce((a, x) => a + x.n, hard ? 1 : 0), els });
   }
   return { rows, mobs, lairs };
 }

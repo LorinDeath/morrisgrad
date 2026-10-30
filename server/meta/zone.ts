@@ -27,7 +27,7 @@ import { pathWorld, steer, hbTouch, SK_DEFS, castCraft, skBuffAdd, skBuffSum } f
 import { projSprite } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
 import { BMA_CFG, bmSkillPct, bmPure, bmDefendEx, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, aimDirs, faceLeftOf, swingEv } from "./blackArt";
-import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, campElems, type BmCamp } from "./blackMobs";
+import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, campElems, campMul, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
 const hashStr = (t: string) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
@@ -1615,6 +1615,7 @@ export class Zone {
     const armor = d.armor * mobArmorMul(m);
     const sh = m.shieldUntil > Date.now() ? 0.5 : 1;
     const pq: Record<string, number> = {}; if (pen?.pure) for (const k of Object.keys(pen.pure)) pq[k] = Math.max(0, Math.round((Number(pen.pure[k]) || 0) * sh)); // ICE: чистый урон стихий оси — сверху, мимо брони
+    if (pen?.black && sid && !sid.startsWith("mob:")) { const tk = (d.bmTake || 1) * campMul(m, "take"); if (tk !== 1) { dmg *= tk; for (const k of Object.keys(pq)) pq[k] = Math.round(pq[k] * tk); } } // t1062u: «Получаемый чёрный урон, ×» моба × лагеря (до предельной брони)
     const pv = pureEvFields(pq), pSum = pureSum(pq);
     let main = pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh)); // 🜏 чёрный урон: броня моба не действует
     // 🜏 чёрная броня / предельная броня деталей оружия чёрного моба — от ударов игроков (та же формула, что у игрока: bmDefendEx)

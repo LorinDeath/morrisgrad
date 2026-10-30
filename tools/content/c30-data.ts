@@ -136,7 +136,7 @@ export function buildMobs(bladesByEl: Record<string, string[]>, handlesByEl: Rec
     if (lvl >= 24) chests.push({ t: "strange", chance: 3 });
     const P: Record<string, any> = {
       name, desc: `${ROLE_RU[role][0].toUpperCase() + ROLE_RU[role].slice(1)}, ${ARCH_RU[tier.arch]}: чёрный урон ${tier.bdmg} % ОЗ героя, предельная броня ${tier.bcap || "—"}${tier.bcap ? " %" : ""}. Навык — «${sk[2]}».`,
-      cls, lvl, elem: el, pctOnly: true, // t1062u: по игроку — только заявленный % (без плоского урона уровня и разницы уровней)
+      cls, lvl, elem: el, pctOnly: true, take: C30_TAKE, // t1062u: по игроку — только заявленный % (без плоского урона уровня и разницы уровней)
       hp: Math.round(lvl * (120 + 6 * lvl) * M.hp * (role === "tank" ? 1.3 : 1)), dmg: Math.round(lvl * (2 + 0.95 * lvl) * M.dmg * (role === "tank" ? 0.8 : 1)),
       armor: Math.round(lvl * (5 + 0.4 * lvl) * M.ar), speed: 66 + (i % 11), aggro: role === "kiter" ? 230 : role === "tank" ? 160 : 185,
       radius: role === "tank" ? 20 : 16, xp: Math.round(lvl * 10 * M.xp), scale: role === "tank" ? 1.25 : role === "assassin" ? 0.9 : 1,
@@ -154,6 +154,11 @@ export function buildMobs(bladesByEl: Record<string, string[]>, handlesByEl: Rec
 // ---------- логова (шаблоны: hidden, x/y = 0; ставятся кнопкой «📍 Поставить у меня») ----------
 type Pick = [El, Role, number] | [El, Role, number, string]; // стихия, роль, кол-во, [ярус]
 export type LairRow = { id: string; name: string; idea: string; r: number; chief: [El, Role, string?]; picks: Pick[]; chest: string };
+/** t1062u (баланс): «Получаемый чёрный урон, ×» всех мобов c30 — удар игрока по ним ×100 (база: 4–10 ударов на моба вместо сотен) */
+export const C30_TAKE = 100;
+/** t1062u: логова с вожаком — для группы / сильного снаряжения; остальные — лёгкие: без вожака (он — обычный моб), сложность лагеря EASY */
+export const HARD_LAIRS = new Set(["hive", "glass_wall", "citadel", "cliff_storm", "rot_fire", "storm_swarm"]);
+export const EASY = { take: 2, deal: 0.3 };
 export const LAIRS: LairRow[] = [
   { id: "forge", name: "Огненная кузня", idea: "крепкие танки держат вход, лекарь чинит, стрелки и заклинатель бьют из-за спин", r: 260, chief: ["fire", "summoner"], picks: [["fire", "tank", 2], ["fire", "healer", 1], ["fire", "kiter", 3]], chest: "rare" },
   { id: "frost_trap", name: "Ледяной капкан", idea: "град и кольцо стужи сковывают — убийцы добивают замёрзших", r: 240, chief: ["ice", "tank"], picks: [["ice", "summoner", 2], ["ice", "assassin", 3]], chest: "rare" },

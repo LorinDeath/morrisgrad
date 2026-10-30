@@ -102,6 +102,7 @@ function mobs(ap, S, bd, sec) {
       <div class="hd">Статы (база; итог = база × части тела × класс + оружие)</div>
       ${num('hp', 'ОЗ', 1, 1e9)}${num('dmg', 'Урон', 0, 1e6, 'any')}${num('armor', 'Броня', 0, 1e6)}${num('speed', 'Скорость', 10, 400)}${num('aggro', 'Агро, px', 0, 2000)}${num('radius', 'Хитбокс, px', 6, 80)}${num('xp', 'Опыт', 0, 1e7)}${num('scale', 'Размер, ×', 0.4, 3, 0.05)}
       <label>Зачарование<select data-k="ench" data-n="1">${[0, 1, 2, 3, 4, 5, 6].map((n) => `<option value="${n}" ${Number(d.ench || 0) === n ? 'selected' : ''}>${n ? 'ярус ' + n + (n === 6 ? ' (Чёрный)' : '') : 'по миру'}</option>`).join('')}</select></label>
+      ${num('take', 'Получаемый чёрный урон, ×', 0, 1000, 'any', 'Множитель чёрного урона игроков по этому мобу (удары, навыки, чистый). 1 / пусто — как было. Предельная броня моба режет уже итог.')}
       <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-k="cursed" ${d.cursed ? 'checked' : ''}> Всегда проклятый</label>
       <label style="flex-direction:row;align-items:center;gap:6px" title="По игроку: только «Чёрный урон, %» деталей, % навыков и чистый % — от макс. ОЗ ИГРОКА; плоский «Урон» и разница уровней не идут. «Урон» остаётся для боя с мобами."><input type="checkbox" data-k="pctOnly" ${d.pctOnly ? 'checked' : ''}> Урон по игрокам — только %</label>
       <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-k="hidden" ${d.hidden ? 'checked' : ''}> Снят с публикации</label>
@@ -188,7 +189,7 @@ function camps(ap, S, bd, sec) {
       <label class="w">Название<input data-c="name" value="${esc(e.name || '')}"></label>
       <label>Мир<select data-c="world">${['arinar', 'hellfire'].map((w) => `<option ${e.world === w ? 'selected' : ''}>${w}</option>`).join('')}</select></label>
       <label>X<input type="number" data-c="x" data-n="1" value="${e.x ?? 0}"></label><label>Y<input type="number" data-c="y" data-n="1" value="${e.y ?? 0}"></label>
-      <label>Радиус, px<input type="number" data-c="r" data-n="1" value="${e.r ?? 160}"></label><label>Возрождение от, с<input type="number" data-c="respawnMin" data-n="1" value="${e.respawnMin ?? 60}"></label><label>до, с<input type="number" data-c="respawnMax" data-n="1" value="${e.respawnMax ?? 120}"></label>
+      <label>Радиус, px<input type="number" data-c="r" data-n="1" value="${e.r ?? 160}"></label><label>Возрождение от, с<input type="number" data-c="respawnMin" data-n="1" value="${e.respawnMin ?? 60}"></label><label>до, с<input type="number" data-c="respawnMax" data-n="1" value="${e.respawnMax ?? 120}"></label><label title="Множитель чёрного урона игроков по мобам этого лагеря (поверх «Получаемого урона» моба). Пусто / 1 — как было">Мобы получают урон, ×<input type="number" data-c="take" data-n="1" min="0.1" max="20" step="any" value="${e.take ?? ''}"></label><label title="Множитель урона мобов этого лагеря по игрокам (чёрный, навыки, чистый). Пусто / 1 — как было">Мобы наносят урон, ×<input type="number" data-c="deal" data-n="1" min="0.05" max="5" step="any" value="${e.deal ?? ''}"></label>
       <label>Вожак<select data-c="chief"><option value="">— нет —</option>${mobOpt(e.chief)}</select></label>
       <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-c="lair" ${e.lair ? 'checked' : ''}> Логово (элита)</label>
       <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-c="hidden" ${e.hidden ? 'checked' : ''}> Выключен</label>
@@ -209,7 +210,7 @@ function camps(ap, S, bd, sec) {
   bd.querySelector('[data-x="cnew"]').onclick = () => { S.camp = { id: '', name: 'Лагерь чёрных', world: 'arinar', x: 0, y: 0, r: 160, mobs: [], chief: '', respawnMin: 60, respawnMax: 120 }; S.cstatus = 'Новый — «Поставить у меня» и состав'; mountBmMobs(ap, sec); };
   bd.querySelector('[data-x="crefresh"]').onclick = () => ap.send({ type: 'admin_bmm', op: 'camps' });
   if (!e) return;
-  bd.querySelectorAll('[data-c]').forEach((el) => (el.onchange = () => { const k = el.dataset.c; e[k] = el.type === 'checkbox' ? el.checked : el.dataset.n ? Number(el.value) : el.value; }));
+  bd.querySelectorAll('[data-c]').forEach((el) => (el.onchange = () => { const k = el.dataset.c; e[k] = el.type === 'checkbox' ? el.checked : el.dataset.n ? (el.value === '' && (k === 'take' || k === 'deal') ? 1 : Number(el.value)) : el.value; })); // пустой множитель лагеря — 1 (как было)
   bd.querySelectorAll('[data-cd]').forEach((b) => (b.onclick = () => { e.mobs.splice(Number(b.dataset.cd), 1); mountBmMobs(ap, sec); }));
   bd.querySelector('[data-x="cadd"]').onclick = () => { const m = bd.querySelector('.cm').value, n = Number(bd.querySelector('.cn').value) || 1; (e.mobs ||= []).push({ mob: m, n }); mountBmMobs(ap, sec); };
   const LO = () => (e.loot ||= {}), rr = () => mountBmMobs(ap, sec), q = (c) => bd.querySelector(c).value;
