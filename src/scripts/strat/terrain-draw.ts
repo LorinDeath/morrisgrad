@@ -3,6 +3,7 @@
 // (заказ: minigame-tz/art-request-terrain.md). Рельеф пререндерится в offscreen-canvas один раз на карту/размер.
 import type { MapData } from "../../../server/strat/terrain";
 import { terrainImg, artVer } from "./art";
+import { t2, t2Ver, sideD } from "./t2";
 
 export const INK = "#1a1014", GOLD = "#d9a441", GOLD2 = "#f3cf68", IVORY = "#efe6cf", RED = "#b3261e";
 const C = {
@@ -121,7 +122,17 @@ export function drawTerrainCell(ctx: CanvasRenderingContext2D, t: string, x: num
 }
 
 // ---------- арт Художника (terrain-v1): тайлы 256×256, автотайлинг дорог/стен/берегов; нет файла — заглушка кодом ----------
-const pick = (base: string, n: number, x: number, y: number) => terrainImg(`${base}_${1 + Math.floor(hash(x * 3 + 1, y * 5 + 2) * n)}`) || terrainImg(base + "_1");
+let LPX = 256, LOD = false; // размер клетки пререндера (px) — small/ terrain-v2 при ≤128; LOD — дальний план tile_lod_*
+/** вариант тайла: v1 _1.._n, а с вероятностью ~30% — вариант terrain-v2 _5.._8 (если подгружен) */
+const pick = (base: string, n: number, x: number, y: number) => { const h = hash(x * 3 + 1, y * 5 + 2);
+  if (h > 0.7) { const v = t2(`${base}_${5 + Math.floor(((h - 0.7) / 0.3) * 3.999)}`, LPX); if (v) return v; }
+  return terrainImg(`${base}_${1 + Math.floor((h / 0.7 > 1 ? h : h / 0.7) * n * 0.999)}`) || terrainImg(base + "_1"); };
+const LOD_OF: Record<string, string> = { ".": "plain", ",": "meadow", f: "forest", m: "mountain", w: "water", r: "plain", g: "plain", b: "water", "#": "plain" };
+/** переходы terrain-v2 на клетке plain: blend_<сосед>_plain_<сторона> (лес/луг; пустыни/снега/болота в генераторе карт нет) */
+function blends(ctx: CanvasRenderingContext2D, px: number, py: number, c: number, nb: Nb) {
+  const D = sideD(false), A: Record<string, string> = { f: "forest", ",": "meadow" };
+  for (const d of ["n", "e", "s", "w"] as const) { const a = A[nb(D[d][0], D[d][1])]; if (!a) continue; const im = t2(`blend_${a}_plain_${d}`, LPX); if (im) ctx.drawImage(im, px, py, c + 0.6, c + 0.6); }
+}
 /** имя по связям сторон n/e/s/w (README terrain-v1: corner_xy, t_<шляпка>, end_<куда уходит>) */
 function linkName(base: string, n: boolean, e: boolean, s: boolean, w: boolean, none: string): string {
   const k = +n + +e + +s + +w;
@@ -135,6 +146,7 @@ function linkName(base: string, n: boolean, e: boolean, s: boolean, w: boolean, 
 function blit(ctx: CanvasRenderingContext2D, im: HTMLImageElement | null, px: number, py: number, c: number) { if (!im) return false; ctx.drawImage(im, px, py, c + 0.6, c + 0.6); return true; }
 function artCell(ctx: CanvasRenderingContext2D, t: string, x: number, y: number, px: number, py: number, c: number, nb: Nb): boolean {
   if (!terrainImg("tile_plain_1")) return false; // набор не загружен (или ?terrainArt=0)
+  if (LOD) { const lk = LOD_OF[t] || "plain", im = t2("tile_lod_" + lk); if (im && t !== "r" && t !== "#" && t !== "g" && t !== "b") return blit(ctx, im, px, py, c); }
   const wet = (q: string) => q === "w" || q === "b" || q === "?";
   const water = () => { if (!blit(ctx, pick("tile_water", 3, x, y), px, py, c)) return false; // берега: сторона / скруглённый угол / внутренний угол
     const N = !wet(nb(0, -1)), E = !wet(nb(1, 0)), S = !wet(nb(0, 1)), W = !wet(nb(-1, 0)), ov: string[] = [];
@@ -158,7 +170,7 @@ function artCell(ctx: CanvasRenderingContext2D, t: string, x: number, y: number,
       const nm = linkName("tile_wall", L(nb(0, -1)), L(nb(1, 0)), L(nb(0, 1)), L(nb(-1, 0)), "tile_wall_h");
       return blit(ctx, terrainImg(nm) || terrainImg("tile_wall_h"), px, py, c); }
     case "g": { const hz = nb(-1, 0) === "#" || nb(1, 0) === "#" || !(nb(0, -1) === "#" || nb(0, 1) === "#"); return blit(ctx, terrainImg(hz ? "tile_gate_h" : "tile_gate_v"), px, py, c); }
-    default: return blit(ctx, pick("tile_plain", 4, x, y), px, py, c);
+    default: { const ok = blit(ctx, pick("tile_plain", 4, x, y), px, py, c); if (ok && !LOD) blends(ctx, px, py, c, nb); return ok; }
   }
 }
 const tintCache = new Map<string, HTMLCanvasElement>();
@@ -229,13 +241,13 @@ export function drawStruct(ctx: CanvasRenderingContext2D, ch: string, cx: number
 
 const cache = new Map<string, HTMLCanvasElement>();
 /** Пререндер рельефа (+ постройки) в offscreen-canvas. flip — вид со стороны игрока 1. */
-export function terrainLayer(m: MapData, side: number, flip: boolean, sideCols: [string, string], owner?: (x: number, y: number) => number): HTMLCanvasElement {
+export function terrainLayer(m: MapData, side: number, flip: boolean, sideCols: [string, string], owner?: (x: number, y: number) => number, lod = false): HTMLCanvasElement {
   const own = (x: number, y: number) => (owner ? owner(x, y) : -1);
   let ok = ""; if (owner) for (let i = 0; i < m.s.length; i++) if (m.s[i] !== ".") ok += own(i % m.size, Math.floor(i / m.size)) + 1;
-  const key = m.id + "|" + side + "|" + flip + "|" + sideCols.join() + "|" + m.t + m.s + "|" + ok + "|" + artVer;
+  const key = m.id + "|" + side + "|" + flip + "|" + sideCols.join() + "|" + m.t + m.s + "|" + ok + "|" + artVer + "|" + t2Ver + "|" + lod;
   const hit = cache.get(key); if (hit) return hit;
   if (cache.size > 6) cache.clear();
-  const n = m.size, c = side / n, cv = document.createElement("canvas"); cv.width = cv.height = side;
+  const n = m.size, c = side / n, cv = document.createElement("canvas"); cv.width = cv.height = side; LPX = c; LOD = lod;
   const ctx = cv.getContext("2d")!;
   const T = (x: number, y: number) => (x < 0 || y < 0 || x >= n || y >= n ? "?" : m.t[y * n + x]);
   const scr = (x: number, y: number) => (flip ? [n - 1 - x, n - 1 - y] : [x, y]);

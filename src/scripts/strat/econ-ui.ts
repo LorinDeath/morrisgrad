@@ -11,6 +11,9 @@ import { esc, modal, choiceDlg, confirmDlg } from "./ui-kit";
 import { pasIcon, buildPassive, techPassive, talentPassive, regPassive } from "./passives";
 import { bCard, bSprite, bIcon64, isBig, wonderStage, bannerHtml, SLOT, RECRUIT_FRAME, WONDER_NAME, PH_NAME } from "./bldart";
 import { cityBld, HS_NAME, W, terrCities, leagueCfg, type BRow } from "./world";
+import { terrainImg } from "./art";
+import { t2, t2Tint, edgeSet, sideD } from "./t2";
+import { capPair } from "./world";
 import { redacted, fogView, unveilCls, fogNode, type FogView } from "./fog";
 
 export const KIND_NAME: Record<Kind, string> = { pawn: "Ополченец", knight: "Всадник", mage: "Маг", rook: "Страж", hero: "Герой", king: "Вождь" };
@@ -148,7 +151,7 @@ export function renderCity(c: Ctx) {
       <b>${KIND_NAME[k]}</b>${why ? lock(why) : ""}<em class="${R.gold < cost ? "neg" : ""}">${cost}</em></button>`;
   }).join("");
   const hpRows = cityBld(S, G, city, cfg), hpOf = (b: string) => hpRows.find((r) => r.b === b && !r.ruin);
-  const hpTxt = (r?: BRow) => (!r ? "" : r.hp != null ? `<i class="bhp"><u style="width:${Math.min(100, Math.round((r.hp / Math.max(1, r.max || 1)) * 100))}%"></u></i><small>${r.hp}/${r.max}</small>` : r.hs ? `<small class="hs hs-${r.hs}">${HS_NAME[r.hs]}</small>` : "");
+  const hpTxt = (r?: BRow) => (!r ? "" : r.hp != null ? `<i class="bhp"><u style="width:${Math.min(100, Math.round((r.hp / Math.max(1, r.max || 1)) * 100))}%"></u></i><small>${r.hp}/${r.max}</small>` : r.hs ? `<i class="bhp st3 hs-${r.hs}"><u style="width:${Math.round(((({ ok: 3, hurt: 2, low: 1 } as any)[r.hs] ?? 0) / 3) * 100)}%"></u></i><small class="hs hs-${r.hs}">${HS_NAME[r.hs]}</small>` : ""); // M4: 3 деления
   const lv2 = city.bld.filter((b) => b === "forge").length >= 2, stg = wonderStage(city);
   const card = (b: string) => { const src = bCard(b, race), sp = b === "forge" && lv2 ? bSprite("forge", race, { lv2: true }) : null;
     return src ? `<img class="bs-art ${isBig(b) ? "big" : ""}" src="${sp || src}" alt="">` : `<span class="bs-ph">${bIcon(b, race)}<small>арт позже</small></span>`; };
@@ -301,8 +304,32 @@ export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx
   const { G } = c, cfg = cfgOf(c.S); if (!G.ec) return; const n = G.size;
   ctx.save();
   // лёгкая заливка земли; сама граница — стены по городам (world.drawWalls через walls())
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o < 0 || !vis(x, y)) continue; ctx.fillStyle = c.col(o) + "1c"; ctx.fillRect(sx(x), sy(y), cell, cell); }
+  // terrain-v2: territory_fill (штриховка, тон под стеной) + border_* по-«береговому» (только без стен), белые → цвет владельца умножением; нет арта — прежняя заливка
+  const px = cell * (devicePixelRatio || 1), flip = sx(1) < sx(0), own = (x: number, y: number) => (x < 0 || y < 0 || x >= n || y >= n ? -9 : T[y * n + x]);
+  const B = (nm: string, o: number, X: number, Y: number) => { const im = t2Tint(nm, c.col(o), px); if (im) ctx.drawImage(im, X, Y, cell + 0.5, cell + 0.5); };
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o < 0 || !vis(x, y)) continue; const X = sx(x), Y = sy(y);
+    const fill = t2Tint("territory_fill", c.col(o), px);
+    if (fill) { ctx.globalAlpha = 0.5; ctx.drawImage(fill, X, Y, cell + 0.5, cell + 0.5); ctx.globalAlpha = 1; } else { ctx.fillStyle = c.col(o) + "1c"; ctx.fillRect(X, Y, cell, cell); }
+    // M6 аудита: где есть стены города (walls-v1), видимая граница — сама стена; border_* — только без стен (нет walls / дальний план)
+    if (cell < 7 || walls) continue;
+    const es = edgeSet((dx, dy) => own(x + dx, y + dy) !== o, flip);
+    for (const k of es.corners) B("border_corner_" + k, o, X, Y);
+    for (const d of es.sides) if (!es.corners.some((k) => k.includes(d))) B("border_" + d, o, X, Y);
+    for (const k of es.inner) B("border_inner_" + k, o, X, Y); }
   walls?.();
+  // города terrain-v2: столица city_capital_<раса>_lv1..3 (512×256 = 2 клетки, якорь (256,230)) + city_owned_mask в цвет владельца;
+  // застава city_outpost_<раса> (256, якорь (128,230)) + флажок terrain-v1 flag_mask; захваченный город — city_captured_overlay
+  const races: string[] = (c.S?.g?.races || []);
+  for (const ct of [...G.ec.cities].sort((a, b) => sy(a.y) - sy(b.y))) { if (!vis(ct.x, ct.y)) continue; const race = races[ct.owner] || "fire";
+    if (ct.cap) { const ox = capPair(G, ct), X0 = (sx(ct.x) + sx(ox)) / 2 + cell / 2, Yb = sy(ct.y) + cell * 0.94, w = cell * 2, k = w / 512;
+      const im = t2(`city_capital_${race}_lv${Math.min(3, (ct.lvl || 0) + 1)}`, px * 2);
+      if (im) { const L = X0 - 256 * k; ctx.drawImage(im, L, Yb - 230 * k, w, 256 * k);
+        const m = t2Tint("city_owned_mask", c.col(ct.owner), px * 2); if (m) ctx.drawImage(m, L, Yb - 230 * k, w, 256 * k);
+        if (captured.has(ct.id)) { const ov = t2("city_captured_overlay", px); if (ov) ctx.drawImage(ov, sx(ct.x), sy(ct.y), cell, cell); } } }
+    else { const im = t2(`city_outpost_${race}`, px), k = cell / 256, L = sx(ct.x), Tp = sy(ct.y) + cell * 0.94 - 230 * k;
+      if (im) { ctx.drawImage(im, L, Tp, cell, cell); const fm = flagMask(c.col(ct.owner)); if (fm) ctx.drawImage(fm, L, Tp, cell, cell);
+        if (captured.has(ct.id)) { const ov = t2("city_captured_overlay", px); if (ov) ctx.drawImage(ov, L, sy(ct.y), cell, cell); } } }
+  }
   for (const ct of G.ec.cities) { if (!vis(ct.x, ct.y)) continue; // герб города в верхнем правом углу клетки
     const X = sx(ct.x) + cell * 0.7, Y = sy(ct.y) + cell * 0.03, w = cell * 0.27;
     ctx.fillStyle = "#1a1420"; ctx.strokeStyle = c.col(ct.owner); ctx.lineWidth = Math.max(1.5, cell * 0.03);
@@ -318,7 +345,14 @@ export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx
 }
 
 /** Всплывашки событий экономики (поверх доски) — короткий текст для клетки. */
+/** города, взятые у противника за эту сессию (сервер не хранит «бывшего владельца») — для city_captured_overlay */
+export const captured = new Set<number>();
+const fmC = new Map<string, HTMLCanvasElement>();
+function flagMask(col: string): HTMLCanvasElement | null { const hit = fmC.get(col); if (hit) return hit; const im = terrainImg("flag_mask"); if (!im) return null;
+  const cv = document.createElement("canvas"); cv.width = im.naturalWidth; cv.height = im.naturalHeight; const x = cv.getContext("2d")!;
+  x.drawImage(im, 0, 0); x.globalCompositeOperation = "multiply"; x.fillStyle = col; x.fillRect(0, 0, cv.width, cv.height); x.globalCompositeOperation = "destination-in"; x.drawImage(im, 0, 0); fmC.set(col, cv); return cv; }
 export function econFx(e: any): { txt: string; col: string } | null {
+  if (e?.e === "capture" && !e.cap && e.city != null) captured.add(e.city);
   switch (e.e) {
     case "recruit": return { txt: "+ " + (KIND_NAME[e.kind as Kind] || ""), col: "#f3d27a" };
     case "found": return { txt: "Застава!", col: "#f3d27a" };

@@ -10,6 +10,7 @@ import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
 import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips } from "./ui-kit";
 import { GOALS, goalDef, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, type Goal, type CNode } from "./goals";
 import { fogView, unveilCls, fogNode } from "./fog";
+import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
 import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius } from "./ult-fx";
@@ -24,7 +25,7 @@ import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, ra
 import { bName } from "./econ-ui";
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type EvCtx, type LibItem } from "./history";
-import { hpBarArt } from "./ui2art";
+import { hpBarArt, HS_STEP } from "./ui2art";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
 
 const PROD_WS = "wss://morris-multiplayer.alexseylyou.workers.dev";
@@ -652,7 +653,7 @@ function renderInfo() {
     const nm = p.k === "king" ? "Вождь" : KIND_NAME[p.k as Kind];
     const pas = [...(P.tal || []).map((t) => { const raw = ((cfg.talents as any)[P.kind] || []).flat().find((x: any) => x.id === t); return raw ? pasIcon(talentPassive(raw, P.kind)) : ""; }), racePas(p.o)].join("");
     h += `<div class="uc-h"><span class="uc-port r-${race}"><img src="${unitArt(race, p.k)}" alt="" onerror="this.remove()"></span><div><b class="uc-name">${nm}</b><small class="uc-sub"></small>
-        ${p.hp == null && p.hs ? `<div class="meter hp hs hs-${p.hs}"><i style="width:${p.hs === "ok" ? 100 : p.hs === "hurt" ? 55 : 18}%"></i><span>${HS_NAME[p.hs] || "?"}</span></div>` : `<div class="meter hp"><i style="width:${(p.hp / p.mh) * 100}%"></i><span>${p.hp} / ${p.mh}</span></div>`}</div></div>
+        ${p.hp == null && p.hs ? `<div class="meter hp hs hs-${p.hs} steps3"><i style="width:${Math.round(((HS_STEP[p.hs] ?? 0) / 3) * 100)}%"></i><span>${HS_NAME[p.hs] || "?"}</span></div>` : `<div class="meter hp"><i style="width:${(p.hp / p.mh) * 100}%"></i><span>${p.hp} / ${p.mh}</span></div>`}</div></div>
       <div class="uc-stats"><span data-tip="Атака с учётом бонусов">${ic("sword")}<b>${p.ea ?? p.atk}</b></span><span data-tip="Броня с учётом бонусов">${ic("shield")}<b>${p.er ?? p.arm}</b></span><span data-tip="Уровень">${ic("xp")}<b>${lv.lv}</b></span>${p.b ? `<span class="neg" data-tip="Горит ещё ${p.b} ${plural(p.b, "ход", "хода", "ходов")}">${ic("burn")}<b>${p.b}</b></span>` : ""}${p.c ? `<span class="cold" data-tip="Обморожен">${ic("chill")}</span>` : ""}${p.a ? `<span class="muted" data-tip="Уже действовал">${ic("check")}</span>` : ""}</div>
       ${lv.next ? `<div class="meter xp sm" data-tip="Опыт ${lv.xp} / ${lv.next}"><i style="width:${Math.min(100, ((lv.xp - lv.prev) / Math.max(1, lv.next - lv.prev)) * 100)}%"></i></div>` : ""}
       ${pas ? `<div class="pas-row">${pas}</div>` : ""}`;
@@ -799,18 +800,21 @@ function drawNow() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cam.W, cam.H); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
   const map: MapData = g.map || openMap(n), G0 = gs()!, cfg = cfgOf(S), T0 = G0.ec ? territoryCached(G0, cfg, g) : null, WT = T0 ? terrFull(G0, T0, g) : null, T = WT ? WT.T : null;
   const L = Math.min(n > 60 ? 3072 : 4096, Math.max(512, Math.ceil(n * Math.min(64, Math.max(cam.fit, 24)) * dpr)));
-  ctx.drawImage(terrainLayer(map, L, flipped(), [raceCol(0), raceCol(1)], T ? (x, y) => T[y * n + x] : undefined), scrX(flipped() ? n - 1 : 0), scrY(flipped() ? n - 1 : 0), n * z, n * z);
+  ctx.drawImage(terrainLayer(map, L, flipped(), [raceCol(0), raceCol(1)], T ? (x, y) => T[y * n + x] : undefined, z < 20), scrX(flipped() ? n - 1 : 0), scrY(flipped() ? n - 1 : 0), n * z, n * z);
   // видимая область (в координатах карты) — рисуем только её
   const m = 1, vis = (x: number, y: number) => { const X = scrX(x), Y = scrY(y); return X > -z * m && Y > -z * m && X < cam.W + z * (m - 1) + z && Y < cam.H + z * (m - 1) + z; };
   const sx = scrX, sy = scrY;
   if (T && WT) { const ec0 = ectx(); drawEcon(ctx, ec0, z, sx, sy, T, vis, () => drawWalls(ctx, G0, WT.T, WT.C, z, sx, sy, vis, raceCol)); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp, WT.C); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
   const zs = zonesOf(g); if (zs.length) drawZones(ctx, zs, n, sx, sy, z, performance.now());
   const GP = new Map(G0.pieces.map((q) => [q.id, q]));
-  if (selCell) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(sx(selCell[0]) + 2, sy(selCell[1]) + 2, z - 4, z - 4); ctx.setLineDash([]); }
+  // метки terrain-v2: mark_select (#f3d27a), mark_move/hover (белые → тон), mark_attack (#b3261e); нет арта — прежние линии
+  const mpx = z * (devicePixelRatio || 1), mark = (nm: string, x: number, y: number, col?: string) => { const im = col ? t2Tint(nm, col, mpx) : t2(nm, mpx); if (!im) return false; ctx.drawImage(im, sx(x), sy(y), z, z); return true; };
+  if (hoverCell && S.phase === "play" && !(selCell && selCell[0] === hoverCell[0] && selCell[1] === hoverCell[1]) && vis(hoverCell[0], hoverCell[1])) mark("mark_hover", hoverCell[0], hoverCell[1], "#f4ead2");
+  if (selCell && !mark("mark_select", selCell[0], selCell[1])) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(sx(selCell[0]) + 2, sy(selCell[1]) + 2, z - 4, z - 4); ctx.setLineDash([]); }
   const G = gs()!, P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
-    for (const [x, y] of moveTargets(G, P)) { if (!vis(x, y)) continue; ctx.fillStyle = "rgba(243,210,122,.28)"; ctx.fillRect(sx(x) + 2, sy(y) + 2, z - 4, z - 4); ctx.fillStyle = "#f3d27a"; ctx.beginPath(); ctx.arc(sx(x) + z / 2, sy(y) + z / 2, Math.max(2, z * 0.08), 0, 7); ctx.fill(); }
-    ctx.strokeStyle = "#e6623f"; ctx.lineWidth = Math.max(2, z * 0.07); for (const [x, y] of attackTargets(G, P)) if (vis(x, y)) ctx.strokeRect(sx(x) + 3, sy(y) + 3, z - 6, z - 6);
+    for (const [x, y] of moveTargets(G, P)) { if (!vis(x, y)) continue; if (mark("mark_move", x, y, "#f3d27a")) continue; ctx.fillStyle = "rgba(243,210,122,.28)"; ctx.fillRect(sx(x) + 2, sy(y) + 2, z - 4, z - 4); ctx.fillStyle = "#f3d27a"; ctx.beginPath(); ctx.arc(sx(x) + z / 2, sy(y) + z / 2, Math.max(2, z * 0.08), 0, 7); ctx.fill(); }
+    ctx.strokeStyle = "#e6623f"; ctx.lineWidth = Math.max(2, z * 0.07); for (const [x, y] of attackTargets(G, P)) if (vis(x, y) && !mark("mark_attack", x, y)) ctx.strokeRect(sx(x) + 3, sy(y) + 3, z - 6, z - 6);
     if (P.owner === S.you) { ctx.setLineDash([z * 0.1, z * 0.06]); for (const t of razeTargets(S, G, P)) if (vis(t.x, t.y)) { ctx.strokeRect(sx(t.x) + 5, sy(t.y) + 5, z - 10, z - 10); const im = iconImg("target", draw); if (im) ctx.drawImage(im, sx(t.x) + z * 0.36, sy(t.y) + z * 0.36, z * 0.28, z * 0.28); } ctx.setLineDash([]); }
   }
   const now = performance.now(); flipping = false;
@@ -827,12 +831,12 @@ function drawNow() {
     ctx.globalAlpha = p.a && p.o === g.cur ? 0.62 : 1;
     drawUnit(ctx, p, g.races[p.o], pose, X, Y - hop, z, true, face);
     const cx = X + z / 2, cy = Y + z / 2;
-    if (p.id === sel) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.strokeRect(X + 3, Y + 3, z - 6, z - 6); }
+    if (p.id === sel) { const im = t2("mark_select", mpx); if (im) ctx.drawImage(im, X, Y, z, z); else { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.strokeRect(X + 3, Y + 3, z - 6, z - 6); } }
     if (p.k === "king" && S.check?.[p.o]) { ctx.strokeStyle = "#e6623f"; ctx.lineWidth = 3; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.arc(cx, cy, z * 0.46, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     // полоса здоровья: чернильная рамка, заливка по доле
     // «Скрывать ОЗ» (настройка): полоса только у выбранной/наведённой; скрытое здоровье лобби: у врага только grade (hs)
-    if (!hideHp || p.id === sel || p.id === hoverPid) { const bw = z * 0.6, bx = cx - bw / 2, by = Y + z * 0.86, bh = Math.max(4, z * 0.075), hs = p.hp == null ? p.hs : null, fr = hs ? (hs === "ok" ? 1 : hs === "hurt" ? 0.55 : 0.2) : Math.max(0, p.hp / p.mh);
-      hpBarArt(ctx, bx - bh * 1.25, by, bw + bh * 2.5, bh, fr, hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#7fc25a" : fr > 0.25 ? "#e0b04a" : "#c23a2a", p.owner !== S.you, draw); // рамка ui-v2 hp_bar_frame(_enemy)
+    if (!hideHp || p.id === sel || p.id === hoverPid) { const bw = z * 0.6, bx = cx - bw / 2, by = Y + z * 0.86, bh = Math.max(4, z * 0.075), hs = p.hp == null ? p.hs : null, fr = hs ? (HS_STEP[hs] ?? 0) / 3 : Math.max(0, p.hp / p.mh); // M4: 3 ступени
+      hpBarArt(ctx, bx - bh * 1.25, by, bw + bh * 2.5, bh, fr, hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#7fc25a" : fr > 0.25 ? "#e0b04a" : "#c23a2a", p.owner !== S.you, draw, hs ? 3 : 0); // рамка ui-v2 hp_bar_frame(_enemy)
       if (hs && z >= 30) { ctx.font = `700 ${Math.round(z * 0.15)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.strokeText(HS_NAME[hs] || "", cx, by - 1); ctx.fillStyle = HS_COL[hs] || "#ccc"; ctx.fillText(HS_NAME[hs] || "", cx, by - 1); } }
     const badge = (name: string, i: number) => { const im = iconImg(name, draw); if (im) { const s = z * 0.24; ctx.drawImage(im, X + z * 0.74, Y + z * 0.04 + i * s, s, s); } };
     { const Q = GP.get(p.id); if (Q) drawLvBadge(ctx, X, Y - hop, z, pieceLevel(Q, cfg), p.o === S.you && !!pendingTalent(Q, cfg)); }
@@ -912,9 +916,16 @@ function drawMinimap() {
   const c = $<HTMLCanvasElement>("#minimap"); if (!c || !S?.g) return; const n = S.g.size, D = c.width, k = D / n, g = S.g;
   const key = `${g.map?.id}|${n}|${flipped()}|${g.turn}|${g.cur}`;
   if (key !== mmKey || !mmBase) { mmKey = key; const map: MapData = g.map || openMap(n); mmBase = document.createElement("canvas"); mmBase.width = mmBase.height = D; const x2 = mmBase.getContext("2d")!;
-    x2.drawImage(terrainLayer(map, Math.min(1024, Math.max(256, n * 8)), flipped(), [raceCol(0), raceCol(1)]), 0, 0, D, D);
+    // terrain-v2 mini_* (8×8 на клетку): рельеф, постройки карты; нет набора — уменьшенный пререндер рельефа
+    const MT: Record<string, string> = { ".": "plain", ",": "meadow", f: "forest", m: "mountain", w: "water", r: "road", b: "bridge", "#": "wall", g: "wall" };
+    const mi = (nm: string) => t2(nm, 8), okMini = !!mi("mini_plain") && !!mi("mini_forest") && !!mi("mini_water");
+    if (okMini) { x2.imageSmoothingEnabled = false; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, X = vx(x) * k, Y = vy(y) * k;
+      const im = mi("mini_" + (MT[map.t[i]] || "plain")) || mi("mini_plain"); if (im) x2.drawImage(im, X, Y, k + 0.3, k + 0.3);
+      const st = map.s[i]; if (st && st !== ".") { const si = mi("mini_" + st); if (si) x2.drawImage(si, X, Y, k + 0.3, k + 0.3); } } }
+    else x2.drawImage(terrainLayer(map, Math.min(1024, Math.max(256, n * 8)), flipped(), [raceCol(0), raceCol(1)]), 0, 0, D, D);
     const G0 = gs()!, T = G0.ec ? territoryCached(G0, cfgOf(S), g) : null;
-    if (T) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o >= 0) { x2.fillStyle = raceCol(o) + "55"; x2.fillRect(vx(x) * k, vy(y) * k, k, k); } } }
+    if (T) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o >= 0) { x2.fillStyle = raceCol(o) + "55"; x2.fillRect(vx(x) * k, vy(y) * k, k, k); } }
+    const mc = mi("mini_city"); if (mc && G0.ec) for (const ct of G0.ec.cities) { const s2 = k * (ct.cap ? 1.8 : 1.3); x2.drawImage(mc, vx(ct.x) * k + k / 2 - s2 / 2, vy(ct.y) * k + k / 2 - s2 / 2, s2, s2); } }
   const ctx = c.getContext("2d")!; ctx.drawImage(mmBase, 0, 0);
   for (const p of g.pieces) { ctx.fillStyle = raceCol(p.o); ctx.strokeStyle = INK; ctx.lineWidth = 1; const s = Math.max(3, k * (p.k === "king" ? 1.6 : 1)); ctx.fillRect(vx(p.x) * k + k / 2 - s / 2, vy(p.y) * k + k / 2 - s / 2, s, s); ctx.strokeRect(vx(p.x) * k + k / 2 - s / 2, vy(p.y) * k + k / 2 - s / 2, s, s); }
   const w = (cam.W / cam.z) * k, h = (cam.H / cam.z) * k; ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = 2; ctx.strokeRect((cam.cx * k) - w / 2, (cam.cy * k) - h / 2, w, h);
@@ -949,12 +960,12 @@ function bindBoard() {
     cityIdx = (cityIdx + 1) % cs.length; if (cam.z < 40) cam.z = Math.max(cam.fit, 48); centerOn(cs[cityIdx].x, cs[cityIdx].y); };
   bindMinimap();
 }
-let cityIdx = -1, hoverKey = "";
+let cityIdx = -1, hoverKey = "", hoverCell: [number, number] | null = null;
 /** Наведение на доску (мышь): короткая подсказка о фигуре или клетке. */
 function hoverTip(px: number, py: number, cx: number, cy: number) {
-  if (!matchMedia("(hover: hover)").matches || !S?.g) return; const at = cellAt(px, py); if (!at) { hideTip(); hoverKey = ""; return; }
+  if (!matchMedia("(hover: hover)").matches || !S?.g) return; const at = cellAt(px, py); if (!at) { hideTip(); hoverKey = ""; if (hoverCell) { hoverCell = null; draw(); } return; }
   const [x, y] = at, g = S.g, p = g.pieces.find((q: any) => q.x === x && q.y === y), m: MapData = g.map || openMap(g.size), t = m.t[y * g.size + x], st = m.s[y * g.size + x];
-  const key = `${x},${y},${p?.id},${p?.hp},${S.g.v ?? S.g.turn}`; if (key === hoverKey) return; hoverKey = key; { const hp0 = p?.id ?? -1; if (hp0 !== hoverPid) { hoverPid = hp0; if (hideHp) draw(); } }
+  const key = `${x},${y},${p?.id},${p?.hp},${S.g.v ?? S.g.turn}`; if (key === hoverKey) return; hoverKey = key; if (!hoverCell || hoverCell[0] !== x || hoverCell[1] !== y) { hoverCell = [x, y]; draw(); } { const hp0 = p?.id ?? -1; if (hp0 !== hoverPid) { hoverPid = hp0; if (hideHp) draw(); } }
   let h = "";
   if (p) h = `<b>${p.k === "king" ? "Вождь " + esc(chiefName(p.o)) : KIND_NAME[p.k as Kind]}</b> · ${p.o === S.you ? "ваш" : "враг"}<br>${p.hp == null && p.hs ? `<span class="hsb hs-${p.hs}">${HS_NAME[p.hs] || "?"}</span>` : `${ic("heart")}${p.hp}/${p.mh}`} ${ic("sword")}${p.ea ?? p.atk} ${ic("shield")}${p.er ?? p.arm}`;
   if (g.ec) { const G0 = gs()!, base = territoryCached(G0, cfgOf(S), g), W0 = terrFull(G0, base, g), i = y * g.size + x, cid = W0.C[i];
@@ -1169,7 +1180,7 @@ if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" 
   bindBoard(); bindTips();
   new ResizeObserver(() => { if (S?.g) { fitCam(false); draw(); } }).observe($("#stage"));
   setInterval(tick, 250);
-  connectHub(); loadOpen(); render(); loadArt(draw); loadWalls(draw); injectIcons();
+  connectHub(); loadOpen(); render(); loadArt(draw); loadWalls(draw); t2OnLoad(() => { mmKey = ""; draw(); }); injectIcons();
   const d = LOCAL ? qs.get("demo") : null; if (d) startDemo(+d);
   const j = qs.get("join"); if (j && !d) joinCode(j);
 }
@@ -1225,7 +1236,7 @@ if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
   dbg: () => ({ S, G: gs() }),
   wpop: (mine = true) => { const c = S.g.ec.cities.find((q: any) => (mine ? q.owner === S.you : q.owner !== S.you)); showWonder(c); },
   cam: (x: number, y: number, z?: number) => { if (z) cam.z = z; centerOn(x, y); },
-  wmode: (m: any) => { W.mode = m; draw(); },
+  wmode: (m: any) => { W.mode = m; draw(); }, capt: (id: number) => { econFx({ e: "capture", city: id, by: S.you, cap: false }); draw(); },
   fx: (e: any) => { const r: any = worldEvent(e, S.you, gs()!, (i: number) => S.seats[i]?.nick || "?"); const now = performance.now(); if (r?.fx) fx.push({ ...r.fx, t: now }); if (r?.dust) rubble.push({ ...r.dust, t: now }); if (r?.toast) toast(r.toast[0], r.toast[1], r.toast[2]); draw(); return r; },
   apTip: () => { const el = document.querySelector<HTMLElement>(".apbox2"); el?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); el?.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true })); },
   ratedLobby: () => { (window as any).__stratDev.lobby8("ffa", 6); S.ranked = true; S.rated = true; S.seats.forEach((x: any) => x && (x.race = null, x.picked = false, x.rating = 1400 + ((x.nick.length * 97) % 400), x.col = undefined));

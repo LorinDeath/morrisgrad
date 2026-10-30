@@ -15,17 +15,30 @@ export function tinted(src: string, col: string, redraw?: () => void): HTMLCanva
 export const HPF = { own: U + "frames/hp_bar_frame.png", enemy: U + "frames/hp_bar_frame_enemy.png" };
 /** Полоса ОЗ в рамке 128×24 (3-slice 16/16; жёлоб x10..W−10, y8..16 — заливка ПОД рамкой).
  *  x,w — внешняя рамка; ty,th — жёлоб (рамка выступает на th сверху и снизу). fill — цвет заливки, fr 0..1. */
-export function hpBarArt(ctx: CanvasRenderingContext2D, x: number, ty: number, w: number, th: number, fr: number, fill: string, enemy: boolean, redraw?: () => void) {
+/** steps>0 — ступенчатая полоса (аудит M4: «Скрытое здоровье» — 3 деления ok/hurt/low, без плавной заливки). */
+export const HS_STEP: Record<string, number> = { ok: 3, hurt: 2, low: 1, dead: 0 };
+export function hpBarArt(ctx: CanvasRenderingContext2D, x: number, ty: number, w: number, th: number, fr: number, fill: string, enemy: boolean, redraw?: () => void, steps = 0) {
   const f = uImg(enemy ? HPF.enemy : HPF.own, redraw), s = th / 8, tx = x + 10 * s, tw = Math.max(1, w - 20 * s); fr = Math.max(0, Math.min(1, fr));
+  if (steps > 0) fr = Math.round(fr * steps) / steps;
   ctx.fillStyle = "#140f18"; ctx.fillRect(tx, ty, tw, th); ctx.fillStyle = fill; ctx.fillRect(tx, ty, tw * fr, th);
   ctx.fillStyle = "#ffffff38"; ctx.fillRect(tx, ty, tw * fr, th * 0.38);
+  if (steps > 1) { ctx.fillStyle = "#140f18"; const gw = Math.max(1.5, th * 0.32); for (let i = 1; i < steps; i++) ctx.fillRect(tx + (tw * i) / steps - gw / 2, ty, gw, th); }
   if (!f) { ctx.strokeStyle = "#140f18"; ctx.lineWidth = 1; ctx.strokeRect(tx - 0.5, ty - 0.5, tw + 1, th + 1); return; }
   const cap = 16 * s, H = 24 * s, top = ty - 8 * s;
   ctx.drawImage(f, 0, 0, 16, 24, x, top, cap, H); ctx.drawImage(f, 16, 0, 96, 24, x + cap, top, Math.max(0, w - 2 * cap), H); ctx.drawImage(f, 112, 0, 16, 24, x + w - cap, top, cap, H);
 }
 /** Захват клетки: рамка-кольцо + k белых сегментов, тонированных цветом захватчика (по часовой от верха); k=max — готовый кадр 4. */
 export function drawCapture(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, k: number, max: number, col: string, label: string, redraw?: () => void) {
-  const s = size / 96, kk = Math.max(0, Math.min(4, Math.round((k / Math.max(1, max)) * 4)));
+  const s = size / 96, N = Math.max(1, Math.round(max)), kk = Math.max(0, Math.min(4, Math.round((k / N) * 4)));
+  if (N !== 4 && k < N) { // аудит M5: N сегментов по реальному числу ходов (5 при повторном захвате и т. п.)
+    const fr = uImg(U + "map/capture_ring_frame.png", redraw), R = size * 0.36, gap = Math.min(0.18, 1.2 / N);
+    if (fr) ctx.drawImage(fr, cx - size / 2, cy - size / 2, size, size); else { ctx.fillStyle = "#140f18cc"; ctx.beginPath(); ctx.arc(cx, cy, size * 0.46, 0, 7); ctx.fill(); }
+    ctx.save(); ctx.lineCap = "butt"; ctx.lineWidth = Math.max(2.5, size * 0.13);
+    for (let i = 0; i < N; i++) { const a0 = -Math.PI / 2 + (i / N) * Math.PI * 2 + gap / 2, a1 = -Math.PI / 2 + ((i + 1) / N) * Math.PI * 2 - gap / 2;
+      ctx.strokeStyle = i < k ? col : "#00000055"; ctx.beginPath(); ctx.arc(cx, cy, R, a0, a1); ctx.stroke(); }
+    ctx.restore();
+    if (label && size >= 26) { ctx.font = `700 ${Math.round(21 * s * 1.15)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#f4ead2"; ctx.fillText(label, cx, cy + 1); }
+    return; }
   if (kk >= 4) { const im = uImg(U + "map/capture_marker_4.png", redraw); if (im) ctx.drawImage(im, cx - size / 2, cy - size / 2, size, size); return; }
   const fr = uImg(U + "map/capture_ring_frame.png", redraw), seg = tinted(U + "map/capture_ring_segment.png", col, redraw);
   if (!fr) { const im = uImg(U + `map/capture_marker_${kk}.png`, redraw); if (im) ctx.drawImage(im, cx - size / 2, cy - size / 2, size, size); return; }

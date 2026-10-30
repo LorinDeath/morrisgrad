@@ -2,8 +2,8 @@
 // столицы, баннеры городов (3-slice), стадии и сцена Великого чуда. Файлы — плоско в /strat/buildings/ (manifest.json рядом).
 // Сопоставление id сервера → арт: quarry→quarry_r, sacredgrove→grove, lightningrod→rod; magetower — вариант расы;
 // forge — bld_forge_lv2, если Кузня в городе стоит дважды; wonder — чудо своей расы (fire→eternal_fire, ice→permafrost,
-// water→great_tide, stone→great_wall, nature→world_tree, lightning→storm_eye); легендарная observatory — wonder_observatory.
-// Без арта (заглушки, иконка на подложке): watchtower, warcouncil, warhall, stronghold, mint, metropolis. arena/lighthouse пока не привязаны.
+// water→great_tide, stone→great_wall, nature→world_tree, lightning→storm_eye); observatory — заглушка 1×1 (аудит B1).
+// Без арта (заглушки: рамка эпохи IV + значок): warhall, stronghold, mint, metropolis, observatory. arena/lighthouse пока не привязаны.
 // ДОГАДКА: сервер не шлёт стадий стройки чуда — читаются защитно city.wonder{stage|prog|left,total} | city.wb | city.build{b:"wonder"}.
 import { esc } from "./ui-kit";
 import { ic } from "./icons";
@@ -15,14 +15,18 @@ const RACE_B: Record<string, string> = { crucible: "crucible", glacier: "glacier
 export const WONDER_ART: Record<string, string> = { fire: "eternal_fire", ice: "permafrost", water: "great_tide", stone: "great_wall", nature: "world_tree", lightning: "storm_eye" };
 /** Имена чудес рас (content-cfg WIP-сервера). */
 /** Имена заглушек, которых нет в BUILD клиента (имена — догадка до правил). */
-export const PH_NAME: Record<string, string> = { watchtower: "Сторожевая башня", warcouncil: "Военный совет", warhall: "Зал войны", stronghold: "Твердыня", mint: "Монетный двор", metropolis: "Метрополия" };
+export const PH_NAME: Record<string, string> = { watchtower: "Сторожевая башня", warcouncil: "Военный совет", warhall: "Чертог войны", stronghold: "Несокрушимая твердыня", mint: "Монетный двор", metropolis: "Метрополия", observatory: "Обсерватория" };
 export const WONDER_NAME: Record<string, string> = { fire: "Вечное пламя", ice: "Ледяной трон", water: "Великий маяк", stone: "Сердце горы", nature: "Древо мира", lightning: "Небесный шпиль" };
-const BIG: Record<string, string> = { observatory: "observatory" };
-export const PLACEHOLDER = ["warhall", "stronghold", "mint", "metropolis"];
+// Аудит B1: легендарная observatory — обычный слот 1×1 (256, якорь 128,234), wonder_observatory (2×2) для неё не годится → заглушка.
+const BIG: Record<string, string> = {};
+/** Легендарные постройки эпохи IV без арта: аккуратная заглушка (рамка era4_node_frame + значок), пока Художник не сдаст bld_*. */
+export const PLACEHOLDER = ["warhall", "stronghold", "mint", "metropolis", "observatory"];
+export const PH_ICON: Record<string, string> = { warhall: "sword", stronghold: "shield", mint: "gold", metropolis: "castle", observatory: "eye" };
+export const E4_FRAME = "/strat/ui2/frames/era4_node_frame.png";
 /** Якоря из manifest: постройка 256² → (128,234); чудо 512² → (256,476), занимает 2×2 клетки. */
 export const ANCHOR = { b: { s: 256, x: 128, y: 234 }, w: { s: 512, x: 256, y: 476 } };
 
-const wId = (b: string, race: string) => (b === "wonder" ? WONDER_ART[race] || "observatory" : BIG[b] || null);
+const wId = (b: string, race: string) => (b === "wonder" ? WONDER_ART[race] || "eternal_fire" : BIG[b] || null);
 export const isBig = (b: string) => b === "wonder" || !!BIG[b];
 export const hasArt = (b: string) => SHARED.has(b) || !!RACE_B[b] || isBig(b);
 /** Спрайт на доску (null — заглушка). */
@@ -42,7 +46,7 @@ export function bCard(b: string, race: string): string | null {
   return null;
 }
 export function bIcon64(b: string): string | null { if (SHARED.has(b)) return BLD_DIR + "bld_" + b + "_icon.png"; if (RACE_B[b]) return BLD_DIR + "bld_" + RACE_B[b] + "_icon.png"; return null; }
-export const wonderScene = (race: string, b = "wonder") => BLD_DIR + "wonder_" + (wId(b, race) || "observatory") + "_scene.png";
+export const wonderScene = (race: string, b = "wonder") => BLD_DIR + "wonder_" + (wId(b, race) || "eternal_fire") + "_scene.png";
 export const SLOT = { empty: BLD_DIR + "slot_empty.png", locked: BLD_DIR + "slot_locked.png" };
 export const RECRUIT_FRAME = BLD_DIR + "recruit_card_frame.png";
 export const bannerSrc = (race: string) => BLD_DIR + "city_banner_" + (RACE_LIST.includes(race) ? race : "fire") + ".png";
@@ -79,7 +83,8 @@ export function drawBanner(ctx: CanvasRenderingContext2D, race: string, name: st
 /** HTML-баннер (CSS border-image 3-slice). */
 export const bannerHtml = (race: string, name: string, cls = "") => `<span class="cbanner ${cls}" style="--bn:url('${bannerSrc(race)}')"><span>${esc(name)}</span></span>`;
 /** Иконка постройки для чипов/строк: 64-px арт или SVG-заглушка. */
-export function bIconHtml(b: string, fallbackIcon: string): string { const s = bIcon64(b); return s ? `<img class="ic img bico" src="${s}" alt="">` : ic(fallbackIcon); }
+export function bIconHtml(b: string, fallbackIcon: string): string { const s = bIcon64(b); if (s) return `<img class="ic img bico" src="${s}" alt="">`;
+  return PLACEHOLDER.includes(b) ? `<span class="e4fr ph" title="Арт в работе">${ic(PH_ICON[b] || fallbackIcon)}</span>` : ic(fallbackIcon); }
 
 /** Всплывающее окно «Чудо построено»: сцена 1024×768, текст — в приглушённом центре 640×480. */
 export function wonderPopup(o: { race: string; b?: string; title: string; city: string; who: string; eff: string; mine: boolean }): HTMLElement {

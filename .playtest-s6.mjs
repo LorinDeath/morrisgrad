@@ -1,4 +1,4 @@
-// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|mob|all] → /workspace/minigame-tz/shots/s6-ui-*
+// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|v2|t2|mob|all] → /workspace/minigame-tz/shots/s6-ui-*
 import { createRequire } from "module"; const require = createRequire("/workspace/mc-ui-tools/");
 const { chromium } = require("playwright-core");
 const SITE = "http://127.0.0.1:4392/games/strategy", OUT = "/workspace/minigame-tz/shots/", WSQ = "&ws=ws://127.0.0.1:8872";
@@ -85,6 +85,37 @@ if (only === "all" || only === "mob") {
   const k = await king(M); await dev(M, "sel", k); await sleep(500);
   const bb = await M.$('[data-ca="build"]'); if (bb) { await bb.scrollIntoViewIfNeeded(); await bb.click(); await shot(M, "s6-ui-53-mobile-build-picker", 1200); await esc(M); } else errs.push("mob: no build button");
   await dev(M, "wpop", true); await shot(M, "s6-ui-54-mobile-wonder-popup", 1300);
+}
+if (only === "all" || only === "t2") {
+  // terrain-v2 + аудит: столица lv1..3, застава, захваченный город, территория, метки, зоны, мини-карта, LOD; M4/M5/M7/M10
+  const A = await player("s6_" + T + "_t2", "&demo=15&skirm=1");
+  await dev(A, "s5", {}); await dev(A, "s6", { stage: 2 }); const [cid, cx, cy] = await myCity(A); await sleep(2500); // ленивая догрузка t2
+  const hideUi = (P) => P.addStyleTag({ content: "#hint,#minimapbox{display:none!important}" }); await hideUi(A);
+  for (const lv of [0, 1, 2]) { await A.evaluate((lv) => { const { S } = window.__stratDev.dbg(); S.g.ec.cities.find((q) => q.owner === S.you && q.cap).lvl = lv; }, lv); await dev(A, "render"); await dev(A, "cam", cx + 1, cy - 1, 120); await shot(A, `s6-ui-70-t2-capital-lv${lv + 1}`, 1300); }
+  const op = await A.evaluate(([cx, cy]) => { const { S } = window.__stratDev.dbg(), ec = S.g.ec; let c = ec.cities.find((q) => !q.cap);
+    if (!c) { const n = S.g.size, free = (x, y) => x >= 0 && y >= 0 && x < n && y < n && !S.g.pieces.some((p) => p.x === x && p.y === y) && !ec.cities.some((q) => Math.abs(q.x - x) + Math.abs(q.y - y) < 3);
+      let at = null; for (let r = 3; r < 8 && !at; r++) for (let dx = -r; dx <= r && !at; dx++) for (const dy of [-r, r]) if (!at && free(cx + dx, cy + dy)) at = [cx + dx, cy + dy];
+      if (at) { c = { id: 900, owner: S.you, x: at[0], y: at[1], cap: false, growth: 0, lvl: 0, bld: [], forge: [], acted: false, sg: 0, name: "Застава" }; ec.cities.push(c);
+        const c2 = { ...c, id: 901, owner: 1 - S.you, x: at[0] + 2, name: "Взятая" }; if (free(c2.x, c2.y)) ec.cities.push(c2); } }
+    return c && [c.id, c.x, c.y]; }, [cx, cy]);
+  if (op) await A.evaluate(() => { const { S } = window.__stratDev.dbg(); if (S.g.ec.cities.some((q) => q.id === 901)) window.__stratDev.capt(901); });
+  if (op) { await dev(A, "render"); await dev(A, "cam", op[1] + 1, op[2], 140); await shot(A, "s6-ui-71-t2-outpost-captured-overlay", 1300); } else errs.push("t2: no outpost in demo");
+  const k = await king(A); await dev(A, "sel", k); const kp = await A.evaluate(() => { const { S } = window.__stratDev.dbg(); const p = S.g.pieces.find((q) => q.o === S.you && q.k === "king"); return [p.x, p.y]; });
+  await dev(A, "cam", kp[0], kp[1], 110); await A.mouse.move(760, 430); await shot(A, "s6-ui-72-t2-marks-move-attack-select-hover", 1200); await dev(A, "sel", -1);
+  await A.evaluate(([x, y]) => { const { S } = window.__stratDev.dbg(); S.g.zones = [{ k: "burn", x: x - 3, y, r: 1 }, { k: "frost", x: x + 3, y, r: 1 }, { k: "wall", x, y: y - 3, r: 1 }, { k: "vines", x, y: y + 3, r: 1 }, { k: "flood", x: x + 3, y: y + 3, r: 1 }]; }, [cx, cy]);
+  await dev(A, "cam", cx, cy, 70); await shot(A, "s6-ui-73-t2-zones-burn-frost-wall-vines-flood", 1500); await A.evaluate(() => { delete window.__stratDev.dbg().S.g.zones; });
+  await A.evaluate(() => document.querySelectorAll("style").forEach((e) => /#hint,#minimapbox/.test(e.textContent) && e.remove())); await sleep(300);
+  await A.locator("#minimapbox").screenshot({ path: OUT + "s6-ui-74-t2-minimap-frame.png" }).catch((e) => errs.push("minimap: " + e.message));
+  await hideUi(A); await dev(A, "cam", cx, cy - 1, 60); await shot(A, "s6-ui-75-t2-territory-fill-blends", 1300);
+  // M5: повторный захват 5 ходов (2 из 5), поселение 12 ходов
+  await A.evaluate(([x, y]) => { const { S } = window.__stratDev.dbg(), n = S.g.size; S.g.ec.ct = { [(y - 2) * n + x + 1]: { o: 1 - S.you, n: 2, max: 5 } }; }, [cx, cy]); await dev(A, "render");
+  await dev(A, "cam", cx + 1, cy - 2, 150); await shot(A, "s6-ui-76-audit-m5-capture-5-turns", 1200);
+  const H = await player("s6_" + T + "_t2h", "&demo=15&skirm=1"); await dev(H, "s5", { hidden: true }); await dev(H, "s6", {}); const [, hx, hy] = await enCity(H); await hideUi(H);
+  await dev(H, "cam", hx, hy + 2, 120); await shot(H, "s6-ui-77-audit-m4-hidden-hp-3-steps", 1300);
+  const L = await player("s6_" + T + "_t2l", "&demo=8&skirm=1"); await dev(L, "lobby8", "ffa", 8);
+  await L.evaluate(() => document.querySelector(".colrow")?.scrollIntoView({ block: "center" })); await shot(L, "s6-ui-78-audit-m10-player-swatches", 900);
+  const M = await player("s6_" + T + "_t2m", "&demo=15&skirm=1", true); await dev(M, "s5", {}); const [, mx, my] = await myCity(M); await sleep(2000);
+  await dev(M, "cam", mx, my, 16); await shot(M, "s6-ui-79-t2-mobile-lod64", 1500); await dev(M, "cam", mx, my, 30); await shot(M, "s6-ui-79b-t2-mobile-full-tiles", 1500);
 }
 await br.close();
 console.log(errs.length ? "ERRORS:\n" + [...new Set(errs)].join("\n") : "no errors");

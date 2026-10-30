@@ -579,7 +579,7 @@ body[data-screen="game"] .gtop { display: none; }
 .plaque { border-left-color: var(--pc, var(--acc)); position: relative; }
 .pc-sw { position: absolute; left: -4px; top: -4px; width: 12px; height: 12px; background: var(--pc); border: 2px solid var(--black); transform: rotate(45deg); }
 .plaque .team { padding: 0 4px; font: 700 .64rem var(--f-disp); letter-spacing: .08em; text-transform: uppercase; color: var(--ink); background: var(--ivory-2); }
-.team.t0, .tchip.t0 { background: #c8382b; color: var(--ivory); } .team.t1, .tchip.t1 { background: #3c74c4; color: var(--ivory); } .team.t2, .tchip.t2 { background: #3e9a58; color: var(--ivory); } .team.t3, .tchip.t3 { background: #e3a630; color: var(--ink); }
+.team.t0, .tchip.t0 { background: #c8382b; color: var(--ivory); } .team.t1, .tchip.t1 { background: #3c74c4; color: var(--ivory); } .team.t2, .tchip.t2 { background: #3e9a58; color: var(--ivory); } .team.t3, .tchip.t3 { background: #e0782a; color: var(--ink); }
 .away { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 1px 6px; font: 700 .66rem var(--f-disp); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); background: #e3a630; border: 1.5px solid var(--black); animation: awayBlink 2.4s ease-in-out infinite; }
 .away .ic { width: 12px; height: 12px; } @keyframes awayBlink { 50% { opacity: .65; } }
 .plaque.is-away .crestimg, .plaque.is-away .crest { filter: grayscale(.8) brightness(.7); }

@@ -1,15 +1,18 @@
+import { t2 } from "./t2";
 // Ультимативные умения: телеграф области при прицеливании, анимация каста на доске, глобальный баннер, тряска камеры,
 // стойкие наложения на клетки (горящая земля, лёд, стены, заросли, подтопление). Всё запускается событиями сервера.
 // Масштаб: Вождь — «big», ульта фигуры (ур. 5) — «small» (меньше радиус, без глобального баннера на весь экран).
 export type UltKind = "doom" | "chain" | "wall" | "blizzard" | "wave" | "overgrowth";
-type Def = { kind: UltKind; title: string; sub: string; r: number; col: string; col2: string; zone?: string; turns: number };
+type Def = { kind: UltKind; key: string; title: string; sub: string; r: number; col: string; col2: string; zone?: string; turns: number };
+/** серверный ключ ульты → раса (tree-data ULT_OF) */
+const RACE_OF_ULT: Record<string, string> = { doom: "fire", blink: "lightning", dome: "stone", blizzard: "ice", tide: "water", grove: "nature" };
 export const ULT: Record<string, Def> = {
-  fire: { kind: "doom", title: "DOOM", sub: "Огненный удар Вождя", r: 2, col: "#ff7a1a", col2: "#ffd23f", zone: "burn", turns: 2 },
-  lightning: { kind: "chain", title: "ГРОМОВАЯ ЦЕПЬ", sub: "Молния прыгает между врагами", r: 3, col: "#b9a7ff", col2: "#ffffff", turns: 0 },
-  stone: { kind: "wall", title: "КАМЕННЫЙ КУПОЛ", sub: "Стены поднимаются из земли", r: 2, col: "#c2a27a", col2: "#f4ead2", zone: "wall", turns: 2 },
-  ice: { kind: "blizzard", title: "ВЕЛИКАЯ ВЬЮГА", sub: "Мороз сковывает поле", r: 2, col: "#9fe0ff", col2: "#ffffff", zone: "frost", turns: 2 },
-  water: { kind: "wave", title: "ЦУНАМИ", sub: "Волна сметает строй", r: 2, col: "#3fa7d6", col2: "#d6f3ff", zone: "flood", turns: 1 },
-  nature: { kind: "overgrowth", title: "ДИКАЯ ЧАЩА", sub: "Корни и лозы оплетают врагов", r: 2, col: "#7ccf5a", col2: "#e6ffb0", zone: "vines", turns: 2 },
+  fire: { kind: "doom", key: "doom", title: "DOOM", sub: "Огненный удар Вождя", r: 2, col: "#ff7a1a", col2: "#ffd23f", zone: "burn", turns: 2 },
+  lightning: { kind: "chain", key: "blink", title: "МОЛНИЕНОСНЫЙ РЫВОК", sub: "Вождь молнией перескакивает между врагами", r: 3, col: "#b9a7ff", col2: "#ffffff", turns: 0 },
+  stone: { kind: "wall", key: "dome", title: "КАМЕННЫЙ КУПОЛ", sub: "Стены поднимаются из земли", r: 2, col: "#c2a27a", col2: "#f4ead2", zone: "wall", turns: 2 },
+  ice: { kind: "blizzard", key: "blizzard", title: "БЕЛАЯ МГЛА", sub: "Буран сковывает поле", r: 2, col: "#9fe0ff", col2: "#ffffff", zone: "frost", turns: 2 },
+  water: { kind: "wave", key: "tide", title: "ДЕВЯТЫЙ ВАЛ", sub: "Волна сметает строй", r: 2, col: "#3fa7d6", col2: "#d6f3ff", zone: "flood", turns: 1 },
+  nature: { kind: "overgrowth", key: "grove", title: "ПРОБУЖДЕНИЕ ЛЕСА", sub: "Корни и лозы оплетают врагов", r: 2, col: "#7ccf5a", col2: "#e6ffb0", zone: "vines", turns: 2 },
 };
 const KIND_RACE: Record<string, string> = Object.fromEntries(Object.entries(ULT).map(([r, d]) => [d.kind, r]));
 export type UltCast = { race: string; def: Def; x: number; y: number; r: number; pts: [number, number][]; side: number; small: boolean; t0: number; dur: number };
@@ -28,7 +31,9 @@ export function discCells(x: number, y: number, r: number, n: number): [number, 
 export function parseUlt(e: any, g: any, now: number): UltCast | null {
   if (!e || !/^(ult|ultimate|uult|unit_ult)$/.test(e.e)) return null;
   const caster = g?.pieces?.find((p: any) => p.id === (e.id ?? e.by)); const side = e.side ?? caster?.o ?? 0;
-  const race = e.race ?? (e.kind && KIND_RACE[e.kind]) ?? g?.races?.[side] ?? "fire", def = ULT[race]; if (!def) return null;
+  const race = e.race ?? (e.kind && KIND_RACE[e.kind]) ?? (e.ult && RACE_OF_ULT[e.ult]) ?? g?.races?.[side] ?? "fire", d0 = ULT[race]; if (!d0) return null;
+  // название — с сервера (ULTS[key].banner/name, §B3 аудита); запасное — серверные названия в d0.title
+  const title = String(e.banner ?? (e.name ? String(e.name).toUpperCase() : "") ?? "") || d0.title, def: Def = { ...d0, key: e.ult ?? e.key ?? d0.key, title };
   const small = e.e === "uult" || e.e === "unit_ult" || e.small === true || (caster && caster.k !== "king");
   const x = e.x ?? caster?.x ?? 0, y = e.y ?? caster?.y ?? 0, r = e.r ?? (small ? Math.max(1, def.r - 1) : def.r);
   const tg: any[] = e.tg ?? e.targets ?? e.hits ?? [];
@@ -52,7 +57,7 @@ export function resetUlt() { casts.length = 0; localZones = []; }
 // ---------- DOM: баннер для всех игроков + тряска ----------
 export function ultBanner(c: UltCast, mine: boolean, who: string) {
   const host = document.body, el = document.createElement("div");
-  el.className = `ultban k-${c.def.kind}${c.small ? " small" : ""}`; el.setAttribute("role", "status");
+  el.className = `ultban k-${c.def.key}${c.small ? " small" : ""}`; el.setAttribute("role", "status");
   const t = document.createElement("div"); t.className = "ult-title"; t.textContent = c.def.title; t.dataset.text = c.def.title;
   const s = document.createElement("div"); s.className = "ult-sub"; s.textContent = (mine ? "Вы: " : who ? who + ": " : "") + c.def.sub;
   el.append(Object.assign(document.createElement("i"), { className: "ult-rays" }), t, s); host.appendChild(el);
@@ -82,8 +87,28 @@ export function drawAim(ctx: CanvasRenderingContext2D, race: string, x: number, 
   ctx.restore();
 }
 /** Стойкие наложения на клетки. */
+/** Зоны terrain-v2: zone_<k>_1..2 на клетках зоны, zone_<k>_edge_<d> на клетке снаружи (зона со стороны d), стена — zone_wall_ring_<d>
+ * на клетке зоны у края d; burn — плюс воронка zone_scorch_crater в центре. Нет арта — рисование кодом ниже. */
+function drawZoneArt(ctx: CanvasRenderingContext2D, zn: Zone, n: number, sx: SX, sy: SX, z: number, now: number): boolean {
+  const px = z * (devicePixelRatio || 1), k = zn.k, cells = discCells(zn.x, zn.y, zn.r, n), set = new Set(cells.map(([x, y]) => y * n + x));
+  if (!t2(`zone_${k}_1`, px)) return false;
+  const flip = sx(1) < sx(0), d = flip ? -1 : 1, S: Record<string, [number, number]> = { n: [0, -d], e: [d, 0], s: [0, d], w: [-d, 0] };
+  const inZ = (x: number, y: number) => x >= 0 && y >= 0 && x < n && y < n && set.has(y * n + x);
+  const put = (nm: string, x: number, y: number) => { const im = t2(nm, px); if (im) ctx.drawImage(im, sx(x), sy(y), z + 0.5, z + 0.5); };
+  for (const [x, y] of cells) put(`zone_${k}_${1 + (((x * 7 + y * 13) >>> 0) % 2)}`, x, y);
+  // края снаружи: для клетки вне зоны — с какой стороны зона
+  const outs = new Map<number, string[]>();
+  for (const [x, y] of cells) for (const [dn, [dx, dy]] of Object.entries(S)) { const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= n || Y >= n || inZ(X, Y)) continue;
+    const back = ({ n: "s", s: "n", e: "w", w: "e" } as any)[dn]; const i = Y * n + X, l = outs.get(i) || []; if (!l.includes(back)) l.push(back); outs.set(i, l); }
+  for (const [i, l] of outs) for (const dn of l) put(`zone_${k}_edge_${dn}`, i % n, Math.floor(i / n));
+  if (k === "wall") for (const [x, y] of cells) { const o = (dn: string) => !inZ(x + S[dn][0], y + S[dn][1]), N = o("n"), E = o("e"), Ss = o("s"), W = o("w");
+    if (N && E) put("zone_wall_ring_ne", x, y); if (N && W) put("zone_wall_ring_nw", x, y); if (Ss && E) put("zone_wall_ring_se", x, y); if (Ss && W) put("zone_wall_ring_sw", x, y);
+    if (N && !E && !W) put("zone_wall_ring_n", x, y); if (Ss && !E && !W) put("zone_wall_ring_s", x, y); if (E && !N && !Ss) put("zone_wall_ring_e", x, y); if (W && !N && !Ss) put("zone_wall_ring_w", x, y); }
+  if (k === "burn") { const im = t2("zone_scorch_crater", px); if (im) { ctx.globalAlpha = 0.85 + 0.15 * Math.sin(now / 300); ctx.drawImage(im, sx(zn.x), sy(zn.y), z, z); ctx.globalAlpha = 1; } }
+  return true;
+}
 export function drawZones(ctx: CanvasRenderingContext2D, zs: Zone[], n: number, sx: SX, sy: SX, z: number, now: number) {
-  for (const zn of zs) for (const [X, Y] of discCells(zn.x, zn.y, zn.r, n)) {
+  for (const zn of zs) if (!drawZoneArt(ctx, zn, n, sx, sy, z, now)) for (const [X, Y] of discCells(zn.x, zn.y, zn.r, n)) {
     const x0 = sx(X), y0 = sy(Y), h = ((X * 73856093) ^ (Y * 19349663)) >>> 0; ctx.save();
     if (zn.k === "burn") { ctx.fillStyle = "rgba(60,14,6,.55)"; ctx.fillRect(x0, y0, z, z);
       for (let i = 0; i < 3; i++) { const fx = x0 + ((h >> (i * 5)) % 100) / 100 * z * 0.8 + z * 0.1, fy = y0 + z * 0.85, fl = 0.75 + 0.25 * Math.sin(now / 120 + i + h); ctx.fillStyle = i % 2 ? "#ffd23f" : "#ff7a1a";

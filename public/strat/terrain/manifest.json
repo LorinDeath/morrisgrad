@@ -1,0 +1,5713 @@
+{
+ "pack": "black-kings terrain-v2",
+ "version": 1,
+ "style": "C: минималистичный ар-деко комикс, толстая тушь #1a1420, плоские заливки, слоновая кость/чёрный/золото + акцент стихии; вид ¾",
+ "cell": 256,
+ "sizes": {
+  "master": "256 (столицы 512×256)",
+  "small": "128 (столицы 256×128), mini_* и tile_lod_* без small"
+ },
+ "sync": {
+  "target": "public/strat/terrain/",
+  "keys": [
+   "border_*",
+   "city_*",
+   "mark_*",
+   "fog_*",
+   "zone_*",
+   "mini_*",
+   "tile_lod_*",
+   "tile_*",
+   "blend_*",
+   "territory_fill",
+   "minimap_frame"
+  ],
+  "note": "wall_* из ТЗ сюда не входят: стены — отдельный пакет walls-v1"
+ },
+ "overlay_rules": {
+  "fog_edge/corner/inner": "на видимой клетке, сторона = где туман (как shore_*)",
+  "zone_*_edge_<d>": "на клетке вне зоны, зона со стороны d",
+  "zone_wall_ring_<d>": "на клетке зоны у её края d",
+  "blend_<a>_plain_<d>": "на клетке plain, сосед a со стороны d",
+  "owner_tint": "белые пиксели (border_*, territory_fill, mark_* кроме attack/select, city_owned_mask) красить цветом владельца умножением"
+ },
+ "anchors": {
+  "city_capital": [
+   256,
+   230
+  ],
+  "city_outpost": [
+   128,
+   230
+  ],
+  "mark_facing_pedestal": {
+   "center": [
+    128,
+    214
+   ],
+   "size": [
+    211,
+    55
+   ]
+  }
+ },
+ "not_included": [
+  "wall_<race>_gate_*, wall_<race>_shared_*, shared_post_* (ДОЗАКАЗ стен) — относится к пакету стен; walls-v1 по условию не трогали",
+  "wall_border_front_*, wall_owner_band_split_* (вопрос Алексу)",
+  "дорога через ворота (зависит от ворот стен)"
+ ],
+ "count": 383,
+ "files": [
+  {
+   "key": "blend_desert_plain_e",
+   "path": "blend_desert_plain_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед desert со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_desert_plain_n",
+   "path": "blend_desert_plain_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед desert со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_desert_plain_s",
+   "path": "blend_desert_plain_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед desert со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_desert_plain_w",
+   "path": "blend_desert_plain_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед desert со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_e",
+   "path": "blend_forest_plain_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед forest со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_n",
+   "path": "blend_forest_plain_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед forest со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_s",
+   "path": "blend_forest_plain_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед forest со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_w",
+   "path": "blend_forest_plain_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед forest со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_e",
+   "path": "blend_meadow_plain_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_n",
+   "path": "blend_meadow_plain_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_s",
+   "path": "blend_meadow_plain_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_w",
+   "path": "blend_meadow_plain_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_e",
+   "path": "blend_snow_plain_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед snow со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_n",
+   "path": "blend_snow_plain_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед snow со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_s",
+   "path": "blend_snow_plain_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед snow со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_w",
+   "path": "blend_snow_plain_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед snow со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_e",
+   "path": "blend_swamp_plain_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_n",
+   "path": "blend_swamp_plain_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_s",
+   "path": "blend_swamp_plain_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_w",
+   "path": "blend_swamp_plain_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "border_corner_ne",
+   "path": "border_corner_ne.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_corner_nw",
+   "path": "border_corner_nw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_corner_se",
+   "path": "border_corner_se.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_corner_sw",
+   "path": "border_corner_sw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_e",
+   "path": "border_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "border_inner_ne",
+   "path": "border_inner_ne.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_inner_nw",
+   "path": "border_inner_nw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_inner_se",
+   "path": "border_inner_se.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_inner_sw",
+   "path": "border_inner_sw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_n",
+   "path": "border_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "border_s",
+   "path": "border_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "border_w",
+   "path": "border_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "city_capital_fire",
+   "path": "city_capital_fire.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_fire_lv1",
+   "path": "city_capital_fire_lv1.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_fire_lv2",
+   "path": "city_capital_fire_lv2.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_fire_lv3",
+   "path": "city_capital_fire_lv3.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice",
+   "path": "city_capital_ice.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice_lv1",
+   "path": "city_capital_ice_lv1.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice_lv2",
+   "path": "city_capital_ice_lv2.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice_lv3",
+   "path": "city_capital_ice_lv3.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning",
+   "path": "city_capital_lightning.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning_lv1",
+   "path": "city_capital_lightning_lv1.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning_lv2",
+   "path": "city_capital_lightning_lv2.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning_lv3",
+   "path": "city_capital_lightning_lv3.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature",
+   "path": "city_capital_nature.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature_lv1",
+   "path": "city_capital_nature_lv1.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature_lv2",
+   "path": "city_capital_nature_lv2.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature_lv3",
+   "path": "city_capital_nature_lv3.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone",
+   "path": "city_capital_stone.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone_lv1",
+   "path": "city_capital_stone_lv1.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone_lv2",
+   "path": "city_capital_stone_lv2.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone_lv3",
+   "path": "city_capital_stone_lv3.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water",
+   "path": "city_capital_water.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water_lv1",
+   "path": "city_capital_water_lv1.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water_lv2",
+   "path": "city_capital_water_lv2.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water_lv3",
+   "path": "city_capital_water_lv3.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_captured_overlay",
+   "path": "city_captured_overlay.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "overlay",
+   "desc": "дым и сломанное знамя поверх захваченного города/аванпоста"
+  },
+  {
+   "key": "city_outpost_fire",
+   "path": "city_outpost_fire.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "outpost",
+   "race": "fire",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_ice",
+   "path": "city_outpost_ice.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "outpost",
+   "race": "ice",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_lightning",
+   "path": "city_outpost_lightning.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "outpost",
+   "race": "lightning",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_nature",
+   "path": "city_outpost_nature.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "outpost",
+   "race": "nature",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_stone",
+   "path": "city_outpost_stone.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "outpost",
+   "race": "stone",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_water",
+   "path": "city_outpost_water.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "outpost",
+   "race": "water",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_owned_mask",
+   "path": "city_owned_mask.png",
+   "size": [
+    512,
+    256
+   ],
+   "tier": "master",
+   "group": "city",
+   "kind": "mask",
+   "desc": "белые полотнища двух знамён столицы (одинаковы для всех рас и уровней), красить цветом владельца"
+  },
+  {
+   "key": "fog_corner_ne",
+   "path": "fog_corner_ne.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_corner_nw",
+   "path": "fog_corner_nw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_corner_se",
+   "path": "fog_corner_se.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_corner_sw",
+   "path": "fog_corner_sw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_e",
+   "path": "fog_edge_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_n",
+   "path": "fog_edge_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_s",
+   "path": "fog_edge_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_w",
+   "path": "fog_edge_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_full_1",
+   "path": "fog_full_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "full",
+   "desc": "непрозрачный туман, бесшовно между всеми вариантами"
+  },
+  {
+   "key": "fog_full_2",
+   "path": "fog_full_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "full",
+   "desc": "непрозрачный туман, бесшовно между всеми вариантами"
+  },
+  {
+   "key": "fog_full_3",
+   "path": "fog_full_3.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "full",
+   "desc": "непрозрачный туман, бесшовно между всеми вариантами"
+  },
+  {
+   "key": "fog_inner_ne",
+   "path": "fog_inner_ne.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_inner_nw",
+   "path": "fog_inner_nw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_inner_se",
+   "path": "fog_inner_se.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_inner_sw",
+   "path": "fog_inner_sw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_seen",
+   "path": "fog_seen.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fog",
+   "kind": "seen",
+   "desc": "разведано, но не видно: альфа ≈45%"
+  },
+  {
+   "key": "mark_attack",
+   "path": "mark_attack.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "нет",
+   "kind": "attack"
+  },
+  {
+   "key": "mark_facing_e",
+   "path": "mark_facing_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_facing_n",
+   "path": "mark_facing_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_facing_s",
+   "path": "mark_facing_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_facing_w",
+   "path": "mark_facing_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_hover",
+   "path": "mark_hover.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "hover"
+  },
+  {
+   "key": "mark_move",
+   "path": "mark_move.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "move"
+  },
+  {
+   "key": "mark_path_corner_ne",
+   "path": "mark_path_corner_ne.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_corner_nw",
+   "path": "mark_path_corner_nw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_corner_se",
+   "path": "mark_path_corner_se.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_corner_sw",
+   "path": "mark_path_corner_sw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_cross",
+   "path": "mark_path_cross.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end",
+   "path": "mark_path_end.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_e",
+   "path": "mark_path_end_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_n",
+   "path": "mark_path_end_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_s",
+   "path": "mark_path_end_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_w",
+   "path": "mark_path_end_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_e",
+   "path": "mark_path_start_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_n",
+   "path": "mark_path_start_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_s",
+   "path": "mark_path_start_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_w",
+   "path": "mark_path_start_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_straight_h",
+   "path": "mark_path_straight_h.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_straight_v",
+   "path": "mark_path_straight_v.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_e",
+   "path": "mark_path_t_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_n",
+   "path": "mark_path_t_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_s",
+   "path": "mark_path_t_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_w",
+   "path": "mark_path_t_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_select",
+   "path": "mark_select.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "mark",
+   "tint": "нет",
+   "kind": "select"
+  },
+  {
+   "key": "mini_A",
+   "path": "mini_A.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "A"
+  },
+  {
+   "key": "mini_D",
+   "path": "mini_D.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "D"
+  },
+  {
+   "key": "mini_M",
+   "path": "mini_M.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "M"
+  },
+  {
+   "key": "mini_O",
+   "path": "mini_O.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "O"
+  },
+  {
+   "key": "mini_P",
+   "path": "mini_P.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "P"
+  },
+  {
+   "key": "mini_Q",
+   "path": "mini_Q.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "Q"
+  },
+  {
+   "key": "mini_R",
+   "path": "mini_R.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "R"
+  },
+  {
+   "key": "mini_S",
+   "path": "mini_S.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "S"
+  },
+  {
+   "key": "mini_T",
+   "path": "mini_T.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "T"
+  },
+  {
+   "key": "mini_V",
+   "path": "mini_V.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "V"
+  },
+  {
+   "key": "mini_W",
+   "path": "mini_W.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "W"
+  },
+  {
+   "key": "mini_X",
+   "path": "mini_X.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "X"
+  },
+  {
+   "key": "mini_bridge",
+   "path": "mini_bridge.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "bridge"
+  },
+  {
+   "key": "mini_city",
+   "path": "mini_city.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "city"
+  },
+  {
+   "key": "mini_desert",
+   "path": "mini_desert.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "desert"
+  },
+  {
+   "key": "mini_fog",
+   "path": "mini_fog.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "fog"
+  },
+  {
+   "key": "mini_forest",
+   "path": "mini_forest.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "forest"
+  },
+  {
+   "key": "mini_meadow",
+   "path": "mini_meadow.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "meadow"
+  },
+  {
+   "key": "mini_mountain",
+   "path": "mini_mountain.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "mountain"
+  },
+  {
+   "key": "mini_plain",
+   "path": "mini_plain.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "plain"
+  },
+  {
+   "key": "mini_road",
+   "path": "mini_road.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "road"
+  },
+  {
+   "key": "mini_snow",
+   "path": "mini_snow.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "snow"
+  },
+  {
+   "key": "mini_swamp",
+   "path": "mini_swamp.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "swamp"
+  },
+  {
+   "key": "mini_wall",
+   "path": "mini_wall.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "wall"
+  },
+  {
+   "key": "mini_water",
+   "path": "mini_water.png",
+   "size": [
+    8,
+    8
+   ],
+   "tier": "master",
+   "group": "mini",
+   "code": "water"
+  },
+  {
+   "key": "minimap_frame",
+   "path": "minimap_frame.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "minimap",
+   "nine_slice": [
+    40,
+    40,
+    40,
+    40
+   ]
+  },
+  {
+   "key": "territory_fill",
+   "path": "territory_fill.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "border",
+   "kind": "fill",
+   "tint": "белое → цвет владельца",
+   "desc": "штриховка территории, бесшовная, альфа ≈24%",
+   "priority": "P3"
+  },
+  {
+   "key": "tile_desert_1",
+   "path": "tile_desert_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "desert",
+   "variant": 1,
+   "edge_class": "desert"
+  },
+  {
+   "key": "tile_desert_2",
+   "path": "tile_desert_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "desert",
+   "variant": 2,
+   "edge_class": "desert"
+  },
+  {
+   "key": "tile_desert_3",
+   "path": "tile_desert_3.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "desert",
+   "variant": 3,
+   "edge_class": "desert"
+  },
+  {
+   "key": "tile_forest_5",
+   "path": "tile_forest_5.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 5,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_forest_6",
+   "path": "tile_forest_6.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 6,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_forest_7",
+   "path": "tile_forest_7.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 7,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_forest_8",
+   "path": "tile_forest_8.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 8,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_lod_desert",
+   "path": "tile_lod_desert.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "desert"
+  },
+  {
+   "key": "tile_lod_forest",
+   "path": "tile_lod_forest.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "forest"
+  },
+  {
+   "key": "tile_lod_meadow",
+   "path": "tile_lod_meadow.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "meadow"
+  },
+  {
+   "key": "tile_lod_mountain",
+   "path": "tile_lod_mountain.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "mountain"
+  },
+  {
+   "key": "tile_lod_plain",
+   "path": "tile_lod_plain.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "plain"
+  },
+  {
+   "key": "tile_lod_snow",
+   "path": "tile_lod_snow.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "snow"
+  },
+  {
+   "key": "tile_lod_swamp",
+   "path": "tile_lod_swamp.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "swamp"
+  },
+  {
+   "key": "tile_lod_water",
+   "path": "tile_lod_water.png",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "master",
+   "group": "lod",
+   "relief": "water"
+  },
+  {
+   "key": "tile_meadow_5",
+   "path": "tile_meadow_5.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 5,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_meadow_6",
+   "path": "tile_meadow_6.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 6,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_meadow_7",
+   "path": "tile_meadow_7.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 7,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_meadow_8",
+   "path": "tile_meadow_8.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 8,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_plain_5",
+   "path": "tile_plain_5.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 5,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_plain_6",
+   "path": "tile_plain_6.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 6,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_plain_7",
+   "path": "tile_plain_7.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 7,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_plain_8",
+   "path": "tile_plain_8.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 8,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_snow_1",
+   "path": "tile_snow_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "snow",
+   "variant": 1,
+   "edge_class": "snow"
+  },
+  {
+   "key": "tile_snow_2",
+   "path": "tile_snow_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "snow",
+   "variant": 2,
+   "edge_class": "snow"
+  },
+  {
+   "key": "tile_snow_3",
+   "path": "tile_snow_3.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "snow",
+   "variant": 3,
+   "edge_class": "snow"
+  },
+  {
+   "key": "tile_swamp_1",
+   "path": "tile_swamp_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "swamp",
+   "variant": 1,
+   "edge_class": "swamp"
+  },
+  {
+   "key": "tile_swamp_2",
+   "path": "tile_swamp_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "swamp",
+   "variant": 2,
+   "edge_class": "swamp"
+  },
+  {
+   "key": "tile_swamp_3",
+   "path": "tile_swamp_3.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "swamp",
+   "variant": 3,
+   "edge_class": "swamp"
+  },
+  {
+   "key": "tile_water_5",
+   "path": "tile_water_5.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "water",
+   "variant": 5,
+   "edge_class": "water"
+  },
+  {
+   "key": "tile_water_6",
+   "path": "tile_water_6.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "water",
+   "variant": 6,
+   "edge_class": "water"
+  },
+  {
+   "key": "tile_water_7",
+   "path": "tile_water_7.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "water",
+   "variant": 7,
+   "edge_class": "water"
+  },
+  {
+   "key": "tile_water_8",
+   "path": "tile_water_8.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "tile",
+   "relief": "water",
+   "variant": 8,
+   "edge_class": "water"
+  },
+  {
+   "key": "zone_burn_1",
+   "path": "zone_burn_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_burn_2",
+   "path": "zone_burn_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_burn_edge_e",
+   "path": "zone_burn_edge_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_burn_edge_n",
+   "path": "zone_burn_edge_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_burn_edge_s",
+   "path": "zone_burn_edge_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_burn_edge_w",
+   "path": "zone_burn_edge_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_flood_1",
+   "path": "zone_flood_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_flood_2",
+   "path": "zone_flood_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_flood_edge_e",
+   "path": "zone_flood_edge_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_flood_edge_n",
+   "path": "zone_flood_edge_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_flood_edge_s",
+   "path": "zone_flood_edge_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_flood_edge_w",
+   "path": "zone_flood_edge_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_frost_1",
+   "path": "zone_frost_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_frost_2",
+   "path": "zone_frost_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_frost_edge_e",
+   "path": "zone_frost_edge_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_frost_edge_n",
+   "path": "zone_frost_edge_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_frost_edge_s",
+   "path": "zone_frost_edge_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_frost_edge_w",
+   "path": "zone_frost_edge_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_scorch_crater",
+   "path": "zone_scorch_crater.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "decal",
+   "desc": "воронка от удара, одиночная, по центру клетки"
+  },
+  {
+   "key": "zone_vines_1",
+   "path": "zone_vines_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_vines_2",
+   "path": "zone_vines_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_vines_edge_e",
+   "path": "zone_vines_edge_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_vines_edge_n",
+   "path": "zone_vines_edge_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_vines_edge_s",
+   "path": "zone_vines_edge_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_vines_edge_w",
+   "path": "zone_vines_edge_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_wall_1",
+   "path": "zone_wall_1.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_wall_2",
+   "path": "zone_wall_2.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_wall_edge_e",
+   "path": "zone_wall_edge_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_wall_edge_n",
+   "path": "zone_wall_edge_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_wall_edge_s",
+   "path": "zone_wall_edge_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_wall_edge_w",
+   "path": "zone_wall_edge_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_wall_ring_e",
+   "path": "zone_wall_ring_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "e"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края E"
+  },
+  {
+   "key": "zone_wall_ring_n",
+   "path": "zone_wall_ring_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "n"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края N"
+  },
+  {
+   "key": "zone_wall_ring_ne",
+   "path": "zone_wall_ring_ne.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края N+E"
+  },
+  {
+   "key": "zone_wall_ring_nw",
+   "path": "zone_wall_ring_nw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края N+W"
+  },
+  {
+   "key": "zone_wall_ring_s",
+   "path": "zone_wall_ring_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "s"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края S"
+  },
+  {
+   "key": "zone_wall_ring_se",
+   "path": "zone_wall_ring_se.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края S+E"
+  },
+  {
+   "key": "zone_wall_ring_sw",
+   "path": "zone_wall_ring_sw.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края S+W"
+  },
+  {
+   "key": "zone_wall_ring_w",
+   "path": "zone_wall_ring_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "w"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края W"
+  },
+  {
+   "key": "blend_desert_plain_e",
+   "path": "small/blend_desert_plain_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед desert со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_desert_plain_n",
+   "path": "small/blend_desert_plain_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед desert со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_desert_plain_s",
+   "path": "small/blend_desert_plain_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед desert со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_desert_plain_w",
+   "path": "small/blend_desert_plain_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "desert",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед desert со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_e",
+   "path": "small/blend_forest_plain_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед forest со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_n",
+   "path": "small/blend_forest_plain_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед forest со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_s",
+   "path": "small/blend_forest_plain_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед forest со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_forest_plain_w",
+   "path": "small/blend_forest_plain_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "forest",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед forest со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_e",
+   "path": "small/blend_meadow_plain_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_n",
+   "path": "small/blend_meadow_plain_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_s",
+   "path": "small/blend_meadow_plain_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_meadow_plain_w",
+   "path": "small/blend_meadow_plain_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "meadow",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед meadow со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_e",
+   "path": "small/blend_snow_plain_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед snow со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_n",
+   "path": "small/blend_snow_plain_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед snow со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_s",
+   "path": "small/blend_snow_plain_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед snow со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_snow_plain_w",
+   "path": "small/blend_snow_plain_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "snow",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед snow со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_e",
+   "path": "small/blend_swamp_plain_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "e",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны E; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_n",
+   "path": "small/blend_swamp_plain_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "n",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны N; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_s",
+   "path": "small/blend_swamp_plain_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "s",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны S; сходит на нет к углам"
+  },
+  {
+   "key": "blend_swamp_plain_w",
+   "path": "small/blend_swamp_plain_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "blend",
+   "a": "swamp",
+   "b": "plain",
+   "side": "w",
+   "desc": "кладётся на клетку plain, сосед swamp со стороны W; сходит на нет к углам"
+  },
+  {
+   "key": "border_corner_ne",
+   "path": "small/border_corner_ne.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_corner_nw",
+   "path": "small/border_corner_nw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_corner_se",
+   "path": "small/border_corner_se.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_corner_sw",
+   "path": "small/border_corner_sw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внешний угол: граница по двум краям"
+  },
+  {
+   "key": "border_e",
+   "path": "small/border_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "border_inner_ne",
+   "path": "small/border_inner_ne.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_inner_nw",
+   "path": "small/border_inner_nw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_inner_se",
+   "path": "small/border_inner_se.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_inner_sw",
+   "path": "small/border_inner_sw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "внутренний угол: угловой квадрат"
+  },
+  {
+   "key": "border_n",
+   "path": "small/border_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "border_s",
+   "path": "small/border_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "border_w",
+   "path": "small/border_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "tint": "белое → красить цветом владельца умножением",
+   "desc": "граница территории вдоль края"
+  },
+  {
+   "key": "city_capital_fire",
+   "path": "small/city_capital_fire.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_fire_lv1",
+   "path": "small/city_capital_fire_lv1.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_fire_lv2",
+   "path": "small/city_capital_fire_lv2.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_fire_lv3",
+   "path": "small/city_capital_fire_lv3.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "fire",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice",
+   "path": "small/city_capital_ice.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice_lv1",
+   "path": "small/city_capital_ice_lv1.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice_lv2",
+   "path": "small/city_capital_ice_lv2.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_ice_lv3",
+   "path": "small/city_capital_ice_lv3.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "ice",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning",
+   "path": "small/city_capital_lightning.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning_lv1",
+   "path": "small/city_capital_lightning_lv1.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning_lv2",
+   "path": "small/city_capital_lightning_lv2.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_lightning_lv3",
+   "path": "small/city_capital_lightning_lv3.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "lightning",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature",
+   "path": "small/city_capital_nature.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature_lv1",
+   "path": "small/city_capital_nature_lv1.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature_lv2",
+   "path": "small/city_capital_nature_lv2.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_nature_lv3",
+   "path": "small/city_capital_nature_lv3.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "nature",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone",
+   "path": "small/city_capital_stone.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone_lv1",
+   "path": "small/city_capital_stone_lv1.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone_lv2",
+   "path": "small/city_capital_stone_lv2.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_stone_lv3",
+   "path": "small/city_capital_stone_lv3.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "stone",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water",
+   "path": "small/city_capital_water.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна (= lv3, имя по умолчанию)",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water_lv1",
+   "path": "small/city_capital_water_lv1.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 1,
+   "desc": "ур.1: замок",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water_lv2",
+   "path": "small/city_capital_water_lv2.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 2,
+   "desc": "ур.2: + стены",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_capital_water_lv3",
+   "path": "small/city_capital_water_lv3.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "capital",
+   "anchor": [
+    256,
+    230
+   ],
+   "footprint": "2×1 клетки (512×256), низ по y≈230",
+   "race": "water",
+   "level": 3,
+   "desc": "ур.3: + башни и знамёна",
+   "owner_mask": "city_owned_mask.png"
+  },
+  {
+   "key": "city_captured_overlay",
+   "path": "small/city_captured_overlay.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "overlay",
+   "desc": "дым и сломанное знамя поверх захваченного города/аванпоста"
+  },
+  {
+   "key": "city_outpost_fire",
+   "path": "small/city_outpost_fire.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "outpost",
+   "race": "fire",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_ice",
+   "path": "small/city_outpost_ice.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "outpost",
+   "race": "ice",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_lightning",
+   "path": "small/city_outpost_lightning.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "outpost",
+   "race": "lightning",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_nature",
+   "path": "small/city_outpost_nature.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "outpost",
+   "race": "nature",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_stone",
+   "path": "small/city_outpost_stone.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "outpost",
+   "race": "stone",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_outpost_water",
+   "path": "small/city_outpost_water.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "outpost",
+   "race": "water",
+   "anchor": [
+    128,
+    230
+   ],
+   "flag_zone": "x≥206, y≤96 свободна — подходит terrain-v1/flag_mask.png"
+  },
+  {
+   "key": "city_owned_mask",
+   "path": "small/city_owned_mask.png",
+   "size": [
+    256,
+    128
+   ],
+   "tier": "small",
+   "group": "city",
+   "kind": "mask",
+   "desc": "белые полотнища двух знамён столицы (одинаковы для всех рас и уровней), красить цветом владельца"
+  },
+  {
+   "key": "fog_corner_ne",
+   "path": "small/fog_corner_ne.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_corner_nw",
+   "path": "small/fog_corner_nw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_corner_se",
+   "path": "small/fog_corner_se.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_corner_sw",
+   "path": "small/fog_corner_sw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "corner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_e",
+   "path": "small/fog_edge_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_n",
+   "path": "small/fog_edge_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_s",
+   "path": "small/fog_edge_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S (логика как у shore_*)"
+  },
+  {
+   "key": "fog_edge_w",
+   "path": "small/fog_edge_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_full_1",
+   "path": "small/fog_full_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "full",
+   "desc": "непрозрачный туман, бесшовно между всеми вариантами"
+  },
+  {
+   "key": "fog_full_2",
+   "path": "small/fog_full_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "full",
+   "desc": "непрозрачный туман, бесшовно между всеми вариантами"
+  },
+  {
+   "key": "fog_full_3",
+   "path": "small/fog_full_3.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "full",
+   "desc": "непрозрачный туман, бесшовно между всеми вариантами"
+  },
+  {
+   "key": "fog_inner_ne",
+   "path": "small/fog_inner_ne.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_inner_nw",
+   "path": "small/fog_inner_nw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны N+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_inner_se",
+   "path": "small/fog_inner_se.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+E (логика как у shore_*)"
+  },
+  {
+   "key": "fog_inner_sw",
+   "path": "small/fog_inner_sw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "inner",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "desc": "кладётся на ВИДИМУЮ клетку; туман со стороны S+W (логика как у shore_*)"
+  },
+  {
+   "key": "fog_seen",
+   "path": "small/fog_seen.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fog",
+   "kind": "seen",
+   "desc": "разведано, но не видно: альфа ≈45%"
+  },
+  {
+   "key": "mark_attack",
+   "path": "small/mark_attack.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "нет",
+   "kind": "attack"
+  },
+  {
+   "key": "mark_facing_e",
+   "path": "small/mark_facing_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_facing_n",
+   "path": "small/mark_facing_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_facing_s",
+   "path": "small/mark_facing_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_facing_w",
+   "path": "small/mark_facing_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "facing",
+   "desc": "шеврон направления на краю подставки (эллипс центр 128,214)"
+  },
+  {
+   "key": "mark_hover",
+   "path": "small/mark_hover.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "hover"
+  },
+  {
+   "key": "mark_move",
+   "path": "small/mark_move.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "move"
+  },
+  {
+   "key": "mark_path_corner_ne",
+   "path": "small/mark_path_corner_ne.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_corner_nw",
+   "path": "small/mark_path_corner_nw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_corner_se",
+   "path": "small/mark_path_corner_se.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_corner_sw",
+   "path": "small/mark_path_corner_sw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_cross",
+   "path": "small/mark_path_cross.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end",
+   "path": "small/mark_path_end.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_e",
+   "path": "small/mark_path_end_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_n",
+   "path": "small/mark_path_end_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_s",
+   "path": "small/mark_path_end_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_end_w",
+   "path": "small/mark_path_end_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_e",
+   "path": "small/mark_path_start_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_n",
+   "path": "small/mark_path_start_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_s",
+   "path": "small/mark_path_start_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_start_w",
+   "path": "small/mark_path_start_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_straight_h",
+   "path": "small/mark_path_straight_h.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_straight_v",
+   "path": "small/mark_path_straight_v.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_e",
+   "path": "small/mark_path_t_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_n",
+   "path": "small/mark_path_t_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_s",
+   "path": "small/mark_path_t_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_path_t_w",
+   "path": "small/mark_path_t_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "белое → красить",
+   "kind": "path",
+   "desc": "путь: та же логика имён, что у дорог terrain-v1; end_<d> — путь приходит с <d>, стрелка в центре; start_<d> — кольцо в центре, путь уходит в <d>"
+  },
+  {
+   "key": "mark_select",
+   "path": "small/mark_select.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "mark",
+   "tint": "нет",
+   "kind": "select"
+  },
+  {
+   "key": "minimap_frame",
+   "path": "small/minimap_frame.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "minimap",
+   "nine_slice": [
+    40,
+    40,
+    40,
+    40
+   ]
+  },
+  {
+   "key": "territory_fill",
+   "path": "small/territory_fill.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "border",
+   "kind": "fill",
+   "tint": "белое → цвет владельца",
+   "desc": "штриховка территории, бесшовная, альфа ≈24%",
+   "priority": "P3"
+  },
+  {
+   "key": "tile_desert_1",
+   "path": "small/tile_desert_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "desert",
+   "variant": 1,
+   "edge_class": "desert"
+  },
+  {
+   "key": "tile_desert_2",
+   "path": "small/tile_desert_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "desert",
+   "variant": 2,
+   "edge_class": "desert"
+  },
+  {
+   "key": "tile_desert_3",
+   "path": "small/tile_desert_3.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "desert",
+   "variant": 3,
+   "edge_class": "desert"
+  },
+  {
+   "key": "tile_forest_5",
+   "path": "small/tile_forest_5.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 5,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_forest_6",
+   "path": "small/tile_forest_6.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 6,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_forest_7",
+   "path": "small/tile_forest_7.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 7,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_forest_8",
+   "path": "small/tile_forest_8.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "forest",
+   "variant": 8,
+   "edge_class": "forest"
+  },
+  {
+   "key": "tile_meadow_5",
+   "path": "small/tile_meadow_5.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 5,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_meadow_6",
+   "path": "small/tile_meadow_6.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 6,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_meadow_7",
+   "path": "small/tile_meadow_7.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 7,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_meadow_8",
+   "path": "small/tile_meadow_8.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "meadow",
+   "variant": 8,
+   "edge_class": "meadow"
+  },
+  {
+   "key": "tile_plain_5",
+   "path": "small/tile_plain_5.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 5,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_plain_6",
+   "path": "small/tile_plain_6.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 6,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_plain_7",
+   "path": "small/tile_plain_7.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 7,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_plain_8",
+   "path": "small/tile_plain_8.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "plain",
+   "variant": 8,
+   "edge_class": "plain"
+  },
+  {
+   "key": "tile_snow_1",
+   "path": "small/tile_snow_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "snow",
+   "variant": 1,
+   "edge_class": "snow"
+  },
+  {
+   "key": "tile_snow_2",
+   "path": "small/tile_snow_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "snow",
+   "variant": 2,
+   "edge_class": "snow"
+  },
+  {
+   "key": "tile_snow_3",
+   "path": "small/tile_snow_3.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "snow",
+   "variant": 3,
+   "edge_class": "snow"
+  },
+  {
+   "key": "tile_swamp_1",
+   "path": "small/tile_swamp_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "swamp",
+   "variant": 1,
+   "edge_class": "swamp"
+  },
+  {
+   "key": "tile_swamp_2",
+   "path": "small/tile_swamp_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "swamp",
+   "variant": 2,
+   "edge_class": "swamp"
+  },
+  {
+   "key": "tile_swamp_3",
+   "path": "small/tile_swamp_3.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "swamp",
+   "variant": 3,
+   "edge_class": "swamp"
+  },
+  {
+   "key": "tile_water_5",
+   "path": "small/tile_water_5.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "water",
+   "variant": 5,
+   "edge_class": "water"
+  },
+  {
+   "key": "tile_water_6",
+   "path": "small/tile_water_6.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "water",
+   "variant": 6,
+   "edge_class": "water"
+  },
+  {
+   "key": "tile_water_7",
+   "path": "small/tile_water_7.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "water",
+   "variant": 7,
+   "edge_class": "water"
+  },
+  {
+   "key": "tile_water_8",
+   "path": "small/tile_water_8.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "tile",
+   "relief": "water",
+   "variant": 8,
+   "edge_class": "water"
+  },
+  {
+   "key": "zone_burn_1",
+   "path": "small/zone_burn_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_burn_2",
+   "path": "small/zone_burn_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_burn_edge_e",
+   "path": "small/zone_burn_edge_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_burn_edge_n",
+   "path": "small/zone_burn_edge_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_burn_edge_s",
+   "path": "small/zone_burn_edge_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_burn_edge_w",
+   "path": "small/zone_burn_edge_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "burn",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_flood_1",
+   "path": "small/zone_flood_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_flood_2",
+   "path": "small/zone_flood_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_flood_edge_e",
+   "path": "small/zone_flood_edge_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_flood_edge_n",
+   "path": "small/zone_flood_edge_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_flood_edge_s",
+   "path": "small/zone_flood_edge_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_flood_edge_w",
+   "path": "small/zone_flood_edge_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "flood",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_frost_1",
+   "path": "small/zone_frost_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_frost_2",
+   "path": "small/zone_frost_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_frost_edge_e",
+   "path": "small/zone_frost_edge_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_frost_edge_n",
+   "path": "small/zone_frost_edge_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_frost_edge_s",
+   "path": "small/zone_frost_edge_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_frost_edge_w",
+   "path": "small/zone_frost_edge_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "frost",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_scorch_crater",
+   "path": "small/zone_scorch_crater.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "decal",
+   "desc": "воронка от удара, одиночная, по центру клетки"
+  },
+  {
+   "key": "zone_vines_1",
+   "path": "small/zone_vines_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_vines_2",
+   "path": "small/zone_vines_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_vines_edge_e",
+   "path": "small/zone_vines_edge_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_vines_edge_n",
+   "path": "small/zone_vines_edge_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_vines_edge_s",
+   "path": "small/zone_vines_edge_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_vines_edge_w",
+   "path": "small/zone_vines_edge_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "vines",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_wall_1",
+   "path": "small/zone_wall_1.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "full",
+   "variant": 1,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_wall_2",
+   "path": "small/zone_wall_2.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "full",
+   "variant": 2,
+   "desc": "полупрозрачный слой поверх рельефа, бесшовно между вариантами"
+  },
+  {
+   "key": "zone_wall_edge_e",
+   "path": "small/zone_wall_edge_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "e"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны E"
+  },
+  {
+   "key": "zone_wall_edge_n",
+   "path": "small/zone_wall_edge_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "n"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны N"
+  },
+  {
+   "key": "zone_wall_edge_s",
+   "path": "small/zone_wall_edge_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "s"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны S"
+  },
+  {
+   "key": "zone_wall_edge_w",
+   "path": "small/zone_wall_edge_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "zone": "wall",
+   "kind": "edge",
+   "sides": [
+    "w"
+   ],
+   "desc": "кромка: кладётся на клетку ВНЕ зоны, зона со стороны W"
+  },
+  {
+   "key": "zone_wall_ring_e",
+   "path": "small/zone_wall_ring_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "e"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края E"
+  },
+  {
+   "key": "zone_wall_ring_n",
+   "path": "small/zone_wall_ring_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "n"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края N"
+  },
+  {
+   "key": "zone_wall_ring_ne",
+   "path": "small/zone_wall_ring_ne.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "n",
+    "e"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края N+E"
+  },
+  {
+   "key": "zone_wall_ring_nw",
+   "path": "small/zone_wall_ring_nw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "n",
+    "w"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края N+W"
+  },
+  {
+   "key": "zone_wall_ring_s",
+   "path": "small/zone_wall_ring_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "s"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края S"
+  },
+  {
+   "key": "zone_wall_ring_se",
+   "path": "small/zone_wall_ring_se.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "s",
+    "e"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края S+E"
+  },
+  {
+   "key": "zone_wall_ring_sw",
+   "path": "small/zone_wall_ring_sw.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "s",
+    "w"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края S+W"
+  },
+  {
+   "key": "zone_wall_ring_w",
+   "path": "small/zone_wall_ring_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "zone",
+   "kind": "ring",
+   "sides": [
+    "w"
+   ],
+   "desc": "каменное кольцо купола: кладётся на клетку ЗОНЫ у её края W"
+  },
+  {
+   "key": "struct_P_owned",
+   "path": "fixes/struct_P_owned.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "master",
+   "group": "fix",
+   "desc": "замена terrain-v1/struct_P_owned.png: одно знамя без лишнего флажка; красить struct_P_banner_mask.png"
+  },
+  {
+   "key": "struct_P_owned",
+   "path": "fixes/small/struct_P_owned.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "group": "fix",
+   "desc": "замена terrain-v1/struct_P_owned.png: одно знамя без лишнего флажка; красить struct_P_banner_mask.png"
+  }
+ ]
+}

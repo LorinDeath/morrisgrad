@@ -15,8 +15,8 @@ import { canBuild, buildCost } from "../../../server/strat/econ";
 import { openMap, passable } from "../../../server/strat/terrain";
 import { ic, iconImg, BUILD_ICON } from "./icons";
 import { esc } from "./ui-kit";
-import { bSprite, bImg, drawAnchored, drawBanner, isBig, wonderStage, bCard } from "./bldart";
-import { hpBarArt, drawCapture, drawSettleRing, uImg, BUY_MARKER } from "./ui2art";
+import { bSprite, bImg, drawAnchored, drawBanner, isBig, wonderStage, bCard, PLACEHOLDER, PH_ICON, E4_FRAME } from "./bldart";
+import { hpBarArt, HS_STEP, drawCapture, drawSettleRing, uImg, BUY_MARKER } from "./ui2art";
 import { cfgOf, rv, bName, ECON_ERR, type Ctx } from "./econ-ui";
 
 type SX = (v: number) => number;
@@ -190,15 +190,20 @@ export function towerHp(G: GameState, t: any, cfg: StratCfg): BRow { const ec: a
 /** Полоса ОЗ постройки в рамке ui-v2 (hp_bar_frame / _enemy): x,w — жёлоб, рамка выступает на 1,25·h с боков. */
 function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fr: number, hs?: string, enemy = false, redraw?: () => void) {
   const fill = hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#c9a24a" : fr > 0.25 ? "#e07a2a" : "#c23a2a";
-  hpBarArt(ctx, x - h * 1.25, y, w + h * 2.5, h, hs ? 1 : fr, fill, enemy, redraw);
+  hpBarArt(ctx, x - h * 1.25, y, w + h * 2.5, h, hs ? (HS_STEP[hs] ?? 0) / 3 : fr, fill, enemy, redraw, hs ? 3 : 0); // M4: скрытое — 3 ступени
 }
 /** Раскладка построек города по клеткам его земли (сервер позиций не шлёт): по порядку постройки, ближние клетки первыми;
  *  чудо/легенда — первый свободный блок 2×2. Ключ — состав, так что старые постройки не «прыгают» при новых. */
 const layCache = new Map<number, { k: string; v: Map<string, { x: number; y: number; big: boolean }> }>();
+/** вторая клетка столицы terrain-v2 (арт 2×1): восточная по карте, если она суша и свободна, иначе западная */
+export function capPair(G: GameState, ct: any): number { const n = G.size, m: any = (G as any).map || openMap(n);
+  const okc = (x: number) => x >= 0 && x < n && !"w#m".includes(m.t?.[ct.y * n + x] || ".") && (!m.s?.[ct.y * n + x] || m.s[ct.y * n + x] === ".");
+  return okc(ct.x + 1) ? ct.x + 1 : okc(ct.x - 1) ? ct.x - 1 : ct.x + 1 < n ? ct.x + 1 : ct.x - 1; }
 export function cityLayout(G: GameState, C: Int16Array | null, ct: any, items: string[]): Map<string, { x: number; y: number; big: boolean }> {
   const n = G.size, m: any = (G as any).map || openMap(n), k = items.join(",") + "|" + (C ? C.length : 0) + "|" + n + "|" + (C ? Array.from(C).reduce((a, v, i) => (v === ct.id ? a + i : a), 0) : 0);
   const hit = layCache.get(ct.id); if (hit && hit.k === k) return hit.v;
   const towers = new Set(towersOf(G).map((t) => t.y * n + t.x)), cities = new Set((G.ec?.cities || []).map((q: any) => q.y * n + q.x));
+  for (const q of G.ec?.cities || []) if ((q as any).cap) cities.add(q.y * n + capPair(G, q)); // столица terrain-v2 занимает 2 клетки
   const R = 1, near = (x: number, y: number) => Math.max(Math.abs(x - ct.x), Math.abs(y - ct.y));
   // своя земля города; если мест не хватает — ничья клетка рядом (до 2), только для картинки
   const ok = (x: number, y: number) => { if (x < 0 || y < 0 || x >= n || y >= n) return false; const i = y * n + x;
@@ -235,6 +240,8 @@ export function drawBuildings(ctx: CanvasRenderingContext2D, c: Ctx, z: number, 
         ctx.save(); if (ruin) { ctx.filter = "grayscale(1) brightness(0.55)"; ctx.globalAlpha = 0.85; }
         ctx.fillStyle = c.col(ct.owner) + "40"; ctx.beginPath(); ctx.ellipse(X0 + W / 2, Y0 + W * 0.86, W * 0.36, W * 0.09, 0, 0, 7); ctx.fill();
         if (im) drawAnchored(ctx, im, X0 + W / 2, Y0 + W * 0.9, W * (big ? 1.25 : 1.15), big || isBig(b));
+        else if (PLACEHOLDER.includes(b)) { const fr = bImg(E4_FRAME, c.redraw), ii = iconImg(PH_ICON[b] || "build", c.redraw), s0 = W * 0.7, fx = X0 + W / 2 - s0 / 2, fy = Y0 + W * 0.88 - s0; // эпоха IV: рамка + значок
+          if (fr) ctx.drawImage(fr, fx, fy, s0, s0); if (ii) ctx.drawImage(ii, fx + s0 * 0.33, fy + s0 * (70 / 128) - s0 * 0.17, s0 * 0.34, s0 * 0.34); }
         else { const ii = iconImg(BUILD_ICON[b] || "build", c.redraw); ctx.fillStyle = "#1a1420cc"; ctx.strokeStyle = c.col(ct.owner); ctx.lineWidth = Math.max(1.2, z * 0.03); // заглушка: арта нет
           ctx.beginPath(); ctx.roundRect(X0 + W * 0.22, Y0 + W * 0.2, W * 0.56, W * 0.56, W * 0.1); ctx.fill(); ctx.stroke(); if (ii) ctx.drawImage(ii, X0 + W * 0.3, Y0 + W * 0.28, W * 0.4, W * 0.4); }
         ctx.restore(); },
@@ -321,13 +328,15 @@ export function drawWorldOverlay(ctx: CanvasRenderingContext2D, c: Ctx, z: numbe
   else if (buy && z >= 30 && !W.mode) for (const tc of claimable(S)) for (const [x, y] of tc.cells || []) { if (!vis(x, y)) continue;
     const ms = z * 0.42; ctx.save(); ctx.globalAlpha = 0.55 + 0.25 * pulse; ctx.drawImage(buy, sx(x) + (z - ms) / 2, sy(y) + (z - ms) / 2, ms, ms); ctx.restore(); }
   // захват: враг стоит на клетке N ходов — map/capture_ring_frame + сегменты цвета захватчика (по часовой от верха), в центре — сколько осталось
-  const capMax = leagueCfg(S).capture ?? 4;
-  for (const [ks, v] of Object.entries<any>(ec.ct || {})) { const i = +ks, x = i % n, y = (i / n) | 0; if (!vis(x, y) || !v) continue; const left = Math.max(0, capMax - (v.n ?? 0)), sz = Math.max(18, z * 0.46);
+  // аудит M5: число ходов — с сервера (v.max/total/need, повторный захват — league.retake, лига: 5), а не фиксированные 4
+  const L0 = leagueCfg(S), siegeT = (cfgOf(S) as any).econ?.city?.siegeTurns, capMax0 = L0.capture ?? siegeT ?? 4;
+  for (const [ks, v] of Object.entries<any>(ec.ct || {})) { const i = +ks, x = i % n, y = (i / n) | 0; if (!vis(x, y) || !v) continue;
+    const capMax = v.max ?? v.total ?? v.need ?? (v.re || v.retake ? L0.retake ?? capMax0 : capMax0), left = v.left ?? Math.max(0, capMax - (v.n ?? 0)), sz = Math.max(18, z * 0.46);
     drawCapture(ctx, sx(x) + z / 2, sy(y) + sz * 0.42, sz, v.n ?? 0, capMax, c.col(v.o), String(left), c.redraw); }
   // поселение: кольцо map/settlement_ring (маска цвета игрока + золото по прогрессу) на Вожде (свои — из S.terr.fnd / ec.fnd)
   const fl = Array.isArray(ec.fnd) ? ec.fnd : [S?.terr?.fnd && { ...S.terr.fnd, side: me }];
   fl.forEach((f: any, side: number) => { if (!f || f.left == null) return; const p = G.pieces.find((q) => q.id === f.id) || (f.x != null ? { x: f.x, y: f.y } : null); if (!p || !vis(p.x, p.y)) return;
-    const total = leagueCfg(S).found ?? (cfgOf(S) as any).econ?.found?.turns ?? 10, fr = Math.max(0, Math.min(1, 1 - f.left / total)), X = sx(p.x) + z / 2, Y = sy(p.y) + z / 2, R = z * 0.47;
+    const total = /* M5: лига 8/10/12 — с сервера */ f.total ?? f.max ?? f.need ?? leagueCfg(S).found ?? (cfgOf(S) as any).econ?.found?.turns ?? 10, fr = Math.max(0, Math.min(1, 1 - f.left / total)), X = sx(p.x) + z / 2, Y = sy(p.y) + z / 2, R = z * 0.47;
     if (!drawSettleRing(ctx, X, Y, z * 1.28, fr, c.col(f.side ?? side), c.redraw)) {
       ctx.strokeStyle = "#140f18aa"; ctx.lineWidth = Math.max(3, z * 0.08); ctx.beginPath(); ctx.arc(X, Y, R, 0, 7); ctx.stroke();
       ctx.strokeStyle = c.col(f.side ?? side); ctx.lineWidth = Math.max(2, z * 0.05); ctx.beginPath(); ctx.arc(X, Y, R, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); ctx.stroke(); }
