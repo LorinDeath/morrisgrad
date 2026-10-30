@@ -1,9 +1,15 @@
-// Этап 2 — панели экономики (вариант C, без лишнего): полоса ресурсов, замок/застава, древо технологий, таланты, «Основать заставу»,
-// территория и города на доске. Все проверки — тем же движком, что и на сервере (server/strat/econ.ts); сервер всё равно проверяет сам.
+// Этап 2 — интерфейс экономики в стиле игры: полоса ресурсов, окно города (найм + строительство), экран древа технологий,
+// выбор таланта (2 карточки), «Основать заставу», территория и города на доске. Все проверки — тем же движком,
+// что и на сервере (server/strat/econ.ts); сервер всё равно проверяет сам.
+// Древо технологий строится по данным: узлы {era, br, req[], excl[], unlocks{b[],k[]}} — форма дерева любая.
 import { STRAT_CFG, type GameState, type Piece, type Kind, type StratCfg } from "../../../server/strat/rules";
 import { TECHS, BUILD, techSibling, UNLOCK, HERO_ERA, type BuildId, type Tech } from "../../../server/strat/econ-cfg";
-import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, canFound, pendingTalent, pieceLevel, sz, type City } from "../../../server/strat/econ";
+import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, canFound, sz } from "../../../server/strat/econ";
 import { mergeCfg } from "../../../server/strat/cfg";
+import { ic, BUILD_ICON, BRANCH_ICON, iconImg } from "./icons";
+import { esc, modal, choiceDlg, confirmDlg } from "./ui-kit";
+import { pasIcon, buildPassive, techPassive, talentPassive, regPassive } from "./passives";
+import { redacted, fogView, unveilCls, fogNode, type FogView } from "./fog";
 
 export const KIND_NAME: Record<Kind, string> = { pawn: "Ополченец", knight: "Всадник", mage: "Маг", rook: "Страж", hero: "Герой", king: "Вождь" };
 export const ECON_ERR: Record<string, string> = {
@@ -16,167 +22,318 @@ export const ECON_ERR: Record<string, string> = {
   not_capital: "Только в столице", bad_tech: "Нет такой технологии", one_hero: "Герой может быть только один", pop_cap: "Достигнут предел армии",
   already_built: "Уже построено", bad_kind: "Нельзя для этого типа", need_market: "Нужен Рынок", bad_amount: "Неверное количество", bad_piece: "Фигура не найдена",
   bad_building: "Нет такой постройки", no_gift: "Передача без встречной оплаты запрещена", bad_ratio: "Курс обмена вне 1:2…2:1", too_much: "Больше 30% запаса нельзя", trade_done: "Сделка за ход уже была",
+  need_tech: "Нужна технология", path_closed: "Путь закрыт выбором другой технологии",
 };
-const BR_NAME: Record<string, string> = { war: "⚔ Война", econ: "⚖ Хозяйство", elem: "✦ Стихия" };
-const ERA_NAME = ["", "Эпоха I", "Эпоха II", "Эпоха III"];
+const BR_NAME: Record<string, string> = { war: "Война", econ: "Хозяйство", elem: "Стихия" };
+const ERA_ROMAN = ["", "I", "II", "III", "IV", "V", "VI"];
+export const ERA_NAME = (e: number) => "Эпоха " + (ERA_ROMAN[e] || e);
 const RECRUIT: Kind[] = ["pawn", "rook", "knight", "mage", "hero"];
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const KIND_ICON: Record<string, string> = { pawn: "boot", rook: "shield", knight: "horse", mage: "spark", hero: "sword", king: "crown" };
 
-export type Ctx = { S: any; G: GameState; me: number; send: (o: any) => void; redraw: () => void; toast: (t: string) => void; col: (side: number) => string };
+export type Ctx = { S: any; G: GameState; me: number; send: (o: any) => void; redraw: () => void; toast: (t: string, k?: any, i?: string) => void; col: (side: number) => string; refresh: () => void };
 export const ui = { city: null as number | null, recruit: null as { city: number; kind: Kind } | null, tech: false, cfgKey: "", cfg: STRAT_CFG as StratCfg };
 export function cfgOf(S: any): StratCfg { const k = S?.cfgPatch ? JSON.stringify(S.cfgPatch) : ""; if (k !== ui.cfgKey) { ui.cfgKey = k; ui.cfg = k ? mergeCfg(S.cfgPatch) : STRAT_CFG; } return ui.cfg; }
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
+const sg = (n: number) => (n > 0 ? "+" + n : n < 0 ? String(n) : "±0");
+const sizeOf = (G: GameState, cfg: StratCfg) => { try { return sz(G, cfg) || ({} as any); } catch { return {} as any; } };
+export const unitArt = (race: string, k: string) => `/strat/art/${race}/${k}_idle.png`;
 
-/** Полоса ресурсов над доской: золото/знания (+доход), Слава обеих сторон к порогу, эпоха, кнопки «Технологии» и городов. */
-export function renderBar(c: Ctx) {
-  const bar = $("#ecbar"); const { G, S, me } = c; const ec = G.ec; if (!bar) return;
-  if (!ec || S.phase === "lobby") { bar.hidden = true; return; } bar.hidden = false;
-  const cfg = cfgOf(S), side = me < 0 ? G.cur : me, R = ec.res[side], I = ec.inc[side] || { gold: 0, know: 0, glory: 0 }, eras = sz(G, cfg).eras, thr = S.g.glory || 0;
-  const sg = (n: number) => (n > 0 ? "+" + n : n < 0 ? String(n) : "±0");
-  const gl = [0, 1].map((i) => { const v = ec.res[i].glory, pct = thr ? Math.min(100, (v / thr) * 100) : 0;
-    return `<div class="gl ${i === me ? "mine" : ""}" title="Слава: ${v}${thr ? " из " + thr : ""}"><span>${i === me ? "Вы" : "Соп."}</span><em><i style="width:${pct}%;background:${c.col(i)}"></i></em><b>${v}${thr ? "/" + thr : ""}</b></div>`; }).join("");
-  const cities = ec.cities.filter((x) => x.owner === side).map((x) => `<button class="btn sm ghost ecity ${ui.city === x.id ? "on" : ""}" data-city="${x.id}">${x.cap ? "🏰" : "⛺"} ${esc(x.name)}</button>`).join("");
-  bar.innerHTML = `<div class="res"><span title="Золото (доход за ход)">🪙 <b>${R.gold}</b> <small>${sg(I.gold)}</small></span>
-    <span title="Знания (доход за ход)">📜 <b>${R.know}</b> <small>${sg(I.know)}</small></span>
-    ${eras ? `<span class="era" title="Эпоха">${ERA_NAME[ec.era[side]] || ""}</span>` : ""}</div>
-    ${thr ? `<div class="glory"><span class="gs" title="Слава — победа при достижении порога">⭐</span>${gl}</div>` : ""}
-    <div class="ebtns">${cities}${eras ? `<button class="btn sm ghost" id="techbtn">📜 Технологии</button>` : ""}</div>`;
-  for (const b of bar.querySelectorAll<HTMLButtonElement>("[data-city]")) b.onclick = () => { ui.city = ui.city === +b.dataset.city! ? null : +b.dataset.city!; ui.recruit = null; renderCity(c); renderBar(c); c.redraw(); };
-  const tb = bar.querySelector<HTMLButtonElement>("#techbtn"); if (tb) tb.onclick = () => { ui.tech = true; renderTech(c); };
-  renderCity(c); if (ui.tech) renderTech(c);
+// ---------- расовые варианты (шаблон + вариант расы: имя/эффект/иконка) ----------
+/** Данные с расовым вариантом: obj.races[race] / obj.byRace[race] / obj.variants[race] поверх общего шаблона. */
+export function rv<T extends Record<string, any>>(o: T | undefined, race: string): T & { name?: string; eff?: string; icon?: string } {
+  if (!o) return {} as any; const v = o.races?.[race] ?? o.byRace?.[race] ?? o.variants?.[race] ?? o.race_?.[race];
+  return v && typeof v === "object" ? { ...o, ...v } : o as any;
+}
+/** Иконка из данных: имя из набора SVG, путь к картинке (арт Художника) или запасная. */
+export function dataIcon(icon: any, fallback: string): string {
+  if (typeof icon === "string" && /^(\/|https?:)/.test(icon)) return `<img class="ic img" src="${esc(icon)}" alt="">`;
+  if (typeof icon === "string" && /^[a-z0-9_]+$/.test(icon)) return ic(icon);
+  return ic(fallback);
+}
+export const bName = (b: string, race: string) => rv((BUILD as any)[b], race).name || b;
+const bIcon = (b: string, race: string) => { const B = rv((BUILD as any)[b], race); return dataIcon(B.svg ?? (/^[a-z0-9_]+$/.test(B.icon || "") || /^\//.test(B.icon || "") ? B.icon : null), BUILD_ICON[b] || "build"); };
+
+// ---------- модель древа технологий (по данным; новые поля баланса подхватываются, если есть) ----------
+const arr = (v: any): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
+export type TNode = { id: string; name: string; eff: string; era: number; br: string; req: string[]; excl: string[]; unB: string[]; unK: string[]; icon?: string; raw: Tech; red?: boolean };
+/** Источник узлов: урезанное древо с сервера (G.ec.tree[me] / techTree), иначе общий конфиг. */
+export function techNodes(race: string, srv?: any[] | null): TNode[] {
+  if (Array.isArray(srv)) return srv.filter(Boolean).map((t: any) => { const u = t.unlocks || {}, red = redacted(t);
+    return { id: String(t.id), name: red ? "" : String(t.name), eff: red ? "" : t.eff || "", era: +t.era || 1, br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires),
+      excl: arr(t.excl ?? t.excludes ?? t.locks), unB: red ? [] : arr(u.b ?? u.buildings ?? t.builds), unK: red ? [] : arr(u.k ?? u.units), icon: red ? undefined : t.icon, raw: t, red } as TNode; });
+  return (TECHS as any[]).filter((t0) => !t0.race || t0.race === race).map((t0) => {
+    const sib = (() => { try { return techSibling(t0); } catch { return undefined; } })(), t: any = rv(t0, race), u = t.unlocks || {};
+    const excl = new Set([...arr(t.excl ?? t.excludes ?? t.locks), ...(sib && !(t.excl || t.excludes) ? [sib.id] : [])]);
+    return { id: t.id, name: t.name, eff: t.eff || "", era: +t.era || 1, br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires),
+      excl: [...excl], unB: arr(u.b ?? u.buildings ?? t.builds), unK: arr(u.k ?? u.units), icon: t.icon, raw: t0 } as TNode;
+  });
+}
+export type TState = "got" | "can" | "later" | "closed";
+const srvTree = (G: GameState, me: number): any[] | null => { const ec: any = G.ec; const t = ec?.tree?.[me] ?? ec?.techTree?.[me] ?? ec?.tree ?? null; return Array.isArray(t) ? t : null; };
+/** Видимость узла древа технологий для игрока (туман знаний). */
+export function techFog(G: GameState, me: number, n: TNode, st: TState): FogView {
+  const have: string[] = (G.ec?.techs?.[me] || []) as any;
+  return fogView(st, n.req.every((r) => have.includes(r)), n.era <= (G.ec?.era?.[me] ?? 1), !!(n as any).red);
+}
+/** состояние узла для стороны: изучено / можно / пока нельзя / закрыто навсегда (+ причина) */
+export function techState(G: GameState, me: number, n: TNode, all: TNode[], cfg: StratCfg): { st: TState; why: string } {
+  const have: string[] = (G.ec?.techs?.[me] || []) as any; if (have.includes(n.id)) return { st: "got", why: "Изучено" };
+  const byId = new Map(all.map((x) => [x.id, x]));
+  const closedBy = (x: TNode, seen = new Set<string>()): string | null => {
+    if (seen.has(x.id)) return null; seen.add(x.id);
+    for (const e of x.excl) if (have.includes(e)) return `выбрано «${byId.get(e)?.name || e}»`;
+    for (const o of all) if (have.includes(o.id) && o.excl.includes(x.id)) return `выбрано «${o.name}»`;
+    for (const r of x.req) { const R = byId.get(r); if (R && !have.includes(r)) { const w = closedBy(R, seen); if (w) return w; } }
+    return null;
+  };
+  const cl = closedBy(n); if (cl) return { st: "closed", why: "Путь закрыт: " + cl };
+  let err: string | null = null; try { err = canResearch(G, me, n.raw, cfg); } catch { err = "bad_tech"; }
+  if (!err) return { st: "can", why: "" };
+  const miss = n.req.filter((r) => !have.includes(r)).map((r) => byId.get(r)?.name || r);
+  return { st: "later", why: miss.length ? "Сначала: " + miss.join(", ") : ECON_ERR[err] || err };
+}
+/** Технология, открывающая постройку/фигуру (если баланс так задал), и изучена ли она. */
+function gateOf(G: GameState, me: number, kind: "b" | "k", id: string, cfg: StratCfg): { name: string; closed: boolean } | null {
+  const nodes = techNodes(G.races[me], srvTree(G, me)); const direct = kind === "b" ? (BUILD as any)[id]?.tech ?? (BUILD as any)[id]?.req : null;
+  const n = nodes.find((x) => x.id === direct) || nodes.find((x) => (kind === "b" ? x.unB : x.unK).includes(id)); if (!n) return null;
+  const s = techState(G, me, n, nodes, cfg); if (s.st === "got") return null;
+  return { name: techFog(G, me, n, s.st) === "show" ? n.name : "?", closed: s.st === "closed" };
 }
 
-/** Карточка города: рост, места под постройки, карточки построек, найм (фишка → клетка на доске). */
+// ---------- полоса ресурсов ----------
+/** Верхняя полоса: золото/знания (+доход), эпоха, кнопки «Технологии» и городов. */
+export function renderBar(c: Ctx) {
+  const bar = $("#ecbar"); const { G, S, me } = c; const ec = G.ec; if (!bar) return;
+  if (!ec || S.phase === "lobby") { bar.innerHTML = ""; bar.hidden = true; return; } bar.hidden = false;
+  const cfg = cfgOf(S), side = me < 0 ? G.cur : me, R = ec.res[side], I = ec.inc[side] || { gold: 0, know: 0, glory: 0 }, eras = sizeOf(G, cfg).eras;
+  const cnt = (icon: string, v: number, inc: number, tip: string, cls: string) => `<div class="ctr ${cls}" data-tip="${esc(tip)}">${ic(icon)}<b>${v}</b><small class="${inc < 0 ? "neg" : ""}">${sg(inc)}</small></div>`;
+  const cities = ec.cities.filter((x) => x.owner === side).map((x) => `<button class="hbtn city ${ui.city === x.id ? "on" : ""}" data-city="${x.id}" data-tip="${esc((x.cap ? "Столица " : "Застава ") + x.name)}">${ic(x.cap ? "castle" : "outpost")}<span>${esc(x.name)}</span></button>`).join("");
+  bar.innerHTML = `${cnt("gold", R.gold, I.gold, "Золото — доход за ход " + sg(I.gold), "gold")}${cnt("know", R.know, I.know, "Знания — доход за ход " + sg(I.know), "know")}
+    ${eras ? `<div class="era" data-tip="Текущая эпоха">${ic("era")}<span>${ERA_NAME(ec.era[side])}</span></div>` : ""}
+    <div class="hsep"></div>${cities}${eras ? `<button class="hbtn tech" id="techbtn" data-tip="Древо технологий">${ic("tech")}<span>Технологии</span></button>` : ""}`;
+  for (const b of bar.querySelectorAll<HTMLButtonElement>("[data-city]")) b.onclick = () => { ui.city = +b.dataset.city!; ui.recruit = null; c.refresh(); };
+  const tb = bar.querySelector<HTMLButtonElement>("#techbtn"); if (tb) tb.onclick = () => { ui.tech = true; renderTech(c); };
+  renderCity(c); renderTech(c);
+}
+
+// ---------- окно города ----------
+/** Постоянное окно (перерисовывается при каждом снимке, пока открыто). */
+function persist(id: string, show: boolean, cls: string): HTMLElement | null {
+  let el = document.getElementById(id);
+  if (!show) { if (el && !el.classList.contains("out")) { el.classList.add("out"); el.classList.remove("in"); setTimeout(() => el!.remove(), 220); } return null; }
+  if (!el || el.classList.contains("out")) { el?.remove(); el = document.createElement("div"); el.id = id; el.className = "ovl " + cls; document.getElementById("modals")!.appendChild(el); requestAnimationFrame(() => el!.classList.add("in")); }
+  return el;
+}
 export function renderCity(c: Ctx) {
-  const box = $("#citycard"); if (!box) return; const { G, S, me } = c, cfg = cfgOf(S);
+  const { G, S, me } = c, cfg = cfgOf(S);
   const city = G.ec?.cities.find((x) => x.id === ui.city && x.owner === me);
-  if (!city || S.phase !== "play") { box.hidden = true; ui.city = null; return; } box.hidden = false;
-  const my = G.cur === me, slots = citySlots(G, city, cfg), used = city.bld.length, thr = cfg.econ.city.growthThr;
-  const next = city.cap ? thr[city.lvl] : 0, grow = city.cap ? (next ? `рост ${city.growth}/${next} → ур. ${city.lvl + 2}` : "макс. уровень") : "застава";
-  const cards = (Object.keys(BUILD) as BuildId[]).filter((b) => !BUILD[b].race || BUILD[b].race === G.races[me]).map((b) => {
-    const B = BUILD[b], has = city.bld.includes(b) && b !== "forge", err = has ? "built" : canBuild(G, me, city, b, cfg, b === "forge" ? "rook" : undefined), cost = buildCost(G, me, b, cfg);
-    return `<button class="bcard ${has ? "have" : ""}" data-b="${b}" ${!my || err ? "disabled" : ""} title="${esc(err && !has ? ECON_ERR[err] || err : B.eff)}">
-      <span class="ic">${B.icon}</span><b>${B.name}</b><small>${esc(B.eff)}</small><em>${has ? "✓" : "🪙 " + cost}</em></button>`; }).join("");
-  const chips = RECRUIT.filter((k) => k !== "hero" || city.cap).map((k) => {
-    const err = canRecruit(G, me, city, k, cfg), need = UNLOCK[k];
-    const why = err === "locked" && need ? "Нужна постройка: " + BUILD[need as BuildId].name : err ? ECON_ERR[err] || err : "";
-    const lock = k === "hero" && err === "need_era" ? ` · с эпохи ${HERO_ERA}` : "";
-    return `<button class="chip ${ui.recruit?.kind === k && ui.recruit.city === city.id ? "on" : ""}" data-k="${k}" ${!my || err ? "disabled" : ""} title="${esc(why + lock)}">${err === "locked" ? "🔒 " : ""}${KIND_NAME[k]} <small>🪙${recruitCost(G, city, k, cfg)}</small></button>`; }).join("");
-  const forge = city.forge.length ? ` · Кузня: ${city.forge.map((k) => KIND_NAME[k]).join(", ")}` : "";
-  box.innerHTML = `<div class="ch"><b>${city.cap ? "🏰" : "⛺"} ${esc(city.name)}</b> <span class="muted">${city.cap ? "ур. " + (city.lvl + 1) + " · " : ""}${grow}</span><button class="btn sm ghost x" data-close>✕</button></div>
-    ${city.cap && next ? `<div class="bar"><i style="width:${Math.min(100, (city.growth / next) * 100)}%"></i></div>` : ""}
-    <div class="muted">Постройки ${used}/${slots}${city.bld.length ? ": " + city.bld.map((b) => BUILD[b].icon + " " + BUILD[b].name).join(", ") : ""}${forge}${city.acted ? " · <span class=warn>город уже действовал в этот ход</span>" : ""}</div>
-    <div class="sub">Найм <span class="muted">— выберите фигуру, затем клетку рядом с городом</span></div><div class="chips">${chips}</div>
-    <div class="sub">Строительство</div><div class="bcards">${cards}</div>`;
-  box.querySelector<HTMLButtonElement>("[data-close]")!.onclick = () => { ui.city = null; ui.recruit = null; renderCity(c); renderBar(c); c.redraw(); };
-  for (const b of box.querySelectorAll<HTMLButtonElement>("[data-k]")) b.onclick = () => { const k = b.dataset.k as Kind; ui.recruit = ui.recruit?.kind === k ? null : { city: city.id, kind: k }; renderCity(c); c.redraw(); };
-  for (const b of box.querySelectorAll<HTMLButtonElement>("[data-b]")) b.onclick = () => {
+  if (!city || S.phase !== "play") { ui.city = null; persist("citydlg", false, ""); return; }
+  const box = persist("citydlg", true, "citydlg wide")!;
+  const my = G.cur === me, slots = citySlots(G, city, cfg), used = city.bld.length, thr = cfg.econ.city.growthThr, race = G.races[me];
+  const next = city.cap ? thr[city.lvl] : 0, R = G.ec.res[me];
+  const lock = (why: string) => `<span class="lockn">${ic("lock")}${esc(why)}</span>`;
+  const units = RECRUIT.filter((k) => k !== "hero" || city.cap).map((k) => {
+    let err: string | null = canRecruit(G, me, city, k, cfg); const need = UNLOCK[k], gate = gateOf(G, me, "k", k, cfg);
+    let why = err ? ECON_ERR[err] || err : "";
+    if (gate) why = gate.name === "?" ? (gate.closed ? "Путь к этой фигуре закрыт" : "Нужна ещё не открытая технология") : gate.closed ? "Путь закрыт: «" + gate.name + "» недоступна" : "Нужна технология «" + gate.name + "»";
+    else if (err === "locked" && need) why = (BUILD as any)[need] ? "Нужна постройка: " + bName(need, race) : TECHS.find((t) => t.id === need) ? "Нужна технология «" + TECHS.find((t) => t.id === need)!.name + "»" : why;
+    if (k === "hero" && err === "need_era") why = "Откроется в " + ERA_NAME(HERO_ERA);
+    const cost = recruitCost(G, city, k, cfg), u = cfg.units[k];
+    const st = err === "locked" || gate ? "locked" : err ? "off" : "can";
+    return `<button class="ucard ${st} ${ui.recruit?.kind === k ? "on" : ""}" data-k="${k}" ${!my || err ? 'aria-disabled="true"' : ""}>
+      <span class="u-art"><img src="${unitArt(race, k)}" alt="" onerror="this.remove()"></span>
+      <b>${KIND_NAME[k]}</b><span class="u-st">${ic("heart")}${u?.hp ?? "?"} ${ic("sword")}${u?.atk ?? "?"} ${ic("shield")}${u?.arm ?? "?"}</span>
+      ${why ? lock(why) : ""}<em class="${R.gold < cost ? "neg" : ""}">${ic("gold")}${cost}</em></button>`;
+  }).join("");
+  const builds = (Object.keys(BUILD) as BuildId[]).filter((b) => !BUILD[b].race || BUILD[b].race === race).map((b) => {
+    const B = rv(BUILD[b] as any, race), has = city.bld.includes(b) && b !== "forge", cost = buildCost(G, me, b, cfg), gate = gateOf(G, me, "b", b, cfg);
+    let err: string | null = has ? "built" : canBuild(G, me, city, b, cfg, b === "forge" ? "rook" : undefined); if (gate && !err) err = "need_tech";
+    const why = gate ? (gate.name === "?" ? (gate.closed ? "Путь к этой постройке закрыт" : "Нужна ещё не открытая технология") : gate.closed ? "Путь закрыт: «" + gate.name + "»" : "Нужна технология «" + gate.name + "»") : err && !has ? ECON_ERR[err] || err : "";
+    return `<button class="bcard ${has ? "have" : gate ? "locked" : err ? "off" : "can"}" data-b="${b}" ${!my || err ? 'aria-disabled="true"' : ""}>
+      <span class="b-ic">${bIcon(b, race)}</span><b>${esc(B.name)}</b><small>${esc(B.eff)}</small><span class="pas-row">${pasIcon(buildPassive(b, B, cfg))}</span>
+      ${why && !has ? lock(why) : ""}<em>${has ? ic("check") + "Построено" : ic("gold") + cost}</em></button>`;
+  }).join("");
+  const bl = city.bld.map((b) => `<span class="bchip" data-tip="${esc(rv(BUILD[b] as any, race).eff || "")}">${bIcon(b, race)}${esc(bName(b, race))}</span>`).join("") + Array.from({ length: Math.max(0, slots - used) }, () => `<span class="bchip empty">свободно</span>`).join("");
+  box.innerHTML = `<div class="dlg deco city">
+    <div class="dlg-h"><span class="dlg-ic">${ic(city.cap ? "castle" : "outpost")}</span><div><h3>${esc(city.name)}</h3>
+      <p class="dlg-sub">${city.cap ? "Столица · уровень " + (city.lvl + 1) : "Застава"} · постройки ${used}/${slots}${city.forge.length ? " · Кузня: " + city.forge.map((k) => KIND_NAME[k]).join(", ") : ""}</p></div>
+      <div class="dlg-res"><span>${ic("gold")}<b>${R.gold}</b></span><span>${ic("know")}<b>${R.know}</b></span></div>
+      <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
+    ${city.cap ? `<div class="growth"><span>Рост</span><div class="meter"><i style="width:${next ? Math.min(100, (city.growth / next) * 100) : 100}%"></i></div><b>${next ? city.growth + "/" + next : "макс."}</b></div>` : ""}
+    ${city.acted ? `<div class="warnline">${ic("turn")} Город уже действовал в этот ход — найм и стройка снова на следующем ходу</div>` : !my ? `<div class="warnline">${ic("turn")} Сейчас ход соперника</div>` : ""}
+    <div class="bchips">${bl}</div>
+    <div class="dlg-b two">
+      <section><h4 class="deco-h">${ic("recruit")}Найм <small>фигура появится на клетке рядом с городом</small></h4><div class="ucards">${units}</div></section>
+      <section><h4 class="deco-h">${ic("build")}Строительство</h4><div class="bcards">${builds}</div></section>
+    </div></div>`;
+  const close = () => { ui.city = null; ui.recruit = null; c.refresh(); };
+  box.querySelector<HTMLElement>("[data-x]")!.onclick = close; box.onclick = (e) => { if (e.target === box) close(); };
+  for (const b of box.querySelectorAll<HTMLButtonElement>("[data-k]")) b.onclick = () => { if (b.getAttribute("aria-disabled")) return; ui.recruit = { city: city.id, kind: b.dataset.k as Kind }; ui.city = null; c.refresh(); };
+  for (const b of box.querySelectorAll<HTMLButtonElement>("[data-b]")) b.onclick = async () => { if (b.getAttribute("aria-disabled")) return;
     const id = b.dataset.b as BuildId; let kind: Kind | undefined;
-    if (id === "forge") { const a = prompt("Кузня: какому типу +1 АТК? (ополченец / страж / всадник / маг / герой / вождь)", "страж") || ""; if (!a) return;
-      kind = (Object.keys(KIND_NAME) as Kind[]).find((k) => KIND_NAME[k].toLowerCase().startsWith(a.trim().toLowerCase().slice(0, 3))) || "rook"; }
+    if (id === "forge") {
+      const k = await choiceDlg("Кузня", "Какому типу фигур дать +1 АТК?", (Object.keys(KIND_NAME) as Kind[]).map((k) => ({ id: k, title: KIND_NAME[k], img: unitArt(race, k), text: city.forge.includes(k) ? "уже усилен" : "+1 АТК" })), "kinds");
+      if (!k) return; kind = k as Kind;
+    }
     c.send({ type: "act", act: { a: "build", city: city.id, b: id, ...(kind ? { kind } : {}) } });
   };
 }
 
-/** Окно технологий: 3 ветви × эпохи, в ячейке пара «или-или». */
+// ---------- древо технологий ----------
 export function renderTech(c: Ctx) {
-  const dlg = $("#techdlg"); if (!dlg) return; const { G, S, me } = c, cfg = cfgOf(S), ec = G.ec;
-  if (!ui.tech || !ec) { dlg.hidden = true; return; } dlg.hidden = false;
-  const eras = sz(G, cfg).eras, my = G.cur === me, race = G.races[me], have = ec.techs[me] || [];
+  const { G, S, me } = c, cfg = cfgOf(S), ec = G.ec;
+  if (!ui.tech || !ec || S.phase !== "play" || me < 0) { ui.tech = false; persist("techdlg", false, ""); return; }
+  const dlg = persist("techdlg", true, "techdlg full")!;
+  const eras = sizeOf(G, cfg).eras || 3, my = G.cur === me, race = G.races[me], nodes = techNodes(race, srvTree(G, me));
+  const brs = [...new Set(["war", "econ", "elem", ...nodes.map((n) => n.br)])].filter((b) => nodes.some((n) => n.br === b) || b === "elem");
+  const maxEra = Math.max(eras, ...nodes.map((n) => n.era));
+  const cost = (e: number) => cfg.econ.research.cost?.[e] ?? "?";
+  const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
+    if (fv !== "show") return fogNode(n.id, fv, "tech");
+    const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
+    return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
+      <span class="tn-h">${n.icon ? `<span class="tn-ic">${dataIcon(n.icon, BRANCH_ICON[n.br] || "spark")}</span>` : ""}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
+      <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>
+      <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + cost(n.era)}</em></button>`; };
   const cell = (br: string, era: number) => {
-    const pair = TECHS.filter((t) => t.br === br && t.era === era && (!t.race || t.race === race));
-    if (!pair.length) return `<div class="tcell empty muted">${br === "elem" ? "ветвь расы — позже" : ""}</div>`;
-    return `<div class="tcell">${pair.map((t) => { const got = have.includes(t.id), sib = techSibling(t), lock = !!sib && have.includes(sib.id), err = canResearch(G, me, t, cfg);
-      const st = got ? "got" : lock ? "lock" : err ? "off" : "can";
-      return `<button class="tech ${st}" data-t="${t.id}" ${!my || err ? "disabled" : ""} title="${esc(got ? "изучено" : err ? ECON_ERR[err] || err : "изучить за 📜 " + cfg.econ.research.cost[t.era])}"><b>${t.name}</b><small>${esc(t.eff)}</small>${got ? "<em>✓</em>" : lock ? "<em>✕</em>" : `<em>📜${cfg.econ.research.cost[t.era]}</em>`}</button>`; }).join('<span class="or">или</span>')}</div>`;
+    const ns = nodes.filter((n) => n.br === br && n.era === era);
+    if (!ns.length) return `<div class="tcell empty">${br === "elem" && era === 1 ? "Ветвь расы — скоро" : ""}</div>`;
+    // узлы, исключающие друг друга, — рядом через «или»
+    let h = ""; ns.forEach((n, i) => { if (i) h += ns[i - 1].excl.includes(n.id) || n.excl.includes(ns[i - 1].id) ? `<span class="or"><i>или</i></span>` : `<span class="and"></span>`; h += card(n); });
+    return `<div class="tcell">${h}</div>`;
   };
-  const eraErr = canEra(G, me, cfg), nextEra = ec.era[me] + 1;
-  dlg.innerHTML = `<div class="tdlg card"><div class="ch"><b>Технологии</b> <span class="muted">📜 ${ec.res[me].know} · ${ERA_NAME[ec.era[me]]} · одно исследование за ход; из пары можно взять только одну</span><button class="btn sm ghost x" data-close>✕</button></div>
-    <div class="tgrid" style="grid-template-columns: 70px repeat(3, 1fr)"><div></div>${["war", "econ", "elem"].map((b) => `<div class="th">${BR_NAME[b]}</div>`).join("")}
-    ${[1, 2, 3].filter((e) => e <= eras).map((e) => `<div class="te ${e <= ec.era[me] ? "" : "muted"}">${ERA_NAME[e]}</div>${["war", "econ", "elem"].map((b) => cell(b, e)).join("")}`).join("")}</div>
-    ${nextEra <= eras ? `<div class="row"><button class="btn sm gold" id="erabtn" ${!my || eraErr ? "disabled" : ""}>Новая эпоха: ${ERA_NAME[nextEra]} · 📜${cfg.econ.research.eraCost[nextEra]}</button><span class="muted">${eraErr ? ECON_ERR[eraErr] || eraErr : "+" + cfg.econ.glory.era + " Славы"}</span></div>` : ""}</div>`;
-  dlg.querySelector<HTMLButtonElement>("[data-close]")!.onclick = () => { ui.tech = false; dlg.hidden = true; };
-  dlg.onclick = (e) => { if (e.target === dlg) { ui.tech = false; dlg.hidden = true; } };
-  for (const b of dlg.querySelectorAll<HTMLButtonElement>("[data-t]")) b.onclick = () => c.send({ type: "act", act: { a: "research", t: b.dataset.t } });
+  const eraErr = canEra(G, me, cfg), nextEra = ec.era[me] + 1, eraCost = cfg.econ.research.eraCost?.[nextEra];
+  const body = `<div class="tgrid" style="--cols:${brs.length}">
+      <div class="tcorner"></div>${brs.map((b) => `<div class="th">${ic(BRANCH_ICON[b] || "spark")}<span>${esc(BR_NAME[b] || b)}</span></div>`).join("")}
+      ${Array.from({ length: maxEra }, (_, i) => i + 1).map((e) => `<div class="te ${e <= ec.era[me] ? "now" : ""}"><span>${ERA_ROMAN[e] || e}</span><small>эпоха</small></div>${brs.map((b) => cell(b, e)).join("")}`).join("")}
+      <svg class="tlinks" aria-hidden="true"></svg></div>`;
+  const legend = `<div class="tlegend"><span class="lg can"></span>можно изучить<span class="lg got"></span>изучено<span class="lg later"></span>пока недоступно<span class="lg closed"></span>путь закрыт навсегда<span class="lg fog">?</span>ещё не открыто</div>`;
+  const keepScroll = dlg.querySelector(".tscroll")?.scrollTop || 0;
+  dlg.innerHTML = `<div class="dlg deco techscreen">
+    <div class="dlg-h"><span class="dlg-ic">${ic("tech")}</span><div><h3>Древо технологий</h3><p class="dlg-sub">Одно исследование за ход. Выбор навсегда закрывает альтернативный путь.</p></div>
+      <div class="dlg-res"><span data-tip="Знания">${ic("know")}<b>${ec.res[me].know}</b></span><span>${ic("era")}<b>${ERA_NAME(ec.era[me])}</b></span></div>
+      <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
+    <div class="tscroll">${body}</div>
+    <div class="dlg-f">${legend}${nextEra <= eras ? `<button class="btn gold big" id="erabtn" ${!my || eraErr ? "disabled" : ""}>${ic("era")}<span>Новая эпоха: ${ERA_ROMAN[nextEra]} · ${ic("know")}${eraCost ?? "?"}</span></button><span class="muted">${eraErr ? esc(ECON_ERR[eraErr] || eraErr) : "+" + cfg.econ.glory.era + " Славы"}</span>` : ""}</div></div>`;
+  const sc = dlg.querySelector<HTMLElement>(".tscroll")!; sc.scrollTop = keepScroll;
+  const close = () => { ui.tech = false; persist("techdlg", false, ""); };
+  dlg.querySelector<HTMLElement>("[data-x]")!.onclick = close; dlg.onclick = (e) => { if (e.target === dlg) close(); };
+  for (const b of dlg.querySelectorAll<HTMLButtonElement>("[data-t]")) b.onclick = () => { if (!b.getAttribute("aria-disabled")) c.send({ type: "act", act: { a: "research", t: b.dataset.t } }); };
   const eb = dlg.querySelector<HTMLButtonElement>("#erabtn"); if (eb) eb.onclick = () => c.send({ type: "act", act: { a: "era" } });
+  requestAnimationFrame(() => techLinks(dlg, nodes));
+}
+/** Линии «требует» между узлами (только если в данных есть req). */
+function techLinks(dlg: HTMLElement, nodes: TNode[]) {
+  const svg = dlg.querySelector<SVGSVGElement>(".tlinks"), grid = dlg.querySelector<HTMLElement>(".tgrid"); if (!svg || !grid) return;
+  const g = grid.getBoundingClientRect(); svg.setAttribute("viewBox", `0 0 ${g.width} ${g.height}`); svg.style.width = g.width + "px"; svg.style.height = g.height + "px";
+  let h = "";
+  for (const n of nodes) for (const r of n.req) {
+    const a = grid.querySelector<HTMLElement>(`[data-node="${r}"]`), b = grid.querySelector<HTMLElement>(`[data-node="${n.id}"]`); if (!a || !b) continue;
+    const A = a.getBoundingClientRect(), B = b.getBoundingClientRect();
+    const x1 = A.left + A.width / 2 - g.left, y1 = A.bottom - g.top, x2 = B.left + B.width / 2 - g.left, y2 = B.top - g.top, my = (y1 + y2) / 2;
+    const cls = b.classList.contains("closed") ? "closed" : b.classList.contains("got") ? "got" : "";
+    h += `<path class="${cls}" d="M${x1} ${y1} V${my} H${x2} V${y2}"/>`;
+  }
+  svg.innerHTML = h;
 }
 
-/** Доп. строка в карточке выбранной фигуры: уровень, таланты (выбор), «Основать заставу». */
-export function pieceExtra(c: Ctx, p: Piece): string {
-  const { G, S, me } = c, cfg = cfgOf(S); if (!G.ec) return "";
-  const lv = pieceLevel(p, cfg), L = cfg.econ.xp.lv, nx = L[lv + 1];
-  let h = `<div class="pext">Ур. ${lv}${nx ? ` · опыт ${p.xp || 0}/${nx}` : ""}${p.tal?.length ? " · " + p.tal.map((t) => talName(cfg, p.kind, t)).join(", ") : ""}</div>`;
-  if (p.owner !== me || G.cur !== me) return h;
-  const pend = pendingTalent(p, cfg);
-  if (pend) { const opts = cfg.talents[p.kind]?.[pend - 2] || [];
-    h += `<div class="tal">⭐ Талант ур. ${pend}: ${opts.map((o: any) => `<button class="btn sm gold" data-tal="${o.id}" title="${esc(o.eff)}">${o.name} <small>${esc(o.eff)}</small></button>`).join(" или ")}</div>`; }
-  if (p.kind === "pawn" && sz(G, cfg).outposts > 0) { const err = canFound(G, me, p, cfg);
-    h += `<div class="row"><button class="btn sm" data-found ${err || p.acted ? "disabled" : ""}>⛺ Основать заставу</button><span class="muted">${err ? ECON_ERR[err] || err : p.acted ? "фигура уже действовала" : "Ополченец станет заставой"}</span></div>`; }
+// ---------- фигура: уровень, таланты, застава ----------
+/** Уровень фигуры 1..5: сервер может прислать p.lv; иначе — по порогам cfg.econ.xp.lv (длина массива задаёт максимум). */
+export function pieceLevel(p: Piece, cfg: StratCfg): number { const v = (p as any).lv; if (typeof v === "number") return Math.max(1, Math.min(5, v)); const L = cfg.econ.xp.lv || [], x = p.xp || 0; let lv = 1; for (let i = 2; i < Math.min(L.length, 6); i++) if (x >= L[i]) lv = i; return lv; }
+/** Уровень, на котором ждёт выбор (0 — нет). L2 талант, L3 способность, L4 (TBD), L5 ульта — всё карточки «1 из 2». */
+export function pendingTalent(p: Piece, cfg: StratCfg): number { const sv = (p as any).pend; if (typeof sv === "number") return sv; const lv = pieceLevel(p, cfg), n = p.tal?.length || 0; return n + 2 <= lv && (cfg.talents[p.kind] || [])[n] ? n + 2 : 0; }
+/** Вид карты таланта: пассив / активная способность / ультимейт. */
+export const talKind = (o: any): "pas" | "act" | "ult" => (o?.type === "ult" || o?.ult ? "ult" : o?.type === "active" || o?.active || o?.cd != null ? "act" : "pas");
+export const TAL_KIND_NAME = { pas: "Талант", act: "Способность", ult: "Ультимейт" };
+export function talName(cfg: StratCfg, k: Kind, id: string) { for (const lv of cfg.talents[k] || []) for (const o of lv as any[]) if (o.id === id) return o.name; return id; }
+export function pieceLv(c: Ctx, p: Piece) { const cfg = cfgOf(c.S), lv = pieceLevel(p, cfg), L = cfg.econ.xp.lv; return { lv, xp: p.xp || 0, next: L[lv + 1] as number | undefined, prev: (L[lv] || 0) as number }; }
+/** Кнопки действий фигуры для карточки (талант, застава). */
+export function pieceActs(c: Ctx, p: Piece): string {
+  const { G, S, me } = c, cfg = cfgOf(S); if (!G.ec || p.owner !== me || G.cur !== me) return "";
+  let h = ""; const pend = pendingTalent(p, cfg);
+  if (pend) h += `<button class="btn gold pulse" data-taldlg>${ic("xp")}<span>Новый уровень ${pend} · выбрать</span></button>`;
+  if (p.kind === "pawn" && sizeOf(G, cfg).outposts > 0) { const err = canFound(G, me, p, cfg);
+    h += `<button class="btn" data-found ${err || p.acted ? "disabled" : ""} data-tip="${esc(err ? ECON_ERR[err] || err : p.acted ? "Фигура уже действовала" : "Ополченец станет заставой")}">${ic("outpost")}<span>Основать заставу</span></button>`; }
   return h;
 }
-function talName(cfg: StratCfg, k: Kind, id: string) { for (const lv of cfg.talents[k] || []) for (const o of lv as any[]) if (o.id === id) return o.name; return id; }
-export function bindPieceExtra(c: Ctx, p: Piece) {
-  for (const b of document.querySelectorAll<HTMLButtonElement>("#info [data-tal]")) b.onclick = () => c.send({ type: "act", act: { a: "talent", id: p.id, t: b.dataset.tal } });
-  const f = document.querySelector<HTMLButtonElement>("#info [data-found]"); if (f) f.onclick = () => confirm("Основать заставу? Ополченец уйдёт с доски.") && c.send({ type: "act", act: { a: "found", id: p.id } });
+export function bindPieceActs(c: Ctx, p: Piece, root: HTMLElement) {
+  const t = root.querySelector<HTMLButtonElement>("[data-taldlg]"); if (t) t.onclick = () => openTalent(c, p);
+  const f = root.querySelector<HTMLButtonElement>("[data-found]"); if (f) f.onclick = async () => { if (await confirmDlg("Основать заставу?", "Ополченец уйдёт с доски, а на его клетке встанет новая застава с собственной территорией.", "Основать", { icon: "outpost" })) c.send({ type: "act", act: { a: "found", id: p.id } }); };
+}
+export const TAL_ICON = (o: any) => (talKind(o) === "ult" ? "ult" : talKind(o) === "act" ? "zap" : o.ap ? "ap" : o.shot ? "target" : o.hp ? "heart" : o.arm ? "shield" : "sword");
+export async function openTalent(c: Ctx, p: Piece) {
+  const cfg = cfgOf(c.S), pend = pendingTalent(p, cfg); if (!pend) return;
+  const opts = (cfg.talents[p.kind]?.[pend - 2] || []) as any[], tk = talKind(opts[0]);
+  const id = await choiceDlg(`${TAL_KIND_NAME[tk]} · ${KIND_NAME[p.kind]} ур. ${pend}`, "Выберите одну из двух карт — вторая сгорит.", opts.map((o) => ({ id: o.id, title: o.name, text: o.eff + (o.cd ? ` · перезарядка ${o.cd} х.` : ""), icon: TAL_ICON(o), attrs: `data-tal="${o.id}" data-pas="${regPassive(talentPassive(o, p.kind))}"` })), "talents");
+  if (id) c.send({ type: "act", act: { a: "talent", id: p.id, t: id } });
 }
 
-/** Клик по доске в режиме найма: true — клик обработан. Клик по своему городу без фигуры открывает его карточку. */
+/** Клик по доске в режиме найма: true — клик обработан. Клик по своему городу без фигуры открывает его окно. */
 export function boardClick(c: Ctx, x: number, y: number, empty: boolean): boolean {
   const { G, me } = c, cfg = cfgOf(c.S);
   if (ui.recruit) {
     const city = G.ec.cities.find((q) => q.id === ui.recruit!.city);
     if (city && empty && recruitCells(G, city, ui.recruit.kind, cfg).some(([a, b]) => a === x && b === y)) {
-      c.send({ type: "act", act: { a: "recruit", city: city.id, kind: ui.recruit.kind, x, y } }); ui.recruit = null; return true; }
-    ui.recruit = null; renderCity(c); c.redraw(); if (!empty) return false; return true;
+      c.send({ type: "act", act: { a: "recruit", city: city.id, kind: ui.recruit.kind, x, y } }); ui.recruit = null; c.refresh(); return true; }
+    ui.recruit = null; c.refresh(); if (!empty) return false; return true;
   }
   const city = G.ec?.cities.find((q) => q.x === x && q.y === y && q.owner === me);
-  if (city && empty) { ui.city = city.id; renderBar(c); c.redraw(); return true; }
+  if (city && empty) { ui.city = city.id; c.refresh(); return true; }
   return false;
 }
 
-/** Территория (лёгкая заливка + граница), города, клетки найма. sx/sy — экранные координаты клетки. */
-export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx: (x: number) => number, sy: (y: number) => number) {
-  const { G } = c, cfg = cfgOf(c.S); if (!G.ec) return; const n = G.size, T = territory(G, cfg);
+/** Территория, города, клетки найма — только видимая часть доски (v0..v1 — видимые клетки в экранных координатах). */
+let terrKey: any = null, terrVal: Int8Array | number[] = [];
+export function territoryCached(G: GameState, cfg: StratCfg, key: any) { if (key !== terrKey) { terrKey = key; terrVal = territory(G, cfg) as any; } return terrVal; }
+export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx: (x: number) => number, sy: (y: number) => number, T: ArrayLike<number>, vis: (x: number, y: number) => boolean) {
+  const { G } = c, cfg = cfgOf(c.S); if (!G.ec) return; const n = G.size;
   ctx.save();
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o < 0) continue;
-    ctx.fillStyle = c.col(o) + "30"; ctx.fillRect(sx(x), sy(y), cell, cell);
-    ctx.strokeStyle = c.col(o) + "cc"; ctx.lineWidth = Math.max(1.5, cell * 0.035); ctx.beginPath();
+  const fl = c.S.you === 1, lw = Math.max(1.5, cell * 0.035);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o < 0 || !vis(x, y)) continue;
+    ctx.fillStyle = c.col(o) + "2a"; ctx.fillRect(sx(x), sy(y), cell, cell);
+    ctx.strokeStyle = c.col(o) + "cc"; ctx.lineWidth = lw; ctx.beginPath();
     const edge = (dx: number, dy: number) => { const X = x + dx, Y = y + dy; return X < 0 || Y < 0 || X >= n || Y >= n || T[Y * n + X] !== o; };
-    const X0 = sx(x), Y0 = sy(y), fl = c.S.you === 1; // при перевороте доски стороны клетки меняются местами
+    const X0 = sx(x), Y0 = sy(y);
     const L = fl ? edge(1, 0) : edge(-1, 0), Rr = fl ? edge(-1, 0) : edge(1, 0), U = fl ? edge(0, 1) : edge(0, -1), D = fl ? edge(0, -1) : edge(0, 1);
     if (L) { ctx.moveTo(X0, Y0); ctx.lineTo(X0, Y0 + cell); } if (Rr) { ctx.moveTo(X0 + cell, Y0); ctx.lineTo(X0 + cell, Y0 + cell); }
     if (U) { ctx.moveTo(X0, Y0); ctx.lineTo(X0 + cell, Y0); } if (D) { ctx.moveTo(X0, Y0 + cell); ctx.lineTo(X0 + cell, Y0 + cell); }
     ctx.stroke(); }
-  for (const ct of G.ec.cities) { // знамя города в верхнем правом углу клетки
-    const X = sx(ct.x) + cell * 0.72, Y = sy(ct.y) + cell * 0.04, w = cell * 0.24;
-    ctx.fillStyle = "#1a1014cc"; ctx.strokeStyle = c.col(ct.owner); ctx.lineWidth = Math.max(1.5, cell * 0.03);
-    ctx.beginPath(); ctx.roundRect?.(X, Y, w, w, w * 0.2); ctx.fill(); ctx.stroke();
-    ctx.font = `${Math.round(w * 0.72)}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#fff"; ctx.fillText(ct.cap ? "🏰" : "⛺", X + w / 2, Y + w / 2 + 1);
-    if (ui.city === ct.id) { ctx.strokeStyle = "#ffd76a"; ctx.setLineDash([cell * 0.1, cell * 0.06]); ctx.strokeRect(sx(ct.x) + 2, sy(ct.y) + 2, cell - 4, cell - 4); ctx.setLineDash([]); }
+  for (const ct of G.ec.cities) { if (!vis(ct.x, ct.y)) continue; // герб города в верхнем правом углу клетки
+    const X = sx(ct.x) + cell * 0.7, Y = sy(ct.y) + cell * 0.03, w = cell * 0.27;
+    ctx.fillStyle = "#1a1420"; ctx.strokeStyle = c.col(ct.owner); ctx.lineWidth = Math.max(1.5, cell * 0.03);
+    ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X + w, Y); ctx.lineTo(X + w, Y + w * 0.8); ctx.lineTo(X + w / 2, Y + w * 1.1); ctx.lineTo(X, Y + w * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
+    const im = iconImg(ct.cap ? "castle" : "outpost", c.redraw); if (im) ctx.drawImage(im, X + w * 0.14, Y + w * 0.1, w * 0.72, w * 0.72);
+    if (ui.city === ct.id) { ctx.strokeStyle = "#f3d27a"; ctx.setLineDash([cell * 0.1, cell * 0.06]); ctx.strokeRect(sx(ct.x) + 2, sy(ct.y) + 2, cell - 4, cell - 4); ctx.setLineDash([]); }
   }
-  if (ui.recruit) { const city = G.ec.cities.find((q) => q.id === ui.recruit!.city);
-    if (city) for (const [x, y] of recruitCells(G, city, ui.recruit.kind, cfg)) { ctx.fillStyle = "#ffd76a40"; ctx.fillRect(sx(x) + 3, sy(y) + 3, cell - 6, cell - 6);
-      ctx.fillStyle = "#ffd76a"; ctx.font = `${Math.round(cell * 0.3)}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("+", sx(x) + cell / 2, sy(y) + cell / 2); } }
+  if (ui.recruit) { const city = G.ec.cities.find((q) => q.id === ui.recruit!.city), t = performance.now() / 300;
+    if (city) for (const [x, y] of recruitCells(G, city, ui.recruit.kind, cfg)) { ctx.fillStyle = `rgba(243,210,122,${0.22 + 0.12 * Math.sin(t)})`; ctx.fillRect(sx(x) + 3, sy(y) + 3, cell - 6, cell - 6);
+      ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(1.5, cell * 0.04); ctx.strokeRect(sx(x) + 3, sy(y) + 3, cell - 6, cell - 6);
+      const im = iconImg("plus", c.redraw); if (im) ctx.drawImage(im, sx(x) + cell * 0.3, sy(y) + cell * 0.3, cell * 0.4, cell * 0.4); } }
   ctx.restore();
 }
 
 /** Всплывашки событий экономики (поверх доски) — короткий текст для клетки. */
 export function econFx(e: any): { txt: string; col: string } | null {
   switch (e.e) {
-    case "recruit": return { txt: "+ " + (KIND_NAME[e.kind as Kind] || ""), col: "#ffd76a" };
-    case "found": return { txt: "⛺ застава", col: "#ffd76a" };
-    case "capture": return { txt: "🏳 город взят", col: "#ff8f6b" };
-    case "siege": return { txt: "⚔ осада", col: "#ff8f6b" };
-    case "ruin": return { txt: "руины: добыча", col: "#ffd76a" };
-    case "lvl": return { txt: "★ ур. " + e.lvl, col: "#ffd76a" };
-    case "talent": return { txt: "⭐ талант", col: "#ffd76a" };
+    case "recruit": return { txt: "+ " + (KIND_NAME[e.kind as Kind] || ""), col: "#f3d27a" };
+    case "found": return { txt: "Застава!", col: "#f3d27a" };
+    case "capture": return { txt: "Город взят", col: "#ff8f6b" };
+    case "siege": return { txt: "Осада", col: "#ff8f6b" };
+    case "ruin": return { txt: "Добыча", col: "#f3d27a" };
+    case "lvl": return { txt: "Ур. " + e.lvl, col: "#f3d27a" };
+    case "talent": return { txt: "Талант", col: "#f3d27a" };
   }
   return null;
 }
-export function econToast(e: any, me: number): string | null {
-  if (e.e === "tech" && e.side === me) return "Изучено: " + (TECHS.find((t) => t.id === e.t)?.name || e.t);
-  if (e.e === "era" && e.side === me) return "Новая эпоха: " + ERA_NAME[e.era];
-  if (e.e === "build" && e.side === me) return "Построено: " + (BUILD[e.b as BuildId]?.name || e.b);
-  if (e.e === "grow" && e.side === me) return "Столица выросла: ур. " + ((e.lvl ?? 0) + 1);
+/** Тосты экономики: [текст, вид, иконка]. */
+export function econToast(e: any, me: number, G?: GameState): [string, "info" | "good" | "bad" | "turn", string] | null {
+  const own = (id: number) => G?.ec?.cities.find((q) => q.id === id)?.owner;
+  const race = G?.races?.[me] || "";
+  if (e.e === "tech" && e.side === me) return ["Изучено: " + (rv(TECHS.find((t) => t.id === e.t) as any, race).name || e.t), "good", "tech"];
+  if (e.e === "era" && e.side === me) return ["Новая эпоха: " + ERA_NAME(e.era), "good", "era"];
+  if (e.e === "build" && e.side === me) return ["Построено: " + bName(e.b, race), "good", BUILD_ICON[e.b] || "build"];
+  if (e.e === "grow" && own(e.city) === me) return ["Столица выросла: ур. " + ((e.lvl ?? 0) + 1), "good", "castle"];
+  if (e.e === "found" && own(e.city) === me) return ["Основана застава", "good", "outpost"];
+  if (e.e === "capture" && !e.cap) return [e.by === me ? "Захвачена застава!" : "Соперник захватил вашу заставу", e.by === me ? "good" : "bad", "outpost"];
   return null;
 }

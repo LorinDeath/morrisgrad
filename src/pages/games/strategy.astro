@@ -1,176 +1,202 @@
 ---
-// «Партия Чёрных королей» — пошаговая стратегия на доске (этап 1: лобби по ссылке/коду, 8×8 и 15×15, Огонь и Лёд).
-// Логика — server/strat (StratMatch DO на лобби + StratIndex), клиент — src/scripts/strat/client.ts. Арт — заглушки.
+// «Партия Чёрных королей» — пошаговая стратегия на доске. Логика — server/strat (StratMatch DO + StratIndex),
+// клиент — src/scripts/strat/client.ts. Оформление — арт-деко «комикс C» по UI-набору Художника (public/strat/ui, ui-v1).
 import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/strat-ui.css';
 const title = 'Партия Чёрных королей | Моррис Град';
 ---
 <!doctype html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>{title}</title>
-  <SeoHead title={title} description="Пошаговая стратегия на доске: две расы, Вождь, очки действий. Играйте с другом по ссылке или с ботом." />
+  <SeoHead title={title} description="Пошаговая стратегия на доске: шесть рас, Вождь, города и технологии. Играйте с другом по ссылке или с ботом." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <style is:global>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at top, #2a1630 0%, #0f0a12 70%); color: #f1e9f5; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-    a { color: #e0b15a; }
-    .wrap { max-width: 1060px; margin: 0 auto; padding: 14px; }
-    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-    header h1 { font-size: 1.45rem; margin: 0; letter-spacing: .02em; background: linear-gradient(90deg, #ffd76a, #ff8fb1); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .back { text-decoration: none; font-weight: 700; font-size: .85rem; border: 1px solid #e0b15a66; padding: 5px 12px; border-radius: 20px; }
-    #me { margin-left: auto; font-size: .85rem; opacity: .8; }
-    .card { background: #1b1220cc; border: 1px solid #ffffff1a; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
-    .card h2 { font-size: 1rem; margin: 0 0 10px; color: #ffd76a; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 760px) { .grid, .game { grid-template-columns: minmax(0, 1fr) !important; } }
-    .btn { background: linear-gradient(180deg, #7b3fa0, #4f2468); color: #fff; border: 1px solid #b37ad6; border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-size: .9rem; }
-    .btn:hover:not(:disabled) { filter: brightness(1.15); }
-    .btn:disabled { opacity: .45; cursor: default; }
-    .btn.sm { padding: 4px 10px; font-size: .8rem; }
-    .btn.ghost { background: transparent; border-color: #ffffff33; }
-    .btn.gold { background: linear-gradient(180deg, #e0b15a, #a0702a); border-color: #ffd76a; color: #1a1014; }
-    .btn.on { outline: 2px solid #ffd76a; }
-    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
-    input, select { background: #0f0a12; color: #fff; border: 1px solid #ffffff33; border-radius: 8px; padding: 7px 10px; font-size: .9rem; }
-    #joincode { text-transform: uppercase; letter-spacing: .2em; width: 9em; }
-    .muted { opacity: .6; font-size: .85rem; }
-    .warn { color: #ffb35b; font-size: .8rem; } .ok { color: #6be36b; font-size: .8rem; }
-    .orow { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #ffffff10; }
-    #open { display: flex; flex-wrap: wrap; gap: 6px; }
-    .codebox { font-size: 1.6rem; letter-spacing: .25em; font-weight: 800; color: #ffd76a; }
-    .seat { padding: 8px 10px; border-radius: 10px; background: #ffffff0a; margin: 4px 0; }
-    .seat.me { border: 1px solid #ffd76a66; } .seat.empty { opacity: .6; font-style: italic; }
-    .race { display: inline-block; padding: 1px 8px; border-radius: 8px; font-size: .78rem; font-weight: 700; background: #ffffff1a; }
-    .race.fire { background: #ff7a3d33; color: #ffb08a; } .race.ice { background: #7fd6ff33; color: #bfeaff; }
-    .game { display: grid; grid-template-columns: minmax(0, 640px) 1fr; gap: 14px; align-items: start; }
-    #board { display: block; border-radius: 10px; box-shadow: 0 0 0 2px #ffffff14, 0 10px 40px #0008; cursor: pointer; touch-action: manipulation; }
-    #status { font-weight: 700; margin: 4px 0 10px; min-height: 1.3em; } #status.myturn { color: #ffd76a; }
-    #clock { font-variant-numeric: tabular-nums; font-size: 1.1rem; } #clock.low { color: #ff6b6b; }
-    #toasts { position: fixed; right: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
-    .toast, .invite { background: #2a1a33; border: 1px solid #b37ad6; padding: 8px 12px; border-radius: 10px; max-width: 320px; box-shadow: 0 6px 20px #0008; }
-    .invite code { color: #ffd76a; }
-    .xpbadge { display: inline-block; background: #b3261e; color: #efe6cf; border: 2px solid #1a1014; outline: 1px solid #d9a441; padding: 2px 10px; border-radius: 6px; font-size: .8rem; font-weight: 800; letter-spacing: .02em; }
-    .xpbadge[hidden] { display: none; }
-    #mappv { border-radius: 8px; box-shadow: 0 0 0 2px #d9a44155; }
-    .cellinfo { margin-top: 8px; padding-top: 8px; border-top: 1px solid #ffffff1a; font-size: .85rem; }
-    .modrow { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid #ffffff14; align-items: flex-start; }
-    .rules li { margin: 3px 0; font-size: .85rem; opacity: .85; }
-    .race.water { background: #3fa7d633; color: #a9dcf2; } .race.stone { background: #c2a27a33; color: #e6d2b5; } .race.nature { background: #7ccf5a33; color: #c3eeae; } .race.lightning { background: #ffe14d33; color: #fff0a0; }
-    /* этап 2 — экономика (вариант C: тёмная подложка, золото, тонкая линия) */
-    .ecbar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; background: #1a1014e6; border: 1px solid #d9a44155; border-radius: 12px; padding: 7px 12px; margin-bottom: 8px; max-width: 640px; box-sizing: border-box; }
-    .ecbar[hidden], .citycard[hidden], .techdlg[hidden] { display: none; }
-    .ecbar .res { display: flex; gap: 14px; align-items: center; font-variant-numeric: tabular-nums; } .ecbar .res b { font-size: 1.05rem; color: #ffe7a8; } .ecbar small { color: #9be39b; font-weight: 700; }
-    .ecbar .era { border: 1px solid #d9a441; color: #f3cf68; border-radius: 6px; padding: 1px 8px; font-size: .78rem; font-weight: 800; letter-spacing: .04em; }
-    .ecbar .glory { display: flex; gap: 6px; align-items: center; flex: 1 1 200px; } .gl { flex: 1; display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: center; font-size: .72rem; }
-    .gl em { display: block; height: 8px; border-radius: 4px; background: #00000066; box-shadow: inset 0 0 0 1px #d9a44144; overflow: hidden; min-width: 40px; }
-    .gl i { display: block; height: 100%; border-radius: 4px; min-width: 2px; } .gl b { font-variant-numeric: tabular-nums; font-size: .7rem; color: #e8d9b0; }
-    .gl > span { opacity: .7; } .gl.mine > span { color: #ffd76a; opacity: 1; } .ecbar .glory .gs { font-size: .9rem; }
-    .ecbar .ebtns { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-    .citycard .ch, .tdlg .ch { display: flex; gap: 8px; align-items: baseline; margin-bottom: 6px; } .ch .x { margin-left: auto; }
-    .citycard .bar { height: 6px; background: #ffffff14; border-radius: 4px; overflow: hidden; margin: 4px 0 8px; } .citycard .bar i { display: block; height: 100%; background: linear-gradient(90deg, #a0702a, #f3cf68); }
-    .sub { font-weight: 700; color: #f3cf68; font-size: .82rem; margin: 10px 0 4px; letter-spacing: .03em; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { background: #0f0a12; color: #f1e9f5; border: 1px solid #d9a44188; border-radius: 16px; padding: 4px 10px; font-size: .8rem; cursor: pointer; } .chip small { color: #f3cf68; }
-    .chip.on { background: #d9a441; color: #1a1014; } .chip.on small { color: #1a1014; } .chip:disabled { opacity: .38; cursor: default; }
-    .bcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
-    .bcard { text-align: left; background: #0f0a12; color: #f1e9f5; border: 1px solid #ffffff22; border-radius: 10px; padding: 6px 8px; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 0 6px; font-size: .78rem; }
-    .bcard .ic { grid-row: span 2; font-size: 1.1rem; color: #f3cf68; } .bcard small { opacity: .65; font-size: .7rem; line-height: 1.2; } .bcard em { grid-column: 2; font-style: normal; color: #f3cf68; font-weight: 700; margin-top: 2px; }
-    .bcard:hover:not(:disabled) { border-color: #d9a441; } .bcard:disabled { opacity: .4; cursor: default; } .bcard.have { opacity: 1; border-color: #6be36b66; } .bcard.have em { color: #6be36b; }
-    .techdlg { position: fixed; inset: 0; background: #0009; display: flex; align-items: center; justify-content: center; z-index: 50; padding: 10px; }
-    .tdlg { max-width: 860px; width: 100%; max-height: 92vh; overflow: auto; border-color: #d9a44166; }
-    .tgrid { display: grid; gap: 6px; align-items: stretch; } .tgrid .th { color: #f3cf68; font-weight: 800; font-size: .85rem; text-align: center; } .tgrid .te { font-size: .75rem; font-weight: 700; align-self: center; }
-    .tcell { display: flex; gap: 4px; align-items: stretch; background: #ffffff06; border-radius: 10px; padding: 4px; } .tcell.empty { justify-content: center; align-items: center; font-size: .72rem; }
-    .tcell .or { align-self: center; font-size: .65rem; opacity: .5; }
-    .tech { flex: 1; text-align: left; background: #0f0a12; color: #f1e9f5; border: 1px solid #ffffff22; border-radius: 8px; padding: 5px 7px; font-size: .76rem; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
-    .tech small { opacity: .65; font-size: .68rem; line-height: 1.2; } .tech em { font-style: normal; color: #f3cf68; font-weight: 700; font-size: .72rem; }
-    .tech.can { border-color: #d9a441; box-shadow: 0 0 0 1px #d9a44144; } .tech.got { border-color: #6be36b; background: #12301a; } .tech.got em { color: #6be36b; }
-    .tech.lock { opacity: .3; text-decoration: line-through; } .tech.off:disabled { opacity: .5; } .tech:disabled { cursor: default; }
-    .pext { margin-top: 4px; font-size: .8rem; color: #f3cf68; } .tal { margin-top: 6px; font-size: .82rem; } .tal .btn small { font-weight: 400; opacity: .8; }
-    @media (max-width: 760px) { .game { grid-template-columns: minmax(0, 1fr); } .game > * { min-width: 0; } .ecbar { font-size: .85rem; max-width: 100%; padding: 6px 8px; gap: 6px 10px; } .ecbar .glory { flex: 1 1 100%; order: 3; } .ecbar .ebtns { margin-left: 0; } .tgrid { grid-template-columns: 52px repeat(3, 1fr) !important; } .tcell { flex-direction: column; } .tcell .or { display: none; } }
-  </style>
+  <link rel="preload" href="/strat/fonts/oswald-cyrillic-700-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/strat/fonts/playfair-display-cyrillic-900-normal.woff2" as="font" type="font/woff2" crossorigin />
 </head>
-<body>
-<div class="wrap">
-  <header>
-    <a class="back" href="/games">← Мини-игры</a>
-    <h1>♚ Партия Чёрных королей</h1>
-    <span id="me"></span>
+<body data-screen="home">
+<div class="app">
+  <header class="gtop">
+    <a class="back btn ghost sm" href="/games"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg><span>Мини-игры</span></a>
+    <div class="logo"><img src="/strat/ui/ornaments/ornament_fan.png" alt="" /><h1>Партия Чёрных королей</h1></div>
+    <span id="me" class="who"></span>
   </header>
 
-  <section id="home">
-    <div class="grid">
-      <div class="card">
-        <h2>Новая партия</h2>
-        <div class="row"><label>Поле <select id="size"><option value="8" selected>8×8 — быстрая</option><option value="15">15×15 — большая</option><option value="5">5×5 — дуэль</option></select></label>
-          <label><input type="checkbox" id="pub" checked /> показывать в списке</label></div>
-        <div class="row"><button class="btn gold" id="create">Создать лобби</button></div>
-        <h2 style="margin-top:14px">Войти по коду</h2>
-        <div class="row"><input id="joincode" maxlength="6" placeholder="КОД" autocomplete="off" /><button class="btn" id="joinbtn">Войти</button></div>
-        <div class="row"><label class="muted">Имя для игры гостем <input id="nick" maxlength="24" placeholder="необязательно" /></label></div>
+  <!-- ===== главное меню ===== -->
+  <section id="home" class="home">
+    <div class="hero">
+      <div class="hero-crests">
+        <img src="/strat/ui/crests/crest_fire.png" alt="" /><img src="/strat/ui/crests/crest_ice.png" alt="" /><img src="/strat/ui/crests/crest_water.png" alt="" />
+        <img src="/strat/ui/crests/crest_stone.png" alt="" /><img src="/strat/ui/crests/crest_nature.png" alt="" /><img src="/strat/ui/crests/crest_lightning.png" alt="" />
       </div>
-      <div class="card">
-        <h2>Ждут соперника <button class="btn sm ghost" id="refresh">↻</button></h2>
-        <div id="open"></div>
-        <h2 style="margin-top:14px">Сейчас на странице</h2>
-        <div id="online"></div>
-      </div>
+      <p class="tagline">Шесть рас. Один Вождь. Три цели из пяти — и корона ваша.</p>
+      <img class="divider" src="/strat/ui/ornaments/divider_ornate.png" alt="" />
     </div>
-    <div class="card" id="admin" hidden><h2>Модерация карт (админ) <button class="btn sm ghost" id="modrefresh">↻</button></h2>
-      <div class="muted">Карты игроков попадают в общий список только после вашего одобрения. До этого автор играет на них по ссылке/коду без опыта.</div><div id="modq"></div></div>
-    <div class="card rules">
-      <h2>Коротко о правилах</h2>
-      <ul>
-        <li>Цель — сразить вражеского <b>Вождя</b> ♚. Ходы по очереди; за ход — несколько <b>очков действий</b> (ОД): 1 на 5×5, 2 на 8×8, 3 на 15×15. Каждая фигура действует раз за ход.</li>
-        <li>Ополченец ходит на 1 вперёд или вбок, отступает на 1 по диагонали назад (без атаки), бьёт по диагонали вперёд и превращается на последней линии. Конь прыгает буквой «Г». Маг ходит по диагонали и стреляет на 2 клетки. Ладья — по прямым до 4. Герой — в любую сторону до 3.</li>
-        <li>Удар снимает HP (атака − броня). Добив врага вплотную, фигура встаёт на его клетку.</li>
-        <li><span class="race fire">Огонь</span> поджигает цель (−1 HP два хода), но у его фигур на 10% меньше HP. <span class="race ice">Лёд</span> обмораживает: цель следующий ход ходит лишь на 1 клетку.</li>
-        <li>Карта — рельеф: <b>река</b> не пройти, кроме мостов; <b>стены</b> и <b>горы</b> не пройти и закрывают обстрел; <b>лес</b> останавливает скольжение и даёт +1 БРН; <b>башня</b> +2 БРН; <b>колодец</b> лечит на 1 HP в начале вашего хода.</li>
-        <li>На каждый ход — таймер плюс общий запас времени. Не успели — ход передаётся сам. На лимите ходов побеждает тот, у кого больше очков материала.</li>
-      </ul>
+    <div id="resume" class="panel resume" hidden></div>
+    <div class="menu-grid">
+      <div class="panel newgame">
+        <h2 class="plate">Новая партия</h2>
+        <label class="fld"><span>Поле</span>
+          <select id="size"><option value="8" selected>8×8 — быстрая</option><option value="15">15×15 — большая</option><option value="5">5×5 — дуэль</option></select></label>
+        <label class="chk"><input type="checkbox" id="pub" checked /><span>Показывать лобби в общем списке</span></label>
+        <button class="btn gold big" id="create"><svg class="ic" aria-hidden="true"><use href="#i-crown"/></svg><span>Создать лобби</span></button>
+        <img class="divider sm" src="/strat/ui/ornaments/divider_h.png" alt="" />
+        <h3 class="deco-h"><span>Войти по коду</span></h3>
+        <div class="joinrow"><input id="joincode" maxlength="6" placeholder="КОД" autocomplete="off" spellcheck="false" /><button class="btn" id="joinbtn"><span>Войти</span></button></div>
+        <label class="fld"><span>Имя для игры гостем</span><input id="nick" maxlength="24" placeholder="необязательно" autocomplete="nickname" /></label>
+        <button class="btn ghost" id="topbtn"><svg class="ic" aria-hidden="true"><use href="#i-glory"/></svg><span>Таблицы лиг</span></button>
+        <button class="btn ghost" id="rulesbtn"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg><span>Правила</span></button>
+      </div>
+      <div class="panel lobbies">
+        <h2 class="plate">Ждут соперника</h2>
+        <button class="btn sq ghost refresh" id="refresh" aria-label="Обновить"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+        <div id="open" class="openlist"></div>
+        <h3 class="deco-h"><span>Сейчас на странице</span></h3>
+        <div id="online" class="onlinelist"></div>
+      </div>
     </div>
   </section>
 
+  <!-- ===== лобби и партия ===== -->
   <section id="match" hidden>
-    <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div>Код лобби: <span class="codebox" id="code"></span></div>
-        <div class="row"><button class="btn" id="copy">Скопировать ссылку</button><button class="btn ghost" id="leave">Выйти</button></div>
+    <div id="lobby" class="lobby">
+      <div class="panel lobby-h">
+        <div class="codewrap"><small>Код лобби</small><b class="codebox" id="code"></b></div>
+        <p id="status" class="status"></p>
+        <div class="lh-btns"><button class="btn" id="copy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg><span>Ссылка</span></button>
+          <button class="btn ghost" id="leave"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg><span>Выйти</span></button></div>
       </div>
-      <div id="status"></div>
-      <div class="grid"><div id="seat0"></div><div id="seat1"></div></div>
-    </div>
-    <div class="card" id="lobby">
-      <div class="row">Поле: <button class="btn sm" data-size="5">5×5</button><button class="btn sm" data-size="8">8×8</button><button class="btn sm" data-size="15">15×15</button></div>
-      <div class="row">Лимит ходов: <select id="tl"><option value="">по умолчанию</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="40">40</option><option value="60">60</option><option value="100">100</option><option value="200">200</option><option value="0">без лимита</option></select>
-        <span class="muted">на лимите побеждает тот, у кого больше очков</span></div>
-      <div class="muted" id="sizeinfo"></div>
-      <div class="row">Карта: <select id="mapsel"></select> <span class="xpbadge" id="mapbadge" hidden>карта не проверена — без опыта</span></div>
-      <div class="row" style="align-items:flex-start"><canvas id="mappv" width="220" height="220"></canvas><div class="muted" id="mapdesc" style="max-width:300px"></div></div>
-      <div class="row">Раса (вслепую): <button class="btn sm" data-race="fire">🔥 Огонь</button><button class="btn sm" data-race="ice">❄ Лёд</button><button class="btn sm" data-race="water">🌊 Вода</button><button class="btn sm" data-race="stone">⛰ Камень</button><button class="btn sm" data-race="nature">🌿 Природа</button><button class="btn sm" data-race="lightning">⚡ Молния</button></div>
-      <div class="muted" style="font-size:.78rem">Вода, Камень, Природа и Молния — черновые правила (полные расы — следующий этап)</div>
-      <div class="row"><button class="btn gold" id="ready">Готов!</button><button class="btn ghost" id="bot">Играть с ботом</button></div>
-    </div>
-    <div id="play" hidden>
-      <div class="game">
-        <div><div id="ecbar" class="ecbar" hidden></div><canvas id="board" width="640" height="640"></canvas></div>
-        <div>
-          <div class="card citycard" id="citycard" hidden></div>
-          <div class="card">
-            <div class="row" style="margin:0 0 6px"><span id="mapname" class="muted"></span> <span class="xpbadge" id="mapbadge2" hidden>карта не проверена — без опыта</span></div>
-            <div id="clock"></div>
-            <div class="row" style="margin-top:8px"><button class="btn gold" id="end">Завершить ход</button><button class="btn ghost" id="forfeit">Сдаться</button><button class="btn gold" id="rematch" hidden>Реванш</button></div>
+      <div id="modes" class="modes panel"></div>
+      <div id="slots" class="seats"></div>
+      <div class="panel racepick">
+        <h2 class="plate">Выберите расу</h2>
+        <p class="muted center">Соперник увидит вашу расу только на старте партии.</p>
+        <div id="races" class="races"></div>
+        <div id="chiefpick" class="chiefpick" hidden></div>
+      </div>
+      <div class="panel hostpanel" id="hostpanel">
+        <h2 class="plate">Настройки партии</h2>
+        <div class="hp-grid">
+          <div>
+            <div class="rankrow"><label class="chk tog"><input type="checkbox" id="ranked" /><span>Рейтинговая</span></label><span id="league" class="league"></span></div>
+            <h3 class="deco-h"><span>Размер поля</span></h3>
+            <div id="sizes" class="sizes"></div>
+            <label class="fld inline"><span>Свой размер</span><input id="csize" type="number" min="4" max="100" step="1" inputmode="numeric" /></label>
+            <label class="fld inline"><span>Лимит ходов</span><select id="tl"><option value="">по умолчанию</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="40">40</option></select></label>
+            <label class="fld inline"><span>Время на ход</span><select id="tsec"><option value="">по размеру карты</option><option value="60">1 мин</option><option value="120">2 мин</option><option value="180">3 мин</option><option value="300">5 мин</option><option value="600">10 мин</option><option value="900">15 мин</option><option value="1200">20 мин</option><option value="1800">30 мин</option></select></label>
+            <div id="sizeinfo" class="sizeinfo"></div>
+            <button class="btn" id="bot"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg><span>Играть с ботом</span></button>
           </div>
-          <div class="card"><div class="row" style="margin-top:0"><button class="btn sm" id="pstyle">Вид: фигуры ⇄ фишки</button><label class="muted"><input type="checkbox" id="pbadge" checked /> значок хода</label></div><div id="info"></div></div>
-          <div class="card"><div id="score" class="muted"></div></div>
+          <div>
+            <h3 class="deco-h"><span>Карта</span></h3>
+            <div id="maps" class="maps"></div>
+          </div>
+          <div class="mapview">
+            <div class="pvframe"><canvas id="mappv" width="300" height="300"></canvas></div>
+            <b id="mapname0" class="mapname0"></b>
+            <span class="xpbadge" id="mapbadge" hidden>карта не проверена — без опыта</span>
+            <div id="mapdesc" class="schips"></div>
+          </div>
         </div>
       </div>
+      <div class="readybar"><button class="btn gold big" id="ready"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><span>Готов к бою</span></button></div>
+    </div>
+
+    <div id="play" class="game" hidden>
+      <div class="topbar">
+        <button class="btn sq" id="menubtn" aria-label="Меню"><svg class="ic" aria-hidden="true"><use href="#i-menu"/></svg></button>
+        <div id="ecbar" class="ecbar" hidden></div>
+        <div class="apbox" data-tip="Очки действий: каждое действие фигуры или города тратит 1 ОД"><span class="lbl">ОД</span><span id="appips" class="appips"></span><b id="aptxt"></b></div>
+        <div class="turnplate"><span>Ход</span><b id="turnno"></b></div>
+        <div id="clock" class="clock"></div>
+      </div>
+      <div class="stagewrap">
+        <div id="stage" class="stage">
+          <canvas id="board" aria-label="Игровая доска"></canvas>
+          <div id="turnbanner" class="turnbanner" aria-live="polite"></div>
+          <div id="hint" class="hint" hidden></div>
+          <div id="checkwarn" class="checkwarn" hidden><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span>Вождь под ударом!</span></div>
+          <div id="camctl" class="camctl" hidden>
+            <button class="btn sq" id="zin" aria-label="Приблизить" data-tip="Приблизить"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
+            <button class="btn sq" id="zout" aria-label="Отдалить" data-tip="Отдалить"><span class="minus">−</span></button>
+            <button class="btn sq" id="zfit" aria-label="Вся карта" data-tip="Вся карта"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg></button>
+            <button class="btn sq" id="cenking" aria-label="К Вождю" data-tip="К Вождю"><svg class="ic" aria-hidden="true"><use href="#i-crown"/></svg></button>
+            <button class="btn sq" id="cencity" aria-label="К городу" data-tip="К городу (по кругу)"><svg class="ic" aria-hidden="true"><use href="#i-castle"/></svg></button>
+          </div>
+          <div id="minimapbox" class="minimapbox" hidden><canvas id="minimap" width="180" height="180" aria-label="Мини-карта"></canvas></div>
+          <div id="log" class="log" aria-live="polite"></div>
+          <button type="button" class="chatfab" id="chatfab" hidden aria-label="Чат"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><b class="chat-unread" hidden></b></button>
+          <div class="maptag"><span id="mapname"></span><span class="xpbadge" id="mapbadge2" hidden>без опыта</span></div>
+        </div>
+      </div>
+      <aside class="side">
+        <div id="score" class="score"></div>
+        <div id="chief" class="chief"></div>
+        <div id="info" class="info"></div>
+        <div id="lvdock" class="lvdock" hidden></div>
+        <div id="goals" class="goals"></div>
+        <div class="viewrow">
+          <button class="btn sm" id="pstyle"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg><span>Фигуры ⇄ фишки</span></button>
+          <label class="chk sm"><input type="checkbox" id="pbadge" /><span>значки</span></label>
+        </div>
+        <section id="chat" class="chat" hidden aria-label="Чат партии">
+          <button type="button" class="chat-h" id="chathead"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span>Чат</span><b class="chat-unread" hidden></b><span class="ctabs"><span role="button" tabindex="0" data-ctab="all" class="on">Все</span><span role="button" tabindex="0" data-ctab="team" hidden>Союз</span><span role="button" tabindex="0" data-ctab="w">Шёпот</span></span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <div class="chat-b">
+            <div id="chatlog" class="chatlog" aria-live="polite"></div>
+            <form id="chatform" class="chatform" autocomplete="off"><div id="chatac" class="chatac"></div><input id="chatin" placeholder="Сообщение · /w Имя текст — шёпот" spellcheck="false" /><button class="btn sq" type="submit" aria-label="Отправить"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg></button></form>
+          </div>
+        </section>
+        <div class="endzone">
+          <div id="turnbox" class="turnbox"><span id="turnwho"></span></div>
+          <button class="endturn" id="end"><span>Конец хода</span></button>
+          <small id="endsub" class="endsub"></small>
+          <div class="endbtns">
+            <button class="btn sm claim" id="claim" hidden><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span>Соперник не за столом — завершить</span></button>
+            <button class="btn ghost sm" id="forfeit"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><span>Сдаться</span></button>
+            <button class="btn gold sm" id="rematch" hidden><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span>Реванш</span></button>
+          </div>
+        </div>
+      </aside>
     </div>
   </section>
+
+  <!-- панель модерации: монтируется клиентом из шаблона только для админа (сервер: roles.isAdmin) и только в меню/лобби -->
+  <div id="adminslot"></div>
+  <template id="admintpl">
+    <div class="panel admin" id="admin">
+      <h2 class="plate">Модерация карт</h2>
+      <button class="btn sq ghost refresh" id="modrefresh" aria-label="Обновить"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+      <p class="muted">Карты игроков попадают в общий список только после одобрения. До этого автор играет на них по ссылке или коду, без опыта.</p>
+      <div id="modq"></div>
+    </div>
+  </template>
+
+  <div id="rulestext" hidden>
+    <div class="rules">
+      <h4 class="deco-h"><span>Победа</span></h4>
+      <p>Побеждает тот, кто первым выполнит <b>3 цели из 5</b>: сразить вражеского Вождя, взять его столицу, набрать порог Славы, возвести Великое чудо, изучить финальную технологию III эпохи. Выполненная цель остаётся засчитанной.</p>
+      <h4 class="deco-h"><span>Ход</span></h4>
+      <ul>
+        <li>За ход — несколько <b>очков действий</b> (ОД). Каждая фигура и каждый город действуют раз за ход.</li>
+        <li>Удар снимает HP (атака − броня). Добив врага вплотную, фигура встаёт на его клетку.</li>
+        <li>Ополченец ходит на 1 вперёд или вбок и бьёт по диагонали вперёд; дойдя до края, становится Конём, Магом или Ладьёй. Конь прыгает буквой «Г», Маг стреляет на 2 клетки, Ладья ходит по прямым до 4, Герой — в любую сторону до 3.</li>
+      </ul>
+      <h4 class="deco-h"><span>Вождь</span></h4>
+      <ul><li>Вождь набирает опыт, растёт до 5-го уровня и выбирает навыки в древе. Если он пал — новый Вождь родится через несколько ходов, а пока у вас на 1 ОД меньше.</li></ul>
+      <h4 class="deco-h"><span>Города и технологии</span></h4>
+      <ul><li>Города приносят золото и знания, нанимают фигуры и строят здания. Технологии открывают новые здания и бойцов; выбор одной ветви навсегда закрывает соседнюю.</li></ul>
+      <h4 class="deco-h"><span>Местность</span></h4>
+      <ul><li><b>Река</b> непроходима, кроме мостов; <b>стены</b> и <b>горы</b> закрывают путь и обстрел; <b>лес</b> даёт броню; <b>башня</b> — ещё больше брони; <b>колодец</b> лечит в начале вашего хода. Наведите на значок пассивки — увидите точные числа.</li></ul>
+      <h4 class="deco-h"><span>Время</span></h4>
+      <ul><li>На ход — таймер и общий запас времени. Не успели — ход передаётся сам.</li></ul>
+    </div>
+  </div>
 </div>
-<div id="techdlg" class="techdlg" hidden></div>
-<div id="toasts"></div>
+<div id="tip" class="tip" role="tooltip"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="modals"></div>
 <script>
   import { boot } from '../../scripts/strat/client';
   boot();

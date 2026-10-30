@@ -1,0 +1,747 @@
+{
+ "panel_frame": {
+  "cat": "frames",
+  "png": "frames/panel_frame.png",
+  "svg": "svg/frames/panel_frame.svg",
+  "size": [
+   192,
+   192
+  ],
+  "slice": [
+   48,
+   48,
+   48,
+   48
+  ],
+  "note": "9-slice, тёмная панель"
+ },
+ "panel_ivory": {
+  "cat": "frames",
+  "png": "frames/panel_ivory.png",
+  "svg": "svg/frames/panel_ivory.svg",
+  "size": [
+   192,
+   192
+  ],
+  "slice": [
+   48,
+   48,
+   48,
+   48
+  ],
+  "note": "9-slice, светлая (тултип)"
+ },
+ "modal_frame": {
+  "cat": "frames",
+  "png": "frames/modal_frame.png",
+  "svg": "svg/frames/modal_frame.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": [
+   88,
+   88,
+   88,
+   88
+  ],
+  "note": "9-slice, модальное окно"
+ },
+ "title_plate": {
+  "cat": "frames",
+  "png": "frames/title_plate.png",
+  "svg": "svg/frames/title_plate.svg",
+  "size": [
+   384,
+   96
+  ],
+  "slice": [
+   96,
+   null,
+   96,
+   null
+  ],
+  "note": "3-slice по горизонтали"
+ },
+ "btn_primary_normal": {
+  "cat": "buttons",
+  "png": "buttons/btn_primary_normal.png",
+  "svg": "svg/buttons/btn_primary_normal.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_secondary_normal": {
+  "cat": "buttons",
+  "png": "buttons/btn_secondary_normal.png",
+  "svg": "svg/buttons/btn_secondary_normal.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_endturn_normal": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_normal.png",
+  "svg": "svg/buttons/btn_endturn_normal.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": [
+   100,
+   null,
+   100,
+   null
+  ],
+  "note": "3-slice, без текста"
+ },
+ "btn_endturn_text_normal": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_text_normal.png",
+  "svg": "svg/buttons/btn_endturn_text_normal.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": null,
+  "note": "с надписью «КОНЕЦ ХОДА», фикс. размер"
+ },
+ "btn_primary_hover": {
+  "cat": "buttons",
+  "png": "buttons/btn_primary_hover.png",
+  "svg": "svg/buttons/btn_primary_hover.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_secondary_hover": {
+  "cat": "buttons",
+  "png": "buttons/btn_secondary_hover.png",
+  "svg": "svg/buttons/btn_secondary_hover.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_endturn_hover": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_hover.png",
+  "svg": "svg/buttons/btn_endturn_hover.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": [
+   100,
+   null,
+   100,
+   null
+  ],
+  "note": "3-slice, без текста"
+ },
+ "btn_endturn_text_hover": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_text_hover.png",
+  "svg": "svg/buttons/btn_endturn_text_hover.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": null,
+  "note": "с надписью «КОНЕЦ ХОДА», фикс. размер"
+ },
+ "btn_primary_pressed": {
+  "cat": "buttons",
+  "png": "buttons/btn_primary_pressed.png",
+  "svg": "svg/buttons/btn_primary_pressed.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_secondary_pressed": {
+  "cat": "buttons",
+  "png": "buttons/btn_secondary_pressed.png",
+  "svg": "svg/buttons/btn_secondary_pressed.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_endturn_pressed": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_pressed.png",
+  "svg": "svg/buttons/btn_endturn_pressed.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": [
+   100,
+   null,
+   100,
+   null
+  ],
+  "note": "3-slice, без текста"
+ },
+ "btn_endturn_text_pressed": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_text_pressed.png",
+  "svg": "svg/buttons/btn_endturn_text_pressed.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": null,
+  "note": "с надписью «КОНЕЦ ХОДА», фикс. размер"
+ },
+ "btn_primary_disabled": {
+  "cat": "buttons",
+  "png": "buttons/btn_primary_disabled.png",
+  "svg": "svg/buttons/btn_primary_disabled.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_secondary_disabled": {
+  "cat": "buttons",
+  "png": "buttons/btn_secondary_disabled.png",
+  "svg": "svg/buttons/btn_secondary_disabled.svg",
+  "size": [
+   240,
+   72
+  ],
+  "slice": [
+   40,
+   null,
+   40,
+   null
+  ],
+  "note": "3-slice"
+ },
+ "btn_endturn_disabled": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_disabled.png",
+  "svg": "svg/buttons/btn_endturn_disabled.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": [
+   100,
+   null,
+   100,
+   null
+  ],
+  "note": "3-slice, без текста"
+ },
+ "btn_endturn_text_disabled": {
+  "cat": "buttons",
+  "png": "buttons/btn_endturn_text_disabled.png",
+  "svg": "svg/buttons/btn_endturn_text_disabled.svg",
+  "size": [
+   360,
+   120
+  ],
+  "slice": null,
+  "note": "с надписью «КОНЕЦ ХОДА», фикс. размер"
+ },
+ "icon_res_gold_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_gold_64.png",
+  "svg": "svg/icons/icon_res_gold_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_gold_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_gold_32.png",
+  "svg": "svg/icons/icon_res_gold_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "icon_res_knowledge_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_knowledge_64.png",
+  "svg": "svg/icons/icon_res_knowledge_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_knowledge_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_knowledge_32.png",
+  "svg": "svg/icons/icon_res_knowledge_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "icon_res_glory_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_glory_64.png",
+  "svg": "svg/icons/icon_res_glory_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_glory_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_glory_32.png",
+  "svg": "svg/icons/icon_res_glory_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "icon_res_ap_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_ap_64.png",
+  "svg": "svg/icons/icon_res_ap_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_ap_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_ap_32.png",
+  "svg": "svg/icons/icon_res_ap_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "icon_res_growth_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_growth_64.png",
+  "svg": "svg/icons/icon_res_growth_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_growth_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_growth_32.png",
+  "svg": "svg/icons/icon_res_growth_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "icon_res_armor_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_armor_64.png",
+  "svg": "svg/icons/icon_res_armor_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_armor_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_armor_32.png",
+  "svg": "svg/icons/icon_res_armor_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "icon_res_attack_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_attack_64.png",
+  "svg": "svg/icons/icon_res_attack_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_attack_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_attack_32.png",
+  "svg": "svg/icons/icon_res_attack_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "icon_res_hp_64": {
+  "cat": "icons",
+  "png": "icons/icon_res_hp_64.png",
+  "svg": "svg/icons/icon_res_hp_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "icon_res_hp_32": {
+  "cat": "icons",
+  "png": "icons/icon_res_hp_32.png",
+  "svg": "svg/icons/icon_res_hp_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "отдельная упрощённая прорисовка"
+ },
+ "crest_fire": {
+  "cat": "crests",
+  "png": "crests/crest_fire.png",
+  "svg": "svg/crests/crest_fire.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "Огонь"
+ },
+ "crest_ice": {
+  "cat": "crests",
+  "png": "crests/crest_ice.png",
+  "svg": "svg/crests/crest_ice.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "Лёд"
+ },
+ "crest_water": {
+  "cat": "crests",
+  "png": "crests/crest_water.png",
+  "svg": "svg/crests/crest_water.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "Вода"
+ },
+ "crest_stone": {
+  "cat": "crests",
+  "png": "crests/crest_stone.png",
+  "svg": "svg/crests/crest_stone.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "Камень"
+ },
+ "crest_nature": {
+  "cat": "crests",
+  "png": "crests/crest_nature.png",
+  "svg": "svg/crests/crest_nature.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "Природа"
+ },
+ "crest_lightning": {
+  "cat": "crests",
+  "png": "crests/crest_lightning.png",
+  "svg": "svg/crests/crest_lightning.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "Молния"
+ },
+ "banner_your_turn": {
+  "cat": "banners",
+  "png": "banners/banner_your_turn.png",
+  "svg": "svg/banners/banner_your_turn.svg",
+  "size": [
+   960,
+   200
+  ],
+  "slice": null,
+  "note": "с текстом «ВАШ ХОД»"
+ },
+ "banner_your_turn_blank": {
+  "cat": "banners",
+  "png": "banners/banner_your_turn_blank.png",
+  "svg": "svg/banners/banner_your_turn_blank.svg",
+  "size": [
+   960,
+   200
+  ],
+  "slice": null,
+  "note": "без текста (текст накладывает игра)"
+ },
+ "divider_h": {
+  "cat": "ornaments",
+  "png": "ornaments/divider_h.png",
+  "svg": "svg/ornaments/divider_h.svg",
+  "size": [
+   512,
+   32
+  ],
+  "slice": [
+   96,
+   null,
+   96,
+   null
+  ],
+  "note": "3-slice, тянется по горизонтали"
+ },
+ "divider_ornate": {
+  "cat": "ornaments",
+  "png": "ornaments/divider_ornate.png",
+  "svg": "svg/ornaments/divider_ornate.svg",
+  "size": [
+   512,
+   64
+  ],
+  "slice": null,
+  "note": "фикс. размер, центральный медальон"
+ },
+ "ornament_corner": {
+  "cat": "ornaments",
+  "png": "ornaments/ornament_corner.png",
+  "svg": "svg/ornaments/ornament_corner.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "верхний-левый; остальные — отражением"
+ },
+ "ornament_fan": {
+  "cat": "ornaments",
+  "png": "ornaments/ornament_fan.png",
+  "svg": "svg/ornaments/ornament_fan.svg",
+  "size": [
+   192,
+   104
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "ornament_diamond": {
+  "cat": "ornaments",
+  "png": "ornaments/ornament_diamond.png",
+  "svg": "svg/ornaments/ornament_diamond.svg",
+  "size": [
+   48,
+   48
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "ornament_sunburst": {
+  "cat": "ornaments",
+  "png": "ornaments/ornament_sunburst.png",
+  "svg": "svg/ornaments/ornament_sunburst.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "talent_card_locked": {
+  "cat": "cards",
+  "png": "cards/talent_card_locked.png",
+  "svg": "svg/cards/talent_card_locked.svg",
+  "size": [
+   240,
+   320
+  ],
+  "slice": null,
+  "note": "слот иконки: круг Ø116 с центром (120,106); плашка имени y 196–232; описание y 252–282"
+ },
+ "tech_frame_locked": {
+  "cat": "cards",
+  "png": "cards/tech_frame_locked.png",
+  "svg": "svg/cards/tech_frame_locked.svg",
+  "size": [
+   200,
+   176
+  ],
+  "slice": null,
+  "note": "слот иконки: восьмиугольник R44 с центром (100,70); плашка имени y 130–160"
+ },
+ "talent_card_available": {
+  "cat": "cards",
+  "png": "cards/talent_card_available.png",
+  "svg": "svg/cards/talent_card_available.svg",
+  "size": [
+   240,
+   320
+  ],
+  "slice": null,
+  "note": "слот иконки: круг Ø116 с центром (120,106); плашка имени y 196–232; описание y 252–282"
+ },
+ "tech_frame_available": {
+  "cat": "cards",
+  "png": "cards/tech_frame_available.png",
+  "svg": "svg/cards/tech_frame_available.svg",
+  "size": [
+   200,
+   176
+  ],
+  "slice": null,
+  "note": "слот иконки: восьмиугольник R44 с центром (100,70); плашка имени y 130–160"
+ },
+ "talent_card_learned": {
+  "cat": "cards",
+  "png": "cards/talent_card_learned.png",
+  "svg": "svg/cards/talent_card_learned.svg",
+  "size": [
+   240,
+   320
+  ],
+  "slice": null,
+  "note": "слот иконки: круг Ø116 с центром (120,106); плашка имени y 196–232; описание y 252–282"
+ },
+ "tech_frame_learned": {
+  "cat": "cards",
+  "png": "cards/tech_frame_learned.png",
+  "svg": "svg/cards/tech_frame_learned.svg",
+  "size": [
+   200,
+   176
+  ],
+  "slice": null,
+  "note": "слот иконки: восьмиугольник R44 с центром (100,70); плашка имени y 130–160"
+ },
+ "screen_victory": {
+  "cat": "screens",
+  "png": "screens/screen_victory.png",
+  "svg": "svg/screens/screen_victory.svg",
+  "size": [
+   1024,
+   768
+  ],
+  "slice": null,
+  "note": "«ПОБЕДА»"
+ },
+ "screen_victory_blank": {
+  "cat": "screens",
+  "png": "screens/screen_victory_blank.png",
+  "svg": "svg/screens/screen_victory_blank.svg",
+  "size": [
+   1024,
+   768
+  ],
+  "slice": null,
+  "note": ""
+ },
+ "screen_defeat": {
+  "cat": "screens",
+  "png": "screens/screen_defeat.png",
+  "svg": "svg/screens/screen_defeat.svg",
+  "size": [
+   1024,
+   768
+  ],
+  "slice": null,
+  "note": "«ПОРАЖЕНИЕ»"
+ },
+ "screen_defeat_blank": {
+  "cat": "screens",
+  "png": "screens/screen_defeat_blank.png",
+  "svg": "svg/screens/screen_defeat_blank.svg",
+  "size": [
+   1024,
+   768
+  ],
+  "slice": null,
+  "note": ""
+ }
+}
