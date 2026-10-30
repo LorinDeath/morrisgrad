@@ -1,0 +1,338 @@
+// Мир партии поверх доски (этап 5): территория стенами по городам, прирост/покупка клеток, захват клеток, постройки с HP,
+// стройка Вождём, основание поселения, скрытое здоровье, источники ОД.
+// Формы данных — из WIP балансового воркера (server/strat/match.ts, econ.ts, hidehp.ts в mg-strat); старый сервер ветки
+// strategy-ui их не шлёт, поэтому всё читается защитно и без полей просто не рисуется.
+//   g.ec.cities[]: { bhp?{b:hp}, bhs?{b:"ok"|"hurt"|"low"|"dead"}, ruin?[b], grow?[cellIdx], set?(поселение) }
+//   g.ec.towers[{id,owner,x,y}], g.ec.tbhp{id:hp} | tbhs{id:hs}; g.ec.lost{idx:1}; g.ec.ct{idx:{o,n}}; g.ec.fnd[side]{id,x,y,left,gold}
+//   S.terr (только своя сторона) { cities:[{city,every,tg,ready,left,cost,cells:[[x,y]]}], fnd, ap, raceAp{n,have,per,cap,label,kind} }
+//   S.league { id, apBase, apTech, apBld, onceMax, apMax, raceCap, grow, capture, found, ... }; S.bhp [{city,b:[{b,hp,max}|{b,hs}],ruin[]}]
+//   Действия: build{b,id,x?,y?}, raze{id,city,b}, claim{city,x,y}, found{id}, found_cancel
+//   ДОГАДКИ (нет в сервере): S.apSrc [{label,n}] — готовый разбор ОД; cfg {hiddenHp} в лобби; S.raze[pieceId] — цели по постройкам.
+import type { GameState, Piece, StratCfg } from "../../../server/strat/rules";
+import { attackTargets } from "../../../server/strat/rules";
+import { BUILD, TECHS, type BuildId } from "../../../server/strat/econ-cfg";
+import { canBuild, buildCost } from "../../../server/strat/econ";
+import { openMap, passable } from "../../../server/strat/terrain";
+import { ic, iconImg, BUILD_ICON } from "./icons";
+import { esc } from "./ui-kit";
+import { cfgOf, rv, bName, ECON_ERR, type Ctx } from "./econ-ui";
+
+type SX = (v: number) => number;
+export const W = { mode: null as null | { k: "build"; b: string; tower: boolean } | { k: "claim"; city: number } };
+export const HS_NAME: Record<string, string> = { ok: "цел", hurt: "ранен", low: "при смерти", dead: "уничтожен" };
+export const HS_COL: Record<string, string> = { ok: "#7fc25a", hurt: "#e0b04a", low: "#c23a2a", dead: "#555" };
+
+// ---------- территория ----------
+let tKey: any = null, tVal: Int8Array = new Int8Array(0), cVal: Int16Array = new Int16Array(0);
+/** Территория с учётом прироста (city.grow) и потерь (ec.lost); плюс карта «клетка → город». */
+export function terrFull(G: GameState, base: ArrayLike<number>, key: any): { T: Int8Array; C: Int16Array } {
+  if (key === tKey && tVal.length === base.length) return { T: tVal, C: cVal };
+  const n = G.size, ec: any = G.ec, T = Int8Array.from(base as any), C = new Int16Array(n * n).fill(-1);
+  for (const c of ec?.cities || []) for (const i of c.grow || []) if (i >= 0 && i < T.length) T[i] = c.owner;
+  for (const k of Object.keys(ec?.lost || {})) T[+k] = -1;
+  const cs: any[] = ec?.cities || [];
+  for (const c of cs) for (const i of c.grow || []) if (T[i] === c.owner) C[i] = c.id;
+  for (let i = 0; i < T.length; i++) { if (T[i] < 0 || C[i] >= 0) continue; const x = i % n, y = (i / n) | 0; let best = -1, bd = 1e9;
+    for (const c of cs) { if (c.owner !== T[i]) continue; const d = Math.max(Math.abs(c.x - x), Math.abs(c.y - y)) * 2 + (c.cap ? 0 : 1); if (d < bd) { bd = d; best = c.id; } }
+    C[i] = best; }
+  tKey = key; tVal = T; cVal = C; return { T, C };
+}
+export function cityName(G: GameState, id: number) { const c: any = G.ec?.cities.find((q) => q.id === id); return c ? c.name || (c.cap ? "Столица" : "Застава") : ""; }
+
+// ---------- стены-границы ----------
+// Процедурная заглушка по расе, пока Художник рисует walls-v1 (256 px на клетку, стена ~40 px). Когда в /strat/walls/manifest.json
+// есть куски расы ({ "<race>": { edge, outer, inner } } — путь к PNG; edge — горизонтальная стена по верхнему краю клетки), берём их.
+type WallSet = { edge?: HTMLImageElement; outer?: HTMLImageElement; inner?: HTMLImageElement };
+const wallArt: Record<string, WallSet> = {}; let wallTried = false;
+// Арт стен walls-v1 (Художник): /strat/walls/{walls|small|lod}/wall_<race>_<piece>.png (256/128/64), лента владельца wall_owner_band_<n|e|s|w>.png.
+// Детали: straight_<d>, outer_<nw|ne|sw|se>, inner_<..>, end_<d>(_rev). Сборка — по manifest.assembly (src/assemble.py).
+type Tier = "walls" | "small" | "lod";
+const TIER_PX: Record<Tier, number> = { walls: 256, small: 128, lod: 64 };
+let wallMan: { races: Set<string>; files: Map<string, string>; band: Record<Tier, number> } | null = null, wallRedraw: () => void = () => {};
+const wallImg = new Map<string, HTMLImageElement | null>(), tintCache = new Map<string, HTMLCanvasElement>();
+export function loadWalls(redraw: () => void) {
+  if (wallTried) return; wallTried = true; wallRedraw = redraw;
+  fetch("/strat/walls/manifest.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((m: any) => {
+    if (!m?.files?.length) return; const files = new Map<string, string>();
+    const band: Record<Tier, number> = { walls: +m.bands?.walls || +m.band || 48, small: +m.bands?.small || 0, lod: +m.bands?.lod || 0 };
+    for (const f of m.files) if (f?.path && f?.tier && f.tier in TIER_PX) { if (f.band && f.kind !== "owner_band") band[f.tier as Tier] ||= +f.band; }
+    band.small ||= band.walls / 2; band.lod ||= band.small / 2; // ширина полосы и квадрат угла — из manifest (48/36/18), не константа
+    for (const f of m.files) if (f?.path && f?.tier) files.set(f.tier + "/" + (f.key || f.path.split("/").pop().replace(".png", "")), "/strat/walls/" + f.path);
+    for (const d of "nesw") for (const t of ["walls", "small"]) files.set(`${t}/wall_owner_band_${d}`, `/strat/walls/${t}/wall_owner_band_${d}.png`);
+    wallMan = { races: new Set(Object.keys(m.races || {})), files, band }; redraw();
+  }).catch(() => {});
+}
+function wimg(tier: Tier, key: string): HTMLImageElement | null {
+  const k = tier + "/" + key; if (wallImg.has(k)) { const im = wallImg.get(k)!; return im && im.complete && im.naturalWidth ? im : null; }
+  const src = wallMan?.files.get(k); if (!src) { wallImg.set(k, null); return null; }
+  const im = new Image(); wallImg.set(k, im); im.onload = () => wallRedraw(); im.onerror = () => wallImg.set(k, null); im.src = src; return null;
+}
+/** Квадрат угла (башня/столб) под лентой не красится: B×B в пикселях тира (corner_box в assemble.py). */
+const cornerBox = (c: string, S: number, B: number): [number, number, number, number] => { const x0 = c.includes("e") ? S - B : 0, y0 = c.includes("s") ? S - B : 0; return [x0, y0, B, B]; };
+/** Деталь стены + лента цвета владельца (как owner_overlay/tint в assemble.py), кэш по детали/цвету/тиру. */
+function wallPiece(race: string, piece: string, col: string, tier: Tier): HTMLCanvasElement | null {
+  const ck = `${tier}|${race}|${piece}|${col}`, hit = tintCache.get(ck); if (hit) return hit;
+  const w = wimg(tier, `wall_${race}_${piece}`); if (!w) return null;
+  const [kind, a] = piece.split("_"), edges = kind === "straight" || kind === "end" ? [a] : a.split("").map((c) => c);
+  const bands = edges.map((e) => wimg(tier === "lod" ? "small" : tier, "wall_owner_band_" + e)); if (bands.some((b) => !b)) return null; // в lod/ лент нет — берём 128 (36/128 = 18/64, та же доля) и сжимаем
+  const S = TIER_PX[tier], cv = document.createElement("canvas"); cv.width = cv.height = S; const c = cv.getContext("2d")!;
+  for (const b of bands) c.drawImage(b!, 0, 0, S, S);
+  if (kind === "outer" || kind === "inner") { const [x0, y0, bw, bh] = cornerBox(a, S, wallMan!.band[tier] || S * 0.1875); c.clearRect(x0, y0, bw, bh); }
+  c.globalCompositeOperation = "multiply"; c.fillStyle = col; c.fillRect(0, 0, S, S);
+  c.globalCompositeOperation = "destination-in"; for (const b of bands) c.drawImage(b!, 0, 0, S, S); c.drawImage(w, 0, 0, S, S);
+  c.globalCompositeOperation = "destination-over"; c.drawImage(w, 0, 0, S, S);
+  if (tintCache.size > 600) tintCache.clear(); tintCache.set(ck, cv); return cv;
+}
+/** Сборка стен из арта в экранных направлениях (доска может быть развёрнута). false — арт ещё не готов, рисуем процедурно. */
+function drawWallsArt(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string): boolean {
+  if (!wallMan) return false; const n = G.size, tier: Tier = z * (devicePixelRatio || 1) > 140 ? "walls" : z * (devicePixelRatio || 1) > 56 ? "small" : "lod";
+  // экранное направление → сдвиг по сетке
+  const g2s = (dx: number, dy: number) => { const ux = Math.sign(sx(dx) - sx(0)) || 0, uy = Math.sign(sy(dy) - sy(0)) || 0; return ux > 0 ? "e" : ux < 0 ? "w" : uy > 0 ? "s" : "n"; };
+  const D: Record<string, [number, number]> = {}; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) D[g2s(dx, dy)] = [dx, dy];
+  if (Object.keys(D).length < 4) return false;
+  const tt: string = (G as any).map?.t || "", noWall = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n && tt[Y * n + X] === "w"; // край карты — обычная граница (README walls-v1)
+  let missing = false; const jobs: [HTMLCanvasElement, number, number][] = [];
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0 || !vis(x, y)) continue;
+    const o = T[i], race = wallMan.races.has(G.races[o]) ? G.races[o] : "stone", pc = col(o);
+    const same = (d: string) => { const [dx, dy] = D[d]; const X = x + dx, Y = y + dy; return X >= 0 && Y >= 0 && X < n && Y < n && C[Y * n + X] === cid; };
+    const nw = (d: string) => { const [dx, dy] = D[d]; return noWall(x + dx, y + dy); };
+    // два города вплотную: общий край строит только город с меньшим id (одна стена вместо двойной); у второго — Т-стык без стены
+    const shared = (d: string) => { const [dx, dy] = D[d]; const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= n || Y >= n) return false; const c2 = C[Y * n + X]; return c2 >= 0 && c2 !== cid && c2 < cid; };
+    const wallE: Record<string, boolean> = {}; for (const d of "nesw") wallE[d] = !same(d) && !nw(d) && !shared(d);
+    const pieces: string[] = [], used = new Set<string>();
+    for (const cn of ["ne", "nw", "se", "sw"]) { const [a, b] = cn.split(""); if (wallE[a] && wallE[b]) { pieces.push("outer_" + cn); used.add(a); used.add(b); } }
+    const side: Record<string, [string, string]> = { n: ["w", "e"], s: ["w", "e"], e: ["n", "s"], w: ["n", "s"] };
+    const CW: Record<string, string> = { n: "w", e: "n", s: "e", w: "s" }; // «comes_from» для end_<d> (по часовой)
+    for (const d of "nesw") { if (!wallE[d] || used.has(d)) continue; const [l, r] = side[d], nl = nw(l), nr = nw(r);
+      if (nl !== nr) { const broken = nl ? l : r; pieces.push(`end_${d}${broken === CW[d] ? "_rev" : ""}`); } else pieces.push("straight_" + d); }
+    for (const cn of ["ne", "nw", "se", "sw"]) { const [a, b] = cn.split(""); if (!same(a) || !same(b)) continue; const [ax, ay] = D[a], [bx, by] = D[b], X = x + ax + bx, Y = y + ay + by;
+      const offm = X < 0 || Y < 0 || X >= n || Y >= n; if ((offm || C[Y * n + X] !== cid) && !noWall(X, Y)) pieces.push("inner_" + cn); }
+    for (const p of pieces) { const cv = wallPiece(race, p, pc, tier); if (!cv) { missing = true; continue; } jobs.push([cv, sx(x), sy(y)]); } }
+  if (missing && !jobs.length) return false;
+  for (const [cv, X, Y] of jobs) ctx.drawImage(cv, X, Y, z, z);
+  return true;
+}
+const WALL: Record<string, { base: string; hi: string; mort: string; kind: "brick" | "shard" | "stake" | "coral" | "plate" }> = {
+  fire: { base: "#3a1d14", hi: "#b8502a", mort: "#ff8a3d", kind: "brick" }, stone: { base: "#5b4a36", hi: "#c9ad84", mort: "#2a2016", kind: "brick" },
+  ice: { base: "#4f7fa3", hi: "#e6f6ff", mort: "#24425e", kind: "shard" }, nature: { base: "#5a3b1e", hi: "#a8743e", mort: "#2a1a0a", kind: "stake" },
+  water: { base: "#1d5d72", hi: "#6fd0d8", mort: "#0c2c38", kind: "coral" }, lightning: { base: "#2d2a44", hi: "#8f87c9", mort: "#ffe14d", kind: "plate" },
+};
+/** Стены по краю земли каждого города (стыки краёв, внешние и внутренние углы); между своими городами — тоньше. */
+export function drawWalls(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string) {
+  const n = G.size; if (z < 7) return; if (drawWallsArt(ctx, G, T, C, z, sx, sy, vis, col)) return; const t = Math.max(2.5, z * 0.15);
+  const cx = (x: number) => sx(x) + z / 2, cy = (y: number) => sy(y) + z / 2;
+  ctx.save();
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0 || !vis(x, y)) continue;
+    const o = T[i], race = G.races[o] || "stone", st = WALL[race] || WALL.stone, art = wallArt[race];
+    const other = (X: number, Y: number) => X < 0 || Y < 0 || X >= n || Y >= n || C[Y * n + X] !== cid;
+    const thin = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n && T[Y * n + X] === o; // граница со своим соседним городом
+    const N = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const, wall = N.map(([dx, dy]) => other(x + dx, y + dy));
+    for (let k = 0; k < 4; k++) { if (!wall[k]) continue; const [dx, dy] = N[k];
+      // экранное направление наружу (учёт разворота доски)
+      const ux = Math.sign(cx(x + dx) - cx(x)), uy = Math.sign(cy(y + dy) - cy(y)), X0 = sx(x), Y0 = sy(y), th = thin(x + dx, y + dy) ? t * 0.55 : t;
+      const r = ux > 0 ? [X0 + z - th, Y0, th, z] : ux < 0 ? [X0, Y0, th, z] : uy > 0 ? [X0, Y0 + z - th, z, th] : [X0, Y0, z, th];
+      const ang = ux > 0 ? Math.PI / 2 : ux < 0 ? -Math.PI / 2 : uy > 0 ? Math.PI : 0;
+      if (art?.edge) { ctx.save(); ctx.translate(X0 + z / 2, Y0 + z / 2); ctx.rotate(ang); ctx.drawImage(art.edge, -z / 2, -z / 2, z, z); ctx.restore(); }
+      else wallSeg(ctx, r[0], r[1], r[2], r[3], st, col(o), ux !== 0, (x * 31 + y * 17 + k) | 0, ux > 0 || uy > 0); }
+    // углы: внешний (две стены сходятся) — башенка; внутренний (диагональ чужая, стороны свои) — заполняем стык
+    const corners = [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
+    for (const [dx, dy] of corners) { const wx = other(x + dx, y), wy = other(x, y + dy), wd = other(x + dx, y + dy);
+      const ux = Math.sign(cx(x + dx) - cx(x)), uy = Math.sign(cy(y + dy) - cy(y)), PX = ux > 0 ? sx(x) + z : sx(x), PY = uy > 0 ? sy(y) + z : sy(y);
+      if (wx && wy) { const s = t * 1.35, bx = ux > 0 ? PX - s : PX, by = uy > 0 ? PY - s : PY;
+        if (art?.outer) { ctx.save(); ctx.translate(sx(x) + z / 2, sy(y) + z / 2); ctx.rotate(Math.atan2(uy, ux) - Math.PI / 4 - Math.PI / 2); ctx.drawImage(art.outer, -z / 2, -z / 2, z, z); ctx.restore(); }
+        else { ctx.fillStyle = st.base; ctx.fillRect(bx, by, s, s); ctx.fillStyle = st.hi; ctx.fillRect(bx + s * 0.18, by + s * 0.18, s * 0.64, s * 0.64); ctx.strokeStyle = "#140f18"; ctx.lineWidth = Math.max(1, z * 0.02); ctx.strokeRect(bx, by, s, s);
+          ctx.fillStyle = col(o); ctx.fillRect(bx + s * 0.34, by + s * 0.34, s * 0.32, s * 0.32); } }
+      else if (!wx && !wy && wd) { const bx = ux > 0 ? PX - t : PX, by = uy > 0 ? PY - t : PY;
+        if (art?.inner) { ctx.save(); ctx.translate(sx(x) + z / 2, sy(y) + z / 2); ctx.rotate(Math.atan2(uy, ux) - Math.PI / 4 - Math.PI / 2); ctx.drawImage(art.inner, -z / 2, -z / 2, z, z); ctx.restore(); }
+        else { ctx.fillStyle = st.base; ctx.fillRect(bx, by, t, t); ctx.fillStyle = st.hi; ctx.fillRect(bx + t * 0.25, by + t * 0.25, t * 0.5, t * 0.5); } } }
+  }
+  ctx.restore();
+}
+function wallSeg(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, st: (typeof WALL)[string], pc: string, vert: boolean, seed: number, far: boolean) {
+  const L = vert ? h : w, T = vert ? w : h, lw = Math.max(1, T * 0.12);
+  ctx.fillStyle = st.base; ctx.fillRect(x, y, w, h);
+  const seg = (a: number, len: number, inset: number, f: string) => { ctx.fillStyle = f; if (vert) ctx.fillRect(x + inset, y + a, T - inset * 2, len); else ctx.fillRect(x + a, y + inset, len, T - inset * 2); };
+  const k = Math.max(2, Math.round(L / (T * 1.6)));
+  if (st.kind === "brick" || st.kind === "coral" || st.kind === "plate") {
+    for (let i = 0; i < k; i++) { const a = (i / k) * L, len = L / k; seg(a + lw * 0.5, len - lw, lw, i % 2 ? st.hi : shade(st.hi, -0.12));
+      if (st.kind === "plate") { ctx.fillStyle = st.mort; const r = Math.max(0.8, T * 0.08), px = vert ? x + T / 2 : x + a + len / 2, py = vert ? y + a + len / 2 : y + T / 2; ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill(); } }
+    if (st.kind === "coral") { ctx.strokeStyle = st.mort; ctx.lineWidth = lw; ctx.beginPath(); for (let i = 0; i <= k * 2; i++) { const a = (i / (k * 2)) * L, o = (i % 2 ? 0.3 : 0.7) * T; vert ? ctx.lineTo(x + o, y + a) : ctx.lineTo(x + a, y + o); } ctx.stroke(); }
+    else if (st.kind === "brick") { ctx.fillStyle = st.mort; for (let i = 1; i < k; i++) { const a = (i / k) * L; vert ? ctx.fillRect(x, y + a - lw / 2, T, lw) : ctx.fillRect(x + a - lw / 2, y, lw, T); } } }
+  else if (st.kind === "shard") { for (let i = 0; i < k; i++) { const a = (i / k) * L, len = L / k, hh = T * (0.55 + 0.4 * (((seed + i) * 7) % 5) / 5);
+      ctx.fillStyle = i % 2 ? st.hi : shade(st.hi, -0.2); ctx.beginPath();
+      if (vert) { const bx = far ? x + T : x, d = far ? -1 : 1; ctx.moveTo(bx, y + a); ctx.lineTo(bx + d * hh, y + a + len / 2); ctx.lineTo(bx, y + a + len); }
+      else { const by = far ? y + T : y, d = far ? -1 : 1; ctx.moveTo(x + a, by); ctx.lineTo(x + a + len / 2, by + d * hh); ctx.lineTo(x + a + len, by); }
+      ctx.closePath(); ctx.fill(); } }
+  else if (st.kind === "stake") { const m = Math.max(3, Math.round(L / (T * 0.7))); for (let i = 0; i < m; i++) { const a = (i / m) * L, len = L / m;
+      seg(a + lw * 0.4, len - lw * 0.8, 0, i % 2 ? st.hi : shade(st.hi, -0.15)); } ctx.fillStyle = st.mort; vert ? ctx.fillRect(x, y, T, lw) : ctx.fillRect(x, y, lw, T); }
+  // кромка цвета игрока по внешнему краю + чернильный контур
+  ctx.fillStyle = pc; const e = Math.max(1.5, T * 0.22);
+  if (vert) ctx.fillRect(far ? x + w - e : x, y, e, h); else ctx.fillRect(x, far ? y + h - e : y, w, e);
+  ctx.strokeStyle = "#140f18"; ctx.lineWidth = Math.max(0.8, T * 0.08); ctx.strokeRect(x, y, w, h);
+}
+function shade(hex: string, k: number) { const n = parseInt(hex.slice(1), 16), f = (v: number) => Math.max(0, Math.min(255, Math.round(v + (k > 0 ? (255 - v) * k : v * k))));
+  return "#" + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(f).map((v) => v.toString(16).padStart(2, "0")).join(""); }
+
+// ---------- постройки: HP, башни, цели для удара ----------
+export type BRow = { b: string; hp?: number; max?: number; hs?: string; ruin?: boolean };
+const bMax = (cfg: StratCfg, b: string) => { const c: any = cfg; const t = c.buildTpl?.[b]?.type || (b === "wonder" ? "wonder" : "special"); return c.bldHp?.type?.[t]?.hp ?? (b === "watchtower" ? c.econ?.tower?.hp ?? 16 : 10); };
+/** Строки HP построек города: из S.bhp (полные), иначе из city.bhp/bhs + cfg. */
+export function cityBld(S: any, G: GameState, c: any, cfg: StratCfg): BRow[] {
+  const srv = (S?.bhp || []).find((r: any) => r.city === c.id);
+  const rows: BRow[] = srv ? srv.b.map((r: any) => ({ b: r.b, hp: r.hp, max: r.max, hs: r.hs })) : (c.bld || []).filter((b: string) => c.bhp?.[b] != null || c.bhs?.[b]).map((b: string) => ({ b, hp: c.bhp?.[b], max: bMax(cfg, b), hs: c.bhs?.[b] }));
+  for (const b of srv?.ruin || c.ruin || []) rows.push({ b, ruin: true, hp: 0, max: bMax(cfg, b), hs: "dead" });
+  return rows;
+}
+export const towersOf = (G: GameState): any[] => ((G.ec as any)?.towers || []) as any[];
+export function towerHp(G: GameState, t: any, cfg: StratCfg): BRow { const ec: any = G.ec; return { b: "watchtower", hp: ec?.tbhp?.[t.id] ?? (ec?.tbhs ? undefined : bMax(cfg, "watchtower")), max: bMax(cfg, "watchtower"), hs: ec?.tbhs?.[t.id] }; }
+function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fr: number, hs?: string) {
+  ctx.fillStyle = "#140f18"; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  if (hs) { ctx.fillStyle = HS_COL[hs] || "#888"; ctx.fillRect(x, y, w, h); return; }
+  ctx.fillStyle = fr > 0.5 ? "#c9a24a" : fr > 0.25 ? "#e07a2a" : "#c23a2a"; ctx.fillRect(x, y, w * Math.max(0, fr), h);
+  ctx.fillStyle = "#ffffff30"; ctx.fillRect(x, y, w * Math.max(0, fr), h * 0.4);
+}
+/** Полосы HP построек над городом (по одной на постройку, до 4; больше — сводная) и башни. */
+export function drawBuildings(ctx: CanvasRenderingContext2D, c: Ctx, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, hideOwn: boolean) {
+  const { G, S } = c, cfg = cfgOf(S); if (!G.ec || z < 14) return;
+  for (const ct of G.ec.cities as any[]) { if (!vis(ct.x, ct.y)) continue; const rows = cityBld(S, G, ct, cfg).filter((r) => !r.ruin); if (!rows.length) continue;
+    if (hideOwn && ct.owner === S.you && rows.every((r) => (r.hp ?? 1) >= (r.max ?? 1))) continue;
+    const X = sx(ct.x) + z * 0.06, w = z * 0.6, h = Math.max(2.5, z * 0.05), list = rows.length > 4 ? [{ b: "*", hp: rows.reduce((a, r) => a + (r.hp ?? 0), 0), max: rows.reduce((a, r) => a + (r.max ?? 0), 0), hs: rows.find((r) => r.hs)?.hs }] : rows;
+    list.forEach((r, i) => bar(ctx, X, sy(ct.y) + z * 0.05 + i * (h + 2), w, h, (r.hp ?? 0) / Math.max(1, r.max ?? 1), r.hs && r.hp == null ? r.hs : undefined));
+    if ((ct.ruin || []).length) { const im = iconImg("burn", c.redraw); if (im) ctx.drawImage(im, sx(ct.x) + z * 0.04, sy(ct.y) + z * 0.66, z * 0.28, z * 0.28); } }
+  for (const t of towersOf(G)) { if (!vis(t.x, t.y)) continue; const X = sx(t.x), Y = sy(t.y), r = towerHp(G, t, cfg);
+    ctx.fillStyle = c.col(t.owner) + "55"; ctx.beginPath(); ctx.ellipse(X + z / 2, Y + z * 0.84, z * 0.3, z * 0.09, 0, 0, 7); ctx.fill();
+    const im = iconImg("tower", c.redraw); if (im) ctx.drawImage(im, X + z * 0.18, Y + z * 0.12, z * 0.64, z * 0.64);
+    ctx.fillStyle = c.col(t.owner); ctx.fillRect(X + z * 0.62, Y + z * 0.1, z * 0.16, z * 0.1);
+    bar(ctx, X + z * 0.17, Y + z * 0.86, z * 0.66, Math.max(2.5, z * 0.05), (r.hp ?? 0) / Math.max(1, r.max ?? 1), r.hs && r.hp == null ? r.hs : undefined); }
+}
+/** Цели удара по постройкам для фигуры: сервер (догадка S.raze[id]) или по тем же клеткам удара, что и атака. */
+export function razeTargets(S: any, G: GameState, P: Piece): { city: number; x: number; y: number; b: string[]; tower?: boolean }[] {
+  const srv = S?.raze?.[P.id]; if (Array.isArray(srv)) return srv;
+  if (!G.ec) return []; const out: any[] = [];
+  const test = (x: number, y: number, owner: number) => { if (G.pieces.some((q) => q.x === x && q.y === y && q.owner === owner)) return false;
+    const dummy: any = { id: -99, owner, kind: "pawn", x, y, hp: 1, maxHp: 1, atk: 0, arm: 0 };
+    return attackTargets({ ...G, pieces: [...G.pieces.filter((q) => !(q.x === x && q.y === y)), dummy] } as any, P).some(([a, b]) => a === x && b === y); };
+  for (const c of G.ec.cities as any[]) if (c.owner !== P.owner && c.bld?.length && test(c.x, c.y, c.owner)) out.push({ city: c.id, x: c.x, y: c.y, b: [...new Set<string>(c.bld)] });
+  for (const t of towersOf(G)) if (t.owner !== P.owner && test(t.x, t.y, t.owner)) out.push({ city: t.id, x: t.x, y: t.y, b: ["watchtower"], tower: true });
+  return out;
+}
+
+// ---------- стройка Вождём ----------
+export const TOWER_DEF = { name: "Сторожевая башня", eff: "Ставится Вождём рядом с собой, вне своей земли (до 2 клеток от неё). Своим фигурам рядом +1 БРН.", cost: 8 };
+const bDef = (cfg: StratCfg, b: string, race: string): any => (b === "watchtower" ? { ...TOWER_DEF, ...((cfg as any).build?.watchtower || {}), cost: (cfg as any).econ?.tower?.cost ?? 8 } : rv(((cfg as any).build?.[b] || (BUILD as any)[b]) as any, race));
+export function buildList(cfg: StratCfg, race: string): string[] { const ks = Object.keys((cfg as any).build || BUILD).filter((b) => { const B: any = ((cfg as any).build || BUILD)[b]; return !B?.race || B.race === race; });
+  if (!ks.includes("watchtower")) ks.push("watchtower"); return ks; }
+/** Город, на чьей земле стоит Вождь (постройка уходит ближайшему своему городу-не-поселению). */
+export function chiefSite(G: GameState, T: Int8Array, side: number, k: Piece): any | null {
+  const n = G.size; if (T[k.y * n + k.x] !== side) return null; let best: any = null, bd = 1e9;
+  for (const c of G.ec?.cities as any[] || []) if (c.owner === side && !c.set) { const d = Math.max(Math.abs(c.x - k.x), Math.abs(c.y - k.y)) * 2 + (c.cap ? 0 : 1); if (d < bd) { bd = d; best = c; } }
+  return best;
+}
+/** Клетки для башни: соседние с Вождём, свободные, «.»/«P», не дальше outDist от своей земли и не на чужой. */
+export function towerCells(G: GameState, T: Int8Array, side: number, k: Piece, cfg: StratCfg): [number, number][] {
+  const n = G.size, m: any = (G as any).map || openMap(n), R = (cfg as any).econ?.tower?.outDist ?? 2, out: [number, number][] = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = k.x + dx, y = k.y + dy; if ((!dx && !dy) || x < 0 || y < 0 || x >= n || y >= n) continue;
+    if (G.pieces.some((q) => q.x === x && q.y === y)) continue; const ss = m.s?.[y * n + x];
+    if (!passable(m, x, y, G.races[side])) continue; if (ss && ss !== "." && ss !== "P") continue;
+    if (G.ec?.cities.some((c) => c.x === x && c.y === y) || towersOf(G).some((t) => t.x === x && t.y === y)) continue;
+    const o = T[y * n + x]; if (o >= 0 && o !== side) continue;
+    let d = 99; for (let yy = Math.max(0, y - R); yy <= Math.min(n - 1, y + R); yy++) for (let xx = Math.max(0, x - R); xx <= Math.min(n - 1, x + R); xx++) if (T[yy * n + xx] === side) d = Math.min(d, Math.max(Math.abs(xx - x), Math.abs(yy - y)));
+    if (d <= R) out.push([x, y]); }
+  return out;
+}
+/** Карточки выбора постройки (для choiceDlg) с ценой и причиной недоступности. */
+export function buildChoices(c: Ctx, k: Piece, T: Int8Array): { id: string; title: string; text: string; icon: string; foot: string; off?: boolean }[] {
+  const { G, me } = c, cfg = cfgOf(c.S), race = G.races[me], site = chiefSite(G, T, me, k), gold = G.ec.res[me].gold;
+  return buildList(cfg, race).map((b) => { const B = bDef(cfg, b, race); let err: string | null = null, cost = B.cost ?? 0;
+    if (b === "watchtower") { const mine = towersOf(G).filter((t) => t.owner === me).length, max = (cfg as any).econ?.tower?.max ?? 3;
+      err = mine >= max ? `Башен уже ${mine} из ${max}` : !towerCells(G, T, me, k, cfg).length ? "Рядом с Вождём нет подходящей клетки" : gold < cost ? ECON_ERR.no_gold || "Не хватает золота" : null; }
+    else if (!site) err = "Вождь должен стоять на своей земле";
+    else { try { cost = buildCost(G, me, b as BuildId, cfg); const e = (site.bld || []).includes(b) && b !== "forge" ? "built" : canBuild(G, me, site, b as BuildId, cfg, b === "forge" ? "rook" : undefined); err = e && !/acted/.test(e) ? (e === "built" ? "Уже построено" : ECON_ERR[e] || e) : null; } catch { err = null; } }
+    return { id: b, title: B.name || bName(b, race), text: (B.eff || "") + (err ? ` · ${err}` : "") + (b !== "watchtower" && site ? ` · в городе ${site.name || "Столица"}` : ""), icon: BUILD_ICON[b] || (b === "watchtower" ? "tower" : "build"), foot: `${ic("gold")}${cost}`, off: !!err }; });
+}
+
+// ---------- покупка клетки / прирост / захват / поселение ----------
+export const terrCities = (S: any): any[] => (Array.isArray(S?.terr?.cities) ? S.terr.cities : []);
+export const leagueCfg = (S: any): any => S?.league || {};
+/** Подсветка режимов (стройка, покупка), маркеры захвата, кольцо основания поселения. */
+export function drawWorldOverlay(ctx: CanvasRenderingContext2D, c: Ctx, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, T: Int8Array, C: Int16Array, now: number) {
+  const { G, S, me } = c, n = G.size, ec: any = G.ec; if (!ec) return; const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+  const cell = (x: number, y: number, fill: string, stroke: string, dash = false) => { const X = sx(x), Y = sy(y); ctx.fillStyle = fill; ctx.fillRect(X + 2, Y + 2, z - 4, z - 4);
+    ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1.5, z * 0.045); if (dash) ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(X + 3, Y + 3, z - 6, z - 6); ctx.setLineDash([]); };
+  const k = G.pieces.find((q) => q.owner === me && q.kind === "king");
+  if (W.mode?.k === "build" && k) {
+    if (W.mode.tower) for (const [x, y] of towerCells(G, T, me, k, cfgOf(S))) { cell(x, y, `rgba(243,210,122,${0.2 + 0.15 * pulse})`, "#f3d27a"); const im = iconImg("tower", c.redraw); if (im) ctx.drawImage(im, sx(x) + z * 0.28, sy(y) + z * 0.28, z * 0.44, z * 0.44); }
+    else { const site = chiefSite(G, T, me, k); if (site) for (let i = 0; i < T.length; i++) if (C[i] === site.id) { const x = i % n, y = (i / n) | 0; if (vis(x, y)) { ctx.fillStyle = `rgba(243,210,122,${0.1 + 0.08 * pulse})`; ctx.fillRect(sx(x), sy(y), z, z); } } }
+  }
+  if (W.mode?.k === "claim") { const tc = terrCities(S).find((q) => q.city === (W.mode as any).city);
+    for (const [x, y] of tc?.cells || []) { if (!vis(x, y)) continue; cell(x, y, `rgba(127,194,90,${0.18 + 0.14 * pulse})`, "#9fe07a", true);
+      if (z >= 22) { ctx.font = `700 ${Math.round(z * 0.22)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 3; ctx.strokeStyle = "#140f18";
+        const s = String(tc.cost ?? "?"); ctx.strokeText(s, sx(x) + z * 0.58, sy(y) + z / 2); ctx.fillStyle = "#f3d27a"; ctx.fillText(s, sx(x) + z * 0.58, sy(y) + z / 2);
+        const im = iconImg("gold", c.redraw); if (im) ctx.drawImage(im, sx(x) + z * 0.14, sy(y) + z * 0.36, z * 0.28, z * 0.28); } } }
+  // захват: враг стоит на клетке N ходов — кольцо прогресса цвета захватчика
+  const capMax = leagueCfg(S).capture ?? 4;
+  for (const [ks, v] of Object.entries<any>(ec.ct || {})) { const i = +ks, x = i % n, y = (i / n) | 0; if (!vis(x, y) || !v) continue; const fr = Math.min(1, (v.n ?? 0) / capMax), X = sx(x) + z / 2, Y = sy(y) + z * 0.1, R = Math.max(5, z * 0.13);
+    ctx.fillStyle = "#140f18cc"; ctx.beginPath(); ctx.arc(X, Y, R + 2, 0, 7); ctx.fill(); ctx.strokeStyle = c.col(v.o); ctx.lineWidth = Math.max(2, R * 0.45);
+    ctx.beginPath(); ctx.arc(X, Y, R, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); ctx.stroke();
+    if (z >= 26) { ctx.fillStyle = "#f4ead2"; ctx.font = `700 ${Math.round(R * 1.1)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(Math.max(0, capMax - (v.n ?? 0))), X, Y + 1); } }
+  // поселение: кольцо на Вожде (свои — из S.terr.fnd / ec.fnd)
+  const fl = Array.isArray(ec.fnd) ? ec.fnd : [S?.terr?.fnd && { ...S.terr.fnd, side: me }];
+  fl.forEach((f: any, side: number) => { if (!f || f.left == null) return; const p = G.pieces.find((q) => q.id === f.id) || (f.x != null ? { x: f.x, y: f.y } : null); if (!p || !vis(p.x, p.y)) return;
+    const total = leagueCfg(S).found ?? (cfgOf(S) as any).econ?.found?.turns ?? 10, fr = Math.max(0, Math.min(1, 1 - f.left / total)), X = sx(p.x) + z / 2, Y = sy(p.y) + z / 2, R = z * 0.47;
+    ctx.strokeStyle = "#140f18aa"; ctx.lineWidth = Math.max(3, z * 0.08); ctx.beginPath(); ctx.arc(X, Y, R, 0, 7); ctx.stroke();
+    ctx.strokeStyle = c.col(f.side ?? side); ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.05, z * 0.03]); ctx.beginPath(); ctx.arc(X, Y, R, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    if (z >= 24) { const im = iconImg("outpost", c.redraw), s = z * 0.26; ctx.fillStyle = "#140f18"; ctx.beginPath(); ctx.arc(X + R * 0.72, Y - R * 0.72, s * 0.62, 0, 7); ctx.fill(); if (im) ctx.drawImage(im, X + R * 0.72 - s / 2, Y - R * 0.72 - s / 2, s, s); } });
+}
+/** Город (свой), чью клетку можно купить сейчас; null — нечего. */
+export const claimable = (S: any) => terrCities(S).filter((q) => q.ready && (q.cells || []).length);
+
+// ---------- ОД: источники ----------
+export function apSources(S: any, G: GameState, me: number): { rows: [string, number][]; total: number; max: number | null } {
+  if (Array.isArray(S?.apSrc)) { const rows = S.apSrc.map((r: any) => [String(r.label), +r.n || 0]) as [string, number][]; return { rows, total: rows.reduce((a, r) => a + r[1], 0), max: leagueCfg(S).apMax ?? null }; }
+  const L = leagueCfg(S), rows: [string, number][] = [], ec: any = G.ec;
+  const LN: Record<string, string> = { quick: "Быстрая", fast: "Быстрая", normal: "Обычная", tactical: "Тактическая", tactic: "Тактическая" };
+  const base = L.apBase ?? (S?.g?.apMax ?? 0); rows.push([`Основа лиги${L.id ? " «" + (LN[L.id] || L.id) + "»" : ""}`, base]);
+  const have: string[] = ec?.techs?.[me] || [], apT = have.filter((id) => ((TECHS as any[]).find((t) => t.id === id)?.fx?.ap ?? 0) > 0).length;
+  if (apT) rows.push([`Технологии (${apT})`, apT * (L.apTech ?? 1)]);
+  const wc = (ec?.cities || []).filter((c: any) => c.owner === me && (c.bld || []).includes("warcouncil")).length;
+  if (wc) rows.push(["Военный совет (уникальная постройка)", Math.min(wc, L.onceMax ?? 1) * (L.apBld ?? 1)]);
+  const ra = S?.terr?.raceAp; if (ra) rows.push([`${ra.label || "Сила стихии"}${ra.per ? ` (${ra.have ?? 0}/${ra.per} за +1, до ${ra.cap ?? L.raceCap ?? "?"})` : ""}`, ra.n || 0]);
+  const k = G.pieces.find((q) => q.owner === me && q.kind === "king");
+  if (k) { const tl: any[] = ((cfgOf(S) as any).talents?.king || []).flat(); const ta = (k.tal || []).reduce((a: number, id: string) => a + (tl.find((t) => t.id === id)?.ap || 0), 0); if (ta) rows.push(["Навыки Вождя", ta]); }
+  else rows.push(["Нет Вождя", -((cfgOf(S) as any).chief?.noChiefAp ?? 1)]);
+  let total = rows.reduce((a, r) => a + r[1], 0); if (L.apMax != null && total > L.apMax) { rows.push([`Потолок лиги ${L.apMax}`, L.apMax - total]); total = L.apMax; }
+  if (total < 1) { rows.push(["Минимум 1 ОД", 1 - total]); total = 1; }
+  return { rows, total, max: L.apMax ?? null };
+}
+export function apTip(S: any, G: GameState, me: number): string {
+  const a = apSources(S, G, me), cur = S?.g?.ap ?? 0, mx = S?.g?.apMax ?? a.total;
+  return `<b>Очки действий: ${cur} из ${mx}</b><br><small>Каждое действие фигуры, Вождя или города тратит 1 ОД.</small><table class="aptab">${a.rows.map(([l, n]) => `<tr><td>${esc(l)}</td><td class="${n < 0 ? "neg" : ""}">${n > 0 ? "+" : ""}${n}</td></tr>`).join("")}<tr class="sum"><td>За ход</td><td>${mx}</td></tr></table>${mx !== a.total ? `<small>Сервер насчитал ${mx}; разница — эффекты, которых нет в разборе.</small>` : ""}`;
+}
+
+// ---------- скрытое здоровье ----------
+export const hsOf = (p: any): string | null => (p && p.hp == null && p.hs ? p.hs : null);
+export const hsByHp = (hp: number, mh: number) => (hp <= 0 ? "dead" : hp / mh > 0.66 ? "ok" : hp / mh >= 0.33 ? "hurt" : "low");
+
+// ---------- события мира → всплывашки/тосты ----------
+export type WEv = { fx?: { x: number; y: number; txt: string; col: string; big?: boolean }; toast?: [string, "info" | "good" | "bad" | "turn", string]; dust?: { x: number; y: number } };
+export function worldEvent(e: any, me: number, G: GameState, nick: (s: number) => string): WEv | null {
+  const ec: any = G.ec, cityAt = (id: number) => (id >= 10001 ? towersOf(G).find((t) => t.id === id) : ec?.cities.find((c: any) => c.id === id));
+  const pos = (): { x: number; y: number } | null => (e.x != null ? { x: e.x, y: e.y } : cityAt(e.city) || null);
+  const race = (s: number) => G.races[s] || "", bn = (b: string, s: number) => (b === "watchtower" ? "Сторожевая башня" : bName(b, race(s)));
+  switch (e.e) {
+    case "bhit": { const p = pos(); return p ? { fx: { ...p, txt: "−" + e.dmg, col: "#ffb067", big: true } } : null; }
+    case "bcounter": { const p = G.pieces.find((q) => q.id === e.t); return p ? { fx: { x: p.x, y: p.y, txt: "−" + e.dmg, col: "#ff5040" } } : null; }
+    case "bdestroy": { const p = pos(), mine = e.owner === me, by = e.by === me, nm = bn(e.b, e.owner);
+      return { dust: p || undefined, fx: p ? { ...p, txt: "Разрушено", col: "#ff8f6b", big: true } : undefined,
+        toast: mine ? [`Разрушено: ${nm}`, "bad", "burn"] : by ? [`Вы разрушили: ${nm}`, "good", "burn"] : [`${nick(e.by)} разрушил: ${nm}`, "info", "burn"] }; }
+    case "repair": { const c = cityAt(e.city); return c?.owner === me ? { toast: [`Восстановлено: ${bn(e.b, me)}`, "good", "build"], fx: { x: c.x, y: c.y, txt: "Ремонт", col: "#9fe07a" } } : null; }
+    case "tgrow": return { fx: { x: e.x, y: e.y, txt: "+земля", col: "#9fe07a" }, toast: e.owner === me ? ["Земля выросла: новая клетка", "good", "flag"] : undefined };
+    case "tready": return e.owner === me ? { toast: [`Можно купить клетку · ${e.gold ?? "?"} золота`, "turn", "flag"] } : null;
+    case "tcap": return { fx: { x: e.x, y: e.y, txt: e.by === me ? "Отбито" : "Потеряно", col: e.by === me ? "#9fe07a" : "#ff8f6b", big: true },
+      toast: e.owner === me ? ["Территория потеряна", "bad", "flag"] : e.by === me ? ["Отбито: клетка больше не чужая", "good", "flag"] : undefined };
+    case "found_start": return e.side === me ? { toast: [`Вождь основывает поселение: ${e.left} х.`, "info", "outpost"] } : { toast: [`${nick(e.side)} основывает поселение`, "info", "outpost"] };
+    case "found_fail": return e.side === me ? { toast: [e.cancel ? `Основание отменено${e.gold ? ", возвращено " + e.gold + " золота" : ""}` : "Основание сорвано", "bad", "outpost"] } : null;
+    case "build": if (e.tower != null && e.x != null) return { fx: { x: e.x, y: e.y, txt: "Башня", col: "#f3d27a" } }; return null;
+  }
+  return null;
+}

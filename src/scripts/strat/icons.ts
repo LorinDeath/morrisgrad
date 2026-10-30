@@ -10,6 +10,13 @@ export const ICONS: Record<string, string> = {
   clock: s(`<circle cx="12" cy="13" r="8.5" fill="${I}"/><path d="M12 8.5V13l3 2" fill="none" stroke-width="2"/><path d="M9.5 2.5h5" fill="none" stroke-width="2"/>`),
   chevron: s(`<path d="M9 5l7 7-7 7" fill="none" stroke-width="2.4"/>`),
   play: s(`<path d="M7 4.5l12 7.5-12 7.5z" fill="${G}"/>`),
+  pause: s(`<path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z" fill="${G}"/>`),
+  stepb: s(`<path d="M18 4.5L8 12l10 7.5z" fill="${G}"/><path d="M5.5 4.5v15" fill="none" stroke-width="2.6"/>`),
+  stepf: s(`<path d="M6 4.5L16 12 6 19.5z" fill="${G}"/><path d="M18.5 4.5v15" fill="none" stroke-width="2.6"/>`),
+  first: s(`<path d="M20 5l-7 7 7 7zM12 5l-7 7 7 7z" fill="${G}"/>`),
+  last: s(`<path d="M4 5l7 7-7 7zM12 5l7 7-7 7z" fill="${G}"/>`),
+  save: s(`<path d="M4 3.5h13l3 3v14H4z" fill="${I}"/><path d="M7.5 3.5h8v5h-8z" fill="${G}"/><rect x="7" y="13" width="10" height="7.5" fill="${G2}"/>`),
+  hist: s(`<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" fill="none" stroke-width="2.2"/><path d="M3 4v4.5h4.5" fill="none" stroke-width="2.2"/><path d="M12 8v4.5l3 2" fill="none" stroke-width="2"/>`),
   warn: s(`<path d="M12 3l10 17.5H2z" fill="${G}"/><path d="M12 9.5v5" fill="none" stroke-width="2.4"/><circle cx="12" cy="17.3" r=".6" fill="${K}"/>`),
   gold: s(`<circle cx="12" cy="12" r="9.5" fill="${G}"/><circle cx="12" cy="12" r="6.6" fill="${G2}"/><path d="M8.6 14.5h6.8l.8-5-2.6 2-1.6-3-1.6 3-2.6-2z" fill="${G}"/>`),
   know: s(`<path d="M4 5.5c3-1 5.5-.6 8 1.2 2.5-1.8 5-2.2 8-1.2v13c-3-1-5.5-.6-8 1.2-2.5-1.8-5-2.2-8-1.2z" fill="${I}"/><path d="M12 6.7v13" fill="none"/><path d="M6.5 9h3M6.5 11.5h3M14.5 9h3M14.5 11.5h3" fill="none" stroke-width="1.2"/>`),
@@ -82,8 +89,15 @@ export function injectIcons() {
 /** Ресурсные иконки из UI-набора Художника (ui-v1, icon_res_*): PNG вместо SVG-заглушек. */
 export const KIT_ICON: Record<string, string> = { gold: "gold", know: "knowledge", glory: "glory", ap: "ap", wheat: "growth", growth: "growth", shield: "armor", sword: "attack", heart: "hp" };
 const kitSrc = (name: string) => `/strat/ui/icons/icon_res_${KIT_ICON[name]}_64.png`;
-export const ic = (name: string, cls = "") => KIT_ICON[name] ? `<img class="ic kit ${cls}" src="${kitSrc(name)}" alt="" aria-hidden="true" draggable="false">`
-  : `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${ICONS[name] ? name : "spark"}"/></svg>`;
+/** UI v2 (Художник, ui-v2/icons): 53 иконки 64/32 px. Имя игры → имя арта; нет в наборе — SVG-заглушка. */
+export const ART_ICONS = new Set("anvil arrow back bolt book boot build burn castle cauldron chat check chill clock close copy crown dice era eye flag flame heart horse leaf lock map menu mountain mute outpost plus recruit refresh report scales shield skull snow spark sword target tower turn ult user wall warn wave wheat whisper xp zap".split(" "));
+const ART_ALIAS: Record<string, string> = { play: "arrow", chevron: "arrow", tech: "book", know: "book", apoff: "warn", danger: "warn", ability: "zap" };
+export const artIcon = (name: string, big = false) => { if (name === "bot") return "/strat/ui2/badges/bot_mark.png"; const a = ART_ICONS.has(name) ? name : ART_ALIAS[name]; return a ? `/strat/ui2/icons/icon_${a}_${big ? 64 : 32}.png` : null; };
+export const ic = (name: string, cls = "") => {
+  if (KIT_ICON[name]) return `<img class="ic kit ${cls}" src="${kitSrc(name)}" alt="" aria-hidden="true" draggable="false">`;
+  const a = !/\bmono\b/.test(cls) && artIcon(name, /\bbig\b/.test(cls));
+  return a ? `<img class="ic art i-${name} ${cls}" src="${a}" alt="" aria-hidden="true" draggable="false">` : `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${ICONS[name] ? name : "spark"}"/></svg>`;
+};
 
 const imgCache = new Map<string, HTMLImageElement>();
 /** Иконка как картинка для холста (готова не сразу — onLoad перерисует доску). */
@@ -91,6 +105,7 @@ export function iconImg(name: string, onLoad?: () => void): HTMLImageElement | n
   let im = imgCache.get(name);
   if (!im) { im = new Image(); imgCache.set(name, im); if (onLoad) im.onload = onLoad;
     if (KIT_ICON[name]) { im.src = kitSrc(name); return null; }
+    const a = artIcon(name, true); if (a) { im.src = a; return null; }
     im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96">${ICONS[name] || ICONS.spark}</svg>`); }
   return im.complete && im.naturalWidth ? im : null;
 }

@@ -8,7 +8,7 @@ import { TERRAIN, STRUCT, TER_RULES, openMap, type MapData } from "../../../serv
 import { moveTargets, attackTargets, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
 import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
 import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips } from "./ui-kit";
-import { GOALS, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, type Goal, type CNode } from "./goals";
+import { GOALS, goalDef, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, type Goal, type CNode } from "./goals";
 import { fogView, unveilCls, fogNode } from "./fog";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
@@ -16,8 +16,13 @@ import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, 
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
 import { openProfile, demoProfile } from "./profile";
-import { profileHtml, openLeaderboard, ratingDelta, leagueOf, leagueName, LEAGUES } from "./rating";
+import { lobbyLeagueHtml, profileHtml, openLeaderboard, ratingDelta, leagueOf, leagueName, LEAGUES } from "./rating";
 import { localFell, resetFell, blacklistOf } from "./goals";
+import { favRaces, setFavLocal, lobbyDrawHtml, favPickerHtml, bindFavPicker, drumReveal } from "./racedraw";
+import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, razeTargets, buildChoices, towerCells, claimable, cityName, apTip, HS_NAME, HS_COL, hsByHp, loadWalls, cityBld, towersOf, terrCities } from "./world";
+import { bName } from "./econ-ui";
+import { TECHS } from "../../../server/strat/econ-cfg";
+import { Recorder, framesFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type EvCtx, type LibItem } from "./history";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
 
 const PROD_WS = "wss://morris-multiplayer.alexseylyou.workers.dev";
@@ -72,7 +77,8 @@ function connectHub() {
   hub.onopen = async () => hub!.send(JSON.stringify({ type: "hello", ...(await helloMsg()) }));
   hub.onmessage = (e) => {
     const m = JSON.parse(e.data);
-    if (m.type === "hello_ok") { $("#me").textContent = m.nick + (m.guest ? " · гость" : ""); isAdmin = !!m.admin; applyPrefs(m.prefs); mountAdmin(); loadResume(); }
+    if (m.type === "hello_ok") { $("#me").textContent = m.nick + (m.guest ? " · гость" : ""); isAdmin = !!m.admin; isGuest = !!m.guest; applyPrefs(m.prefs); if (Array.isArray(m.favRaces)) setFavLocal(m.favRaces); mountAdmin(); loadResume(); }
+    if (m.type === "fav_races_ok") { setFavLocal(m.favRaces); toast("Любимые расы сохранены", "good", "check"); if (S?.phase === "lobby") renderLobby(); }
     if (typeof m.type === "string" && m.type.endsWith("_r") && m.rq && hubWait.has(m.rq)) { hubWait.get(m.rq)!(m); hubWait.delete(m.rq); return; }
     if (m.type === "online") { online = m.list; renderOnline(); }
     if (m.type === "resume") { resumeInfo = m.game || null; renderResume(); }
@@ -124,7 +130,9 @@ function openMatch() {
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.type === "chat" || m.type === "chat_err") chatRecv(m);
-    if (m.type === "st") { const prev = S; S = m; S.skew = Date.now() - m.now; onState(prev); }
+    if (m.type === "st") { m.skew = Date.now() - m.now; if (hv?.replay) { hv.back = m; rec.push(m.code, m.g, m.ev || []); return; }
+      const viewing = !!hv, prev = liveS || S; S = m; onState(prev); rec.push(S.code, S.g, S.ev || []); if (Array.isArray(S.hist)) rec.merge(S.code, framesFrom(S.hist));
+      if (viewing && hv) { liveS = S; applyView(); } else renderMoves(); }
     if (m.type === "err") toast(ERR[m.err] || m.err, "bad");
     if (m.type === "left") { left = true; S = null; curCode = ""; resetMatchUi(); const u = new URL(location.href); u.searchParams.delete("join"); history.replaceState(null, "", u); render(); }
   };
@@ -134,7 +142,8 @@ function openMatch() {
     setStatus("Связь потеряна, переподключение…"); setTimeout(openMatch, Math.min(8000, 800 * 2 ** retry++));
   };
 }
-const send = (o: any) => { if (demo) return toast("Демо-доска: ходы не отправляются"); ws?.readyState === 1 && ws.send(JSON.stringify(o)); };
+const send = (o: any) => { if (hv && /^(act|end|ult|surrender|claim)$/.test(o?.type)) return toast(hv.replay ? "Это повтор партии" : "Вы смотрите прошлый ход — нажмите «К игре»", "info", "hist");
+  if (demo) return toast("Демо-доска: ходы не отправляются"); ws?.readyState === 1 && ws.send(JSON.stringify(o)); };
 function setStatus(t: string) { for (const id of ["#status", "#lstatus"]) { const el = $(id); if (el) el.textContent = t; } }
 
 // ---------- снимок → GameState ----------
@@ -216,7 +225,10 @@ function onState(prev: any) {
       else logAdd((d.o === me ? "Потеря: " : "Сражён: ") + KIND_NAME[d.k as Kind], d.o === me ? "bad" : ""); } }
     const p = g.pieces.find((q: any) => q.id === (e.t ?? e.id));
     if (e.e === "burn" && p) fx.push({ x: p.x, y: p.y, t: now, txt: "−" + e.dmg, col: "#ff9d3d", big: true });
-    const ef = econFx(e); if (ef) { const c = e.city != null ? g.ec?.cities.find((q: any) => q.id === e.city) : null, at = c || p || (e.x != null ? e : null);
+    { const we = worldEvent(e, me, gs()!, (sd) => S.seats[sd]?.nick || "Соперник"); if (we) { if (we.fx) fx.push({ ...we.fx, t: now } as any); if (we.dust) rubble.push({ ...we.dust, t: now });
+        if (we.toast) { toast(we.toast[0], we.toast[1], we.toast[2]); logAdd(we.toast[0], we.toast[1] === "bad" ? "bad" : we.toast[1] === "good" ? "good" : ""); } } }
+    if (e.e === "found" && e.set) { /* поселение основано — тост ниже из econToast */ }
+    const ef = ["bhit", "bdestroy", "tgrow", "tcap"].includes(e.e) ? null : econFx(e); if (ef) { const c = e.city != null ? g.ec?.cities.find((q: any) => q.id === e.city) : null, at = c || p || (e.x != null ? e : null);
       if (at) fx.push({ x: at.x, y: at.y, t: now, txt: ef.txt, col: ef.col }); }
     if (e.e === "build") { const c = g.ec?.cities.find((q: any) => q.id === e.city); if (c) e.side = c.owner; }
     const tt = econToast(e, me, gs()!); if (tt) { toast(tt[0], tt[1], tt[2]); logAdd(tt[0], tt[1] === "bad" ? "bad" : tt[1] === "good" ? "good" : ""); }
@@ -225,13 +237,17 @@ function onState(prev: any) {
   }
   if (S.phase === "play" && g) {
     const started = prev?.phase !== "play" || prev?.code !== S.code;
-    if (started && !introShown) { introShown = true; banner("Партия началась", `${RACE_NAME[g.races[0]]} против ${RACE_NAME[g.races[1]]}`, "start");
+    const drumKey = "strat.drum." + S.code;
+    if (started && S.raceDraw?.rolls?.length && g.turn <= 1 && !sessionStorage.getItem(drumKey)) { sessionStorage.setItem(drumKey, "1"); introShown = true;
+      drumReveal(S, { ...raceD(), me, nick: (sd) => S.seats[sd]?.nick || "Игрок " + (sd + 1) }, () => { banner("Партия началась", `${RACE_NAME[g.races[0]]} против ${RACE_NAME[g.races[1]]}`, "start");
+        if (me >= 0 && !localNames().length && !S.chiefNames?.[me]) setTimeout(() => askChiefName(false), 1200); }); }
+    else if (started && !introShown) { introShown = true; banner("Партия началась", `${RACE_NAME[g.races[0]]} против ${RACE_NAME[g.races[1]]}`, "start");
       if (me >= 0 && !localNames().length && !S.chiefNames?.[me]) setTimeout(() => askChiefName(false), 1500); }
     else if (prev?.g && prev.g.cur !== g.cur) { if (g.cur === me) { banner("Ваш ход", `Ход ${g.turn} · ${g.ap} ОД`, "mine"); toast("Ваш ход", "turn", "crown"); } else banner("Ход соперника", S.seats[g.cur]?.nick || "", "theirs"); }
   }
   if (g && S.phase !== "lobby") {
     const G = gs()!, cfg = cfgOf(S), gl = goalsWithSticky(G, cfg);
-    if (prevGoals) for (const side of [0, 1]) gl.sides[side].forEach((q, i) => { if (q.done && !prevGoals![side][i].done) goalPopup(side, q, gl.sides[side].filter((z) => z.done).length, gl.need); });
+    if (prevGoals) gl.sides.forEach((row, side) => row.forEach((q, i) => { if (q.done && prevGoals![side]?.[i] && !prevGoals![side][i].done) goalPopup(side, q, gl.sides[side].filter((z) => z.done).length, gl.need); }));
     prevGoals = gl.sides.map((s) => s.map((q) => ({ ...q })));
     if (me >= 0) { const ch = chiefOf(S, G, me, cfg), alive = !!ch.p;
       if (prevChief && !prevChief.alive && alive && S.phase === "play") setTimeout(() => askChiefName(true), 400);
@@ -248,7 +264,7 @@ function goalsWithSticky(G: GameState, cfg: any) {
   return gl;
 }
 function goalPopup(side: number, q: Goal, count: number, need: number) {
-  const d = GOALS.find((x) => x.id === q.id)!, mine = side === S.you;
+  const d = goalDef(q), mine = side === S.you;
   logAdd((mine ? "Цель выполнена: " : "Соперник выполнил цель: ") + d.name + ` (${count}/${need})`, mine ? "good" : "bad");
   if (!mine) { toast(`Соперник: «${d.name}» — ${count} из ${need}`, "bad", d.icon); return; }
   const m = modal({ title: "Цель выполнена!", icon: d.icon, cls: "small goalpop", sub: `${count} из ${need} целей для победы`,
@@ -257,23 +273,124 @@ function goalPopup(side: number, q: Goal, count: number, need: number) {
   m.el.querySelector(".gp-name")!.textContent = d.name; setTimeout(() => m.close(true), 4200);
 }
 
+// ---------- история ходов и повторы (history.ts) ----------
+const rec = new Recorder();
+type HV = { idx: number; replay: Rec | null; playing: boolean; speed: number; timer: number; saved: boolean; back: any };
+let hv: HV | null = null, liveS: any = null;
+const hFrames = (): Frame[] => (hv?.replay ? hv.replay.frames : rec.frames);
+const hMarks = (F: Frame[]) => F.map((f, i) => i).filter((i) => !F[i + 1] || F[i + 1].turn !== F[i].turn || F[i + 1].cur !== F[i].cur);
+function evCtx(): EvCtx { const g = (liveS || S)?.g; return { me: (liveS || S)?.you ?? -1, nick: (i) => (hv?.replay?.nicks?.[i] ?? (liveS || S)?.seats?.[i]?.nick) || "Игрок " + (i + 1),
+  pieceName: (p) => (p?.k === "king" || p?.kind === "king" ? "Вождь" : KIND_NAME[(p?.k || p?.kind) as Kind] || "фигура"), cityName: (id) => { const c = g?.ec?.cities?.find((q: any) => q.id === id); return c?.name || (id >= 10001 ? "Башня" : "Город"); },
+  bName: (b, side) => (b === "watchtower" ? "Сторожевая башня" : bName(b, g?.races?.[side] || "")), techName: (id) => (TECHS as any[]).find((t) => t.id === id)?.name || id }; }
+/** Открыть просмотр кадра idx (в партии — прошлый ход; в повторе — любой). */
+function histOpen(idx: number, replay?: Rec | null) {
+  if (replay !== undefined && replay) { stopPlay(); hv = { idx: 0, replay, playing: false, speed: 1, timer: 0, saved: !!replay.saved, back: hv?.back ?? liveS ?? S }; liveS = null; }
+  const F = hFrames(); if (!F.length) return toast("История пока пуста — она появится после первого хода", "info", "hist");
+  if (!hv?.replay && idx >= F.length - 1) return goLive();
+  if (!hv) { liveS = S; hv = { idx, replay: null, playing: false, speed: 1, timer: 0, saved: false, back: null }; }
+  hv.idx = Math.max(0, Math.min(F.length - 1, idx)); applyView();
+}
+function applyView() {
+  if (!hv) return; const F = hFrames(), f = F[hv.idx]; if (!f) return goLive();
+  const base = hv.replay ? { code: "REPLAY", phase: "view", you: hv.replay.you ?? -1, size: f.g.size, seats: hv.replay.nicks.map((n) => ({ nick: n, race: null, online: true })), skew: 0, mapInfo: null } : liveS;
+  S = { ...base, g: { ...f.g, map: f.g.map || hv.replay?.map || rec.map || liveS?.g?.map }, ev: [], phase: "view", clock: null, viewing: true };
+  gsCache = { s: null, g: null } as any; sel = null; document.body.classList.add("hist-view"); render(); renderHistBar(); renderMoves();
+}
+function goLive() {
+  stopPlay(); if (!hv) return; const back = hv.replay ? hv.back : liveS; hv = null; liveS = null; S = back || null;
+  gsCache = { s: null, g: null } as any; document.body.classList.remove("hist-view"); const hb = $("#histbar"); if (hb) { hb.hidden = true; hb.innerHTML = ""; } render(); renderMoves();
+}
+function histStep(d: number) { const F = hFrames(), M = hMarks(F); if (!M.length) return; const cur = hv ? hv.idx : F.length - 1;
+  const at = d < 0 ? [...M].reverse().find((i) => i < cur) : M.find((i) => i > cur); if (at == null) { if (d > 0 && !hv?.replay) goLive(); return; } histOpen(at); }
+function stopPlay() { if (hv?.timer) { clearInterval(hv.timer); hv.timer = 0; } if (hv) hv.playing = false; }
+function togglePlay() { if (!hv?.replay) return; if (hv.playing) { stopPlay(); renderHistBar(); return; } const F = hFrames(); if (hv.idx >= F.length - 1) hv.idx = 0; hv.playing = true;
+  hv.timer = window.setInterval(() => { if (!hv) return; if (hv.idx >= hFrames().length - 1) { stopPlay(); renderHistBar(); return; } hv.idx++; applyView(); }, 900 / hv.speed); renderHistBar(); }
+function renderHistBar() {
+  const hb = $("#histbar"); if (!hb || !hv) return; const F = hFrames(), f = F[hv.idx], live = liveS?.g;
+  const side = f ? evCtx().nick(f.cur) : ""; hb.hidden = false;
+  const canSave = !!(hv.replay ? !hv.replay.saved : rec.frames.length), h = viewBarHtml({ turn: f?.turn ?? 1, side, live: !hv, replay: !!hv.replay, idx: hv.idx, max: F.length - 1, playing: hv.playing, speed: hv.speed, canSave, saved: hv.saved });
+  if (hb.dataset.h !== h) { hb.dataset.h = h; hb.innerHTML = h; bindHistBar(hb); }
+  hb.querySelector(".hv-s")!.textContent = `ходит ${side}` + (hv.replay ? ` · ${hv.idx + 1}/${F.length}` : live ? ` · идёт ход ${live.turn}` : "");
+  (hb.querySelector(".hv-scrub") as HTMLInputElement).value = String(hv.idx);
+}
+function bindHistBar(hb: HTMLElement) {
+  hb.querySelectorAll<HTMLButtonElement>("[data-hv]").forEach((b) => (b.onclick = () => { const k = b.dataset.hv, F = hFrames();
+    if (k === "first") histOpen(0); if (k === "prev") histStep(-1); if (k === "next") histStep(1); if (k === "play") togglePlay(); if (k === "save") saveReplay();
+    if (k === "last") hv?.replay ? histOpen(F.length - 1) : goLive(); if (k === "live" || k === "close") goLive(); }));
+  hb.querySelectorAll<HTMLButtonElement>("[data-sp]").forEach((b) => (b.onclick = () => { if (!hv) return; hv.speed = +b.dataset.sp! || 1; const was = hv.playing; stopPlay(); hb.dataset.h = ""; if (was) togglePlay(); else renderHistBar(); }));
+  const sc = hb.querySelector<HTMLInputElement>(".hv-scrub")!; sc.oninput = () => { stopPlay(); const i = +sc.value; if (!hv?.replay && i >= hFrames().length - 1) return goLive(); histOpen(i); };
+}
+/** Список ходов: по полуходам, события с разбором «почему» во всплывающей подсказке. */
+function renderMoves() {
+  const box = $("#mvlist"); if (!box) return; const F = hFrames(), M = hMarks(F), c = evCtx(), cur = hv ? hv.idx : -1;
+  const pv = $<HTMLButtonElement>("#hprev"), nx = $<HTMLButtonElement>("#hnext"); if (pv) pv.disabled = M.length < 2 && !hv; if (nx) nx.disabled = !hv;
+  if (!M.length) { box.innerHTML = `<div class="mv-empty">История появится после первого хода</div>`; return; }
+  const rows: string[] = []; let from = 0;
+  for (const mi of M) { const f = F[mi], evs: string[] = [];
+    for (let i = from; i <= mi; i++) { const before = F[i - 1]?.g || F[i].g; for (const e of F[i].ev) { const l = evLine(e, before, F[i].g, c); if (!l) continue; const w = l.why ? evWhy(e, before, c, passOf) : null;
+      evs.push(`<li class="mv-e" style="${l.side != null && l.side >= 0 ? `--pc:${raceCol(l.side)}` : ""}" ${w ? `data-tip="${esc(whyHtml(w))}" tabindex="0"` : ""} data-f="${i}">${ic(l.icon)}<span>${esc(l.txt)}</span>${w ? `<i class="mv-why" aria-hidden="true">?</i>` : ""}</li>`); } }
+    rows.push(`<div class="mv-t ${mi === cur || (cur >= from && cur <= mi) ? "on" : ""}" role="listitem"><button type="button" class="mv-jump" data-f="${mi}" style="--pc:${raceCol(f.cur)}"><b>${f.turn}</b><span class="mv-nk"></span><small>${evs.length ? evs.length + " соб." : "—"}</small></button>${evs.length ? `<ul>${evs.slice(-8).join("")}</ul>` : ""}</div>`);
+    from = mi + 1; }
+  const h = rows.reverse().join(""); if (box.dataset.h === h) return; box.dataset.h = h; box.innerHTML = h;
+  box.querySelectorAll<HTMLElement>(".mv-jump").forEach((b, k) => { b.querySelector(".mv-nk")!.textContent = c.nick(F[+b.dataset.f!].cur); b.onclick = () => histOpen(+b.dataset.f!); });
+  box.querySelectorAll<HTMLElement>(".mv-e").forEach((el) => (el.onclick = () => histOpen(+el.dataset.f!)));
+  const on = box.querySelector<HTMLElement>(".mv-t.on"); if (on) box.scrollTop = Math.max(0, on.offsetTop - 4);
+}
+const passOf = (p: any): string[] => { const ps: any[] = (p?.pas || p?.passives || []) as any[]; const own = ps.map((x) => (typeof x === "string" ? x : x?.name || "")).filter(Boolean);
+  if (own.length) return own.slice(0, 3); const g = (liveS || S)?.g, r = g?.races?.[p?.o]; if (!r) return [];
+  try { return racePassives(cfgOf(S), r, null, p.o).filter((q) => q.effs?.some((f: any) => /atk|arm|dmg/.test(JSON.stringify(f)))).map((q) => q.name).slice(0, 2); } catch { return []; } };
+function curRec(saved: boolean): Rec | null {
+  const L = hv?.replay || null; if (L) return { ...L, saved };
+  const base = liveS || S, F = rec.frames; if (!F.length || !base) return null; const g = F[F.length - 1].g;
+  return { id: "loc-" + (base.code || "demo") + "-" + (F[0].at || Date.now()), code: base.code, at: Date.now(), races: g.races || [], nicks: (base.seats || []).map((x: any) => x?.nick || "?"), winner: base.result?.winner ?? null,
+    turns: g.turn, you: base.you, map: rec.map, frames: F, saved };
+}
+async function saveReplay() {
+  const r = curRec(true); if (!r) return; const sv = !demo && r.code && !hv?.replay ? await hubReq("replay_save", { code: r.code }) : { err: "local" };
+  const okLocal = lsPut(r); if (hv) hv.saved = true; if (hv?.replay) hv.replay.saved = true; $("#histbar") && ($("#histbar")!.dataset.h = ""); renderHistBar();
+  toast(!sv?.err ? "Партия сохранена в библиотеку" : okLocal ? "Сохранено на этом устройстве" : "Не удалось сохранить — мало места", !sv?.err || okLocal ? "good" : "bad", "save");
+}
+/** Партия кончилась — автоматически кладём в «Недавние» (локально). */
+function keepRecent() { const r = curRec(false); if (r && r.frames.length > 1) lsPut(r); }
+async function openReplay(id: string) {
+  let r: Rec | null = lsGetRec(id);
+  if (!r) { const j: any = await hubReq("replay_get", { id }); const F = framesFrom(j?.replay || j); const it = (j?.replay || j)?.meta || j?.replay || j;
+    if (F.length) r = { id, at: Date.now(), races: F[0].g.races || [], nicks: (it?.nicks || it?.players?.map((p: any) => p?.nick) || F[0].g.races.map((_: any, i: number) => "Игрок " + (i + 1))).map(String), frames: F, saved: !!it?.saved, map: F[0].g.map }; }
+  if (!r) return toast("Повтор недоступен", "bad", "warn");
+  document.getElementById("profdlg")?.remove(); document.getElementById("endscreen")?.remove(); histOpen(0, r);
+}
+function libDeps() { return { html: () => libHtml(null, { crest, loading: true }), bind: (el: HTMLElement) => { loadLib(el); } }; }
+async function loadLib(el: HTMLElement) {
+  const local = lsList(); const j = demo ? { err: "demo" } : await hubReq("replay_list"); const srv = libFrom(j);
+  const merge = (a: LibItem[], b: LibItem[]) => [...a, ...b.filter((x) => !a.some((y) => y.id === x.id))].sort((x, y) => y.at - x.at);
+  const lib = { saved: merge(srv?.saved || [], local.filter((x) => x.saved)), recent: merge(srv?.recent || [], local.filter((x) => !x.saved)) };
+  el.innerHTML = libHtml(lib, { crest, offline: !srv }); const all = [...lib.saved, ...lib.recent];
+  el.querySelectorAll<HTMLElement>(".lib-n").forEach((n) => { const it = all.find((x) => x.id === n.dataset.i); n.textContent = it ? (it.nicks.length ? it.nicks.join(" · ") : "Партия") + (it.winner != null && it.nicks[it.winner] ? ` — победа: ${it.nicks[it.winner]}` : "") : "Партия"; });
+  el.querySelectorAll<HTMLButtonElement>("[data-lib]").forEach((b) => (b.onclick = async () => { const id = b.dataset.id!, k = b.dataset.lib;
+    if (k === "open") return openReplay(id);
+    if (k === "del") { lsDel(id); if (!demo) await hubReq("replay_unsave", { id }); }
+    if (k === "save") { const r = lsGetRec(id); if (r) lsPut({ ...r, saved: true }); if (!demo) await hubReq("replay_save", { id }); }
+    loadLib(el); }));
+}
+
 // ---------- экран конца партии ----------
 function showEnd() {
   if (!S?.g || S.phase !== "over") return; const me = S.you, w = S.result?.winner, g = S.g;
   const win = me >= 0 && w === me, draw_ = w === 2 || w == null, title = draw_ ? "Ничья" : me < 0 ? `Победил ${S.seats[w]?.nick || "?"}` : win ? "Победа" : "Поражение";
   const race = g.races[draw_ ? Math.max(0, me) : w] || "fire", G = gs()!, cfg = cfgOf(S), gl = goalsWithSticky(G, cfg);
   const stat = (i: number) => `<div class="es-side ${i === me ? "me" : ""}">${crest(g.races[i])}
-    <b class="nick"></b><small class="cname"></small><div class="es-goals">${gl.sides[i].map((q) => { const d = GOALS.find((z) => z.id === q.id)!; return `<i class="${q.done ? "on" : ""}" data-tip="${esc(d.name)}">${ic(d.icon)}</i>`; }).join("")}</div>
+    <b class="nick"></b><small class="cname"></small><div class="es-goals">${gl.sides[i].map((q) => { const d = goalDef(q); return `<i class="${q.done ? "on" : ""}" data-tip="${esc(d.name)}">${ic(d.icon)}</i>`; }).join("")}</div>
     <span class="es-n">${ic("glory")}${g.ec?.res?.[i]?.glory ?? 0} · ${ic("sword")}${g.pieces.filter((p: any) => p.o === i).length}</span></div>`;
   const m = modal({ id: "endscreen", title, icon: win ? "crown" : draw_ ? "scales" : "skull", cls: "endscreen " + (win || me < 0 ? "win" : draw_ ? "draw" : "lose"), dismiss: true,
     sub: esc(REASON[S.result?.reason] || S.result?.reason || ""),
     body: `<div class="es-hero"><img src="${unitArt(race, "king")}" alt="" onerror="this.remove()"></div>
       <p class="es-chief"></p><div class="es-sides">${stat(0)}<span class="vs">VS</span>${stat(1)}</div>
       <div class="es-foot"><div class="es-score" data-tip="Выполнено целей"><small>Цели</small><b>${gl.sides[Math.max(0, me)].filter((q) => q.done).length}–${gl.sides[me === 1 ? 0 : 1].filter((q) => q.done).length}</b></div>${me >= 0 ? ratingDelta(S.result?.rating?.[me]) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>`,
-    acts: [{ label: "В меню", cls: "ghost", val: "menu", icon: "back" }, { label: "К доске", cls: "", val: "board", icon: "eye" }, ...(me >= 0 ? [{ label: S.seats[me]?.rematch ? "Ждём соперника…" : "Реванш", cls: "gold", val: "rematch", icon: "refresh", id: "es-rematch" }] : [])] });
+    acts: [{ label: "В меню", cls: "ghost", val: "menu", icon: "back" }, { label: "К доске", cls: "", val: "board", icon: "eye" }, ...(rec.frames.length > 1 ? [{ label: "Повтор", cls: "", val: "replay", icon: "hist" }] : []), ...(me >= 0 ? [{ label: S.seats[me]?.rematch ? "Ждём соперника…" : "Реванш", cls: "gold", val: "rematch", icon: "refresh", id: "es-rematch" }] : [])] });
   m.el.querySelectorAll<HTMLElement>(".es-side").forEach((el, i) => { el.querySelector(".nick")!.textContent = S.seats[i]?.nick || "?"; el.querySelector(".cname")!.textContent = "Вождь " + chiefName(i); });
   m.el.querySelector(".es-chief")!.textContent = draw_ ? "" : `Вождь ${chiefName(w)} ведёт ${RACE_NAME[g.races[w]] || ""} к победе`;
-  m.done.then((v: any) => { if (v === "rematch") send({ type: "rematch" }); if (v === "menu") leaveMatch(); });
+  keepRecent();
+  m.done.then((v: any) => { if (v === "rematch") send({ type: "rematch" }); if (v === "menu") leaveMatch(); if (v === "replay") { const r = curRec(false); if (r) histOpen(0, r); } });
 }
 /** «Чёрный список»: первые Вожди соперников стороны side. */
 function openBlacklist(side: number) {
@@ -287,6 +404,7 @@ function openBlacklist(side: number) {
     el.querySelector(".bl-st")!.textContent = r.dead ? `пал на ${r.turn ?? "?"}-м ходу${r.by === S.you && !r.byNick ? " — сражён вами" : r.by != null || r.byNick ? ", убил " + (r.byNick || nm(r.by!)) : ""}` : "жив — главная цель"; });
 }
 async function leaveMatch() {
+  if (hv?.replay) return goLive(); if (hv) goLive();
   if (demo) { demo = false; S = null; render(); return; }
   if (S?.phase === "play" && S.you >= 0 && !(await confirmDlg("Выйти из партии?", "Выход во время партии засчитается как сдача.", "Выйти", { danger: true, icon: "back" }))) return;
   send({ type: "leave" });
@@ -310,12 +428,15 @@ function render() {
 }
 
 // ---------- лобби ----------
+/** Рейтинг места в лиге карты (догадка: seat.rating | seat.r, seat.prov). Боты/гости — без рейтинга. */
+function seatRating(s: any) { const r = s?.rating ?? s?.r; if (s?.bot || r == null || !isFinite(+r)) return "";
+  const L = leagueOf(S.size); return `<span class="srat l-${L}" data-tip="Рейтинг: ${esc(leagueName(S.size))} лига"><img src="/strat/ui2/leagues/league_${L}_64.png" alt=""><b>${Math.round(+r)}</b>${s.prov ? '<img class="prov" src="/strat/ui2/badges/provisional_mark.png" alt="временный">' : ""}</span>`; }
 function seatHtml(i: number) {
   const s = S.seats[i], me = S.you;
   if (!s) return `<div class="seatcard empty"><span class="crest unk">${ic("user")}</span><div><b>Ждём соперника…</b><small>Отправьте код или ссылку</small></div></div>`;
   const race = s.race ? crest(s.race) : `<span class="crest unk">${ic(s.picked ? "check" : "user")}</span>`;
   return `<div class="seatcard ${i === me ? "me" : ""} ${s.ready ? "ready" : ""}">${race}<div><b class="nick"></b><small>${s.bot ? "бот" : s.guest ? "гость" : "игрок"}${i === 0 ? " · хост" : ""}${s.race ? " · " + RACE_NAME[s.race] : s.picked ? " · раса выбрана" : ""}</small>${isAway(s) ? `<span class="away">${ic("warn")}Игрок не за столом</span>` : ""}</div>
-    <span class="rdy">${s.ready ? ic("check") + "Готов" : "Не готов"}</span></div>`;
+    <span class="rdy">${s.ready ? ic("check") + "Готов" : "Не готов"}</span>${seatRating(s)}</div>`;
 }
 /** Только числа и особые свойства — никаких подсказок «для какой тактики» раса. */
 function raceTraits(r: string): string[] {
@@ -330,7 +451,11 @@ const sizeLabel = (n: number) => (n <= 5 ? "дуэль" : n <= 8 ? "быстра
 function renderLobby() {
   const me = S.you, host = me === 0, seats = S.seats;
   renderSlots($("#slots"), $("#modes"), S, { me, host, seatHtml, send, raceCol: raceBase });
-  const rc = $("#races");
+  renderLobbyLeague();
+  const rc = $("#races"), drawL = !!S.ranked, rdv = $("#racedraw");
+  rc.hidden = drawL; rdv.hidden = !drawL; $("#racehdr").textContent = drawL ? "Раса — жребием" : "Выберите расу";
+  $("#racesub").textContent = drawL ? "Рейтинговая партия: выбора расы нет, жребий у всех одновременно на старте." : "Соперник увидит вашу расу только на старте партии.";
+  if (drawL) { const h = lobbyDrawHtml(S, raceD(), isGuest); if (rdv.dataset.h !== h) { rdv.dataset.h = h; rdv.innerHTML = h; const fe = rdv.querySelector<HTMLButtonElement>("[data-favedit]"); if (fe) fe.onclick = () => openFavDlg(); } }
   if (!rc.dataset.built) { rc.dataset.built = "1"; rc.innerHTML = RACES.map((r) => `<button class="racecard r-${r}" data-race="${r}">
       <span class="rc-art"><img class="cr" src="/strat/ui/crests/crest_${r}.png" alt=""><img class="k" src="${unitArt(r, "king")}" alt="" onerror="this.remove()"><img class="a" src="${unitArt(r, "knight")}" alt="" onerror="this.remove()"><img class="b" src="${unitArt(r, "mage")}" alt="" onerror="this.remove()"></span>
       <span class="rc-name"><b>${RACE_NAME[r]}</b></span><ul class="rc-tr"></ul><span class="rc-pas pas-row">${racePassives(cfgOf(S), r).map(pasIcon).join("")}</span><span class="rc-pick">${ic("check")}Выбрано</span></button>`).join("");
@@ -360,11 +485,12 @@ function renderLobby() {
   renderLobbyMap(host);
   { const rk = $<HTMLInputElement>("#ranked"); rk.checked = !!S.ranked; rk.disabled = !host; const lg = $("#league"); lg.innerHTML = `${ic(LEAGUES.find((l) => l.id === leagueOf(S.size))!.icon)}<span>Лига: <b>${leagueName(S.size)}</b></span>${S.ranked ? `<em>рейтинговая</em>` : ""}`;
     const lock = !!S.ranked; for (const id of ["#csize", "#tl", "#tsec"]) { const el = $<HTMLInputElement>(id); el.disabled = !host || lock; el.closest(".fld")?.classList.toggle("locked", lock); }
+    { const hh = $<HTMLInputElement>("#hhp"); hh.checked = !!S.hiddenHp && !lock; hh.disabled = !host || lock; $("#hhpwrap").classList.toggle("locked", lock); }
     $("#hostpanel").classList.toggle("ranked", lock); for (const b of $("#maps").querySelectorAll<HTMLButtonElement>("[data-map]")) if (lock && b.dataset.map !== "") b.disabled = true; }
   const rd = $<HTMLButtonElement>("#ready"); rd.querySelector("span")!.textContent = seats[me]?.ready ? "Не готов" : "Готов к бою"; rd.classList.toggle("on", !!seats[me]?.ready);
-  rd.disabled = me < 0 || !seats[me]?.race;
+  rd.disabled = me < 0 || (!S.ranked && !seats[me]?.race);
   $("#hostpanel").classList.toggle("ro", !host);
-  setStatus(me < 0 ? "Лобби заполнено — вы зритель" : !seats[1] ? "Отправьте ссылку или код сопернику" : !seats[me]?.race ? "Выберите расу — соперник увидит её только на старте" : seats[me]?.ready ? "Ждём готовности соперника" : "Нажмите «Готов к бою»");
+  setStatus(me < 0 ? "Лобби заполнено — вы зритель" : !seats[1] ? "Отправьте ссылку или код сопернику" : !S.ranked && !seats[me]?.race ? "Выберите расу — соперник увидит её только на старте" : seats[me]?.ready ? "Ждём готовности соперника" : "Нажмите «Готов к бою»");
 }
 let mapListSize = 0, mapList: any[] = [];
 const ST_NAME: Record<string, string> = { pending: "на проверке", rejected: "отклонена", hidden: "скрыта" };
@@ -442,10 +568,13 @@ function skillPassive(id: string, side: number): Passive | null {
 }
 function renderHud() {
   if (!S?.g) return; const g = S.g, me = S.you, myTurn = S.phase === "play" && g.cur === me, cfg = cfgOf(S), G = gs()!;
-  $("#turnno").textContent = `${g.turn}${g.turnLimit ? " / " + g.turnLimit : ""}`;
-  $("#appips").innerHTML = Array.from({ length: Math.max(g.apMax || 0, g.ap) }, (_, i) => `<i class="${i < g.ap ? "on" : ""}"></i>`).join("");
-  $("#aptxt").textContent = `${g.ap}/${Math.max(g.apMax || 0, g.ap)}`;
+  $("#turnno").textContent = String(g.turn); { const tn2 = $("#turnno2"); if (tn2) tn2.textContent = String(g.turn); }
+  { const mx = Math.max(g.apMax || 0, g.ap), pips = Array.from({ length: mx }, (_, i) => `<i class="${i < g.ap ? "on" : ""}"></i>`).join(""), tip = apTip(S, G, me);
+    for (const [pid, tid] of [["#appips", "#aptxt"], ["#appips2", "#aptxt2"]]) { const pe = document.querySelector<HTMLElement>(pid); if (!pe) continue;
+      pe.innerHTML = pips; pe.dataset.n = String(mx); pe.className = "appips" + (mx > 10 ? " many" : mx > 7 ? " mid" : ""); const te = document.querySelector<HTMLElement>(tid); if (te) te.textContent = `${g.ap}/${mx}`;
+      pe.closest<HTMLElement>(".apbox")?.setAttribute("data-tip", tip); } }
   $("#turnbox").classList.toggle("mine", myTurn); $("#turnwho").textContent = S.phase === "over" ? "Партия окончена" : myTurn ? "Ваш ход" : me < 0 ? "Ходит " + (S.seats[g.cur]?.nick || "?") : "Ход соперника";
+  { const w2 = document.getElementById("turnwho2"); if (w2) { w2.textContent = $("#turnwho").textContent; w2.classList.toggle("mine", myTurn); } }
   const glP = goalsWithSticky(G, cfg);
   renderPlayers($("#score"), S, { me, col: raceCol, crest, raceName: RACE_NAME, glory: (i) => g.ec?.res?.[i]?.glory ?? 0, pas: racePas,
     goals: (i) => { const q = glP.sides?.[i]; return q ? { done: q.filter((x: any) => x.done).length, need: glP.need } : null; } });
@@ -453,11 +582,17 @@ function renderHud() {
     cl.hidden = !(me >= 0 && S.phase === "play" && opp >= 0); }
   renderLvDock(ectx(), $("#lvdock"), () => setTimeout(render, 0)); chatShow(me >= 0 && S.phase !== "lobby", modeOf(S) === "2v2");
   const gl = goalsWithSticky(G, cfg), gb = $("#goals");
-  gb.innerHTML = `<div class="gl-h"><span>Цели</span><small>${gl.need} из 5 — победа</small></div>` + [me < 0 ? 0 : me, me < 0 ? 1 : 1 - me].map((side) => { const done = gl.sides[side].filter((q) => q.done).length;
-    return `<div class="gl-row ${side === me ? "me" : ""}"><span class="gl-who">${me < 0 ? esc(S.seats[side]?.nick || "?") : side === me ? "Вы" : "Враг"}</span>${gl.sides[side].map((q) => { const d = GOALS.find((z) => z.id === q.id)!, pct = q.max ? Math.min(1, q.v / q.max) : 0;
-      const tip = esc(`<b>${d.name}</b><br>${d.hint}${!q.done && q.max > 1 ? `<br>${q.v} / ${q.max}` : ""}${q.done ? "<br>Выполнено" : ""}`);
-      if (q.id === "chief") return `<button type="button" class="goal bl ${q.done ? "done" : ""}" data-bl="${side}" style="--p:${q.done ? 1 : pct}" data-tip="${tip}" aria-label="Чёрный список">${ic(d.icon)}<em class="gprog">${q.v}/${q.max}</em></button>`;
-      return `<span class="goal ${q.done ? "done" : ""}" style="--p:${q.done ? 1 : pct}" data-tip="${tip}">${ic(d.icon)}</span>`; }).join("")}<b class="gl-n">${done}/${gl.need}</b></div>`; }).join("");
+  { const order = [...gl.sides.keys()].filter((i) => S.seats[i]).sort((x, y) => (x === me ? -1 : y === me ? 1 : allies(S, me, x) === allies(S, me, y) ? x - y : allies(S, me, x) ? -1 : 1));
+    const many = order.length > 2, total = Math.max(...gl.sides.map((r) => r.length), 1);
+    gb.className = "goals" + (many ? " many" : "");
+    gb.innerHTML = `<div class="gl-h"><span>Цели</span><small>${gl.need} из ${total} — победа</small></div>` + order.map((side) => { const done = gl.sides[side].filter((q) => q.done).length;
+      const who = side === me ? "Вы" : S.seats[side]?.nick || (me >= 0 && !allies(S, me, side) ? "Враг" : "Союзник");
+      return `<div class="gl-row ${side === me ? "me" : ""}" style="--pc:${raceCol(side)}"><span class="gl-who" title="${esc(who)}"><i class="gl-sw"></i>${esc(who)}</span>${gl.sides[side].map((q) => { const d = goalDef(q), pct = q.max ? Math.min(1, q.v / q.max) : 0;
+        const prog = q.text ? esc(q.text) : !q.done && q.max > 1 ? `${q.v} / ${q.max}${q.unit ? " " + esc(q.unit) : ""}` : "";
+        const parts = (q.parts || []).map((r) => `<br>· ${esc(r.label)}: ${r.cur}/${r.max}`).join("");
+        const tip = esc(`<b>${esc(d.name)}</b><br>${esc(d.hint)}${prog ? `<br><span class="tipv">${prog}</span>` : ""}${parts}${q.done ? `<br><span class="tipv good">Выполнено${q.turn ? " на ходу " + q.turn : ""}</span>` : ""}`);
+        if (q.id === "chief") return `<button type="button" class="goal bl ${q.done ? "done" : ""}" data-bl="${side}" style="--p:${q.done ? 1 : pct}" data-tip="${tip}" aria-label="${esc(d.name)}">${ic(d.icon)}<em class="gprog">${q.v}/${q.max}</em></button>`;
+        return `<button type="button" class="goal ${q.done ? "done" : ""}" style="--p:${q.done ? 1 : pct}" data-tip="${tip}" aria-label="${esc(d.name)}">${ic(d.icon)}</button>`; }).join("")}<b class="gl-n">${done}/${gl.need}</b></div>`; }).join(""); }
   const cb = $("#chief");
   if (me < 0) { cb.hidden = true; } else { cb.hidden = false; const ch = chiefOf(S, G, me, cfg), race = g.races[me];
     if (!ch.p) { cb.className = "chief dead"; cb.innerHTML = `<span class="ch-port"><img src="${unitArt(race, "king")}" alt="" onerror="this.remove()">${ic("skull", "ch-skull")}</span>
@@ -510,11 +645,13 @@ function renderInfo() {
     const nm = p.k === "king" ? "Вождь" : KIND_NAME[p.k as Kind];
     const pas = [...(P.tal || []).map((t) => { const raw = ((cfg.talents as any)[P.kind] || []).flat().find((x: any) => x.id === t); return raw ? pasIcon(talentPassive(raw, P.kind)) : ""; }), racePas(p.o)].join("");
     h += `<div class="uc-h"><span class="uc-port r-${race}"><img src="${unitArt(race, p.k)}" alt="" onerror="this.remove()"></span><div><b class="uc-name">${nm}</b><small class="uc-sub"></small>
-        <div class="meter hp"><i style="width:${(p.hp / p.mh) * 100}%"></i><span>${p.hp} / ${p.mh}</span></div></div></div>
+        ${p.hp == null && p.hs ? `<div class="meter hp hs hs-${p.hs}"><i style="width:${p.hs === "ok" ? 100 : p.hs === "hurt" ? 55 : 18}%"></i><span>${HS_NAME[p.hs] || "?"}</span></div>` : `<div class="meter hp"><i style="width:${(p.hp / p.mh) * 100}%"></i><span>${p.hp} / ${p.mh}</span></div>`}</div></div>
       <div class="uc-stats"><span data-tip="Атака с учётом бонусов">${ic("sword")}<b>${p.ea ?? p.atk}</b></span><span data-tip="Броня с учётом бонусов">${ic("shield")}<b>${p.er ?? p.arm}</b></span><span data-tip="Уровень">${ic("xp")}<b>${lv.lv}</b></span>${p.b ? `<span class="neg" data-tip="Горит ещё ${p.b} ${plural(p.b, "ход", "хода", "ходов")}">${ic("burn")}<b>${p.b}</b></span>` : ""}${p.c ? `<span class="cold" data-tip="Обморожен">${ic("chill")}</span>` : ""}${p.a ? `<span class="muted" data-tip="Уже действовал">${ic("check")}</span>` : ""}</div>
       ${lv.next ? `<div class="meter xp sm" data-tip="Опыт ${lv.xp} / ${lv.next}"><i style="width:${Math.min(100, ((lv.xp - lv.prev) / Math.max(1, lv.next - lv.prev)) * 100)}%"></i></div>` : ""}
       ${pas ? `<div class="pas-row">${pas}</div>` : ""}`;
     if (S.phase === "play" && p.k !== "king") { const a = pieceActs(ectx(), P); if (a) h += `<div class="uc-acts">${a}</div>`; h += abilityBar(ectx(), P, p); }
+    if (S.phase === "play" && p.k === "king" && p.o === S.you) h += chiefActs(P);
+    if (S.phase === "play" && p.o === S.you && !p.a) { const rz = razeTargets(S, gs()!, P); if (rz.length) h += `<div class="uc-acts raze"><small>${ic("target")}Удар по постройке</small>${rz.flatMap((t) => t.b.map((b) => `<button class="btn sm red" data-raze="${t.city}" data-b="${esc(b)}">${ic("sword")}<span>${esc(b === "watchtower" ? "Башня" : bName(b, g.races[1 - S.you] || ""))}${t.tower ? "" : " · " + esc(cityName(gs()!, t.city))}</span></button>`)).join("")}</div>`; }
   }
   if (m && at) { const [x, y] = at, t = m.t[y * m.size + x], st = m.s[y * m.size + x], tn = (TERRAIN as any)[t]?.name || t;
     const tp = terrainPassive(t, tn), sp = st !== "." ? structPassive(st, (STRUCT as any)[st]) : null;
@@ -522,14 +659,42 @@ function renderInfo() {
       ${sp ? `<span class="ci-t">${ic("castle")}<b>${esc(sp.name)}</b>${pasIcon(sp)}</span><small>${esc((STRUCT as any)[st]?.eff || "")}</small>` : ""}</div>`; }
   box.className = "info"; box.innerHTML = h;
   if (p) { const sub = box.querySelector(".uc-sub"); if (sub) sub.textContent = (p.o === S.you ? "Ваш" : "Враг") + (p.k === "king" ? " · " + chiefName(p.o) : " · " + (RACE_NAME[g.races[p.o]] || ""));
-    const P = gs()!.pieces.find((q) => q.id === p.id)!; bindPieceActs(ectx(), P, box);
+    const P = gs()!.pieces.find((q) => q.id === p.id)!; bindPieceActs(ectx(), P, box); bindChiefActs(P, box);
+    box.querySelectorAll<HTMLButtonElement>("[data-raze]").forEach((b) => (b.onclick = () => send({ type: "act", act: { a: "raze", id: P.id, city: +b.dataset.raze!, b: b.dataset.b } })));
     bindAbilityBar(ectx(), P, p, box, (a) => startAim({ id: a.id, pid: a.pid, r: a.r, race: g.races[p.o], chief: false })); }
 }
+/** Действия Вождя: «Построить» (выбор постройки → клетка для башни) и «Основать поселение» (многоходовое). */
+function chiefActs(P: any): string {
+  const G = gs()!, me = S.you, my = G.cur === me && !P.acted && G.ap > 0, ec: any = G.ec; if (!ec) return "";
+  const f = Array.isArray(ec.fnd) ? ec.fnd[me] : S.terr?.fnd, total = S.league?.found ?? (cfgOf(S) as any).econ?.found?.turns ?? 10;
+  const found = f && f.left != null ? `<div class="fnd"><span class="fring" style="--p:${Math.round((1 - f.left / total) * 100)}"></span><span>Поселение: ещё ${f.left} ${plural(f.left, "ход", "хода", "ходов")}</span><button class="btn sm ghost" data-ca="found_cancel">${ic("close")}<span>Отменить</span></button></div>`
+    : `<button class="btn sm" data-ca="found" ${my ? "" : "disabled"} data-tip="${esc(`Вождь остаётся на клетке ${total} ${plural(total, "ход", "хода", "ходов")} и основывает поселение. Уход или гибель — отмена.`)}">${ic("outpost")}<span>Основать поселение</span></button>`;
+  return `<div class="uc-acts chiefacts"><button class="btn sm gold" data-ca="build" ${my ? "" : "disabled"}>${ic("build")}<span>Построить</span></button>${found}</div>`;
+}
+function bindChiefActs(P: any, box: HTMLElement) {
+  box.querySelectorAll<HTMLButtonElement>("[data-ca]").forEach((b) => (b.onclick = async () => { const k = b.dataset.ca!;
+    if (k === "found") return send({ type: "act", act: { a: "found", id: P.id } });
+    if (k === "found_cancel") return send({ type: "act", act: { a: "found_cancel", id: P.id } });
+    const G = gs()!, T = worldT(), list = buildChoices(ectx(), P, T);
+    const pick = await choiceDlg("Построить", "Вождь строит на своей земле — постройка достаётся ближайшему городу. Башню — рядом с Вождём, в том числе за границей.", list.map((o) => ({ id: o.id, title: o.title, text: o.text, icon: o.icon, foot: o.foot, disabled: o.off })), "builds");
+    if (!pick) return;
+    if (pick === "watchtower") { W.mode = { k: "build", b: pick, tower: true }; renderHint(); draw(); return; }
+    let kind: string | undefined; if (pick === "forge") { const kk = await choiceDlg("Кузня", "Какому типу фигур дать +1 АТК?", (Object.keys(KIND_NAME) as Kind[]).map((q) => ({ id: q, title: KIND_NAME[q], img: unitArt(G.races[S.you], q), text: "+1 АТК" })), "kinds"); if (!kk) return; kind = kk; }
+    send({ type: "act", act: { a: "build", b: pick, id: P.id, ...(kind ? { kind } : {}) } }); }));
+}
+function worldT(): Int8Array { const G0 = gs()!, base = territoryCached(G0, cfgOf(S), S.g); return terrFull(G0, base, S.g).T; }
 const terrEff = (t: string) => (t === "f" ? `скольжение останавливается` : t === "g" ? `проход в стене` : t === "w" ? "не пройти (кроме расы Воды); стрелять через воду можно" : t === "m" ? "не пройти (кроме расы Камня); закрывает обстрел" : t === "#" ? "не пройти, закрывает обстрел" : t === "b" ? "переправа через реку" : "");
+const me0 = () => (S?.you ?? -1);
 function renderHint() {
   const h = $("#hint"); if (!h) return;
   if (eui.recruit) { h.hidden = false; h.innerHTML = `${ic("recruit")}<span>Найм: ${KIND_NAME[eui.recruit.kind]} — выберите подсвеченную клетку</span><button class="btn sm ghost" id="hintx">${ic("close")}<span>Отмена</span></button>`;
     $("#hintx").onclick = () => { eui.recruit = null; renderHint(); draw(); }; return; }
+  if (W.mode) { h.hidden = false; const tc = W.mode.k === "claim" ? S?.terr?.cities?.find((q: any) => q.city === (W.mode as any).city) : null;
+    h.innerHTML = `${ic(W.mode.k === "claim" ? "flag" : "tower")}<span>${W.mode.k === "claim" ? `Покупка клетки${tc ? ` за ${tc.cost ?? "?"} золота` : ""} — выберите подсвеченную клетку` : "Сторожевая башня — выберите клетку рядом с Вождём"}</span><button class="btn sm ghost" id="hintx">${ic("close")}<span>Отмена</span></button>`;
+    $("#hintx").onclick = () => { W.mode = null; renderHint(); draw(); }; return; }
+  { const cl = me0() >= 0 && S?.phase === "play" ? claimable(S) : []; if (cl.length) { h.hidden = false; const t = cl[0];
+    h.innerHTML = `${ic("flag")}<span>Можно купить клетку для «${esc(cityName(gs()!, t.city))}» · ${t.cost ?? "?"} золота · ${t.left ? `бесплатно через ${t.left} х.` : "бесплатная клетка — в конце хода"}</span><button class="btn sm gold" id="hintclaim">${ic("plus")}<span>Выбрать</span></button>`;
+    $("#hintclaim").onclick = () => { W.mode = { k: "claim", city: t.city }; renderHint(); draw(); }; return; } }
   h.hidden = true;
 }
 
@@ -538,8 +703,11 @@ function chiefUltBtn(ch: any, me: number): string {
   if ((ch.lv || 0) < 5 || !ch.p) return ""; const d = ULT[S.g.races[me]]; if (!d) return "";
   const pv = S.g.pieces.find((q: any) => q.id === ch.p.id), cd = +(pv?.ucd ?? pv?.cd?.ult ?? S.g.ec?.ultCd?.[me] ?? 0) || 0, max = +(cfgOf(S) as any).chiefUlt?.cd || 8;
   const my = S.g.cur === me && S.phase === "play" && S.g.ap > 0 && !cd;
-  return `<button class="abil ult chiefult ${cd ? "cd" : ""}" id="chiefult" ${my ? "" : "disabled"} style="--p:${cd ? Math.round((cd / max) * 100) : 0}" data-tip="${esc(`Ульта «${d.title}»: ${d.sub}. ${cd ? `Готово через ${cd} х.` : "Выберите центр круга на доске."}`)}"><span class="ring"></span><span class="ab-ic">${ic("ult")}</span>${cd ? `<b class="ab-cd">${cd}</b>` : ""}</button>`;
+  return `<button class="abil ult chiefult ${cd ? "cd" : ""}" id="chiefult" ${my ? "" : "disabled"} style="--p:${cd ? Math.round((cd / max) * 100) : 0}" data-tip="${esc(`Ульта «${d.title}»: ${d.sub}. ${cd ? `Готово через ${cd} х.` : "Выберите центр круга на доске."}`)}"><span class="ring"></span><span class="ab-ic">${ultIconArt(S.g.races[me])}</span>${cd ? `<b class="ab-cd">${cd}</b>` : ""}</button>`;
 }
+/** Арт иконки ульты (ui2/ult/ult_icon_<вид>.png) по расе. */
+const ULT_ART: Record<string, string> = { fire: "doom", lightning: "chain", stone: "wall", ice: "blizzard", water: "wave", nature: "overgrowth" };
+function ultIconArt(race: string) { const k = ULT_ART[race]; return k ? `<img class="ult-art" src="/strat/ui2/ult/ult_icon_${k}.png" alt="">` : ic("ult"); }
 function startAim(a: NonNullable<typeof ultAim>) { ultAim = a; aimCell = null; const p = S.g.pieces.find((q: any) => q.id === a.pid); if (p) aimCell = [p.x, p.y];
   const h = $("#hint"); h.hidden = false; h.textContent = matchMedia("(hover: hover)").matches ? "Наведите круг и нажмите — Esc отменит" : "Коснитесь клетки — круг покажется; второе касание — удар"; draw(); }
 function stopAim() { ultAim = null; aimCell = null; renderHint(); draw(); }
@@ -622,13 +790,13 @@ function drawNow() {
   const c = cv(); if (!S?.g || !c || c.offsetParent === null) return; if (!cam.W || cam.n !== S.g.size) fitCam(false); if (!cam.W) return;
   const dpr = devicePixelRatio || 1, ctx = c.getContext("2d")!, g = S.g, n = g.size, z = cam.z;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cam.W, cam.H); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
-  const map: MapData = g.map || openMap(n), G0 = gs()!, cfg = cfgOf(S), T = G0.ec ? territoryCached(G0, cfg, g) : null;
+  const map: MapData = g.map || openMap(n), G0 = gs()!, cfg = cfgOf(S), T0 = G0.ec ? territoryCached(G0, cfg, g) : null, WT = T0 ? terrFull(G0, T0, g) : null, T = WT ? WT.T : null;
   const L = Math.min(n > 60 ? 3072 : 4096, Math.max(512, Math.ceil(n * Math.min(64, Math.max(cam.fit, 24)) * dpr)));
   ctx.drawImage(terrainLayer(map, L, flipped(), [raceCol(0), raceCol(1)], T ? (x, y) => T[y * n + x] : undefined), scrX(flipped() ? n - 1 : 0), scrY(flipped() ? n - 1 : 0), n * z, n * z);
   // видимая область (в координатах карты) — рисуем только её
   const m = 1, vis = (x: number, y: number) => { const X = scrX(x), Y = scrY(y); return X > -z * m && Y > -z * m && X < cam.W + z * (m - 1) + z && Y < cam.H + z * (m - 1) + z; };
   const sx = scrX, sy = scrY;
-  if (T) drawEcon(ctx, ectx(), z, sx, sy, T, vis);
+  if (T && WT) { const ec0 = ectx(); drawEcon(ctx, ec0, z, sx, sy, T, vis, () => drawWalls(ctx, G0, WT.T, WT.C, z, sx, sy, vis, raceCol)); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
   const zs = zonesOf(g); if (zs.length) drawZones(ctx, zs, n, sx, sy, z, performance.now());
   const GP = new Map(G0.pieces.map((q) => [q.id, q]));
   if (selCell) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(sx(selCell[0]) + 2, sy(selCell[1]) + 2, z - 4, z - 4); ctx.setLineDash([]); }
@@ -636,6 +804,7 @@ function drawNow() {
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
     for (const [x, y] of moveTargets(G, P)) { if (!vis(x, y)) continue; ctx.fillStyle = "rgba(243,210,122,.28)"; ctx.fillRect(sx(x) + 2, sy(y) + 2, z - 4, z - 4); ctx.fillStyle = "#f3d27a"; ctx.beginPath(); ctx.arc(sx(x) + z / 2, sy(y) + z / 2, Math.max(2, z * 0.08), 0, 7); ctx.fill(); }
     ctx.strokeStyle = "#e6623f"; ctx.lineWidth = Math.max(2, z * 0.07); for (const [x, y] of attackTargets(G, P)) if (vis(x, y)) ctx.strokeRect(sx(x) + 3, sy(y) + 3, z - 6, z - 6);
+    if (P.owner === S.you) { ctx.setLineDash([z * 0.1, z * 0.06]); for (const t of razeTargets(S, G, P)) if (vis(t.x, t.y)) { ctx.strokeRect(sx(t.x) + 5, sy(t.y) + 5, z - 10, z - 10); const im = iconImg("target", draw); if (im) ctx.drawImage(im, sx(t.x) + z * 0.36, sy(t.y) + z * 0.36, z * 0.28, z * 0.28); } ctx.setLineDash([]); }
   }
   const now = performance.now(); flipping = false;
   ghosts = ghosts.filter((d) => now - d.t < DEATH_MS);
@@ -654,14 +823,22 @@ function drawNow() {
     if (p.id === sel) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.strokeRect(X + 3, Y + 3, z - 6, z - 6); }
     if (p.k === "king" && S.check?.[p.o]) { ctx.strokeStyle = "#e6623f"; ctx.lineWidth = 3; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.arc(cx, cy, z * 0.46, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     // полоса здоровья: чернильная рамка, заливка по доле
-    const bw = z * 0.66, bx = cx - bw / 2, by = Y + z * 0.9, bh = Math.max(3, z * 0.07), fr = Math.max(0, p.hp / p.mh);
-    ctx.fillStyle = INK; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2); ctx.fillStyle = fr > 0.5 ? "#7fc25a" : fr > 0.25 ? "#e0b04a" : "#c23a2a"; ctx.fillRect(bx, by, bw * fr, bh);
+    // «Скрывать ОЗ» (настройка): полоса только у выбранной/наведённой; скрытое здоровье лобби: у врага только grade (hs)
+    if (!hideHp || p.id === sel || p.id === hoverPid) { const bw = z * 0.66, bx = cx - bw / 2, by = Y + z * 0.9, bh = Math.max(3, z * 0.07), hs = p.hp == null ? p.hs : null, fr = hs ? (hs === "ok" ? 1 : hs === "hurt" ? 0.55 : 0.2) : Math.max(0, p.hp / p.mh);
+      ctx.fillStyle = INK; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2); ctx.fillStyle = hs ? HS_COL[hs] || "#888" : fr > 0.5 ? "#7fc25a" : fr > 0.25 ? "#e0b04a" : "#c23a2a"; ctx.fillRect(bx, by, bw * fr, bh);
+      if (hs && z >= 30) { ctx.font = `700 ${Math.round(z * 0.15)}px Oswald, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.strokeText(HS_NAME[hs] || "", cx, by - 1); ctx.fillStyle = HS_COL[hs] || "#ccc"; ctx.fillText(HS_NAME[hs] || "", cx, by - 1); } }
     const badge = (name: string, i: number) => { const im = iconImg(name, draw); if (im) { const s = z * 0.24; ctx.drawImage(im, X + z * 0.74, Y + z * 0.04 + i * s, s, s); } };
     { const Q = GP.get(p.id); if (Q) drawLvBadge(ctx, X, Y - hop, z, pieceLevel(Q, cfg), p.o === S.you && !!pendingTalent(Q, cfg)); }
     let bi = 0; if (p.b) badge("burn", bi++); if (p.c) badge("chill", bi++);
     const st = map.s[p.y * n + p.x]; if (st && st !== ".") drawStructIcon(ctx, st, X + z * 0.14, Y + z * 0.72, z * 0.26);
     ctx.globalAlpha = 1;
   }
+  rubble = rubble.filter((r) => now - r.t < 1200);
+  for (const r of rubble) { const k = (now - r.t) / 1200, X = sx(r.x) + z / 2, Y = sy(r.y) + z / 2; ctx.globalAlpha = 1 - k;
+    for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + i, d = z * (0.15 + k * 0.55) * (0.6 + (i % 3) * 0.2); ctx.fillStyle = i % 3 ? "#6b5a48" : "#a89070";
+      ctx.beginPath(); ctx.arc(X + Math.cos(a) * d, Y + Math.sin(a) * d * 0.7 + k * z * 0.2, z * (0.12 - k * 0.07) * (1 + (i % 2) * 0.4), 0, 7); ctx.fill(); }
+    ctx.fillStyle = "#2a2018"; for (let i = 0; i < 5; i++) { const a = i * 1.3, d = z * k * 0.6; ctx.fillRect(X + Math.cos(a) * d, Y - z * 0.2 + Math.sin(a) * d + k * k * z * 0.5, z * 0.06, z * 0.06); } }
+  ctx.globalAlpha = 1;
   bursts = bursts.filter((b) => now - b.t < FX_MS);
   for (const b of bursts) { const frs = hitFx(b.race); if (!frs.length) continue; const i = Math.min(frs.length - 1, Math.floor(((now - b.t) / FX_MS) * frs.length)), s2 = z * 1.3; ctx.drawImage(frs[i], sx(b.x) + z / 2 - s2 / 2, sy(b.y) + z / 2 - s2 / 2, s2, s2); }
   const castBusy = drawCasts(ctx, n, sx, sy, z, now);
@@ -674,10 +851,12 @@ function drawNow() {
     const X = sx(f.x) + z / 2, Y = sy(f.y) + z * (0.25 - k * 0.55); ctx.strokeText(f.txt, X, Y); ctx.fillStyle = f.col; ctx.fillText(f.txt, X, Y); }
   ctx.globalAlpha = 1;
   if (big()) drawMinimap();
-  const busy = castBusy || ultAim || fx.length || bursts.length || ghosts.length || tweens.size || flipping || eui.recruit || [...poses.values()].some((q) => q.until > now);
+  const busy = castBusy || W.mode || rubble.length || ultAim || fx.length || bursts.length || ghosts.length || tweens.size || flipping || eui.recruit || [...poses.values()].some((q) => q.until > now);
   if (busy) draw(); else if (zs.length && !zoneT) zoneT = setTimeout(() => { zoneT = 0; draw(); }, 110) as any;
 }
-let zoneT = 0;
+let isGuest = false;
+let rubble: { x: number; y: number; t: number }[] = [];
+let zoneT = 0, hoverPid = -1, hideHp = localStorage.getItem("strat.hideHp") === "1";
 /** Фигура. «Фигуры»: спрайт (по умолчанию смотрит вправо), отражается по face (−1…1, плавный поворот). «Фишки» — без поворота. */
 function drawUnit(ctx: CanvasRenderingContext2D, p: any, race: string, pose: Pose, x0: number, y0: number, cell: number, withGlyph: boolean, face = 1) {
   const [hi, lo] = RACE_COL[race] || ["#ccc", "#333"], cx = x0 + cell / 2, cy = y0 + cell / 2, r = cell * 0.4;
@@ -768,12 +947,18 @@ let cityIdx = -1, hoverKey = "";
 function hoverTip(px: number, py: number, cx: number, cy: number) {
   if (!matchMedia("(hover: hover)").matches || !S?.g) return; const at = cellAt(px, py); if (!at) { hideTip(); hoverKey = ""; return; }
   const [x, y] = at, g = S.g, p = g.pieces.find((q: any) => q.x === x && q.y === y), m: MapData = g.map || openMap(g.size), t = m.t[y * g.size + x], st = m.s[y * g.size + x];
-  const key = `${x},${y},${p?.id},${p?.hp}`; if (key === hoverKey) return; hoverKey = key;
+  const key = `${x},${y},${p?.id},${p?.hp},${S.g.v ?? S.g.turn}`; if (key === hoverKey) return; hoverKey = key; { const hp0 = p?.id ?? -1; if (hp0 !== hoverPid) { hoverPid = hp0; if (hideHp) draw(); } }
   let h = "";
-  if (p) h = `<b>${p.k === "king" ? "Вождь " + esc(chiefName(p.o)) : KIND_NAME[p.k as Kind]}</b> · ${p.o === S.you ? "ваш" : "враг"}<br>${ic("heart")}${p.hp}/${p.mh} ${ic("sword")}${p.ea ?? p.atk} ${ic("shield")}${p.er ?? p.arm}`;
+  if (p) h = `<b>${p.k === "king" ? "Вождь " + esc(chiefName(p.o)) : KIND_NAME[p.k as Kind]}</b> · ${p.o === S.you ? "ваш" : "враг"}<br>${p.hp == null && p.hs ? `<span class="hsb hs-${p.hs}">${HS_NAME[p.hs] || "?"}</span>` : `${ic("heart")}${p.hp}/${p.mh}`} ${ic("sword")}${p.ea ?? p.atk} ${ic("shield")}${p.er ?? p.arm}`;
+  if (g.ec) { const G0 = gs()!, base = territoryCached(G0, cfgOf(S), g), W0 = terrFull(G0, base, g), i = y * g.size + x, cid = W0.C[i];
+    if (cid >= 0) { const o = W0.T[i]; h += `${h ? "<br>" : ""}<span class="tipland" style="--pc:${raceCol(o)}">Земли ${esc(cityName(G0, cid))} (${esc(o === S.you ? "вы" : S.seats[o]?.nick || "?")})</span>`; }
+    const ctv = g.ec.ct?.[i]; if (ctv) h += `<br><small>Захват: ${esc(S.seats[ctv.o]?.nick || "?")} · ${ctv.n}/${S.league?.capture ?? 4} х.</small>`;
+    const city = G0.ec.cities.find((c) => c.x === x && c.y === y); if (city) { const rows = cityBld(S, G0, city, cfgOf(S)); if (rows.length) h += "<br><small>" + rows.map((r) => `${esc(bName(r.b, G0.races[city.owner]))}: ${r.ruin ? "руины" : r.hp != null ? r.hp + "/" + r.max : HS_NAME[r.hs || ""] || "?"}`).join(" · ") + "</small>"; }
+    const tw = towersOf(G0).find((t) => t.x === x && t.y === y); if (tw) { const hp = g.ec.tbhp?.[tw.id], hs = g.ec.tbhs?.[tw.id]; h += `${h ? "<br>" : ""}<b>Сторожевая башня</b> · ${esc(tw.owner === S.you ? "ваша" : S.seats[tw.owner]?.nick || "?")}<br><small>${hp != null ? "Прочность " + hp + "/" + ((cfgOf(S) as any).econ?.tower?.hp ?? 16) : hs ? HS_NAME[hs] : ""}</small>`; } }
   const tp = terrainPassive(t, (TERRAIN as any)[t]?.name || t); h += `${h ? "<br>" : ""}<small>${esc((TERRAIN as any)[t]?.name || t)}${tp ? " · " + tp.effs.map((e) => esc(effLine(e))).join(", ") : ""}${st !== "." ? " · " + esc((STRUCT as any)[st]?.name || "") : ""}</small>`;
   showTip(`<div class="tip-b">${h}</div>`, cx + 14, cy + 14);
 }
+const await0 = <T,>(p: Promise<T>) => p;
 function onBoard(px: number, py: number) {
   if (!S?.g) return; const at = cellAt(px, py); if (!at) return; const [x, y] = at;
   if (ultAim) { const touch = !matchMedia("(hover: hover)").matches;
@@ -781,7 +966,18 @@ function onBoard(px: number, py: number) {
     if (demo) { const u = parseUlt({ e: ultAim.chief ? "ult" : "uult", id: ultAim.pid, x, y, r: ultAim.r, race: ultAim.race }, S.g, performance.now()); if (u) { addCast(u, S.g.turn); ultBanner(u, true, ""); } }
     else send({ type: "act", act: ultAim.chief || ultAim.id === "ult" ? { a: "ult", id: ultAim.pid, x, y } : { a: "ability", id: ultAim.pid, ab: ultAim.id, x, y } });
     stopAim(); return; }
+  if (W.mode && S.phase === "play") { const G1 = gs()!, md = W.mode;
+    if (md.k === "claim") { const tc = S.terr?.cities?.find((q: any) => q.city === md.city);
+      if (tc?.cells?.some(([a, b]: number[]) => a === x && b === y)) { send({ type: "act", act: { a: "claim", city: md.city, x, y } }); W.mode = null; renderHint(); return draw(); } }
+    else { const k = G1.pieces.find((q) => q.owner === S.you && q.kind === "king");
+      if (k && towerCells(G1, worldT(), S.you, k, cfgOf(S)).some(([a, b]) => a === x && b === y)) { send({ type: "act", act: { a: "build", b: md.b, id: k.id, x, y } }); W.mode = null; renderHint(); return draw(); } }
+    toast("Эта клетка не подходит — выберите подсвеченную", "bad"); return; }
   const G = gs()!, here = G.pieces.find((p) => p.x === x && p.y === y);
+  { const P0 = sel != null ? G.pieces.find((q) => q.id === sel) : null;
+    if (P0 && P0.owner === S.you && S.phase === "play" && G.cur === S.you && !P0.acted) { const rt = razeTargets(S, G, P0).find((t) => t.x === x && t.y === y);
+      if (rt && !(here && attackTargets(G, P0).some(([a, b]) => a === x && b === y))) {
+        const pick = rt.b.length === 1 ? rt.b[0] : await0(choiceDlg("Удар по постройке", `${rt.tower ? "Сторожевая башня" : cityName(G, rt.city)}: что разрушать?`, rt.b.map((b) => ({ id: b, title: bName(b, G.races[1 - S.you] || ""), icon: "target" })), "builds"));
+        Promise.resolve(pick).then((b) => { if (b) { faceAt(P0.id, x, y); send({ type: "act", act: { a: "raze", id: P0.id, city: rt.city, b } }); } }); return; } } }
   if (S.phase !== "play") { selCell = here ? null : [x, y]; sel = here ? here.id : null; renderInfo(); return draw(); }
   if (G.ec && !demo && boardClick(ectx(), x, y, !here)) { selCell = null; sel = null; renderInfo(); renderHint(); return draw(); }
   selCell = here ? null : [x, y];
@@ -802,9 +998,9 @@ function onBoard(px: number, py: number) {
 
 // ---------- таймер ----------
 function tick() {
-  const el = $("#clock"); if (!el) return;
-  if (S?.phase === "play" && S.clock) {
-    const now = Date.now() - S.skew, g = S.g, c = S.clock, turnLeft = Math.max(0, c.turnEnds - now), res = Math.max(0, (c.reserve?.[g.cur] ?? 0) - Math.max(0, now - c.turnEnds));
+  const el = $("#clock"), bc = document.getElementById("bigclock"); if (!el) return;
+  if (S?.phase === "play" && S.clock && isFinite(+(S.clock.turnEnds ?? S.clock.deadline))) {
+    const now = Date.now() - (S.skew || 0), g = S.g, c = S.clock, turnLeft = Math.max(0, +(c.turnEnds ?? c.deadline) - now), res = Math.max(0, (c.reserve?.[g.cur] ?? 0) - Math.max(0, now - c.turnEnds));
     const total = c.turnMs ?? (S.turnSec ?? (STRAT_CFG.sizes as any)[g.size]?.turnSec ?? turnSecFor(g.size)) * 1000, fr = Math.max(0, Math.min(1, turnLeft / Math.max(1, total)));
     const f = (ms: number) => { const s = Math.ceil(ms / 1000); return s >= 3600 ? Math.floor(s / 3600) + ":" + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0") : Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
     const mine = g.cur === S.you, warn = fr <= 0.1;
@@ -812,7 +1008,11 @@ function tick() {
     (el.querySelector(".tr-fg") as SVGCircleElement).style.strokeDashoffset = String(100 - fr * 100);
     el.querySelector("b")!.textContent = f(turnLeft); el.querySelector("small")!.textContent = turnLeft > 0 ? (mine ? "ваш ход" : "ход соперника") : "запас " + f(res);
     el.classList.toggle("low", warn); el.classList.toggle("mine", mine); el.dataset.tip = `Время на ход: ${fmtMin(Math.round(total / 1000))}. Когда оно и запас кончатся, ход будет пропущен.`;
-  } else el.innerHTML = "";
+    if (bc) { // большое кольцо в правой колонке (арт timer_ring_frame, дуга и цифры — игрой; <10% — красное)
+      if (!bc.querySelector(".bc-arc")) bc.innerHTML = `<svg class="bc-svg" viewBox="0 0 128 128" aria-hidden="true"><circle class="bc-bg" cx="64" cy="70" r="40"/><circle class="bc-arc" cx="64" cy="70" r="40" pathLength="100"/></svg><b class="bc-t"></b><small class="bc-s"></small>`;
+      (bc.querySelector(".bc-arc") as SVGCircleElement).style.strokeDashoffset = String(100 - fr * 100); bc.querySelector(".bc-t")!.textContent = f(turnLeft);
+      bc.querySelector(".bc-s")!.textContent = turnLeft > 0 ? "" : "запас " + f(res); bc.classList.toggle("low", warn); bc.dataset.tip = el.dataset.tip; }
+  } else { el.innerHTML = ""; if (bc) bc.innerHTML = ""; }
 }
 /** Карточка «У вас есть незавершённая партия» в главном меню. Источник: hub-сообщение {type:"resume"} или hub {type:"resume_get"} (протокол уточняется балансовым воркером). */
 let resumeInfo: any = null;
@@ -825,10 +1025,21 @@ function renderResume() {
   box.querySelector(".rs-opp")!.textContent = "против " + (r.opp || "соперника"); box.querySelector(".rs-map")!.textContent = (r.map || "Открытое поле") + (r.size ? ` · ${r.size}×${r.size}` : "");
   box.querySelector<HTMLButtonElement>("#rsgo")!.onclick = () => joinCode(r.code);
 }
+const llCache: Record<string, { at: number; list: any[] | null }> = {};
+function renderLobbyLeague() {
+  const el = document.getElementById("lleague"); if (!el) return; const lg = leagueOf(S.size), c = llCache[lg], my = S.seats?.[S.you]?.nick || "";
+  if (!c || Date.now() - c.at > 60000) { llCache[lg] = { at: Date.now(), list: c?.list ?? null }; topGet(lg).then((j: any) => { llCache[lg] = { at: Date.now(), list: Array.isArray(j?.list) ? j.list : [] }; if (S?.phase === "lobby") renderLobbyLeague(); }).catch(() => {}); }
+  const list = llCache[lg].list, h = lobbyLeagueHtml(lg, list, my); if (el.dataset.h === h) return; el.dataset.h = h; el.innerHTML = h;
+  el.querySelectorAll<HTMLElement>(".nk").forEach((n) => (n.textContent = String(list?.[+n.dataset.i!]?.nick || "?").slice(0, 20)));
+}
 /** Таблица лиги: hub {type:"top_get", league} → {list}; в демо — локальные данные. */
 function topGet(league: string): Promise<any> { return demo ? Promise.resolve((window as any).__stratTopDemo?.(league) || {}) : hubReq("top_get", { league }); }
+const raceD = () => ({ races: RACES as string[], name: RACE_NAME as Record<string, string>, crest, col: (r: string) => (RACE_COL[r] || [GOLD])[0] });
+function saveFav(xs: string[]) { setFavLocal(xs); if (demo || hub?.readyState !== 1) { toast("Любимые расы сохранены", "good", "check"); if (S?.phase === "lobby") renderLobby(); return; } hub.send(JSON.stringify({ type: "fav_races_set", races: xs })); }
+function openFavDlg() { const m = modal({ id: "favdlg", title: "Любимые расы", icon: "crown", cls: "favdlg", body: favPickerHtml(raceD(), favRaces()) });
+  bindFavPicker(m.el, raceD(), favRaces(), (xs) => { saveFav(xs); m.close(); }); }
 /** Игровой профиль: hub {type:"profile_get"}; личная вкладка — только если сервер подтвердил владельца. */
-function showProfile() { return openProfile(() => (demo ? Promise.resolve(demoProfile(S?.seats?.[S.you]?.nick || $("#me").textContent || "Гость")) : hubReq("profile_get")), { crest, raceName: RACE_NAME, raceCol: (r) => (RACE_COL[r] || [GOLD])[0] }); }
+function showProfile() { return openProfile(() => (demo ? Promise.resolve(demoProfile(S?.seats?.[S.you]?.nick || $("#me").textContent || "Гость")) : hubReq("profile_get")), { crest, raceName: RACE_NAME, raceCol: (r) => (RACE_COL[r] || [GOLD])[0], lib: libDeps(), fav: { get: favRaces, html: () => favPickerHtml(raceD(), favRaces()), bind: (el: HTMLElement) => bindFavPicker(el, raceD(), favRaces(), saveFav), guest: () => isGuest } }); }
 async function loadResume() {
   const j: any = await hubReq("resume_get");
   if (j?.game || j?.code) { resumeInfo = j.game || j; renderResume(); }
@@ -853,6 +1064,7 @@ function openMenu() {
   const m = modal({ id: "menudlg", title: "Пауза", icon: "menu", cls: "small menudlg", body: `${profileHtml(null)}<div class="menulist">
     <button class="btn gold" id="m-cont">${ic("play")}<span>Продолжить</span></button>
     <button class="btn" id="m-style">${ic("eye")}<span>${pieceStyle === "figures" ? "Вид: фигуры ⇄ фишки" : "Вид: фишки ⇄ фигуры"}</span></button>
+    <button class="btn" id="m-hp" aria-pressed="${hideHp}" data-tip="Только отображение: полосы здоровья видны у выбранной и наведённой фигуры">${ic("heart")}<span>Скрывать ОЗ: ${hideHp ? "вкл" : "выкл"}</span></button>
     <button class="btn" id="m-rules">${ic("book")}<span>Правила</span></button>
     ${S?.phase === "play" && S.you >= 0 && !demo ? `<button class="btn danger" id="m-surr">${ic("flag")}<span>Сдаться</span></button>` : ""}
     <button class="btn ghost" id="leave2">${ic("back")}<span>В главное меню</span></button></div>` });
@@ -864,6 +1076,7 @@ function openMenu() {
   (demo ? Promise.resolve((window as any).__stratRatingDemo?.() || {}) : hubReq("rating_get")).then((r: any) => { if (!r?.leagues || !pf.isConnected) return; const nk = pf.querySelector(".pf-nick")!.textContent; pf.outerHTML = profileHtml(r.leagues);
     const pf2 = m.el.querySelector<HTMLElement>(".profile")!; pf2.querySelector(".pf-nick")!.textContent = nk; pf2.querySelector<HTMLButtonElement>("[data-top]")!.onclick = () => openLeaderboard(topGet, nk || "", leagueOf(S?.g?.size || S?.size || 8)); });
   q("m-style")!.onclick = () => { togglePieceStyle(); q("m-style")!.querySelector("span")!.textContent = pieceStyle === "figures" ? "Вид: фигуры ⇄ фишки" : "Вид: фишки ⇄ фигуры"; };
+  q("m-hp")!.onclick = () => { hideHp = !hideHp; localStorage.setItem("strat.hideHp", hideHp ? "1" : "0"); const b = q("m-hp")!; b.setAttribute("aria-pressed", String(hideHp)); b.querySelector("span")!.textContent = "Скрывать ОЗ: " + (hideHp ? "вкл" : "выкл"); draw(); };
   q("m-rules")!.onclick = () => { m.close(null); showRules(); };
   const sb = q("m-surr"); if (sb) sb.onclick = () => { m.close(null); surrender(); };
   q("leave2")!.onclick = () => { m.close(null); leaveMatch(); };
@@ -912,6 +1125,7 @@ export function boot() {
   $("#refresh").onclick = loadOpen;
   $("#copy").onclick = async () => { const u = location.origin + location.pathname + "?join=" + S.code; try { await navigator.clipboard.writeText(u); toast("Ссылка скопирована", "good", "copy"); } catch { toast("Код лобби: " + S.code, "info", "copy"); } };
   $("#goals").addEventListener("click", (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>("[data-bl]"); if (b) openBlacklist(+b.dataset.bl!); });
+  $<HTMLInputElement>("#hhp").onchange = (e) => send({ type: "cfg", hiddenHp: (e.target as HTMLInputElement).checked });
   $<HTMLInputElement>("#ranked").onchange = (e) => send({ type: "cfg", ranked: (e.target as HTMLInputElement).checked });
   { const pb = document.getElementById("profbtn"); if (pb) pb.onclick = () => showProfile(); }
   { const tb = document.getElementById("topbtn"); if (tb) tb.onclick = () => openLeaderboard(topGet, "", "fast"); }
@@ -929,6 +1143,7 @@ export function boot() {
   $("#forfeit").onclick = surrender;
   $("#menubtn").onclick = openMenu;
   $("#rematch").onclick = () => send({ type: "rematch" });
+  $("#hprev").onclick = () => histStep(-1); $("#hnext").onclick = () => histStep(1);
   $("#leave").onclick = leaveMatch;
   const rb = document.getElementById("rulesbtn"); if (rb) rb.onclick = showRules;
   $("#nick").oninput = (e) => localStorage.setItem("strat_nick", (e.target as HTMLInputElement).value.slice(0, 24));
@@ -938,12 +1153,16 @@ export function boot() {
   ps.onclick = togglePieceStyle;
   pb.onchange = () => { glyphBadge = pb.checked; localStorage.setItem("strat.glyphBadge", glyphBadge ? "1" : "0"); draw(); savePrefs(); };
   (window as any).__syncPs = syncPs; syncPs();
-  addEventListener("keydown", (e) => { if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" && !document.querySelector("#modals .dlg")) { eui.recruit = null; sel = null; renderHint(); renderInfo(); draw(); }
+  addEventListener("keydown", (e) => { const tg = e.target as HTMLElement;
+    if (S?.g && !document.querySelector("#modals .dlg") && !/INPUT|TEXTAREA|SELECT/.test(tg?.tagName || "") && (e.key === "ArrowLeft" || e.key === "ArrowRight" || (e.key === " " && hv?.replay) || (e.key === "Escape" && hv))) {
+      if (e.key === "ArrowLeft") { e.preventDefault(); histStep(-1); return; } if (e.key === "ArrowRight" && hv) { e.preventDefault(); histStep(1); return; }
+      if (e.key === " ") { e.preventDefault(); togglePlay(); return; } if (e.key === "Escape") { goLive(); return; } }
+if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" && !document.querySelector("#modals .dlg")) { eui.recruit = null; sel = null; renderHint(); renderInfo(); draw(); }
     if (e.key === " " && S?.phase === "play" && !(e.target as HTMLElement).closest("input,textarea") && !document.querySelector("#modals .dlg")) { e.preventDefault(); endTurn(); } });
   bindBoard(); bindTips();
   new ResizeObserver(() => { if (S?.g) { fitCam(false); draw(); } }).observe($("#stage"));
   setInterval(tick, 250);
-  connectHub(); loadOpen(); render(); loadArt(draw); injectIcons();
+  connectHub(); loadOpen(); render(); loadArt(draw); loadWalls(draw); injectIcons();
   const d = LOCAL ? qs.get("demo") : null; if (d) startDemo(+d);
   const j = qs.get("join"); if (j && !d) joinCode(j);
 }
@@ -970,6 +1189,48 @@ if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
   resume: () => { resumeInfo = { code: "K7QX2M", opp: "Сайфер", oppRace: "lightning", map: "Перевал у Чёрной реки", size: 15, turn: 14, myTurn: true }; S = null; demo = false; render(); renderResume(); },
   lobby8: (mode: string, n: number) => { const races = ["fire", "ice", "water", "stone", "nature", "lightning", "fire", "ice"], nick = ["Алекс", "Сайфер", "Мира", "Горн", "Ласка", "Вихрь", "Тень", "Бот"];
     S = { code: "DEMO8", phase: "lobby", you: 0, size: 15, mode, maxSeats: n, spawns: 8, seats: Array.from({ length: Math.min(n, 6) }, (_, i) => ({ nick: nick[i], race: i % 3 ? races[i] : null, picked: true, ready: i % 2 === 0, bot: i === 5, botLv: "hard", team: mode === "2v2" ? i % 2 : undefined, online: i !== 2 })), skew: 0 }; demo = true; render(); },
+  // ---- s5: мир партии (формы из WIP сервера; S.apSrc/S.raze — догадки) ----
+  s5: (o: any = {}) => { const g = S.g, ec = g.ec, me = S.you, en = 1 - me, n = g.size, idx = (x: number, y: number) => y * n + x;
+    g.turn = o.turn ?? 14; g.apMax = o.apMax ?? 14; g.ap = o.ap ?? 11;
+    S.league = { id: "normal", apBase: 6, apTech: 1, apBld: 1, onceMax: 1, apMax: 14, raceCap: 3, grow: 4, capture: 4, found: 6 };
+    const myC = ec.cities.find((c: any) => c.owner === me), enC = ec.cities.find((c: any) => c.owner === en);
+    myC.bld = ["barracks", "wall", "forge"]; myC.bhp = { barracks: 14, wall: 9, forge: 20 }; myC.grow = [idx(myC.x - 2, myC.y - 1)];
+    enC.bld = ["barracks", "magetower"]; enC.bhp = { barracks: 6, magetower: 18 }; enC.ruin = ["wall"];
+    ec.techs[me] = [...new Set([...(ec.techs[me] || [])])];
+    ec.towers = [{ id: 10001, owner: me, x: myC.x - 3, y: myC.y - 2 }]; ec.tbhp = { 10001: 7 };
+    ec.ct = { [idx(myC.x + 1, myC.y - 1)]: { o: en, n: 2 } }; ec.lost = {};
+    const k = g.pieces.find((p: any) => p.o === me && p.k === "king");
+    S.terr = { cities: [{ city: myC.id, every: 4, tg: 1, ready: true, left: 0, cost: 12, cells: [[myC.x - 2, myC.y], [myC.x + 2, myC.y], [myC.x + 2, myC.y - 1]] }],
+      fnd: o.found === false ? null : k && { id: k.id, x: k.x, y: k.y, left: 2, gold: 20 }, raceAp: { n: 2, have: 7, per: 3, cap: 3, label: "Сила огня", kind: "fire" } };
+    ec.res[me].gold = Math.max(ec.res[me].gold || 0, 64);
+    if (o.hidden) { S.hiddenHp = true; g.pieces.forEach((p: any, i: number) => { if (p.o !== me) p.hs = ["ok", "hurt", "low"][i % 3]; });
+      enC.bhs = { barracks: "hurt", magetower: "ok" }; }
+    S.clock = { turnEnds: Date.now() - (S.skew || 0) + (o.left ?? 47000), turnMs: o.total ?? 90000, reserve: [60000, 60000] };
+    gsCache = { s: null, g: null } as any; render(); tick(); },
+  cam: (x: number, y: number, z?: number) => { if (z) cam.z = z; centerOn(x, y); },
+  wmode: (m: any) => { W.mode = m; draw(); },
+  fx: (e: any) => { const r: any = worldEvent(e, S.you, gs()!, (i: number) => S.seats[i]?.nick || "?"); const now = performance.now(); if (r?.fx) fx.push({ ...r.fx, t: now }); if (r?.dust) rubble.push({ ...r.dust, t: now }); if (r?.toast) toast(r.toast[0], r.toast[1], r.toast[2]); draw(); return r; },
+  apTip: () => { const el = document.querySelector<HTMLElement>(".apbox2"); el?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); el?.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true })); },
+  ratedLobby: () => { (window as any).__stratDev.lobby8("ffa", 6); S.ranked = true; S.rated = true; S.seats.forEach((x: any) => x && (x.race = null, x.picked = false, x.rating = 1400 + ((x.nick.length * 97) % 400), x.col = undefined));
+    S.seats[0].col = 0; S.seats[1].col = 1; S.seats[3].col = 3; S.seats[2].prov = true; S.raceDraw = { commit: "9f3ac1e07b5d42aa", w: [85, 15] }; renderLobby(); },
+  drum: (n = 6) => { const races = ["fire", "ice", "water", "stone", "nature", "lightning"];
+    S.raceDraw = { commit: "9f3ac1e07b5d42aa", seed: "5be2c09d1f7e", rolls: Array.from({ length: n }, (_, i) => ({ seat: i, race: races[(i * 4 + 1) % 6], fromFav: i % 3 !== 2, roll: 0.3, pool: 6, favPool: 3 })), order: Array.from({ length: n }, (_, i) => i) };
+    if (S.seats.length < n) S.seats = Array.from({ length: n }, (_, i) => S.seats[i] || { nick: ["Алекс", "Сайфер", "Мира", "Горн", "Ласка", "Вихрь", "Тень", "Бот"][i] });
+    drumReveal(S, { ...raceD(), nick: (i: number) => S.seats[i]?.nick || "?", me: S.you }, () => {}); },
+  fav: () => openFavDlg(),
+  /** Демо-история: n полуходов с событиями (ход, удар с разбором, постройка, техно, захват земли). */
+  hist: (n = 8) => { const G0 = S.g, me = S.you ?? 0, N = G0.races.length; rec.reset(S.code || "demo"); const t0 = Math.max(1, G0.turn - Math.ceil(n / N));
+    for (let k = 0; k < n; k++) { const g = structuredClone({ ...G0, map: undefined }); g.map = G0.map; g.turn = t0 + Math.floor(k / N); g.cur = k % N; g.v = 1000 + k; const side = g.cur;
+      const mine = g.pieces.filter((p: any) => p.o === side && p.k !== "king"), foe = g.pieces.find((p: any) => p.o !== side), a = mine[k % Math.max(1, mine.length)], ev: any[] = [];
+      if (a) { ev.push({ e: "move", id: a.id, x: a.x, y: a.y }); if (foe && k % 2 === 0) ev.push({ e: "hit", id: a.id, t: foe.id, dmg: 2 + (k % 3), hp: Math.max(1, (foe.hp ?? 6) - 2), ...(k % 4 === 0 ? { why: [{ label: "Атака: " + (KIND_NAME[a.k as Kind] || "фигура"), n: 4 }, { label: "Высота (холм)", n: 1 }, { label: "Броня цели", n: -2 }, { label: "Пассивка «Ярость»", n: 1 }] } : {}) }); }
+      if (k % 3 === 1) ev.push({ e: "build", b: "barracks", city: g.ec?.cities?.find((c: any) => c.o === side)?.id, side });
+      if (k % 4 === 2) ev.push({ e: "tech", side, t: (TECHS as any[])[k % TECHS.length]?.id });
+      if (k % 5 === 3) ev.push({ e: "tcap", x: 7, y: 13, owner: (side + 1) % N, by: side });
+      if (k === n - 1) { g.pieces = G0.pieces; g.turn = G0.turn; g.cur = G0.cur; g.v = G0.v; }
+      rec.push(S.code || "demo", k === n - 1 ? G0 : g, ev); }
+    renderMoves(); return rec.frames.length; },
+  view: (i: number) => histOpen(i), live: () => goLive(), hv: () => (hv ? { idx: hv.idx, replay: !!hv.replay, playing: hv.playing, speed: hv.speed } : null),
+  replay: () => { const r = curRec(false); if (r) histOpen(0, r); return !!r; }, saveRec: (saved = true) => { const r = curRec(saved); return r ? lsPut(r) : false; },
   ffa: (n: number) => { S.seats = Array.from({ length: n }, (_, i) => S.seats[i] || { nick: ["Алекс", "Сайфер", "Мира", "Горн", "Ласка", "Вихрь", "Тень", "Бот"][i], online: i !== 3 }); S.g.races = Array.from({ length: n }, (_, i) => S.g.races[i] || ["water", "stone", "nature", "lightning", "fire", "ice"][i % 6]); S.mode = "ffa"; render(); } };
 (window as any).__stratFocus = (id: number) => { const p = S?.g?.pieces?.find((q: any) => q.id === id); if (!p) return; sel = id; centerOn(p.x, p.y); renderInfo(); draw(); };
 if (LOCAL && qs.get("demo")) { (window as any).__stratRatingDemo = () => ({ leagues: { fast: { r: 1612, rd: 48, games: 41, w: 25, l: 14, d: 2, peak: 1660 }, normal: { r: 1532, rd: 72, games: 17, w: 9, l: 7, d: 1, peak: 1561 }, tactic: { r: 1500, rd: 190, games: 3, w: 2, l: 1, d: 0, peak: 1514 } } });

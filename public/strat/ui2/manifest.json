@@ -1,0 +1,2161 @@
+{
+ "portrait_frame": {
+  "cat": "blacklist",
+  "png": "blacklist/portrait_frame.png",
+  "svg": "svg/blacklist/portrait_frame.svg",
+  "size": [
+   112,
+   112
+  ],
+  "slice": null,
+  "note": "золотой восьмиугольник, окно Ø~82 (восьмиугольник r44)"
+ },
+ "stamp_fallen": {
+  "cat": "blacklist",
+  "png": "blacklist/stamp_fallen.png",
+  "svg": "svg/blacklist/stamp_fallen.svg",
+  "size": [
+   160,
+   160
+  ],
+  "slice": null,
+  "note": "красная печать «ПАЛ», повёрнута на −14°, потёртости"
+ },
+ "target_mark": {
+  "cat": "blacklist",
+  "png": "blacklist/target_mark.png",
+  "svg": "svg/blacklist/target_mark.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "прицел живой цели"
+ },
+ "chief_portrait_fire": {
+  "cat": "blacklist",
+  "png": "blacklist/chief_portrait_fire.png",
+  "svg": null,
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "бюст Вождя (Огонь) из векторного рига race-fire-v1; только PNG (композит растров)"
+ },
+ "chief_portrait_ice": {
+  "cat": "blacklist",
+  "png": "blacklist/chief_portrait_ice.png",
+  "svg": null,
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "бюст Вождя (Лёд) из векторного рига race-ice-v1; только PNG (композит растров)"
+ },
+ "chief_portrait_water": {
+  "cat": "blacklist",
+  "png": "blacklist/chief_portrait_water.png",
+  "svg": null,
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "бюст Вождя (Вода) из векторного рига race-water-v1; только PNG (композит растров)"
+ },
+ "chief_portrait_stone": {
+  "cat": "blacklist",
+  "png": "blacklist/chief_portrait_stone.png",
+  "svg": null,
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "бюст Вождя (Камень) из векторного рига race-stone-v1; только PNG (композит растров)"
+ },
+ "chief_portrait_nature": {
+  "cat": "blacklist",
+  "png": "blacklist/chief_portrait_nature.png",
+  "svg": null,
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "бюст Вождя (Природа) из векторного рига race-nature-v1; только PNG (композит растров)"
+ },
+ "chief_portrait_lightning": {
+  "cat": "blacklist",
+  "png": "blacklist/chief_portrait_lightning.png",
+  "svg": null,
+  "size": [
+   256,
+   256
+  ],
+  "slice": null,
+  "note": "бюст Вождя (Молния) из векторного рига race-lightning-v1; только PNG (композит растров)"
+ },
+ "chat_frame": {
+  "cat": "frames",
+  "png": "frames/chat_frame.png",
+  "svg": "svg/frames/chat_frame.svg",
+  "size": [
+   256,
+   256
+  ],
+  "slice": [
+   56,
+   56,
+   56,
+   56
+  ],
+  "note": "9-slice, панель чата (полупрозрачная тёмная)"
+ },
+ "chat_tab_normal": {
+  "cat": "frames",
+  "png": "frames/chat_tab_normal.png",
+  "svg": "svg/frames/chat_tab_normal.svg",
+  "size": [
+   160,
+   48
+  ],
+  "slice": [
+   24,
+   null,
+   24,
+   null
+  ],
+  "note": "3-slice, вкладка чата Все/Союз/Шёпот"
+ },
+ "chat_tab_active": {
+  "cat": "frames",
+  "png": "frames/chat_tab_active.png",
+  "svg": "svg/frames/chat_tab_active.svg",
+  "size": [
+   160,
+   48
+  ],
+  "slice": [
+   24,
+   null,
+   24,
+   null
+  ],
+  "note": "3-slice, вкладка чата Все/Союз/Шёпот"
+ },
+ "resume_frame": {
+  "cat": "frames",
+  "png": "frames/resume_frame.png",
+  "svg": "svg/frames/resume_frame.svg",
+  "size": [
+   640,
+   160
+  ],
+  "slice": [
+   120,
+   null,
+   120,
+   null
+  ],
+  "note": "3-slice, карточка «незавершённая партия»; слева медальон, справа шевроны"
+ },
+ "plaque_player": {
+  "cat": "frames",
+  "png": "frames/plaque_player.png",
+  "svg": "svg/frames/plaque_player.svg",
+  "size": [
+   320,
+   88
+  ],
+  "slice": [
+   56,
+   null,
+   56,
+   null
+  ],
+  "note": "3-slice; медальон герба слева (Ø56, центр 28,44), белая полоса y71–77 — красить в цвет игрока"
+ },
+ "plaque_player_active": {
+  "cat": "frames",
+  "png": "frames/plaque_player_active.png",
+  "svg": "svg/frames/plaque_player_active.svg",
+  "size": [
+   320,
+   88
+  ],
+  "slice": [
+   56,
+   null,
+   56,
+   null
+  ],
+  "note": "как plaque_player + золотой ореол и стрелка хода"
+ },
+ "slot_lobby_empty": {
+  "cat": "frames",
+  "png": "frames/slot_lobby_empty.png",
+  "svg": "svg/frames/slot_lobby_empty.svg",
+  "size": [
+   288,
+   112
+  ],
+  "slice": [
+   32,
+   32,
+   32,
+   32
+  ],
+  "note": "9-slice; белая полоса y4–10 — красить в цвет слота"
+ },
+ "slot_lobby_filled": {
+  "cat": "frames",
+  "png": "frames/slot_lobby_filled.png",
+  "svg": "svg/frames/slot_lobby_filled.svg",
+  "size": [
+   288,
+   112
+  ],
+  "slice": [
+   32,
+   32,
+   32,
+   32
+  ],
+  "note": "9-slice; белая полоса y4–10 — красить в цвет слота"
+ },
+ "slot_lobby_ready": {
+  "cat": "frames",
+  "png": "frames/slot_lobby_ready.png",
+  "svg": "svg/frames/slot_lobby_ready.svg",
+  "size": [
+   288,
+   112
+  ],
+  "slice": [
+   32,
+   32,
+   32,
+   32
+  ],
+  "note": "9-slice; белая полоса y4–10 — красить в цвет слота"
+ },
+ "toast_frame": {
+  "cat": "frames",
+  "png": "frames/toast_frame.png",
+  "svg": "svg/frames/toast_frame.svg",
+  "size": [
+   480,
+   72
+  ],
+  "slice": [
+   48,
+   null,
+   48,
+   null
+  ],
+  "note": "3-slice всплывашка"
+ },
+ "tooltip_frame": {
+  "cat": "frames",
+  "png": "frames/tooltip_frame.png",
+  "svg": "svg/frames/tooltip_frame.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": [
+   24,
+   24,
+   24,
+   24
+  ],
+  "note": "9-slice подсказка"
+ },
+ "tooltip_tail": {
+  "cat": "frames",
+  "png": "frames/tooltip_tail.png",
+  "svg": "svg/frames/tooltip_tail.svg",
+  "size": [
+   24,
+   16
+  ],
+  "slice": null,
+  "note": "хвостик подсказки, верхний край стыкуется с низом tooltip_frame"
+ },
+ "levelup_card_normal": {
+  "cat": "frames",
+  "png": "frames/levelup_card_normal.png",
+  "svg": "svg/frames/levelup_card_normal.svg",
+  "size": [
+   200,
+   260
+  ],
+  "slice": null,
+  "note": "фикс.; круг иконки Ø88 центр (100,84); имя y150–180; текст y188–244"
+ },
+ "levelup_card_hover": {
+  "cat": "frames",
+  "png": "frames/levelup_card_hover.png",
+  "svg": "svg/frames/levelup_card_hover.svg",
+  "size": [
+   200,
+   260
+  ],
+  "slice": null,
+  "note": "фикс.; круг иконки Ø88 центр (100,84); имя y150–180; текст y188–244"
+ },
+ "dock_frame": {
+  "cat": "frames",
+  "png": "frames/dock_frame.png",
+  "svg": "svg/frames/dock_frame.svg",
+  "size": [
+   480,
+   120
+  ],
+  "slice": [
+   80,
+   null,
+   80,
+   null
+  ],
+  "note": "3-slice док повышения уровня (низ открыт)"
+ },
+ "profile_frame": {
+  "cat": "frames",
+  "png": "frames/profile_frame.png",
+  "svg": "svg/frames/profile_frame.svg",
+  "size": [
+   720,
+   480
+  ],
+  "slice": [
+   96,
+   96,
+   96,
+   96
+  ],
+  "note": "9-slice рамка профиля"
+ },
+ "icon_chat_64": {
+  "cat": "icons",
+  "png": "icons/icon_chat_64.png",
+  "svg": "svg/icons/icon_chat_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_chat_32": {
+  "cat": "icons",
+  "png": "icons/icon_chat_32.png",
+  "svg": "svg/icons/icon_chat_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_mute_64": {
+  "cat": "icons",
+  "png": "icons/icon_mute_64.png",
+  "svg": "svg/icons/icon_mute_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_mute_32": {
+  "cat": "icons",
+  "png": "icons/icon_mute_32.png",
+  "svg": "svg/icons/icon_mute_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_report_64": {
+  "cat": "icons",
+  "png": "icons/icon_report_64.png",
+  "svg": "svg/icons/icon_report_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_report_32": {
+  "cat": "icons",
+  "png": "icons/icon_report_32.png",
+  "svg": "svg/icons/icon_report_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_whisper_64": {
+  "cat": "icons",
+  "png": "icons/icon_whisper_64.png",
+  "svg": "svg/icons/icon_whisper_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_whisper_32": {
+  "cat": "icons",
+  "png": "icons/icon_whisper_32.png",
+  "svg": "svg/icons/icon_whisper_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_menu_64": {
+  "cat": "icons",
+  "png": "icons/icon_menu_64.png",
+  "svg": "svg/icons/icon_menu_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_menu_32": {
+  "cat": "icons",
+  "png": "icons/icon_menu_32.png",
+  "svg": "svg/icons/icon_menu_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_eye_64": {
+  "cat": "icons",
+  "png": "icons/icon_eye_64.png",
+  "svg": "svg/icons/icon_eye_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_eye_32": {
+  "cat": "icons",
+  "png": "icons/icon_eye_32.png",
+  "svg": "svg/icons/icon_eye_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_lock_64": {
+  "cat": "icons",
+  "png": "icons/icon_lock_64.png",
+  "svg": "svg/icons/icon_lock_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_lock_32": {
+  "cat": "icons",
+  "png": "icons/icon_lock_32.png",
+  "svg": "svg/icons/icon_lock_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_check_64": {
+  "cat": "icons",
+  "png": "icons/icon_check_64.png",
+  "svg": "svg/icons/icon_check_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_check_32": {
+  "cat": "icons",
+  "png": "icons/icon_check_32.png",
+  "svg": "svg/icons/icon_check_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_close_64": {
+  "cat": "icons",
+  "png": "icons/icon_close_64.png",
+  "svg": "svg/icons/icon_close_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_close_32": {
+  "cat": "icons",
+  "png": "icons/icon_close_32.png",
+  "svg": "svg/icons/icon_close_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_back_64": {
+  "cat": "icons",
+  "png": "icons/icon_back_64.png",
+  "svg": "svg/icons/icon_back_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_back_32": {
+  "cat": "icons",
+  "png": "icons/icon_back_32.png",
+  "svg": "svg/icons/icon_back_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_plus_64": {
+  "cat": "icons",
+  "png": "icons/icon_plus_64.png",
+  "svg": "svg/icons/icon_plus_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_plus_32": {
+  "cat": "icons",
+  "png": "icons/icon_plus_32.png",
+  "svg": "svg/icons/icon_plus_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_refresh_64": {
+  "cat": "icons",
+  "png": "icons/icon_refresh_64.png",
+  "svg": "svg/icons/icon_refresh_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_refresh_32": {
+  "cat": "icons",
+  "png": "icons/icon_refresh_32.png",
+  "svg": "svg/icons/icon_refresh_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_copy_64": {
+  "cat": "icons",
+  "png": "icons/icon_copy_64.png",
+  "svg": "svg/icons/icon_copy_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_copy_32": {
+  "cat": "icons",
+  "png": "icons/icon_copy_32.png",
+  "svg": "svg/icons/icon_copy_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_map_64": {
+  "cat": "icons",
+  "png": "icons/icon_map_64.png",
+  "svg": "svg/icons/icon_map_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_map_32": {
+  "cat": "icons",
+  "png": "icons/icon_map_32.png",
+  "svg": "svg/icons/icon_map_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_dice_64": {
+  "cat": "icons",
+  "png": "icons/icon_dice_64.png",
+  "svg": "svg/icons/icon_dice_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_dice_32": {
+  "cat": "icons",
+  "png": "icons/icon_dice_32.png",
+  "svg": "svg/icons/icon_dice_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_user_64": {
+  "cat": "icons",
+  "png": "icons/icon_user_64.png",
+  "svg": "svg/icons/icon_user_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_user_32": {
+  "cat": "icons",
+  "png": "icons/icon_user_32.png",
+  "svg": "svg/icons/icon_user_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_clock_64": {
+  "cat": "icons",
+  "png": "icons/icon_clock_64.png",
+  "svg": "svg/icons/icon_clock_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_clock_32": {
+  "cat": "icons",
+  "png": "icons/icon_clock_32.png",
+  "svg": "svg/icons/icon_clock_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_warn_64": {
+  "cat": "icons",
+  "png": "icons/icon_warn_64.png",
+  "svg": "svg/icons/icon_warn_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_warn_32": {
+  "cat": "icons",
+  "png": "icons/icon_warn_32.png",
+  "svg": "svg/icons/icon_warn_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_flag_64": {
+  "cat": "icons",
+  "png": "icons/icon_flag_64.png",
+  "svg": "svg/icons/icon_flag_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_flag_32": {
+  "cat": "icons",
+  "png": "icons/icon_flag_32.png",
+  "svg": "svg/icons/icon_flag_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_skull_64": {
+  "cat": "icons",
+  "png": "icons/icon_skull_64.png",
+  "svg": "svg/icons/icon_skull_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_skull_32": {
+  "cat": "icons",
+  "png": "icons/icon_skull_32.png",
+  "svg": "svg/icons/icon_skull_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_target_64": {
+  "cat": "icons",
+  "png": "icons/icon_target_64.png",
+  "svg": "svg/icons/icon_target_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_target_32": {
+  "cat": "icons",
+  "png": "icons/icon_target_32.png",
+  "svg": "svg/icons/icon_target_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_crown_64": {
+  "cat": "icons",
+  "png": "icons/icon_crown_64.png",
+  "svg": "svg/icons/icon_crown_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_crown_32": {
+  "cat": "icons",
+  "png": "icons/icon_crown_32.png",
+  "svg": "svg/icons/icon_crown_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_xp_64": {
+  "cat": "icons",
+  "png": "icons/icon_xp_64.png",
+  "svg": "svg/icons/icon_xp_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_xp_32": {
+  "cat": "icons",
+  "png": "icons/icon_xp_32.png",
+  "svg": "svg/icons/icon_xp_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_era_64": {
+  "cat": "icons",
+  "png": "icons/icon_era_64.png",
+  "svg": "svg/icons/icon_era_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_era_32": {
+  "cat": "icons",
+  "png": "icons/icon_era_32.png",
+  "svg": "svg/icons/icon_era_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_turn_64": {
+  "cat": "icons",
+  "png": "icons/icon_turn_64.png",
+  "svg": "svg/icons/icon_turn_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_turn_32": {
+  "cat": "icons",
+  "png": "icons/icon_turn_32.png",
+  "svg": "svg/icons/icon_turn_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_castle_64": {
+  "cat": "icons",
+  "png": "icons/icon_castle_64.png",
+  "svg": "svg/icons/icon_castle_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_castle_32": {
+  "cat": "icons",
+  "png": "icons/icon_castle_32.png",
+  "svg": "svg/icons/icon_castle_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_outpost_64": {
+  "cat": "icons",
+  "png": "icons/icon_outpost_64.png",
+  "svg": "svg/icons/icon_outpost_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_outpost_32": {
+  "cat": "icons",
+  "png": "icons/icon_outpost_32.png",
+  "svg": "svg/icons/icon_outpost_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_recruit_64": {
+  "cat": "icons",
+  "png": "icons/icon_recruit_64.png",
+  "svg": "svg/icons/icon_recruit_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_recruit_32": {
+  "cat": "icons",
+  "png": "icons/icon_recruit_32.png",
+  "svg": "svg/icons/icon_recruit_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_build_64": {
+  "cat": "icons",
+  "png": "icons/icon_build_64.png",
+  "svg": "svg/icons/icon_build_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_build_32": {
+  "cat": "icons",
+  "png": "icons/icon_build_32.png",
+  "svg": "svg/icons/icon_build_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_ult_64": {
+  "cat": "icons",
+  "png": "icons/icon_ult_64.png",
+  "svg": "svg/icons/icon_ult_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "интерфейс"
+ },
+ "icon_ult_32": {
+  "cat": "icons",
+  "png": "icons/icon_ult_32.png",
+  "svg": "svg/icons/icon_ult_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "интерфейс; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_burn_64": {
+  "cat": "icons",
+  "png": "icons/icon_burn_64.png",
+  "svg": "svg/icons/icon_burn_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_burn_32": {
+  "cat": "icons",
+  "png": "icons/icon_burn_32.png",
+  "svg": "svg/icons/icon_burn_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_chill_64": {
+  "cat": "icons",
+  "png": "icons/icon_chill_64.png",
+  "svg": "svg/icons/icon_chill_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_chill_32": {
+  "cat": "icons",
+  "png": "icons/icon_chill_32.png",
+  "svg": "svg/icons/icon_chill_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_zap_64": {
+  "cat": "icons",
+  "png": "icons/icon_zap_64.png",
+  "svg": "svg/icons/icon_zap_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_zap_32": {
+  "cat": "icons",
+  "png": "icons/icon_zap_32.png",
+  "svg": "svg/icons/icon_zap_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_wave_64": {
+  "cat": "icons",
+  "png": "icons/icon_wave_64.png",
+  "svg": "svg/icons/icon_wave_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_wave_32": {
+  "cat": "icons",
+  "png": "icons/icon_wave_32.png",
+  "svg": "svg/icons/icon_wave_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_mountain_64": {
+  "cat": "icons",
+  "png": "icons/icon_mountain_64.png",
+  "svg": "svg/icons/icon_mountain_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_mountain_32": {
+  "cat": "icons",
+  "png": "icons/icon_mountain_32.png",
+  "svg": "svg/icons/icon_mountain_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_leaf_64": {
+  "cat": "icons",
+  "png": "icons/icon_leaf_64.png",
+  "svg": "svg/icons/icon_leaf_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_leaf_32": {
+  "cat": "icons",
+  "png": "icons/icon_leaf_32.png",
+  "svg": "svg/icons/icon_leaf_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_bolt_64": {
+  "cat": "icons",
+  "png": "icons/icon_bolt_64.png",
+  "svg": "svg/icons/icon_bolt_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_bolt_32": {
+  "cat": "icons",
+  "png": "icons/icon_bolt_32.png",
+  "svg": "svg/icons/icon_bolt_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_flame_64": {
+  "cat": "icons",
+  "png": "icons/icon_flame_64.png",
+  "svg": "svg/icons/icon_flame_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_flame_32": {
+  "cat": "icons",
+  "png": "icons/icon_flame_32.png",
+  "svg": "svg/icons/icon_flame_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_snow_64": {
+  "cat": "icons",
+  "png": "icons/icon_snow_64.png",
+  "svg": "svg/icons/icon_snow_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность, постройка: Ледник"
+ },
+ "icon_snow_32": {
+  "cat": "icons",
+  "png": "icons/icon_snow_32.png",
+  "svg": "svg/icons/icon_snow_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность, постройка: Ледник; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_spark_64": {
+  "cat": "icons",
+  "png": "icons/icon_spark_64.png",
+  "svg": "svg/icons/icon_spark_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_spark_32": {
+  "cat": "icons",
+  "png": "icons/icon_spark_32.png",
+  "svg": "svg/icons/icon_spark_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_shield_64": {
+  "cat": "icons",
+  "png": "icons/icon_shield_64.png",
+  "svg": "svg/icons/icon_shield_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_shield_32": {
+  "cat": "icons",
+  "png": "icons/icon_shield_32.png",
+  "svg": "svg/icons/icon_shield_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_heart_64": {
+  "cat": "icons",
+  "png": "icons/icon_heart_64.png",
+  "svg": "svg/icons/icon_heart_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_heart_32": {
+  "cat": "icons",
+  "png": "icons/icon_heart_32.png",
+  "svg": "svg/icons/icon_heart_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_sword_64": {
+  "cat": "icons",
+  "png": "icons/icon_sword_64.png",
+  "svg": "svg/icons/icon_sword_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность, постройка: Казарма"
+ },
+ "icon_sword_32": {
+  "cat": "icons",
+  "png": "icons/icon_sword_32.png",
+  "svg": "svg/icons/icon_sword_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность, постройка: Казарма; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_boot_64": {
+  "cat": "icons",
+  "png": "icons/icon_boot_64.png",
+  "svg": "svg/icons/icon_boot_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_boot_32": {
+  "cat": "icons",
+  "png": "icons/icon_boot_32.png",
+  "svg": "svg/icons/icon_boot_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_arrow_64": {
+  "cat": "icons",
+  "png": "icons/icon_arrow_64.png",
+  "svg": "svg/icons/icon_arrow_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "способность"
+ },
+ "icon_arrow_32": {
+  "cat": "icons",
+  "png": "icons/icon_arrow_32.png",
+  "svg": "svg/icons/icon_arrow_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "способность; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_horse_64": {
+  "cat": "icons",
+  "png": "icons/icon_horse_64.png",
+  "svg": "svg/icons/icon_horse_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Конюшня"
+ },
+ "icon_horse_32": {
+  "cat": "icons",
+  "png": "icons/icon_horse_32.png",
+  "svg": "svg/icons/icon_horse_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Конюшня; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_tower_64": {
+  "cat": "icons",
+  "png": "icons/icon_tower_64.png",
+  "svg": "svg/icons/icon_tower_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Башня магов"
+ },
+ "icon_tower_32": {
+  "cat": "icons",
+  "png": "icons/icon_tower_32.png",
+  "svg": "svg/icons/icon_tower_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Башня магов; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_anvil_64": {
+  "cat": "icons",
+  "png": "icons/icon_anvil_64.png",
+  "svg": "svg/icons/icon_anvil_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Кузня"
+ },
+ "icon_anvil_32": {
+  "cat": "icons",
+  "png": "icons/icon_anvil_32.png",
+  "svg": "svg/icons/icon_anvil_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Кузня; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_wall_64": {
+  "cat": "icons",
+  "png": "icons/icon_wall_64.png",
+  "svg": "svg/icons/icon_wall_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Стена"
+ },
+ "icon_wall_32": {
+  "cat": "icons",
+  "png": "icons/icon_wall_32.png",
+  "svg": "svg/icons/icon_wall_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Стена; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_scales_64": {
+  "cat": "icons",
+  "png": "icons/icon_scales_64.png",
+  "svg": "svg/icons/icon_scales_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Рынок"
+ },
+ "icon_scales_32": {
+  "cat": "icons",
+  "png": "icons/icon_scales_32.png",
+  "svg": "svg/icons/icon_scales_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Рынок; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_book_64": {
+  "cat": "icons",
+  "png": "icons/icon_book_64.png",
+  "svg": "svg/icons/icon_book_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Библиотека"
+ },
+ "icon_book_32": {
+  "cat": "icons",
+  "png": "icons/icon_book_32.png",
+  "svg": "svg/icons/icon_book_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Библиотека; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_wheat_64": {
+  "cat": "icons",
+  "png": "icons/icon_wheat_64.png",
+  "svg": "svg/icons/icon_wheat_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Амбар"
+ },
+ "icon_wheat_32": {
+  "cat": "icons",
+  "png": "icons/icon_wheat_32.png",
+  "svg": "svg/icons/icon_wheat_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Амбар; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "icon_cauldron_64": {
+  "cat": "icons",
+  "png": "icons/icon_cauldron_64.png",
+  "svg": "svg/icons/icon_cauldron_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "постройка: Горнило"
+ },
+ "icon_cauldron_32": {
+  "cat": "icons",
+  "png": "icons/icon_cauldron_32.png",
+  "svg": "svg/icons/icon_cauldron_32.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "постройка: Горнило; отдельная упрощённая прорисовка, линия 1.75"
+ },
+ "league_fast": {
+  "cat": "leagues",
+  "png": "leagues/league_fast.png",
+  "svg": "svg/leagues/league_fast.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "Быстрая: песочные часы + молния, медь"
+ },
+ "league_normal": {
+  "cat": "leagues",
+  "png": "leagues/league_normal.png",
+  "svg": "svg/leagues/league_normal.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "Обычная: скрещённые мечи, серебро"
+ },
+ "league_tactic": {
+  "cat": "leagues",
+  "png": "leagues/league_tactic.png",
+  "svg": "svg/leagues/league_tactic.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "Тактическая: карта + циркуль, золото"
+ },
+ "league_fast_64": {
+  "cat": "leagues",
+  "png": "leagues/league_fast_64.png",
+  "svg": "svg/leagues/league_fast_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "упрощённая версия, линия 1.75"
+ },
+ "league_normal_64": {
+  "cat": "leagues",
+  "png": "leagues/league_normal_64.png",
+  "svg": "svg/leagues/league_normal_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "упрощённая версия, линия 1.75"
+ },
+ "league_tactic_64": {
+  "cat": "leagues",
+  "png": "leagues/league_tactic_64.png",
+  "svg": "svg/leagues/league_tactic_64.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "упрощённая версия, линия 1.75"
+ },
+ "rank_row_top1": {
+  "cat": "leagues",
+  "png": "leagues/rank_row_top1.png",
+  "svg": "svg/leagues/rank_row_top1.svg",
+  "size": [
+   640,
+   48
+  ],
+  "slice": [
+   64,
+   null,
+   64,
+   null
+  ],
+  "note": "3-slice подсветка строки 1"
+ },
+ "rank_row_top2": {
+  "cat": "leagues",
+  "png": "leagues/rank_row_top2.png",
+  "svg": "svg/leagues/rank_row_top2.svg",
+  "size": [
+   640,
+   48
+  ],
+  "slice": [
+   64,
+   null,
+   64,
+   null
+  ],
+  "note": "3-slice подсветка строки 2"
+ },
+ "rank_row_top3": {
+  "cat": "leagues",
+  "png": "leagues/rank_row_top3.png",
+  "svg": "svg/leagues/rank_row_top3.svg",
+  "size": [
+   640,
+   48
+  ],
+  "slice": [
+   64,
+   null,
+   64,
+   null
+  ],
+  "note": "3-slice подсветка строки 3"
+ },
+ "rating_up": {
+  "cat": "leagues",
+  "png": "leagues/rating_up.png",
+  "svg": "svg/leagues/rating_up.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "рейтинг +"
+ },
+ "rating_down": {
+  "cat": "leagues",
+  "png": "leagues/rating_down.png",
+  "svg": "svg/leagues/rating_down.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "рейтинг −"
+ },
+ "swatch_1": {
+  "cat": "players",
+  "png": "players/swatch_1.png",
+  "svg": "svg/players/swatch_1.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Кармин #c8382b"
+ },
+ "swatch_2": {
+  "cat": "players",
+  "png": "players/swatch_2.png",
+  "svg": "svg/players/swatch_2.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Кобальт #3c74c4"
+ },
+ "swatch_3": {
+  "cat": "players",
+  "png": "players/swatch_3.png",
+  "svg": "svg/players/swatch_3.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Изумруд #3e9a58"
+ },
+ "swatch_4": {
+  "cat": "players",
+  "png": "players/swatch_4.png",
+  "svg": "svg/players/swatch_4.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Янтарь #e3a630"
+ },
+ "swatch_5": {
+  "cat": "players",
+  "png": "players/swatch_5.png",
+  "svg": "svg/players/swatch_5.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Слива #8d4f9e"
+ },
+ "swatch_6": {
+  "cat": "players",
+  "png": "players/swatch_6.png",
+  "svg": "svg/players/swatch_6.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Бирюза #2aa39b"
+ },
+ "swatch_7": {
+  "cat": "players",
+  "png": "players/swatch_7.png",
+  "svg": "svg/players/swatch_7.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Кость #e9dcbc"
+ },
+ "swatch_8": {
+  "cat": "players",
+  "png": "players/swatch_8.png",
+  "svg": "svg/players/swatch_8.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "Медь #b9652c"
+ },
+ "crest_ring": {
+  "cat": "players",
+  "png": "players/crest_ring.png",
+  "svg": "svg/players/crest_ring.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "белое (только альфа), игра красит; окно r38 центр (48,48)"
+ },
+ "timer_ring_frame": {
+  "cat": "rings",
+  "png": "rings/timer_ring_frame.png",
+  "svg": "svg/rings/timer_ring_frame.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "внутри пустой круг Ø88, центр (64,70) — дугу рисует игра; сверху веер"
+ },
+ "timer_ring_frame_low": {
+  "cat": "rings",
+  "png": "rings/timer_ring_frame_low.png",
+  "svg": "svg/rings/timer_ring_frame_low.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "вариант <10% времени: красный обод"
+ },
+ "cooldown_ring": {
+  "cat": "rings",
+  "png": "rings/cooldown_ring.png",
+  "svg": "svg/rings/cooldown_ring.svg",
+  "size": [
+   96,
+   96
+  ],
+  "slice": null,
+  "note": "круг Ø72 под иконку (центр 48,48), кольцо ~8 px, окно Ø72 прозрачное"
+ },
+ "ult_button_ready": {
+  "cat": "rings",
+  "png": "rings/ult_button_ready.png",
+  "svg": "svg/rings/ult_button_ready.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "восьмиугольник, окно под иконку ульты r34 (центр 64,64)"
+ },
+ "ult_button_cooldown": {
+  "cat": "rings",
+  "png": "rings/ult_button_cooldown.png",
+  "svg": "svg/rings/ult_button_cooldown.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "восьмиугольник, окно под иконку ульты r34 (центр 64,64)"
+ },
+ "ult_button_locked": {
+  "cat": "rings",
+  "png": "rings/ult_button_locked.png",
+  "svg": "svg/rings/ult_button_locked.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "восьмиугольник, окно под иконку ульты r34 (центр 64,64)"
+ },
+ "level_badge_1": {
+  "cat": "badges",
+  "png": "badges/level_badge_1.png",
+  "svg": "svg/badges/level_badge_1.svg",
+  "size": [
+   48,
+   48
+  ],
+  "slice": null,
+  "note": "ромб уровня 1"
+ },
+ "level_badge_2": {
+  "cat": "badges",
+  "png": "badges/level_badge_2.png",
+  "svg": "svg/badges/level_badge_2.svg",
+  "size": [
+   48,
+   48
+  ],
+  "slice": null,
+  "note": "ромб уровня 2"
+ },
+ "level_badge_3": {
+  "cat": "badges",
+  "png": "badges/level_badge_3.png",
+  "svg": "svg/badges/level_badge_3.svg",
+  "size": [
+   48,
+   48
+  ],
+  "slice": null,
+  "note": "ромб уровня 3"
+ },
+ "level_badge_4": {
+  "cat": "badges",
+  "png": "badges/level_badge_4.png",
+  "svg": "svg/badges/level_badge_4.svg",
+  "size": [
+   48,
+   48
+  ],
+  "slice": null,
+  "note": "ромб уровня 4"
+ },
+ "level_badge_5": {
+  "cat": "badges",
+  "png": "badges/level_badge_5.png",
+  "svg": "svg/badges/level_badge_5.svg",
+  "size": [
+   48,
+   48
+  ],
+  "slice": null,
+  "note": "ромб уровня 5"
+ },
+ "level_badge_blank": {
+  "cat": "badges",
+  "png": "badges/level_badge_blank.png",
+  "svg": "svg/badges/level_badge_blank.svg",
+  "size": [
+   48,
+   48
+  ],
+  "slice": null,
+  "note": "пустой ромб, цифру пишет игра (окно r16)"
+ },
+ "away_badge": {
+  "cat": "badges",
+  "png": "badges/away_badge.png",
+  "svg": "svg/badges/away_badge.svg",
+  "size": [
+   160,
+   32
+  ],
+  "slice": null,
+  "note": "«Игрок не за столом», текст пишет игра в середине x36–124"
+ },
+ "unread_badge": {
+  "cat": "badges",
+  "png": "badges/unread_badge.png",
+  "svg": "svg/badges/unread_badge.svg",
+  "size": [
+   32,
+   32
+  ],
+  "slice": null,
+  "note": "счётчик непрочитанного, цифру пишет игра"
+ },
+ "bot_mark": {
+  "cat": "badges",
+  "png": "badges/bot_mark.png",
+  "svg": "svg/badges/bot_mark.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "заводной ключ на ар-деко щите"
+ },
+ "team_chip_red": {
+  "cat": "badges",
+  "png": "badges/team_chip_red.png",
+  "svg": "svg/badges/team_chip_red.svg",
+  "size": [
+   96,
+   32
+  ],
+  "slice": null,
+  "note": "плашка команды 2×2, текст пишет игра"
+ },
+ "team_chip_blue": {
+  "cat": "badges",
+  "png": "badges/team_chip_blue.png",
+  "svg": "svg/badges/team_chip_blue.svg",
+  "size": [
+   96,
+   32
+  ],
+  "slice": null,
+  "note": "плашка команды 2×2, текст пишет игра"
+ },
+ "provisional_mark": {
+  "cat": "badges",
+  "png": "badges/provisional_mark.png",
+  "svg": "svg/badges/provisional_mark.svg",
+  "size": [
+   24,
+   24
+  ],
+  "slice": null,
+  "note": "«?» — временный рейтинг"
+ },
+ "ult_banner_doom": {
+  "cat": "ult",
+  "png": "ult/ult_banner_doom.png",
+  "svg": "svg/ult/ult_banner_doom.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "fire: «DOOM»; плашка подзаголовка y178–214 (текст пишет игра)"
+ },
+ "ult_banner_doom_blank": {
+  "cat": "ult",
+  "png": "ult/ult_banner_doom_blank.png",
+  "svg": "svg/ult/ult_banner_doom_blank.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "fire: без заголовка (текст пишет игра)"
+ },
+ "ult_banner_chain": {
+  "cat": "ult",
+  "png": "ult/ult_banner_chain.png",
+  "svg": "svg/ult/ult_banner_chain.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "lightning: «ГРОМОВАЯ ЦЕПЬ»; плашка подзаголовка y178–214 (текст пишет игра)"
+ },
+ "ult_banner_chain_blank": {
+  "cat": "ult",
+  "png": "ult/ult_banner_chain_blank.png",
+  "svg": "svg/ult/ult_banner_chain_blank.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "lightning: без заголовка (текст пишет игра)"
+ },
+ "ult_banner_wall": {
+  "cat": "ult",
+  "png": "ult/ult_banner_wall.png",
+  "svg": "svg/ult/ult_banner_wall.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "stone: «КАМЕННЫЙ КУПОЛ»; плашка подзаголовка y178–214 (текст пишет игра)"
+ },
+ "ult_banner_wall_blank": {
+  "cat": "ult",
+  "png": "ult/ult_banner_wall_blank.png",
+  "svg": "svg/ult/ult_banner_wall_blank.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "stone: без заголовка (текст пишет игра)"
+ },
+ "ult_banner_blizzard": {
+  "cat": "ult",
+  "png": "ult/ult_banner_blizzard.png",
+  "svg": "svg/ult/ult_banner_blizzard.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "ice: «ВЕЛИКАЯ ВЬЮГА»; плашка подзаголовка y178–214 (текст пишет игра)"
+ },
+ "ult_banner_blizzard_blank": {
+  "cat": "ult",
+  "png": "ult/ult_banner_blizzard_blank.png",
+  "svg": "svg/ult/ult_banner_blizzard_blank.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "ice: без заголовка (текст пишет игра)"
+ },
+ "ult_banner_wave": {
+  "cat": "ult",
+  "png": "ult/ult_banner_wave.png",
+  "svg": "svg/ult/ult_banner_wave.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "water: «ЦУНАМИ»; плашка подзаголовка y178–214 (текст пишет игра)"
+ },
+ "ult_banner_wave_blank": {
+  "cat": "ult",
+  "png": "ult/ult_banner_wave_blank.png",
+  "svg": "svg/ult/ult_banner_wave_blank.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "water: без заголовка (текст пишет игра)"
+ },
+ "ult_banner_overgrowth": {
+  "cat": "ult",
+  "png": "ult/ult_banner_overgrowth.png",
+  "svg": "svg/ult/ult_banner_overgrowth.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "nature: «ДИКАЯ ЧАЩА»; плашка подзаголовка y178–214 (текст пишет игра)"
+ },
+ "ult_banner_overgrowth_blank": {
+  "cat": "ult",
+  "png": "ult/ult_banner_overgrowth_blank.png",
+  "svg": "svg/ult/ult_banner_overgrowth_blank.svg",
+  "size": [
+   1280,
+   240
+  ],
+  "slice": null,
+  "note": "nature: без заголовка (текст пишет игра)"
+ },
+ "ult_icon_doom": {
+  "cat": "ult",
+  "png": "ult/ult_icon_doom.png",
+  "svg": "svg/ult/ult_icon_doom.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "иконка ульты doom"
+ },
+ "ult_icon_chain": {
+  "cat": "ult",
+  "png": "ult/ult_icon_chain.png",
+  "svg": "svg/ult/ult_icon_chain.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "иконка ульты chain"
+ },
+ "ult_icon_wall": {
+  "cat": "ult",
+  "png": "ult/ult_icon_wall.png",
+  "svg": "svg/ult/ult_icon_wall.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "иконка ульты wall"
+ },
+ "ult_icon_blizzard": {
+  "cat": "ult",
+  "png": "ult/ult_icon_blizzard.png",
+  "svg": "svg/ult/ult_icon_blizzard.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "иконка ульты blizzard"
+ },
+ "ult_icon_wave": {
+  "cat": "ult",
+  "png": "ult/ult_icon_wave.png",
+  "svg": "svg/ult/ult_icon_wave.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "иконка ульты wave"
+ },
+ "ult_icon_overgrowth": {
+  "cat": "ult",
+  "png": "ult/ult_icon_overgrowth.png",
+  "svg": "svg/ult/ult_icon_overgrowth.svg",
+  "size": [
+   128,
+   128
+  ],
+  "slice": null,
+  "note": "иконка ульты overgrowth"
+ },
+ "telegraph_ring": {
+  "cat": "ult",
+  "png": "ult/telegraph_ring.png",
+  "svg": "svg/ult/telegraph_ring.svg",
+  "size": [
+   512,
+   512
+  ],
+  "slice": null,
+  "note": "белый (только альфа), игра красит в цвет расы; засечки на 8 румбах"
+ },
+ "unit_ult_badge": {
+  "cat": "ult",
+  "png": "ult/unit_ult_badge.png",
+  "svg": "svg/ult/unit_ult_badge.svg",
+  "size": [
+   64,
+   64
+  ],
+  "slice": null,
+  "note": "значок ульты фигуры 5-го уровня"
+ }
+}

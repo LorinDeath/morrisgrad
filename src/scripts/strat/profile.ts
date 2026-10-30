@@ -10,11 +10,14 @@ import { LEAGUES, leagueBadge, type LeagueId, type LStat } from "./rating";
 
 export type RStat = { games: number; wins: number };
 export type Profile = {
-  nick: string; own?: boolean; races?: Record<string, RStat>; leagues?: Partial<Record<LeagueId, LStat>>;
+  nick: string; own?: boolean; coins?: number; races?: Record<string, RStat>; leagues?: Partial<Record<LeagueId, LStat>>;
   priv?: { techs?: { id?: string; name: string; n: number }[]; chiefsLeveled?: number; chiefLv?: Record<string, number>; recordChiefKills?: { n: number; turn?: number; race?: string };
     talents?: { name: string; n: number }[]; ults?: { kind?: string; name: string; n: number }[] };
 };
-type Deps = { crest: (r: string) => string; raceName: Record<string, string>; raceCol: (r: string) => string };
+type Deps = { crest: (r: string) => string; raceName: Record<string, string>; raceCol: (r: string) => string;
+  fav?: { get: () => string[]; html: () => string; bind: (el: HTMLElement) => void; guest: () => boolean };
+  /** «Библиотека партий» (сохранённые + недавние) — history.ts. */
+  lib?: { html: () => string; bind: (el: HTMLElement) => void } };
 
 const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
 const num = (v: any) => (Number.isFinite(+v) ? +v : 0);
@@ -57,9 +60,13 @@ export async function openProfile(get: () => Promise<any>, d: Deps) {
   const p: Profile | null = await get().catch(() => null); const b = m.el.querySelector<HTMLElement>(".dlg-b")!;
   if (!p || !p.nick) { b.innerHTML = `<div class="emptyrow">${ic("warn")}<span>Профиль недоступен — нет связи с сервером</span></div>`; return m; }
   const priv = !!(p.own && p.priv);
-  b.innerHTML = `<div class="phead"><span class="ph-cr">${ic("user")}</span><div><b class="ph-nick"></b><small>игровой профиль</small></div></div>
-    ${priv ? `<div class="ptabs" role="tablist"><button class="ptab on" data-t="pub" role="tab">${ic("eye")}<span>Публичный</span></button><button class="ptab" data-t="priv" role="tab">${ic("lock")}<span>Личное</span></button></div>` : ""}
-    <div class="ppane" data-p="pub">${publicHtml(p, d)}</div>${priv ? `<div class="ppane" data-p="priv" hidden>${privHtml(p, d)}</div>` : ""}`;
+  const coins = p.own && p.coins != null ? `<span class="pcoins" data-tip="Монеты: за победы в рейтинговых партиях">${ic("gold")}<b>${num(p.coins)}</b><small>монет</small></span>` : "";
+  const sets = !!(p.own && d.fav && !d.fav.guest()), lib = !!(p.own && d.lib);
+  b.innerHTML = `<div class="phead"><span class="ph-cr">${ic("user")}</span><div><b class="ph-nick"></b><small>игровой профиль</small></div>${coins}</div>
+    ${priv || sets || lib ? `<div class="ptabs" role="tablist"><button class="ptab on" data-t="pub" role="tab">${ic("eye")}<span>Публичный</span></button>${priv ? `<button class="ptab" data-t="priv" role="tab">${ic("lock")}<span>Личное</span></button>` : ""}${sets ? `<button class="ptab" data-t="set" role="tab">${ic("crown")}<span>Любимые расы</span></button>` : ""}${lib ? `<button class="ptab" data-t="lib" role="tab">${ic("book")}<span>Библиотека партий</span></button>` : ""}</div>` : ""}
+    <div class="ppane" data-p="pub">${publicHtml(p, d)}</div>${priv ? `<div class="ppane" data-p="priv" hidden>${privHtml(p, d)}</div>` : ""}${sets ? `<div class="ppane" data-p="set" hidden>${d.fav!.html()}</div>` : ""}${lib ? `<div class="ppane" data-p="lib" hidden>${d.lib!.html()}</div>` : ""}`;
+  if (lib) d.lib!.bind(b.querySelector<HTMLElement>('.ppane[data-p="lib"]')!);
+  if (sets) d.fav!.bind(b.querySelector<HTMLElement>('.ppane[data-p="set"]')!);
   b.querySelector(".ph-nick")!.textContent = String(p.nick).slice(0, 24);
   const lists = [p.priv?.techs, p.priv?.talents, p.priv?.ults];
   b.querySelectorAll<HTMLElement>(".plist").forEach((el, li) => { const L = (lists[li] || []).filter((x: any) => x && x.name).sort((a: any, c: any) => num(c.n) - num(a.n)).slice(0, 5); el.querySelectorAll<HTMLElement>(".pl-n").forEach((n, i) => (n.textContent = String(L[i]?.name || "").slice(0, 40))); });
@@ -69,7 +76,7 @@ export async function openProfile(get: () => Promise<any>, d: Deps) {
 
 /** Демо-данные для локального просмотра (только ?demo). */
 export function demoProfile(nick: string): Profile {
-  return { nick, own: true, races: { fire: { games: 31, wins: 19 }, ice: { games: 12, wins: 5 }, water: { games: 6, wins: 4 }, lightning: { games: 9, wins: 3 }, stone: { games: 2, wins: 1 } },
+  return { nick, own: true, coins: 145, races: { fire: { games: 31, wins: 19 }, ice: { games: 12, wins: 5 }, water: { games: 6, wins: 4 }, lightning: { games: 9, wins: 3 }, stone: { games: 2, wins: 1 } },
     leagues: { fast: { r: 1612, rd: 64, games: 38, w: 22, l: 14, d: 2, peak: 1655 }, normal: { r: 1488, rd: 120, games: 7, w: 3, l: 4, d: 0 } },
     priv: { chiefsLeveled: 14, chiefLv: { 1: 60, 2: 41, 3: 25, 4: 14, 5: 6 }, recordChiefKills: { n: 7, turn: 23, race: "fire" },
       techs: [{ name: "Сталь", n: 28 }, { name: "Торговля", n: 22 }, { name: "Пожар", n: 17 }, { name: "Муштра", n: 11 }, { name: "Писцы", n: 6 }],

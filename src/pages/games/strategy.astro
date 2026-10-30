@@ -3,6 +3,7 @@
 // клиент — src/scripts/strat/client.ts. Оформление — арт-деко «комикс C» по UI-набору Художника (public/strat/ui, ui-v1).
 import SeoHead from '../../components/seo/SeoHead.astro';
 import '../../styles/strat-ui.css';
+import '../../styles/strat-ui2.css';
 const title = 'Партия Чёрных королей | Моррис Град';
 ---
 <!doctype html>
@@ -70,11 +71,15 @@ const title = 'Партия Чёрных королей | Моррис Град'
           <button class="btn ghost" id="leave"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg><span>Выйти</span></button></div>
       </div>
       <div id="modes" class="modes panel"></div>
-      <div id="slots" class="seats"></div>
+      <div class="lobbymain">
+        <div class="panel tablepanel"><div id="slots" class="seats"></div></div>
+        <div class="panel leaguepanel" id="lleague"></div>
+      </div>
       <div class="panel racepick">
-        <h2 class="plate">Выберите расу</h2>
-        <p class="muted center">Соперник увидит вашу расу только на старте партии.</p>
+        <h2 class="plate" id="racehdr">Выберите расу</h2>
+        <p class="muted center" id="racesub">Соперник увидит вашу расу только на старте партии.</p>
         <div id="races" class="races"></div>
+        <div id="racedraw" class="racedraw" hidden></div>
         <div id="chiefpick" class="chiefpick" hidden></div>
       </div>
       <div class="panel hostpanel" id="hostpanel">
@@ -82,10 +87,11 @@ const title = 'Партия Чёрных королей | Моррис Град'
         <div class="hp-grid">
           <div>
             <div class="rankrow"><label class="chk tog"><input type="checkbox" id="ranked" /><span>Рейтинговая</span></label><span id="league" class="league"></span></div>
+            <div class="rankrow"><label class="chk tog" id="hhpwrap" data-tip="Точные ОЗ чужих фигур и построек скрыты: видно только «цел / ранен / при смерти». В рейтинговой — выключено."><input type="checkbox" id="hhp" /><span>Скрытое здоровье</span></label></div>
             <h3 class="deco-h"><span>Размер поля</span></h3>
             <div id="sizes" class="sizes"></div>
             <label class="fld inline"><span>Свой размер</span><input id="csize" type="number" min="4" max="100" step="1" inputmode="numeric" /></label>
-            <label class="fld inline"><span>Лимит ходов</span><select id="tl"><option value="">по умолчанию</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="40">40</option></select></label>
+            <label class="fld inline" hidden><span>Лимит ходов</span><select id="tl"><option value="">по умолчанию</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="40">40</option></select></label>
             <label class="fld inline"><span>Время на ход</span><select id="tsec"><option value="">по размеру карты</option><option value="60">1 мин</option><option value="120">2 мин</option><option value="180">3 мин</option><option value="300">5 мин</option><option value="600">10 мин</option><option value="900">15 мин</option><option value="1200">20 мин</option><option value="1800">30 мин</option></select></label>
             <div id="sizeinfo" class="sizeinfo"></div>
             <button class="btn" id="bot"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg><span>Играть с ботом</span></button>
@@ -113,9 +119,26 @@ const title = 'Партия Чёрных королей | Моррис Град'
         <div class="turnplate"><span>Ход</span><b id="turnno"></b></div>
         <div id="clock" class="clock"></div>
       </div>
+      <aside class="lside">
+        <div class="lside-h"><span>Игроки</span><span class="lturn">Ход <b id="turnno2"></b></span></div>
+        <div id="score" class="score"></div>
+        <section id="chat" class="chat" hidden aria-label="Чат партии">
+          <button type="button" class="chat-h" id="chathead"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span>Чат</span><b class="chat-unread" hidden></b><span class="ctabs"><span role="button" tabindex="0" data-ctab="all" class="on">Все</span><span role="button" tabindex="0" data-ctab="team" hidden>Союз</span><span role="button" tabindex="0" data-ctab="w">Шёпот</span></span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <div class="chat-b">
+            <div id="chatlog" class="chatlog" aria-live="polite"></div>
+            <form id="chatform" class="chatform" autocomplete="off"><div id="chatac" class="chatac"></div><input id="chatin" placeholder="Сообщение · /w Имя текст — шёпот" spellcheck="false" /><button class="btn sq" type="submit" aria-label="Отправить"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg></button></form>
+          </div>
+        </section>
+        <section id="moves" class="moves" aria-label="Ходы партии">
+          <div class="mv-h"><svg class="ic" aria-hidden="true"><use href="#i-hist"/></svg><span>Ходы</span>
+            <span class="mv-nav"><button type="button" class="btn sq sm" id="hprev" aria-label="Ход назад" data-tip="Посмотреть прошлый ход (←)"><svg class="ic" aria-hidden="true"><use href="#i-stepb"/></svg></button><button type="button" class="btn sq sm" id="hnext" aria-label="Ход вперёд" data-tip="Следующий ход (→)" disabled><svg class="ic" aria-hidden="true"><use href="#i-stepf"/></svg></button></span></div>
+          <div id="mvlist" class="mvlist" role="list"></div>
+        </section>
+      </aside>
       <div class="stagewrap">
         <div id="stage" class="stage">
           <canvas id="board" aria-label="Игровая доска"></canvas>
+          <div id="histbar" class="histbar" hidden role="toolbar" aria-label="Просмотр ходов"></div>
           <div id="turnbanner" class="turnbanner" aria-live="polite"></div>
           <div id="hint" class="hint" hidden></div>
           <div id="checkwarn" class="checkwarn" hidden><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span>Вождь под ударом!</span></div>
@@ -133,7 +156,9 @@ const title = 'Партия Чёрных королей | Моррис Град'
         </div>
       </div>
       <aside class="side">
-        <div id="score" class="score"></div>
+        <div class="turnhead"><b id="turnwho2" class="th-who"></b>
+          <div id="bigclock" class="bigclock"></div>
+          <div class="apbox apbox2" data-tip="Очки действий"><span class="lbl">ОД</span><span id="appips2" class="appips"></span><b id="aptxt2"></b></div></div>
         <div id="chief" class="chief"></div>
         <div id="info" class="info"></div>
         <div id="lvdock" class="lvdock" hidden></div>
@@ -142,13 +167,6 @@ const title = 'Партия Чёрных королей | Моррис Град'
           <button class="btn sm" id="pstyle"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg><span>Фигуры ⇄ фишки</span></button>
           <label class="chk sm"><input type="checkbox" id="pbadge" /><span>значки</span></label>
         </div>
-        <section id="chat" class="chat" hidden aria-label="Чат партии">
-          <button type="button" class="chat-h" id="chathead"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span>Чат</span><b class="chat-unread" hidden></b><span class="ctabs"><span role="button" tabindex="0" data-ctab="all" class="on">Все</span><span role="button" tabindex="0" data-ctab="team" hidden>Союз</span><span role="button" tabindex="0" data-ctab="w">Шёпот</span></span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron"/></svg></button>
-          <div class="chat-b">
-            <div id="chatlog" class="chatlog" aria-live="polite"></div>
-            <form id="chatform" class="chatform" autocomplete="off"><div id="chatac" class="chatac"></div><input id="chatin" placeholder="Сообщение · /w Имя текст — шёпот" spellcheck="false" /><button class="btn sq" type="submit" aria-label="Отправить"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg></button></form>
-          </div>
-        </section>
         <div class="endzone">
           <div id="turnbox" class="turnbox"><span id="turnwho"></span></div>
           <button class="endturn" id="end"><span>Конец хода</span></button>

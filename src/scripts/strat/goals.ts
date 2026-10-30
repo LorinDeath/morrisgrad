@@ -14,12 +14,29 @@ export const GOALS: { id: GoalId; name: string; icon: string; hint: string }[] =
   { id: "wonder", name: "Великое чудо", icon: "crown", hint: "Возвести Великое чудо" },
   { id: "tech", name: "Вершина знаний", icon: "tech", hint: "Изучить финальную технологию эпохи III" },
 ];
-export type Goal = { id: GoalId; done: boolean; v: number; max: number };
+export type Goal = { id: GoalId; done: boolean; v: number; max: number; name?: string; icon?: string; desc?: string; text?: string; unit?: string; parts?: { label: string; cur: number; max: number }[]; turn?: number };
+// id целей нового сервера (balance WIP): chief, hold, treasury, domain, wonder — значки и подсказки по умолчанию
+const SRV_DEF: Record<string, { name: string; icon: string; hint: string }> = {
+  hold: { name: "Твердыня", icon: "castle", hint: "Удерживать свою столицу и землю нужное число ходов" },
+  treasury: { name: "Казна", icon: "gold", hint: "Накопить золото до порога" },
+  domain: { name: "Держава", icon: "flag", hint: "Владеть нужным числом клеток земли" },
+};
+/** Описание цели: из самой цели (сервер), иначе из локального списка. */
+export function goalDef(q: { id: string; name?: string; icon?: string; desc?: string }) {
+  const d: any = GOALS.find((x) => x.id === q.id) || SRV_DEF[q.id] || { name: q.id, icon: "star", hint: "" };
+  return { name: q.name || d.name, icon: q.icon && !/[^a-z_0-9]/.test(q.icon) ? q.icon : d.icon, hint: q.desc || d.hint };
+}
 const num = (v: any, d = 0) => (typeof v === "number" && isFinite(v) ? v : d);
 
 /** Цели обеих сторон: [side][5]. need — сколько нужно для победы (по умолчанию 3). */
 export function goalsOf(S: any, G: GameState, cfg: StratCfg): { need: number; sides: Goal[][] } {
-  const g: any = G, srv = g.goals ?? S?.goals ?? g.ec?.goals, need = num(g.goalsNeed ?? S?.goalsNeed ?? (cfg as any).goals?.need, 3);
+  const g: any = G, srv = g.goals ?? S?.goals ?? g.ec?.goals; let need = num(g.goalsNeed ?? S?.goalsNeed ?? (cfg as any).goals?.need, 3);
+  // новый сервер: S.goals[side] = { need, done, list:[{id,name,icon,desc,done,turn,p,cur,max,unit,text,parts}] }
+  if (Array.isArray(srv) && srv.some((r: any) => Array.isArray(r?.list))) {
+    const n = Math.max(srv.length, S?.seats?.length || 2);
+    const sides: Goal[][] = Array.from({ length: n }, (_, side) => (srv[side]?.list || []).map((r: any) => ({ id: r.id, done: !!r.done, v: num(r.cur, r.done ? 1 : 0), max: num(r.max, 1), name: r.name, icon: r.icon, desc: r.desc, text: r.text, unit: r.unit, parts: r.parts, turn: r.turn })));
+    need = num(srv.find((r: any) => r?.need != null)?.need, need); return { need, sides };
+  }
   const sides: Goal[][] = Array.from({ length: Math.max(2, S?.seats?.length || 2) }, (_, side) => GOALS.map((d) => {
     const raw = srv?.[side]?.[d.id] ?? (Array.isArray(srv?.[side]) ? srv[side].find((x: any) => x?.id === d.id) : undefined);
     if (raw != null) { if (typeof raw === "boolean" || typeof raw === "number" && raw <= 1 && !raw.toString().includes(".")) return { id: d.id, done: !!raw, v: raw ? 1 : 0, max: 1 };

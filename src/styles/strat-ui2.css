@@ -1,0 +1,283 @@
+/* ===== MorrisGrad «Партия Чёрных королей» — UI v2 (арт Художника ui-v2 P1) =====
+   Поверх strat-ui.css: три колонки в партии, таблички игроков, большое кольцо таймера,
+   лобби «Стол на 8» с рейтингом и цветами, «Лиги сезона», жребий рас, новые элементы s5. */
+:root { --u2: "/strat/ui2"; }
+
+/* ---------- партия: три колонки ---------- */
+@media (min-width: 1280px) {
+  .game { grid-template-columns: 264px minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); }
+  .game > .topbar { grid-column: 1 / -1; }
+  .game > .lside { grid-column: 1; grid-row: 2; }
+  .game > .stagewrap { grid-column: 2; grid-row: 2; }
+  .game > .side { grid-column: 3; grid-row: 2; }
+  .topbar > .apbox, .topbar > .turnplate, .topbar > #clock { display: none; }
+}
+@media (min-width: 821px) and (max-width: 1279px) {
+  .game { grid-template-columns: minmax(0, 1fr) 290px; grid-template-rows: auto auto minmax(0, 1fr); }
+  .game > .stagewrap { grid-column: 1; grid-row: 2 / 4; }
+  .game > .lside { grid-column: 2; grid-row: 2; max-height: 38vh; }
+  .game > .side { grid-column: 2; grid-row: 3; }
+  .topbar > .apbox, .topbar > #clock { display: none; }
+}
+@media (max-width: 820px) {
+  .game > .stagewrap { order: 2; } .game > .side { order: 3; } .game > .lside { order: 4; }
+  .turnhead .bigclock, .turnhead .apbox2 { display: none; }
+  .turnhead { padding: 4px 8px; min-height: 0; }
+}
+
+/* ---------- левая колонка: «ИГРОКИ / ХОД N» ---------- */
+.lside { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--gold-dk) transparent; padding-right: 2px; }
+.lside > * { flex: none; }
+.lside-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6px 4px 4px; border-bottom: 2px solid var(--gold-dk);
+  font: 700 .95rem var(--f-disp); letter-spacing: .14em; text-transform: uppercase; color: var(--gold-hi); }
+.lside-h .lturn { font-size: .8rem; letter-spacing: .1em; color: var(--ivory-2); } .lside-h .lturn b { font-size: 1.05rem; color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+
+/* таблички игроков — арт plaque_player(_active): 3-slice 56px, медальон герба слева, полоса цвета y71–77 */
+.score .plaque { position: relative; grid-template-columns: 50px minmax(0, 1fr) auto; min-height: 64px; padding: 6px 12px 12px 6px; background: none;
+  border: solid transparent; border-width: 0 22px 0 40px; border-image: url("/strat/ui2/frames/plaque_player.png") 0 56 fill / 0 22px 0 40px; box-shadow: none; }
+.score .plaque.active { border-image-source: url("/strat/ui2/frames/plaque_player_active.png"); box-shadow: none; filter: drop-shadow(0 0 8px #e0b04a44); }
+.score .plaque::after { content: ""; position: absolute; left: -26px; right: -8px; bottom: 9%; height: 6px; background: var(--pc, var(--gold)); opacity: .9; mix-blend-mode: multiply; pointer-events: none; }
+.score .plaque .crestimg { margin-left: -34px; width: 48px; height: 48px; filter: drop-shadow(0 0 0 var(--pc)); }
+.score .plaque .pc-sw { position: absolute; left: -34px; top: 50%; width: 54px; height: 54px; transform: translateY(-58%); background: url("/strat/ui2/players/crest_ring.png") center / contain no-repeat;
+  -webkit-mask: url("/strat/ui2/players/crest_ring.png") center / contain no-repeat; mask: url("/strat/ui2/players/crest_ring.png") center / contain no-repeat; background: var(--pc); pointer-events: none; z-index: 0; }
+.score .plaque .crestimg, .score .plaque .crest { position: relative; z-index: 1; }
+.score .plaque.out { filter: grayscale(.9) brightness(.7); }
+.score .plaque.out::before { content: ""; position: absolute; right: 4px; top: -6px; width: 58px; height: 58px; background: url("/strat/ui2/blacklist/stamp_fallen.png") center / contain no-repeat; z-index: 2; pointer-events: none; }
+.score .plaque .turnarrow { display: none; }
+.score.many .plaque { grid-template-columns: 36px minmax(0, 1fr) auto; min-height: 50px; padding: 3px 8px 9px 4px; border-width: 0 16px 0 30px; border-image-width: 0 16px 0 30px; }
+.score.many .plaque .crestimg { margin-left: -26px; width: 36px; height: 36px; } .score.many .plaque .pc-sw { left: -27px; width: 42px; height: 42px; }
+.score.many .plaque::after { left: -18px; height: 4px; }
+
+/* чат: рамка chat_frame (9-slice 56) + вкладки chat_tab_* (3-slice 24) */
+.lside .chat { background: none; border: solid transparent; border-width: 14px; border-image: url("/strat/ui2/frames/chat_frame.png") 56 fill / 14px; box-shadow: none; }
+.lside .chat .chat-h { background: transparent; border-bottom-color: #e0b04a33; padding: 2px 2px 6px; }
+.ctabs [data-ctab] { padding: 3px 10px; border: solid transparent; border-width: 0 8px; border-image: url("/strat/ui2/frames/chat_tab_normal.png") 0 24 fill / 0 8px; background: none; color: var(--ivory-2); }
+.ctabs [data-ctab].on, .ctabs [data-ctab="w"].on { border-image-source: url("/strat/ui2/frames/chat_tab_active.png"); background: none; color: var(--ink); border-color: transparent; }
+@media (min-width: 821px) { .lside .chat .chat-b { display: block; } .lside .chat .chatlog { max-height: 34vh; min-height: 120px; } }
+
+/* ---------- правая колонка: «ВАШ ХОД», большое кольцо, ОД ---------- */
+.turnhead { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 6px; background: linear-gradient(#0000, #00000055); border-bottom: 2px solid var(--gold-dk); }
+.th-who { font: 700 1.15rem var(--f-disp); letter-spacing: .16em; text-transform: uppercase; color: var(--ivory-2); text-align: center; }
+.th-who.mine { color: var(--gold-hi); text-shadow: 0 0 14px #e0b04a77; }
+.bigclock { position: relative; width: 112px; height: 112px; background: url("/strat/ui2/rings/timer_ring_frame.png") center / contain no-repeat; }
+.bigclock.low { background-image: url("/strat/ui2/rings/timer_ring_frame_low.png"); }
+.bigclock:empty { display: none; }
+.bc-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); transform-origin: 50% 54.7%; }
+.bc-bg { fill: none; stroke: #0007; stroke-width: 7; }
+.bc-arc { fill: none; stroke: var(--gold-hi); stroke-width: 7; stroke-linecap: butt; stroke-dasharray: 100; transition: stroke-dashoffset .9s linear; }
+.bigclock.low .bc-arc { stroke: var(--red-hi); } .bigclock.low { animation: ringWarn .8s ease-in-out infinite; }
+.bc-t { position: absolute; left: 0; right: 0; top: 54.7%; transform: translateY(-50%); text-align: center; font: 700 1.25rem var(--f-disp); font-variant-numeric: tabular-nums; color: var(--ivory); }
+.bigclock.low .bc-t { color: var(--red-hi); }
+.bc-s { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font: 500 .66rem var(--f-disp); color: var(--ivory-3); }
+
+/* ОД: масштаб пипсов — до 14 помещается в узкую колонку */
+.apbox2 { flex-wrap: wrap; justify-content: center; max-width: 100%; font-size: 1rem; }
+.apbox2::before { display: none; }
+.appips { flex-wrap: wrap; max-width: 100%; justify-content: center; }
+.appips.mid { gap: 2px; } .appips.mid i { width: 15px; height: 15px; }
+.appips.many { gap: 1px; max-width: 168px; } .appips.many i { width: 11px; height: 11px; }
+.apbox2 #aptxt2 { font-variant-numeric: tabular-nums; color: var(--gold-hi); }
+.topbar .appips.many { max-width: 140px; }
+.aptab { margin-top: 6px; border-collapse: collapse; width: 100%; font-size: .8rem; }
+.aptab td { padding: 1px 4px; border-bottom: 1px solid #e0b04a22; } .aptab td + td { text-align: right; font-variant-numeric: tabular-nums; color: var(--good); }
+.aptab td.neg { color: var(--red-hi); } .aptab tr.sum td { border-top: 1px solid var(--gold-dk); border-bottom: 0; font-weight: 700; color: var(--gold-hi); }
+
+/* ---------- ульта: восьмиугольник ult_button_* + cooldown_ring ---------- */
+.abil.ult.chiefult { width: 72px; height: 72px; padding: 0; border: 0; background: url("/strat/ui2/rings/ult_button_ready.png") center / contain no-repeat; box-shadow: none; position: relative; }
+.abil.ult.chiefult.cd { background-image: url("/strat/ui2/rings/ult_button_cooldown.png"); }
+.abil.ult.chiefult:disabled:not(.cd) { background-image: url("/strat/ui2/rings/ult_button_locked.png"); }
+.abil.ult.chiefult .ab-ic { position: absolute; inset: 22%; display: grid; place-items: center; background: none; border: 0; transform: none; }
+.abil.ult.chiefult .ult-art { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; }
+.abil.ult.chiefult:disabled .ult-art { filter: grayscale(.7) brightness(.7); }
+.abil.ult.chiefult .ring { position: absolute; inset: 6%; border-radius: 50%; background: conic-gradient(#000a calc(var(--p, 0) * 1%), #0000 0); -webkit-mask: radial-gradient(closest-side, #0000 74%, #000 76%); mask: radial-gradient(closest-side, #0000 74%, #000 76%); }
+.abil.ult.chiefult .ab-cd { position: absolute; right: -4px; bottom: -4px; min-width: 24px; height: 24px; display: grid; place-items: center; font: 700 .85rem var(--f-disp); color: var(--ivory); background: var(--black); border: 2px solid var(--gold); }
+.abil.ult.chiefult:not(:disabled):not(.cd) { animation: ultReady 1.6s ease-in-out infinite; }
+@keyframes ultReady { 50% { filter: drop-shadow(0 0 10px #ffcf5a); } }
+
+/* баннер ульты: арт ult_banner_<вид>_blank, заголовок — текстом игры */
+.ultban::before { inset: 0; background: center / 100% 100% no-repeat; border: 0; box-shadow: none; clip-path: none; }
+.ultban.k-doom::before { background-image: url("/strat/ui2/ult/ult_banner_doom_blank.png"); }
+.ultban.k-chain::before, .ultban.k-lightning::before { background-image: url("/strat/ui2/ult/ult_banner_chain_blank.png"); }
+.ultban.k-wall::before, .ultban.k-dome::before { background-image: url("/strat/ui2/ult/ult_banner_wall_blank.png"); }
+.ultban.k-blizzard::before { background-image: url("/strat/ui2/ult/ult_banner_blizzard_blank.png"); }
+.ultban.k-wave::before { background-image: url("/strat/ui2/ult/ult_banner_wave_blank.png"); }
+.ultban.k-overgrowth::before, .ultban.k-growth::before { background-image: url("/strat/ui2/ult/ult_banner_overgrowth_blank.png"); }
+.ultban { aspect-ratio: 1280 / 240; padding: 0; }
+
+/* ---------- подсказки и тосты: tooltip_frame / toast_frame ---------- */
+.tip:not(.sheet) { background: none; border: solid transparent; border-width: 12px; border-image: url("/strat/ui2/frames/tooltip_frame.png") 24 fill / 12px; box-shadow: 0 10px 26px #0009; padding: 2px 4px; }
+.tip:not(.sheet)::before { inset: auto auto -14px 18px; width: 18px; height: 12px; border: 0; background: url("/strat/ui2/frames/tooltip_tail.png") center / contain no-repeat; }
+.toast { background: none; border: solid transparent; border-width: 0 22px; border-image: url("/strat/ui2/frames/toast_frame.png") 0 48 fill / 0 22px; min-height: 48px; padding: 8px 4px; box-shadow: none; filter: drop-shadow(0 8px 14px #0009); }
+.toast.good .ic { color: var(--good); } .toast.bad .ic { color: var(--red-hi); }
+.toast::before { content: ""; position: absolute; left: 0; top: 18%; bottom: 18%; width: 4px; background: var(--gold); }
+.toast.good::before { background: var(--good); } .toast.bad::before { background: var(--red-hi); }
+.toast { position: relative; }
+
+/* док повышения уровня и карточки */
+.lvdock { background: none; border: solid transparent; border-width: 18px 18px 6px; border-image: url("/strat/ui2/frames/dock_frame.png") 30 80 0 fill / 18px 18px 0; box-shadow: none; }
+.lvcard { background: url("/strat/ui2/frames/levelup_card_normal.png") center / 100% 100% no-repeat; border: 0; min-height: 150px; padding-top: 14px; }
+.lvcard:hover { background-image: url("/strat/ui2/frames/levelup_card_hover.png"); background-color: transparent; }
+
+/* ---------- цели: строка на N игроков ---------- */
+.gl-sw { display: inline-block; width: 10px; height: 10px; margin-right: 5px; background: var(--pc); border: 1.5px solid var(--black); transform: rotate(45deg); flex: none; }
+.gl-who { display: flex; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.goals.many .gl-row { gap: 3px; } .goals.many .goal { min-width: 0; padding: 2px; } .goals.many .goal .ic { width: 16px; height: 16px; }
+
+/* ---------- Вождь: основание, постройки ---------- */
+.chiefacts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fnd { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--ivory-2); }
+.fring { width: 28px; height: 28px; border-radius: 50%; flex: none; background: conic-gradient(var(--gold-hi) calc(var(--p, 0) * 1%), #ffffff1a 0);
+  -webkit-mask: radial-gradient(closest-side, #0000 62%, #000 64%); mask: radial-gradient(closest-side, #0000 62%, #000 64%); }
+.bhp { display: inline-block; width: 38px; height: 6px; margin: 0 4px; background: var(--black); border: 1px solid var(--gold-dk); vertical-align: middle; }
+.bhp u { display: block; height: 100%; background: linear-gradient(90deg, var(--red-hi), var(--good)); background-size: 38px 100%; text-decoration: none; }
+.bchip.ruin { opacity: .75; border-style: dashed; } .bchip.ruin .ic { color: var(--red-hi); }
+
+/* скрытое здоровье: цел / ранен / при смерти */
+.hs-ok { --hs: var(--good); } .hs-hurt { --hs: #e3a630; } .hs-low { --hs: var(--red-hi); }
+.hsb, small.hs { display: inline-block; padding: 0 6px; font: 700 .72rem var(--f-disp); letter-spacing: .04em; color: var(--ink); background: var(--hs, #888); }
+.meter.hs { position: relative; height: 14px; } .meter.hs i { background: var(--hs); } .meter.hs span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 .66rem var(--f-disp); color: var(--ivory); text-shadow: 0 1px 0 #000; }
+#hhpwrap.locked { opacity: .55; } #hhpwrap.locked input { cursor: not-allowed; }
+
+.tipland { display: inline-flex; align-items: center; gap: 5px; } .tipland::before { content: ""; width: 9px; height: 9px; background: var(--pc); transform: rotate(45deg); border: 1px solid #000; }
+
+/* ---------- древо: Эпоха IV ---------- */
+.tnode.e4q { opacity: .55; border-style: dashed; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.tnode.e4q .fogq { font: 700 1.4rem var(--f-disp); color: var(--gold); } .tnode.e4q small { font-size: .62rem; color: var(--ivory-3); }
+.hidden-era { opacity: .55; font-style: italic; }
+
+/* ---------- профиль: монеты, любимые расы ---------- */
+.pcoins { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; font: 700 .95rem var(--f-disp); color: var(--gold-hi); background: var(--black); border: 1px solid var(--gold-dk); }
+.pcoins .ic { width: 18px; height: 18px; } .pcoins small { font-weight: 500; color: var(--ivory-3); }
+.favpick p { margin: 0 0 8px; font-size: .84rem; }
+.fp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fp-r { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 8px; cursor: pointer; color: var(--ivory-2); background: var(--panel-lo); border: 2px solid var(--gold-dk); font: 700 .82rem var(--f-disp); }
+.fp-r:hover:not(:disabled) { border-color: var(--gold); } .fp-r:disabled { opacity: .45; cursor: not-allowed; }
+.fp-r.on { border-color: var(--rc, var(--gold)); background: var(--panel-hi); color: var(--gold-hi); box-shadow: 0 0 0 1px var(--rc), 0 0 14px color-mix(in srgb, var(--rc) 40%, transparent); }
+.fp-cr .crestimg, .fp-cr img, .fp-cr svg { width: 52px; height: 52px; }
+.fp-n { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; display: grid; place-items: center; font: 700 .72rem var(--f-disp); font-style: normal; color: var(--ink); background: var(--gold); transform: rotate(45deg); }
+.fp-n:empty { display: none; }
+.fp-f { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+@media (max-width: 480px) { .fp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- лобби: «Стол на 8» + «Лиги сезона» ---------- */
+.lobbymain { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .lobbymain { grid-template-columns: minmax(0, 1fr); } }
+.tablepanel { min-width: 0; }
+.slot .seatcard { background: none; border: solid transparent; border-width: 12px; border-image: url("/strat/ui2/frames/slot_lobby_filled.png") 32 fill / 12px; box-shadow: none; min-height: 76px; position: relative; }
+.slot.is-empty .seatcard { border-image-source: url("/strat/ui2/frames/slot_lobby_empty.png"); }
+.slot.is-ready .seatcard { border-image-source: url("/strat/ui2/frames/slot_lobby_ready.png"); }
+.slot { border-top: 0; }
+.slot .seatcard::before { content: ""; position: absolute; left: -2px; right: -2px; top: -9px; height: 4px; background: var(--pc); mix-blend-mode: multiply; }
+.slot.team-0 .seatcard, .slot.team-1 .seatcard { box-shadow: none; }
+.srat { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font: 700 1.15rem var(--f-disp); color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+.srat img { width: 22px; height: 22px; } .srat img.prov { width: 14px; height: 14px; }
+.seatcard > div { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; } .seatcard > div > b, .seatcard > div > small { flex-basis: 100%; }
+.seatcard > div > b + small { flex-basis: 100%; }
+.colrow { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 2px 0; }
+.colrow .lbl { font: 700 .8rem var(--f-disp); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin-right: 4px; }
+.colrow .lbl::after { content: ":"; }
+.swb { width: 34px; height: 34px; padding: 0; background: none; border: 0; cursor: pointer; transition: transform .15s; }
+.swb img { width: 100%; height: 100%; display: block; } .swb:hover:not(:disabled) { transform: translateY(-2px); }
+.swb.on { outline: 2px solid var(--gold-hi); outline-offset: 2px; } .swb:disabled { opacity: .3; cursor: not-allowed; }
+
+.leaguepanel { min-width: 0; }
+.llh { margin: 0 0 8px; font: 700 1rem var(--f-disp); letter-spacing: .16em; text-transform: uppercase; color: var(--gold-hi); text-align: center; }
+.llmeds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.llmed { display: flex; flex-direction: column; align-items: center; gap: 2px; opacity: .55; text-align: center; transition: opacity .2s; }
+.llmed img { width: 64px; height: 64px; } .llmed b { font: 700 .78rem var(--f-disp); color: var(--ivory-2); } .llmed small { font-size: .64rem; color: var(--ivory-3); }
+.llmed.on { opacity: 1; } .llmed.on img { filter: drop-shadow(0 0 8px #e0b04a88); } .llmed.on b { color: var(--gold-hi); }
+.llsub { margin: 0 0 4px; font: 700 .72rem var(--f-disp); letter-spacing: .12em; text-transform: uppercase; color: var(--ivory-3); }
+.lltab { display: flex; flex-direction: column; gap: 3px; }
+.llrow { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 50px; align-items: center; gap: 6px; height: 30px; padding: 0 10px; font-size: .84rem; background: #0004; }
+.llrow .pos { font: 700 .82rem var(--f-disp); color: var(--ivory-3); text-align: center; }
+.llrow .nk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .llrow b { font: 700 .95rem var(--f-disp); color: var(--ivory); font-variant-numeric: tabular-nums; } .llrow b em { font-style: normal; color: var(--ivory-3); }
+.llrow.top1, .llrow.top2, .llrow.top3 { background: center / 100% 100% no-repeat; } .llrow.top1 { background-image: url("/strat/ui2/leagues/rank_row_top1.png"); }
+.llrow.top2 { background-image: url("/strat/ui2/leagues/rank_row_top2.png"); } .llrow.top3 { background-image: url("/strat/ui2/leagues/rank_row_top3.png"); }
+.llrow.top1 .pos, .llrow.top2 .pos, .llrow.top3 .pos { color: var(--ink); }
+.llrow.me { outline: 1px solid var(--gold); }
+.llrow .dl { display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; font: 700 .76rem var(--f-disp); font-variant-numeric: tabular-nums; }
+.llrow .dl img { width: 14px; height: 14px; } .llrow .dl.up { color: var(--good); } .llrow .dl.down { color: var(--red-hi); }
+
+/* рейтинговое лобби: жребий вместо выбора */
+.racedraw[hidden] { display: none; }
+.rd-box { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px; background: #0005; border: 2px solid var(--gold-dk); }
+.rd-dice { width: 64px; height: 64px; display: grid; place-items: center; background: var(--black); border: 2px solid var(--gold); transform: rotate(45deg); margin: 6px; }
+.rd-dice .ic { width: 32px; height: 32px; color: var(--gold-hi); transform: rotate(-45deg); }
+.rd-txt > b { font: 700 1.1rem var(--f-disp); color: var(--gold-hi); letter-spacing: .04em; } .rd-txt p { margin: 4px 0 8px; font-size: .86rem; color: var(--ivory-2); }
+.rd-fav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; } .rd-fav > small { font: 700 .72rem var(--f-disp); letter-spacing: .1em; text-transform: uppercase; color: var(--ivory-3); }
+.rd-cr { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 0 0 2px var(--rc), 0 0 10px color-mix(in srgb, var(--rc) 50%, transparent); }
+.rd-cr .crestimg, .rd-cr img, .rd-cr svg { width: 40px; height: 40px; }
+.rd-commit { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; font-size: .72rem; color: var(--ivory-3); font-family: ui-monospace, monospace; } .rd-commit .ic { width: 12px; height: 12px; }
+
+/* «барабан» жребия: все места крутятся одновременно */
+.drumov { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; background: #000c; opacity: 0; transition: opacity .25s; }
+.drumov.on { opacity: 1; }
+.drum-panel { max-width: min(980px, 96vw); padding: 18px 20px 20px; text-align: center; background: var(--ink); border: solid transparent; border-width: 26px; border-image: url("/strat/ui/frames/modal_frame.png") 88 fill / 26px; }
+.drum-panel h3 { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 14px; font: 700 1.3rem var(--f-disp); letter-spacing: .16em; text-transform: uppercase; color: var(--gold-hi); }
+.drum-panel h3 .ic { width: 26px; height: 26px; }
+.drum-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.drum { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 104px; }
+.drum .dn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 .76rem var(--f-disp); color: var(--ivory-2); }
+.drum.me .dn { color: var(--gold-hi); }
+.drum-win { position: relative; width: 92px; height: 84px; overflow: hidden; background: var(--black); border: 3px solid var(--gold-dk); box-shadow: inset 0 14px 14px -8px #000, inset 0 -14px 14px -8px #000; }
+.drum-win::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(#000a, #0000 30%, #0000 70%, #000a); }
+.drum-strip { display: flex; flex-direction: column; will-change: transform; }
+.drum-strip .dc { flex: none; height: 84px; display: grid; place-items: center; } .drum-strip .dc .crestimg, .drum-strip .dc img, .drum-strip .dc svg { width: 64px; height: 64px; }
+.drum.spin .drum-strip { filter: blur(1.2px); }
+.drum.stop .drum-win { border-color: var(--pc, var(--gold)); box-shadow: 0 0 0 2px var(--black), 0 0 18px var(--pc, var(--gold)); animation: pop .3s var(--ease); }
+.drum .dr { min-height: 1.2em; font: 700 .9rem var(--f-disp); color: var(--ivory); opacity: 0; transition: opacity .25s; } .drum.stop .dr { opacity: 1; }
+.drum .df { min-height: 1em; font-size: .68rem; font-style: normal; color: var(--gold); opacity: 0; } .drum.stop .df { opacity: 1; }
+.drum-v { display: block; margin: 12px 0 8px; font-size: .74rem; color: var(--ivory-3); } .drum-v .ic { width: 12px; height: 12px; vertical-align: -2px; }
+@media (max-width: 520px) { .drum { width: 76px; } .drum-win { width: 70px; height: 84px; } .drum-panel { border-width: 16px; border-image-width: 16px; padding: 10px; } }
+
+/* полоса «незавершённая партия» — resume_frame (3-slice 120) */
+.resume { background: none !important; border: solid transparent !important; border-width: 0 40px !important; border-image: url("/strat/ui2/frames/resume_frame.png") 0 120 fill / 0 40px !important; box-shadow: none !important; }
+.gl-row { grid-template-columns: 66px repeat(5, 1fr) auto; gap: 4px; }
+.gl-who { font-size: .66rem; letter-spacing: .03em; display: block; }
+.gl-who .gl-sw { vertical-align: middle; margin-right: 3px; }
+
+/* ---------- история ходов / повторы ---------- */
+.histbar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 7; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  width: min(860px, calc(100% - 20px)); padding: 6px 10px; background: var(--panel); border: 2px solid var(--gold); box-shadow: inset 0 0 0 3px var(--black), 0 6px 18px rgba(0,0,0,.45); color: var(--ivory); }
+.histbar[hidden] { display: none; }
+.histbar .hv-l { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.histbar .hv-t { font-family: var(--f-title); font-size: 1.02rem; letter-spacing: .04em; text-transform: uppercase; color: var(--gold-hi); white-space: nowrap; }
+.histbar .hv-t b { color: var(--ivory); font-size: 1.15rem; }
+.histbar .hv-s { opacity: .8; font-size: .76rem; white-space: nowrap; }
+.histbar .hv-c, .histbar .hv-sp { display: flex; gap: 3px; }
+.hv-b, .hv-spb { min-width: 30px; height: 30px; display: grid; place-items: center; background: var(--panel-hi); border: 1px solid var(--gold-dk); color: var(--ivory); cursor: pointer; padding: 0 4px; font: 700 .74rem var(--f-body); }
+.hv-b:hover, .hv-spb:hover { border-color: var(--gold-hi); } .hv-b.play { background: var(--gold-dk); min-width: 38px; } .hv-spb.on { background: var(--gold); color: var(--black); }
+.hv-b .ic { width: 16px; height: 16px; }
+.hv-scrub { flex: 1 1 140px; min-width: 110px; accent-color: var(--gold); }
+body.hist-view .stage { outline: 3px solid var(--gold); outline-offset: -3px; }
+body.hist-view .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2; background: radial-gradient(ellipse at center, transparent 55%, rgba(30,22,8,.35)); }
+body.hist-view #end, body.hist-view .abar, body.hist-view .uc-acts { filter: grayscale(.8); pointer-events: none; opacity: .55; }
+.moves { background: var(--panel-lo); border: 2px solid var(--gold-dk); box-shadow: inset 0 0 0 3px var(--black); display: flex; flex-direction: column; min-height: 0; flex: 0 1 auto; }
+.mv-h { display: flex; align-items: center; gap: 6px; padding: 5px 8px; font-family: var(--f-title); text-transform: uppercase; letter-spacing: .05em; color: var(--gold-hi); font-size: .86rem; }
+.mv-h .ic { width: 15px; height: 15px; } .mv-nav { margin-left: auto; display: flex; gap: 3px; } .mv-nav .btn.sq { width: 26px; height: 26px; min-width: 26px; padding: 0; }
+.mvlist { position: relative; overflow-y: auto; max-height: 190px; padding: 0 6px 6px; scrollbar-width: thin; scrollbar-color: var(--gold-dk) transparent; font-size: .74rem; color: var(--ivory); }
+.mv-empty { opacity: .65; padding: 4px 2px 2px; }
+.mv-t { border-top: 1px solid rgba(201,162,74,.18); } .mv-t.on { background: rgba(201,162,74,.14); }
+.mv-jump { display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: 0; color: inherit; padding: 3px 2px; cursor: pointer; text-align: left; font: inherit; border-left: 3px solid var(--pc, var(--gold)); }
+.mv-jump b { min-width: 22px; text-align: right; color: var(--gold-hi); } .mv-jump .mv-nk { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; } .mv-jump small { opacity: .6; }
+.mv-jump:hover { background: rgba(255,255,255,.06); }
+.mv-t ul { list-style: none; margin: 0 0 3px; padding: 0 0 0 28px; }
+.mv-e { display: flex; gap: 4px; align-items: center; padding: 1px 2px; cursor: pointer; line-height: 1.25; } .mv-e:hover, .mv-e:focus-visible { background: rgba(255,255,255,.07); outline: none; }
+.mv-e .ic { width: 12px; height: 12px; flex: none; color: var(--pc, var(--gold)); } .mv-e span { flex: 1; min-width: 0; }
+.mv-why { font-style: normal; font-weight: 700; font-size: .62rem; width: 13px; height: 13px; display: grid; place-items: center; border: 1px solid var(--gold-dk); color: var(--gold-hi); border-radius: 50%; flex: none; }
+.whytab { min-width: 200px; } .whytab b { display: block; margin-bottom: 3px; } .whytab table { width: 100%; border-collapse: collapse; } .whytab td { padding: 1px 0; } .whytab td + td { text-align: right; font-weight: 700; padding-left: 10px; } .whytab .wf { margin-top: 3px; border-top: 1px solid currentColor; padding-top: 2px; opacity: .85; }
+.lib { display: flex; flex-direction: column; gap: 4px; }
+.lib-h { font-family: var(--f-title); text-transform: uppercase; letter-spacing: .05em; color: var(--gold-dk); margin-top: 6px; } .lib-h small { opacity: .6; }
+.lib-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border: 1px solid rgba(120,90,30,.3); background: rgba(255,255,255,.35); }
+.lib-row.saved { border-color: var(--gold); }
+.lib-cr { display: flex; } .lib-cr .crestimg { width: 26px; height: 26px; margin-right: -6px; object-fit: contain; }
+.lib-b { flex: 1; min-width: 0; display: flex; flex-direction: column; } .lib-b b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .lib-b small { opacity: .7; }
+.lib-note { display: flex; gap: 6px; align-items: center; font-size: .78rem; margin: 0 0 4px; opacity: .85; }
+@media (max-width: 760px) {
+  .histbar { top: 6px; gap: 5px; padding: 5px 6px; } .histbar .hv-s { display: none; } .hv-scrub { order: 9; flex-basis: 100%; }
+  .histbar .btn.sm span { display: none; } .mvlist { max-height: 120px; }
+  .histbar .hv-t { font-size: .86rem; } .histbar .hv-t b { font-size: .95rem; } .histbar .hv-l .ic { display: none; }
+  .hv-b, .hv-spb { min-width: 28px; height: 28px; } .histbar .hv-b[data-hv="first"], .histbar .hv-b[data-hv="last"] { display: none; }
+  .histbar .btn.sm { min-height: 28px; padding: 0 8px; }
+}
+.mvlist:empty::before { content: "История появится после первого хода"; display: block; opacity: .65; padding: 4px 2px 2px; }

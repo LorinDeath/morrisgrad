@@ -50,3 +50,16 @@ export function ratingDelta(rt: any): string {
   if (!rt || typeof rt.delta !== "number") return ""; const d = Math.round(rt.delta), L = LEAGUES.find((l) => l.id === rt.league);
   return `<div class="rdelta ${d > 0 ? "up" : d < 0 ? "down" : ""}"><small>${L ? L.name + " лига" : "Рейтинг"}</small><b>${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)}</b><span>${fmtR(rt.before ?? 0)} → ${fmtR(rt.after ?? 0)}</span></div>`;
 }
+
+/** Панель «Лиги сезона» в лобби: три медальона (текущая лига подсвечена) и топ-5 лиги карты с вашим местом. */
+export function lobbyLeagueHtml(cur: LeagueId, list: any[] | null, myNick: string): string {
+  const L = LEAGUES.find((l) => l.id === cur)!;
+  const meds = LEAGUES.map((l) => `<div class="llmed ${l.id === cur ? "on" : ""}"><img src="/strat/ui2/leagues/league_${l.id}.png" alt=""><b>${l.name}</b><small>${l.sizes}</small></div>`).join("");
+  let rows = "";
+  if (!list) rows = `<div class="emptyrow">${ic("clock")}<span>Загрузка…</span></div>`;
+  else if (!list.length) rows = `<div class="emptyrow">${ic("glory")}<span>В этой лиге пока нет рейтинговых партий</span></div>`;
+  else { const top = list.slice(0, 5), mi = list.findIndex((p) => p.nick === myNick), show = mi >= 5 ? [...top.slice(0, 4), list[mi]] : top;
+    rows = show.map((p) => { const i = list.indexOf(p), d = Math.round(+p.delta || 0);
+      return `<div class="llrow ${i < 3 ? "top" + (i + 1) : ""} ${p.nick === myNick ? "me" : ""}"><span class="pos">${i + 1}</span><span class="nk" data-i="${i}"></span><b>${fmtR(p.r)}${isProv(p) ? "<em>?</em>" : ""}</b>${d ? `<span class="dl ${d > 0 ? "up" : "down"}"><img src="/strat/ui2/leagues/rating_${d > 0 ? "up" : "down"}.png" alt="">${d > 0 ? "+" : "−"}${Math.abs(d)}</span>` : "<span></span>"}</div>`; }).join(""); }
+  return `<h3 class="llh">Лиги сезона</h3><div class="llmeds">${meds}</div><h4 class="llsub">Топ · ${L.name.toLowerCase()} лига</h4><div class="lltab">${rows}</div>`;
+}

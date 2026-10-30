@@ -9,6 +9,7 @@ import { mergeCfg } from "../../../server/strat/cfg";
 import { ic, BUILD_ICON, BRANCH_ICON, iconImg } from "./icons";
 import { esc, modal, choiceDlg, confirmDlg } from "./ui-kit";
 import { pasIcon, buildPassive, techPassive, talentPassive, regPassive } from "./passives";
+import { cityBld, HS_NAME, W, terrCities, leagueCfg, type BRow } from "./world";
 import { redacted, fogView, unveilCls, fogNode, type FogView } from "./fog";
 
 export const KIND_NAME: Record<Kind, string> = { pawn: "Ополченец", knight: "Всадник", mage: "Маг", rook: "Страж", hero: "Герой", king: "Вождь" };
@@ -145,38 +146,39 @@ export function renderCity(c: Ctx) {
       <b>${KIND_NAME[k]}</b><span class="u-st">${ic("heart")}${u?.hp ?? "?"} ${ic("sword")}${u?.atk ?? "?"} ${ic("shield")}${u?.arm ?? "?"}</span>
       ${why ? lock(why) : ""}<em class="${R.gold < cost ? "neg" : ""}">${ic("gold")}${cost}</em></button>`;
   }).join("");
-  const builds = (Object.keys(BUILD) as BuildId[]).filter((b) => !BUILD[b].race || BUILD[b].race === race).map((b) => {
-    const B = rv(BUILD[b] as any, race), has = city.bld.includes(b) && b !== "forge", cost = buildCost(G, me, b, cfg), gate = gateOf(G, me, "b", b, cfg);
-    let err: string | null = has ? "built" : canBuild(G, me, city, b, cfg, b === "forge" ? "rook" : undefined); if (gate && !err) err = "need_tech";
-    const why = gate ? (gate.name === "?" ? (gate.closed ? "Путь к этой постройке закрыт" : "Нужна ещё не открытая технология") : gate.closed ? "Путь закрыт: «" + gate.name + "»" : "Нужна технология «" + gate.name + "»") : err && !has ? ECON_ERR[err] || err : "";
-    return `<button class="bcard ${has ? "have" : gate ? "locked" : err ? "off" : "can"}" data-b="${b}" ${!my || err ? 'aria-disabled="true"' : ""}>
-      <span class="b-ic">${bIcon(b, race)}</span><b>${esc(B.name)}</b><small>${esc(B.eff)}</small><span class="pas-row">${pasIcon(buildPassive(b, B, cfg))}</span>
-      ${why && !has ? lock(why) : ""}<em>${has ? ic("check") + "Построено" : ic("gold") + cost}</em></button>`;
-  }).join("");
-  const bl = city.bld.map((b) => `<span class="bchip" data-tip="${esc(rv(BUILD[b] as any, race).eff || "")}">${bIcon(b, race)}${esc(bName(b, race))}</span>`).join("") + Array.from({ length: Math.max(0, slots - used) }, () => `<span class="bchip empty">свободно</span>`).join("");
+  const hpRows = cityBld(S, G, city, cfg), hpOf = (b: string) => hpRows.find((r) => r.b === b && !r.ruin);
+  const hpTxt = (r?: BRow) => (!r ? "" : r.hp != null ? `<i class="bhp"><u style="width:${Math.round((r.hp / Math.max(1, r.max || 1)) * 100)}%"></u></i><small>${r.hp}/${r.max}</small>` : r.hs ? `<small class="hs hs-${r.hs}">${HS_NAME[r.hs]}</small>` : "");
+  const bl = [...new Set(city.bld)].map((b) => `<span class="bchip" data-tip="${esc(rv(BUILD[b] as any, race).eff || "")}">${bIcon(b, race)}${esc(bName(b, race))}${hpTxt(hpOf(b))}</span>`).join("")
+    + hpRows.filter((r) => r.ruin).map((r) => `<span class="bchip ruin" data-tip="Разрушено — можно восстановить">${ic("burn")}${esc(bName(r.b, race))}<small>руины</small></span>`).join("") + Array.from({ length: Math.max(0, slots - used) }, () => `<span class="bchip empty">свободно</span>`).join("");
   box.innerHTML = `<div class="dlg deco city">
     <div class="dlg-h"><span class="dlg-ic">${ic(city.cap ? "castle" : "outpost")}</span><div><h3>${esc(city.name)}</h3>
-      <p class="dlg-sub">${city.cap ? "Столица · уровень " + (city.lvl + 1) : "Застава"} · постройки ${used}/${slots}${city.forge.length ? " · Кузня: " + city.forge.map((k) => KIND_NAME[k]).join(", ") : ""}</p></div>
+      <p class="dlg-sub">${city.cap ? (/столиц/i.test(city.name || "") ? "" : "Столица · ") + "уровень " + (city.lvl + 1) : (city as any).set ? "Поселение" : "Застава"} · постройки ${used}/${slots}${city.forge.length ? " · Кузня: " + city.forge.map((k) => KIND_NAME[k]).join(", ") : ""}</p></div>
       <div class="dlg-res"><span>${ic("gold")}<b>${R.gold}</b></span><span>${ic("know")}<b>${R.know}</b></span></div>
       <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
     ${city.cap ? `<div class="growth"><span>Рост</span><div class="meter"><i style="width:${next ? Math.min(100, (city.growth / next) * 100) : 100}%"></i></div><b>${next ? city.growth + "/" + next : "макс."}</b></div>` : ""}
     ${city.acted ? `<div class="warnline">${ic("turn")} Город уже действовал в этот ход — найм и стройка снова на следующем ходу</div>` : !my ? `<div class="warnline">${ic("turn")} Сейчас ход соперника</div>` : ""}
+    ${landRow(S, city)}
     <div class="bchips">${bl}</div>
-    <div class="dlg-b two">
-      <section><h4 class="deco-h">${ic("recruit")}Найм <small>фигура появится на клетке рядом с городом</small></h4><div class="ucards">${units}</div></section>
-      <section><h4 class="deco-h">${ic("build")}Строительство</h4><div class="bcards">${builds}</div></section>
+    <p class="cityhint">${ic("build")} Строит Вождь: выберите его на доске и нажмите «Построить».</p>
+    <div class="dlg-b">
+      <section><h4 class="deco-h">${ic("recruit")}Найм <small>фигура появится на клетке ${city.cap ? "столицы" : "города"}${G.pieces.some((q) => q.x === city.x && q.y === city.y) ? " — она занята, выберите клетку рядом" : ""}</small></h4><div class="ucards">${units}</div></section>
     </div></div>`;
   const close = () => { ui.city = null; ui.recruit = null; c.refresh(); };
   box.querySelector<HTMLElement>("[data-x]")!.onclick = close; box.onclick = (e) => { if (e.target === box) close(); };
-  for (const b of box.querySelectorAll<HTMLButtonElement>("[data-k]")) b.onclick = () => { if (b.getAttribute("aria-disabled")) return; ui.recruit = { city: city.id, kind: b.dataset.k as Kind }; ui.city = null; c.refresh(); };
-  for (const b of box.querySelectorAll<HTMLButtonElement>("[data-b]")) b.onclick = async () => { if (b.getAttribute("aria-disabled")) return;
-    const id = b.dataset.b as BuildId; let kind: Kind | undefined;
-    if (id === "forge") {
-      const k = await choiceDlg("Кузня", "Какому типу фигур дать +1 АТК?", (Object.keys(KIND_NAME) as Kind[]).map((k) => ({ id: k, title: KIND_NAME[k], img: unitArt(race, k), text: city.forge.includes(k) ? "уже усилен" : "+1 АТК" })), "kinds");
-      if (!k) return; kind = k as Kind;
-    }
-    c.send({ type: "act", act: { a: "build", city: city.id, b: id, ...(kind ? { kind } : {}) } });
-  };
+  for (const b of box.querySelectorAll<HTMLButtonElement>("[data-k]")) b.onclick = () => { if (b.getAttribute("aria-disabled")) return; const kind = b.dataset.k as Kind;
+    // найм — на клетку города; занята — выбор соседней клетки как раньше
+    if (!G.pieces.some((q) => q.x === city.x && q.y === city.y)) { c.send({ type: "act", act: { a: "recruit", city: city.id, kind, x: city.x, y: city.y } }); ui.city = null; c.refresh(); return; }
+    ui.recruit = { city: city.id, kind }; ui.city = null; c.refresh(); };
+  box.querySelector<HTMLElement>("[data-claim]")?.addEventListener("click", () => { W.mode = { k: "claim", city: city.id }; ui.city = null; c.refresh(); });
+}
+
+/** Строка прироста земли города (S.terr): таймер до бесплатной клетки и покупка за золото. */
+function landRow(S: any, city: any): string {
+  const t = terrCities(S).find((q) => q.city === city.id); if (!t) return "";
+  const every = t.every || leagueCfg(S).grow || 4, left = t.left ?? Math.max(0, every - (t.tg ?? 0)), fr = Math.min(100, Math.round(((every - left) / Math.max(1, every)) * 100));
+  return `<div class="growth land"><span>Земля</span><div class="meter"><i style="width:${fr}%"></i></div><b>${t.ready ? "клетка готова" : "через " + left + " х."}</b>
+    ${t.ready && (t.cells || []).length ? `<button class="btn mini gold" data-claim>${ic("plus")}Купить клетку · ${ic("gold")}${t.cost ?? "?"}</button>` : ""}</div>
+    ${t.ready ? `<p class="cityhint">${ic("turn")} Не купите — через ${left} х. клетка присоединится бесплатно.</p>` : ""}`;
 }
 
 // ---------- древо технологий ----------
@@ -186,7 +188,7 @@ export function renderTech(c: Ctx) {
   const dlg = persist("techdlg", true, "techdlg full")!;
   const eras = sizeOf(G, cfg).eras || 3, my = G.cur === me, race = G.races[me], nodes = techNodes(race, srvTree(G, me));
   const brs = [...new Set(["war", "econ", "elem", ...nodes.map((n) => n.br)])].filter((b) => nodes.some((n) => n.br === b) || b === "elem");
-  const maxEra = Math.max(eras, ...nodes.map((n) => n.era));
+  const maxEra = Math.max(4, eras, ...nodes.map((n) => n.era)); // эпоха IV видна всегда: её узлы скрыты «?», пока сервер их не раскроет
   const cost = (e: number) => cfg.econ.research.cost?.[e] ?? "?";
   const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
     if (fv !== "show") return fogNode(n.id, fv, "tech");
@@ -197,6 +199,7 @@ export function renderTech(c: Ctx) {
       <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + cost(n.era)}</em></button>`; };
   const cell = (br: string, era: number) => {
     const ns = nodes.filter((n) => n.br === br && n.era === era);
+    if (!ns.length && era >= 4) return `<div class="tcell e4">${[0, 1].map((i) => `${i ? '<span class="and"></span>' : ""}<span class="tnode fog e4q" data-tip="Эпоха IV: узел откроется позже"><span class="fogq">?</span><small>Эпоха IV</small></span>`).join("")}</div>`;
     if (!ns.length) return `<div class="tcell empty">${br === "elem" && era === 1 ? "Ветвь расы — скоро" : ""}</div>`;
     // узлы, исключающие друг друга, — рядом через «или»
     let h = ""; ns.forEach((n, i) => { if (i) h += ns[i - 1].excl.includes(n.id) || n.excl.includes(ns[i - 1].id) ? `<span class="or"><i>или</i></span>` : `<span class="and"></span>`; h += card(n); });
@@ -205,7 +208,7 @@ export function renderTech(c: Ctx) {
   const eraErr = canEra(G, me, cfg), nextEra = ec.era[me] + 1, eraCost = cfg.econ.research.eraCost?.[nextEra];
   const body = `<div class="tgrid" style="--cols:${brs.length}">
       <div class="tcorner"></div>${brs.map((b) => `<div class="th">${ic(BRANCH_ICON[b] || "spark")}<span>${esc(BR_NAME[b] || b)}</span></div>`).join("")}
-      ${Array.from({ length: maxEra }, (_, i) => i + 1).map((e) => `<div class="te ${e <= ec.era[me] ? "now" : ""}"><span>${ERA_ROMAN[e] || e}</span><small>эпоха</small></div>${brs.map((b) => cell(b, e)).join("")}`).join("")}
+      ${Array.from({ length: maxEra }, (_, i) => i + 1).map((e) => `<div class="te ${e <= ec.era[me] ? "now" : ""} ${e > eras ? "hidden-era" : ""}"><span>${ERA_ROMAN[e] || e}</span><small>эпоха</small></div>${brs.map((b) => cell(b, e)).join("")}`).join("")}
       <svg class="tlinks" aria-hidden="true"></svg></div>`;
   const legend = `<div class="tlegend"><span class="lg can"></span>можно изучить<span class="lg got"></span>изучено<span class="lg later"></span>пока недоступно<span class="lg closed"></span>путь закрыт навсегда<span class="lg fog">?</span>ещё не открыто</div>`;
   const keepScroll = dlg.querySelector(".tscroll")?.scrollTop || 0;
@@ -285,19 +288,12 @@ export function boardClick(c: Ctx, x: number, y: number, empty: boolean): boolea
 /** Территория, города, клетки найма — только видимая часть доски (v0..v1 — видимые клетки в экранных координатах). */
 let terrKey: any = null, terrVal: Int8Array | number[] = [];
 export function territoryCached(G: GameState, cfg: StratCfg, key: any) { if (key !== terrKey) { terrKey = key; terrVal = territory(G, cfg) as any; } return terrVal; }
-export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx: (x: number) => number, sy: (y: number) => number, T: ArrayLike<number>, vis: (x: number, y: number) => boolean) {
+export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx: (x: number) => number, sy: (y: number) => number, T: ArrayLike<number>, vis: (x: number, y: number) => boolean, walls?: () => void) {
   const { G } = c, cfg = cfgOf(c.S); if (!G.ec) return; const n = G.size;
   ctx.save();
-  const fl = c.S.you === 1, lw = Math.max(1.5, cell * 0.035);
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o < 0 || !vis(x, y)) continue;
-    ctx.fillStyle = c.col(o) + "2a"; ctx.fillRect(sx(x), sy(y), cell, cell);
-    ctx.strokeStyle = c.col(o) + "cc"; ctx.lineWidth = lw; ctx.beginPath();
-    const edge = (dx: number, dy: number) => { const X = x + dx, Y = y + dy; return X < 0 || Y < 0 || X >= n || Y >= n || T[Y * n + X] !== o; };
-    const X0 = sx(x), Y0 = sy(y);
-    const L = fl ? edge(1, 0) : edge(-1, 0), Rr = fl ? edge(-1, 0) : edge(1, 0), U = fl ? edge(0, 1) : edge(0, -1), D = fl ? edge(0, -1) : edge(0, 1);
-    if (L) { ctx.moveTo(X0, Y0); ctx.lineTo(X0, Y0 + cell); } if (Rr) { ctx.moveTo(X0 + cell, Y0); ctx.lineTo(X0 + cell, Y0 + cell); }
-    if (U) { ctx.moveTo(X0, Y0); ctx.lineTo(X0 + cell, Y0); } if (D) { ctx.moveTo(X0, Y0 + cell); ctx.lineTo(X0 + cell, Y0 + cell); }
-    ctx.stroke(); }
+  // лёгкая заливка земли; сама граница — стены по городам (world.drawWalls через walls())
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o < 0 || !vis(x, y)) continue; ctx.fillStyle = c.col(o) + "1c"; ctx.fillRect(sx(x), sy(y), cell, cell); }
+  walls?.();
   for (const ct of G.ec.cities) { if (!vis(ct.x, ct.y)) continue; // герб города в верхнем правом углу клетки
     const X = sx(ct.x) + cell * 0.7, Y = sy(ct.y) + cell * 0.03, w = cell * 0.27;
     ctx.fillStyle = "#1a1420"; ctx.strokeStyle = c.col(ct.owner); ctx.lineWidth = Math.max(1.5, cell * 0.03);

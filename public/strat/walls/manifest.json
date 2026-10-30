@@ -1,0 +1,7478 @@
+{
+ "pack": "black-kings walls-v1",
+ "version": 1,
+ "style": "C: минималистичный ар-деко комикс, толстая тушь, плоские заливки, слоновая кость/чёрный/золото + акцент расы",
+ "version_note": "v1.1: small/ и lod/ — отдельно отрисованный утолщённый (×1,5) вариант; walls/ 256 без изменений; прежние small/lod — в old_small/, old_lod/",
+ "cell": 256,
+ "band": 48,
+ "sizes": {
+  "walls": 256,
+  "small": 128,
+  "lod": 64
+ },
+ "bands": {
+  "walls": 48,
+  "small": 36,
+  "lod": 18,
+  "thick_master_equiv": "72/256",
+  "towers": {
+   "walls": "башня 41×41 (в квадрате 48), столб 31×31",
+   "small": "башня ≈31×31 (в квадрате 36), столб ≈23×23",
+   "lod": "башня ≈15×15, столб ≈12×12"
+  },
+  "note": "small/lod рисуются из того же вектора с растяжением ×1,5 поперёк стены и ×4/3 вдоль (период мотивов 32 → 42,67 px мастера, 6 на клетку), затем 2×2 / 4×4 box-уменьшение: стыки точные на своём масштабе"
+ },
+ "legacy": {
+  "old_small": "прежние small 128 (полоса 24 px, точный даунскейл walls/), 124 файла",
+  "old_lod": "прежние lod 64 (полоса 12 px), 120 файлов",
+  "in_manifest": false
+ },
+ "races": {
+  "fire": {
+   "name_ru": "огонь",
+   "look": "базальт с лавовыми жилами, зубцы-языки пламени"
+  },
+  "ice": {
+   "name_ru": "лёд",
+   "look": "ледяные блоки, кристаллы-зубцы, сосульки"
+  },
+  "water": {
+   "name_ru": "вода",
+   "look": "коралловая кладка, зубцы-ракушки, пена у основания"
+  },
+  "stone": {
+   "name_ru": "камень",
+   "look": "валунная кладка, рунические плиты"
+  },
+  "nature": {
+   "name_ru": "природа",
+   "look": "живая изгородь, сплетённые корни, шипы и листья"
+  },
+  "lightning": {
+   "name_ru": "молния",
+   "look": "медно-латунные пилоны с проводами на цоколе"
+  }
+ },
+ "pieces": {
+  "straight_n": {
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  "straight_e": {
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  "straight_s": {
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  "straight_w": {
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  "outer_ne": {
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  "outer_nw": {
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  "outer_se": {
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  "outer_sw": {
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  "inner_ne": {
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  "inner_nw": {
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  "inner_se": {
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  "inner_sw": {
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  "end_n": {
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  "end_e": {
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  "end_s": {
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  "end_w": {
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  "end_n_rev": {
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  "end_e_rev": {
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  "end_s_rev": {
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  "end_w_rev": {
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  }
+ },
+ "seams": "каждая полоса периодична с периодом, делящим 256: прямая стыкуется сама с собой и с открытыми концами outer/inner/end пиксель-в-пиксель",
+ "assembly": {
+  "wall_edge": "у клетки города край d получает стену, если сосед по d — не клетка этого же города и не \"без стены\" (вода); край карты — обычная граница (стена есть)",
+  "outer": "если стенами помечены оба края a и b угла ab — outer_ab (вместо двух straight)",
+  "straight": "иначе для каждого края-стены d — straight_d; если ровно один боковой сосед вдоль стены — \"без стены\", ставится end (открыт со стороны продолжения, руина к воде)",
+  "inner": "если оба соседа a и b — клетки города, а диагональ ab — нет (и не \"без стены\"), — inner_ab",
+  "owner_band": "для каждой детали сложить wall_owner_band_<её краёв>, обрезать по альфе детали, у outer/inner очистить угловой квадрат B×B (48 на walls/, 36 на small/), умножить на цвет владельца, положить поверх",
+  "reference": "src/assemble.py: pieces_for(), owner_overlay(), tint()"
+ },
+ "not_included": [
+  "ворота (P2 по ТЗ)",
+  "общий край соседних городов (P2)"
+ ],
+ "renamable": true,
+ "files": [
+  {
+   "key": "wall_fire_straight_n",
+   "path": "walls/wall_fire_straight_n.png",
+   "race": "fire",
+   "piece": "straight_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_fire_straight_n",
+   "path": "small/wall_fire_straight_n.png",
+   "race": "fire",
+   "piece": "straight_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_fire_straight_n",
+   "path": "lod/wall_fire_straight_n.png",
+   "race": "fire",
+   "piece": "straight_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_fire_straight_e",
+   "path": "walls/wall_fire_straight_e.png",
+   "race": "fire",
+   "piece": "straight_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_fire_straight_e",
+   "path": "small/wall_fire_straight_e.png",
+   "race": "fire",
+   "piece": "straight_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_fire_straight_e",
+   "path": "lod/wall_fire_straight_e.png",
+   "race": "fire",
+   "piece": "straight_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_fire_straight_s",
+   "path": "walls/wall_fire_straight_s.png",
+   "race": "fire",
+   "piece": "straight_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_fire_straight_s",
+   "path": "small/wall_fire_straight_s.png",
+   "race": "fire",
+   "piece": "straight_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_fire_straight_s",
+   "path": "lod/wall_fire_straight_s.png",
+   "race": "fire",
+   "piece": "straight_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_fire_straight_w",
+   "path": "walls/wall_fire_straight_w.png",
+   "race": "fire",
+   "piece": "straight_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_fire_straight_w",
+   "path": "small/wall_fire_straight_w.png",
+   "race": "fire",
+   "piece": "straight_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_fire_straight_w",
+   "path": "lod/wall_fire_straight_w.png",
+   "race": "fire",
+   "piece": "straight_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_fire_outer_ne",
+   "path": "walls/wall_fire_outer_ne.png",
+   "race": "fire",
+   "piece": "outer_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_ne",
+   "path": "small/wall_fire_outer_ne.png",
+   "race": "fire",
+   "piece": "outer_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_ne",
+   "path": "lod/wall_fire_outer_ne.png",
+   "race": "fire",
+   "piece": "outer_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_nw",
+   "path": "walls/wall_fire_outer_nw.png",
+   "race": "fire",
+   "piece": "outer_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_nw",
+   "path": "small/wall_fire_outer_nw.png",
+   "race": "fire",
+   "piece": "outer_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_nw",
+   "path": "lod/wall_fire_outer_nw.png",
+   "race": "fire",
+   "piece": "outer_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_se",
+   "path": "walls/wall_fire_outer_se.png",
+   "race": "fire",
+   "piece": "outer_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_se",
+   "path": "small/wall_fire_outer_se.png",
+   "race": "fire",
+   "piece": "outer_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_se",
+   "path": "lod/wall_fire_outer_se.png",
+   "race": "fire",
+   "piece": "outer_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_sw",
+   "path": "walls/wall_fire_outer_sw.png",
+   "race": "fire",
+   "piece": "outer_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_sw",
+   "path": "small/wall_fire_outer_sw.png",
+   "race": "fire",
+   "piece": "outer_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_fire_outer_sw",
+   "path": "lod/wall_fire_outer_sw.png",
+   "race": "fire",
+   "piece": "outer_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_fire_inner_ne",
+   "path": "walls/wall_fire_inner_ne.png",
+   "race": "fire",
+   "piece": "inner_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_ne",
+   "path": "small/wall_fire_inner_ne.png",
+   "race": "fire",
+   "piece": "inner_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_ne",
+   "path": "lod/wall_fire_inner_ne.png",
+   "race": "fire",
+   "piece": "inner_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_nw",
+   "path": "walls/wall_fire_inner_nw.png",
+   "race": "fire",
+   "piece": "inner_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_nw",
+   "path": "small/wall_fire_inner_nw.png",
+   "race": "fire",
+   "piece": "inner_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_nw",
+   "path": "lod/wall_fire_inner_nw.png",
+   "race": "fire",
+   "piece": "inner_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_se",
+   "path": "walls/wall_fire_inner_se.png",
+   "race": "fire",
+   "piece": "inner_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_se",
+   "path": "small/wall_fire_inner_se.png",
+   "race": "fire",
+   "piece": "inner_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_se",
+   "path": "lod/wall_fire_inner_se.png",
+   "race": "fire",
+   "piece": "inner_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_sw",
+   "path": "walls/wall_fire_inner_sw.png",
+   "race": "fire",
+   "piece": "inner_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_sw",
+   "path": "small/wall_fire_inner_sw.png",
+   "race": "fire",
+   "piece": "inner_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_inner_sw",
+   "path": "lod/wall_fire_inner_sw.png",
+   "race": "fire",
+   "piece": "inner_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_fire_end_n",
+   "path": "walls/wall_fire_end_n.png",
+   "race": "fire",
+   "piece": "end_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_n",
+   "path": "small/wall_fire_end_n.png",
+   "race": "fire",
+   "piece": "end_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_n",
+   "path": "lod/wall_fire_end_n.png",
+   "race": "fire",
+   "piece": "end_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_e",
+   "path": "walls/wall_fire_end_e.png",
+   "race": "fire",
+   "piece": "end_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_e",
+   "path": "small/wall_fire_end_e.png",
+   "race": "fire",
+   "piece": "end_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_e",
+   "path": "lod/wall_fire_end_e.png",
+   "race": "fire",
+   "piece": "end_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_s",
+   "path": "walls/wall_fire_end_s.png",
+   "race": "fire",
+   "piece": "end_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_s",
+   "path": "small/wall_fire_end_s.png",
+   "race": "fire",
+   "piece": "end_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_s",
+   "path": "lod/wall_fire_end_s.png",
+   "race": "fire",
+   "piece": "end_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_w",
+   "path": "walls/wall_fire_end_w.png",
+   "race": "fire",
+   "piece": "end_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_w",
+   "path": "small/wall_fire_end_w.png",
+   "race": "fire",
+   "piece": "end_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_w",
+   "path": "lod/wall_fire_end_w.png",
+   "race": "fire",
+   "piece": "end_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_fire_end_n_rev",
+   "path": "walls/wall_fire_end_n_rev.png",
+   "race": "fire",
+   "piece": "end_n_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_n_rev",
+   "path": "small/wall_fire_end_n_rev.png",
+   "race": "fire",
+   "piece": "end_n_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_n_rev",
+   "path": "lod/wall_fire_end_n_rev.png",
+   "race": "fire",
+   "piece": "end_n_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_e_rev",
+   "path": "walls/wall_fire_end_e_rev.png",
+   "race": "fire",
+   "piece": "end_e_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_e_rev",
+   "path": "small/wall_fire_end_e_rev.png",
+   "race": "fire",
+   "piece": "end_e_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_e_rev",
+   "path": "lod/wall_fire_end_e_rev.png",
+   "race": "fire",
+   "piece": "end_e_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_s_rev",
+   "path": "walls/wall_fire_end_s_rev.png",
+   "race": "fire",
+   "piece": "end_s_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_s_rev",
+   "path": "small/wall_fire_end_s_rev.png",
+   "race": "fire",
+   "piece": "end_s_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_s_rev",
+   "path": "lod/wall_fire_end_s_rev.png",
+   "race": "fire",
+   "piece": "end_s_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_w_rev",
+   "path": "walls/wall_fire_end_w_rev.png",
+   "race": "fire",
+   "piece": "end_w_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_w_rev",
+   "path": "small/wall_fire_end_w_rev.png",
+   "race": "fire",
+   "piece": "end_w_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_fire_end_w_rev",
+   "path": "lod/wall_fire_end_w_rev.png",
+   "race": "fire",
+   "piece": "end_w_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_fire_strip_h_svg",
+   "path": "svg/wall_fire_strip_h.svg",
+   "race": "fire",
+   "tier": "svg",
+   "desc": "вектор горизонтальной полосы (одна клетка периода)"
+  },
+  {
+   "key": "wall_fire_strip_v_svg",
+   "path": "svg/wall_fire_strip_v.svg",
+   "race": "fire",
+   "tier": "svg",
+   "desc": "вектор вертикальной полосы"
+  },
+  {
+   "key": "wall_fire_tower_svg",
+   "path": "svg/wall_fire_tower.svg",
+   "race": "fire",
+   "tier": "svg",
+   "desc": "башня внешнего угла 48×48"
+  },
+  {
+   "key": "wall_fire_post_svg",
+   "path": "svg/wall_fire_post.svg",
+   "race": "fire",
+   "tier": "svg",
+   "desc": "столб внутреннего угла 48×48"
+  },
+  {
+   "key": "wall_ice_straight_n",
+   "path": "walls/wall_ice_straight_n.png",
+   "race": "ice",
+   "piece": "straight_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_ice_straight_n",
+   "path": "small/wall_ice_straight_n.png",
+   "race": "ice",
+   "piece": "straight_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_ice_straight_n",
+   "path": "lod/wall_ice_straight_n.png",
+   "race": "ice",
+   "piece": "straight_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_ice_straight_e",
+   "path": "walls/wall_ice_straight_e.png",
+   "race": "ice",
+   "piece": "straight_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_ice_straight_e",
+   "path": "small/wall_ice_straight_e.png",
+   "race": "ice",
+   "piece": "straight_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_ice_straight_e",
+   "path": "lod/wall_ice_straight_e.png",
+   "race": "ice",
+   "piece": "straight_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_ice_straight_s",
+   "path": "walls/wall_ice_straight_s.png",
+   "race": "ice",
+   "piece": "straight_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_ice_straight_s",
+   "path": "small/wall_ice_straight_s.png",
+   "race": "ice",
+   "piece": "straight_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_ice_straight_s",
+   "path": "lod/wall_ice_straight_s.png",
+   "race": "ice",
+   "piece": "straight_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_ice_straight_w",
+   "path": "walls/wall_ice_straight_w.png",
+   "race": "ice",
+   "piece": "straight_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_ice_straight_w",
+   "path": "small/wall_ice_straight_w.png",
+   "race": "ice",
+   "piece": "straight_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_ice_straight_w",
+   "path": "lod/wall_ice_straight_w.png",
+   "race": "ice",
+   "piece": "straight_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_ice_outer_ne",
+   "path": "walls/wall_ice_outer_ne.png",
+   "race": "ice",
+   "piece": "outer_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_ne",
+   "path": "small/wall_ice_outer_ne.png",
+   "race": "ice",
+   "piece": "outer_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_ne",
+   "path": "lod/wall_ice_outer_ne.png",
+   "race": "ice",
+   "piece": "outer_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_nw",
+   "path": "walls/wall_ice_outer_nw.png",
+   "race": "ice",
+   "piece": "outer_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_nw",
+   "path": "small/wall_ice_outer_nw.png",
+   "race": "ice",
+   "piece": "outer_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_nw",
+   "path": "lod/wall_ice_outer_nw.png",
+   "race": "ice",
+   "piece": "outer_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_se",
+   "path": "walls/wall_ice_outer_se.png",
+   "race": "ice",
+   "piece": "outer_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_se",
+   "path": "small/wall_ice_outer_se.png",
+   "race": "ice",
+   "piece": "outer_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_se",
+   "path": "lod/wall_ice_outer_se.png",
+   "race": "ice",
+   "piece": "outer_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_sw",
+   "path": "walls/wall_ice_outer_sw.png",
+   "race": "ice",
+   "piece": "outer_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_sw",
+   "path": "small/wall_ice_outer_sw.png",
+   "race": "ice",
+   "piece": "outer_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_ice_outer_sw",
+   "path": "lod/wall_ice_outer_sw.png",
+   "race": "ice",
+   "piece": "outer_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_ice_inner_ne",
+   "path": "walls/wall_ice_inner_ne.png",
+   "race": "ice",
+   "piece": "inner_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_ne",
+   "path": "small/wall_ice_inner_ne.png",
+   "race": "ice",
+   "piece": "inner_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_ne",
+   "path": "lod/wall_ice_inner_ne.png",
+   "race": "ice",
+   "piece": "inner_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_nw",
+   "path": "walls/wall_ice_inner_nw.png",
+   "race": "ice",
+   "piece": "inner_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_nw",
+   "path": "small/wall_ice_inner_nw.png",
+   "race": "ice",
+   "piece": "inner_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_nw",
+   "path": "lod/wall_ice_inner_nw.png",
+   "race": "ice",
+   "piece": "inner_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_se",
+   "path": "walls/wall_ice_inner_se.png",
+   "race": "ice",
+   "piece": "inner_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_se",
+   "path": "small/wall_ice_inner_se.png",
+   "race": "ice",
+   "piece": "inner_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_se",
+   "path": "lod/wall_ice_inner_se.png",
+   "race": "ice",
+   "piece": "inner_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_sw",
+   "path": "walls/wall_ice_inner_sw.png",
+   "race": "ice",
+   "piece": "inner_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_sw",
+   "path": "small/wall_ice_inner_sw.png",
+   "race": "ice",
+   "piece": "inner_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_inner_sw",
+   "path": "lod/wall_ice_inner_sw.png",
+   "race": "ice",
+   "piece": "inner_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_ice_end_n",
+   "path": "walls/wall_ice_end_n.png",
+   "race": "ice",
+   "piece": "end_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_n",
+   "path": "small/wall_ice_end_n.png",
+   "race": "ice",
+   "piece": "end_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_n",
+   "path": "lod/wall_ice_end_n.png",
+   "race": "ice",
+   "piece": "end_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_e",
+   "path": "walls/wall_ice_end_e.png",
+   "race": "ice",
+   "piece": "end_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_e",
+   "path": "small/wall_ice_end_e.png",
+   "race": "ice",
+   "piece": "end_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_e",
+   "path": "lod/wall_ice_end_e.png",
+   "race": "ice",
+   "piece": "end_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_s",
+   "path": "walls/wall_ice_end_s.png",
+   "race": "ice",
+   "piece": "end_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_s",
+   "path": "small/wall_ice_end_s.png",
+   "race": "ice",
+   "piece": "end_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_s",
+   "path": "lod/wall_ice_end_s.png",
+   "race": "ice",
+   "piece": "end_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_w",
+   "path": "walls/wall_ice_end_w.png",
+   "race": "ice",
+   "piece": "end_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_w",
+   "path": "small/wall_ice_end_w.png",
+   "race": "ice",
+   "piece": "end_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_w",
+   "path": "lod/wall_ice_end_w.png",
+   "race": "ice",
+   "piece": "end_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_ice_end_n_rev",
+   "path": "walls/wall_ice_end_n_rev.png",
+   "race": "ice",
+   "piece": "end_n_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_n_rev",
+   "path": "small/wall_ice_end_n_rev.png",
+   "race": "ice",
+   "piece": "end_n_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_n_rev",
+   "path": "lod/wall_ice_end_n_rev.png",
+   "race": "ice",
+   "piece": "end_n_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_e_rev",
+   "path": "walls/wall_ice_end_e_rev.png",
+   "race": "ice",
+   "piece": "end_e_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_e_rev",
+   "path": "small/wall_ice_end_e_rev.png",
+   "race": "ice",
+   "piece": "end_e_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_e_rev",
+   "path": "lod/wall_ice_end_e_rev.png",
+   "race": "ice",
+   "piece": "end_e_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_s_rev",
+   "path": "walls/wall_ice_end_s_rev.png",
+   "race": "ice",
+   "piece": "end_s_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_s_rev",
+   "path": "small/wall_ice_end_s_rev.png",
+   "race": "ice",
+   "piece": "end_s_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_s_rev",
+   "path": "lod/wall_ice_end_s_rev.png",
+   "race": "ice",
+   "piece": "end_s_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_w_rev",
+   "path": "walls/wall_ice_end_w_rev.png",
+   "race": "ice",
+   "piece": "end_w_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_w_rev",
+   "path": "small/wall_ice_end_w_rev.png",
+   "race": "ice",
+   "piece": "end_w_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_ice_end_w_rev",
+   "path": "lod/wall_ice_end_w_rev.png",
+   "race": "ice",
+   "piece": "end_w_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_ice_strip_h_svg",
+   "path": "svg/wall_ice_strip_h.svg",
+   "race": "ice",
+   "tier": "svg",
+   "desc": "вектор горизонтальной полосы (одна клетка периода)"
+  },
+  {
+   "key": "wall_ice_strip_v_svg",
+   "path": "svg/wall_ice_strip_v.svg",
+   "race": "ice",
+   "tier": "svg",
+   "desc": "вектор вертикальной полосы"
+  },
+  {
+   "key": "wall_ice_tower_svg",
+   "path": "svg/wall_ice_tower.svg",
+   "race": "ice",
+   "tier": "svg",
+   "desc": "башня внешнего угла 48×48"
+  },
+  {
+   "key": "wall_ice_post_svg",
+   "path": "svg/wall_ice_post.svg",
+   "race": "ice",
+   "tier": "svg",
+   "desc": "столб внутреннего угла 48×48"
+  },
+  {
+   "key": "wall_water_straight_n",
+   "path": "walls/wall_water_straight_n.png",
+   "race": "water",
+   "piece": "straight_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_water_straight_n",
+   "path": "small/wall_water_straight_n.png",
+   "race": "water",
+   "piece": "straight_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_water_straight_n",
+   "path": "lod/wall_water_straight_n.png",
+   "race": "water",
+   "piece": "straight_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_water_straight_e",
+   "path": "walls/wall_water_straight_e.png",
+   "race": "water",
+   "piece": "straight_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_water_straight_e",
+   "path": "small/wall_water_straight_e.png",
+   "race": "water",
+   "piece": "straight_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_water_straight_e",
+   "path": "lod/wall_water_straight_e.png",
+   "race": "water",
+   "piece": "straight_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_water_straight_s",
+   "path": "walls/wall_water_straight_s.png",
+   "race": "water",
+   "piece": "straight_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_water_straight_s",
+   "path": "small/wall_water_straight_s.png",
+   "race": "water",
+   "piece": "straight_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_water_straight_s",
+   "path": "lod/wall_water_straight_s.png",
+   "race": "water",
+   "piece": "straight_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_water_straight_w",
+   "path": "walls/wall_water_straight_w.png",
+   "race": "water",
+   "piece": "straight_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_water_straight_w",
+   "path": "small/wall_water_straight_w.png",
+   "race": "water",
+   "piece": "straight_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_water_straight_w",
+   "path": "lod/wall_water_straight_w.png",
+   "race": "water",
+   "piece": "straight_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_water_outer_ne",
+   "path": "walls/wall_water_outer_ne.png",
+   "race": "water",
+   "piece": "outer_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_ne",
+   "path": "small/wall_water_outer_ne.png",
+   "race": "water",
+   "piece": "outer_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_ne",
+   "path": "lod/wall_water_outer_ne.png",
+   "race": "water",
+   "piece": "outer_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_nw",
+   "path": "walls/wall_water_outer_nw.png",
+   "race": "water",
+   "piece": "outer_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_nw",
+   "path": "small/wall_water_outer_nw.png",
+   "race": "water",
+   "piece": "outer_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_nw",
+   "path": "lod/wall_water_outer_nw.png",
+   "race": "water",
+   "piece": "outer_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_se",
+   "path": "walls/wall_water_outer_se.png",
+   "race": "water",
+   "piece": "outer_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_se",
+   "path": "small/wall_water_outer_se.png",
+   "race": "water",
+   "piece": "outer_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_se",
+   "path": "lod/wall_water_outer_se.png",
+   "race": "water",
+   "piece": "outer_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_sw",
+   "path": "walls/wall_water_outer_sw.png",
+   "race": "water",
+   "piece": "outer_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_sw",
+   "path": "small/wall_water_outer_sw.png",
+   "race": "water",
+   "piece": "outer_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_water_outer_sw",
+   "path": "lod/wall_water_outer_sw.png",
+   "race": "water",
+   "piece": "outer_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_water_inner_ne",
+   "path": "walls/wall_water_inner_ne.png",
+   "race": "water",
+   "piece": "inner_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_ne",
+   "path": "small/wall_water_inner_ne.png",
+   "race": "water",
+   "piece": "inner_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_ne",
+   "path": "lod/wall_water_inner_ne.png",
+   "race": "water",
+   "piece": "inner_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_nw",
+   "path": "walls/wall_water_inner_nw.png",
+   "race": "water",
+   "piece": "inner_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_nw",
+   "path": "small/wall_water_inner_nw.png",
+   "race": "water",
+   "piece": "inner_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_nw",
+   "path": "lod/wall_water_inner_nw.png",
+   "race": "water",
+   "piece": "inner_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_se",
+   "path": "walls/wall_water_inner_se.png",
+   "race": "water",
+   "piece": "inner_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_se",
+   "path": "small/wall_water_inner_se.png",
+   "race": "water",
+   "piece": "inner_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_se",
+   "path": "lod/wall_water_inner_se.png",
+   "race": "water",
+   "piece": "inner_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_sw",
+   "path": "walls/wall_water_inner_sw.png",
+   "race": "water",
+   "piece": "inner_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_sw",
+   "path": "small/wall_water_inner_sw.png",
+   "race": "water",
+   "piece": "inner_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_inner_sw",
+   "path": "lod/wall_water_inner_sw.png",
+   "race": "water",
+   "piece": "inner_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_water_end_n",
+   "path": "walls/wall_water_end_n.png",
+   "race": "water",
+   "piece": "end_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_n",
+   "path": "small/wall_water_end_n.png",
+   "race": "water",
+   "piece": "end_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_n",
+   "path": "lod/wall_water_end_n.png",
+   "race": "water",
+   "piece": "end_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_e",
+   "path": "walls/wall_water_end_e.png",
+   "race": "water",
+   "piece": "end_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_e",
+   "path": "small/wall_water_end_e.png",
+   "race": "water",
+   "piece": "end_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_e",
+   "path": "lod/wall_water_end_e.png",
+   "race": "water",
+   "piece": "end_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_s",
+   "path": "walls/wall_water_end_s.png",
+   "race": "water",
+   "piece": "end_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_s",
+   "path": "small/wall_water_end_s.png",
+   "race": "water",
+   "piece": "end_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_s",
+   "path": "lod/wall_water_end_s.png",
+   "race": "water",
+   "piece": "end_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_w",
+   "path": "walls/wall_water_end_w.png",
+   "race": "water",
+   "piece": "end_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_w",
+   "path": "small/wall_water_end_w.png",
+   "race": "water",
+   "piece": "end_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_w",
+   "path": "lod/wall_water_end_w.png",
+   "race": "water",
+   "piece": "end_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_water_end_n_rev",
+   "path": "walls/wall_water_end_n_rev.png",
+   "race": "water",
+   "piece": "end_n_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_n_rev",
+   "path": "small/wall_water_end_n_rev.png",
+   "race": "water",
+   "piece": "end_n_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_n_rev",
+   "path": "lod/wall_water_end_n_rev.png",
+   "race": "water",
+   "piece": "end_n_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_e_rev",
+   "path": "walls/wall_water_end_e_rev.png",
+   "race": "water",
+   "piece": "end_e_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_e_rev",
+   "path": "small/wall_water_end_e_rev.png",
+   "race": "water",
+   "piece": "end_e_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_e_rev",
+   "path": "lod/wall_water_end_e_rev.png",
+   "race": "water",
+   "piece": "end_e_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_s_rev",
+   "path": "walls/wall_water_end_s_rev.png",
+   "race": "water",
+   "piece": "end_s_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_s_rev",
+   "path": "small/wall_water_end_s_rev.png",
+   "race": "water",
+   "piece": "end_s_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_s_rev",
+   "path": "lod/wall_water_end_s_rev.png",
+   "race": "water",
+   "piece": "end_s_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_w_rev",
+   "path": "walls/wall_water_end_w_rev.png",
+   "race": "water",
+   "piece": "end_w_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_w_rev",
+   "path": "small/wall_water_end_w_rev.png",
+   "race": "water",
+   "piece": "end_w_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_water_end_w_rev",
+   "path": "lod/wall_water_end_w_rev.png",
+   "race": "water",
+   "piece": "end_w_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_water_strip_h_svg",
+   "path": "svg/wall_water_strip_h.svg",
+   "race": "water",
+   "tier": "svg",
+   "desc": "вектор горизонтальной полосы (одна клетка периода)"
+  },
+  {
+   "key": "wall_water_strip_v_svg",
+   "path": "svg/wall_water_strip_v.svg",
+   "race": "water",
+   "tier": "svg",
+   "desc": "вектор вертикальной полосы"
+  },
+  {
+   "key": "wall_water_tower_svg",
+   "path": "svg/wall_water_tower.svg",
+   "race": "water",
+   "tier": "svg",
+   "desc": "башня внешнего угла 48×48"
+  },
+  {
+   "key": "wall_water_post_svg",
+   "path": "svg/wall_water_post.svg",
+   "race": "water",
+   "tier": "svg",
+   "desc": "столб внутреннего угла 48×48"
+  },
+  {
+   "key": "wall_stone_straight_n",
+   "path": "walls/wall_stone_straight_n.png",
+   "race": "stone",
+   "piece": "straight_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_stone_straight_n",
+   "path": "small/wall_stone_straight_n.png",
+   "race": "stone",
+   "piece": "straight_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_stone_straight_n",
+   "path": "lod/wall_stone_straight_n.png",
+   "race": "stone",
+   "piece": "straight_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_stone_straight_e",
+   "path": "walls/wall_stone_straight_e.png",
+   "race": "stone",
+   "piece": "straight_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_stone_straight_e",
+   "path": "small/wall_stone_straight_e.png",
+   "race": "stone",
+   "piece": "straight_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_stone_straight_e",
+   "path": "lod/wall_stone_straight_e.png",
+   "race": "stone",
+   "piece": "straight_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_stone_straight_s",
+   "path": "walls/wall_stone_straight_s.png",
+   "race": "stone",
+   "piece": "straight_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_stone_straight_s",
+   "path": "small/wall_stone_straight_s.png",
+   "race": "stone",
+   "piece": "straight_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_stone_straight_s",
+   "path": "lod/wall_stone_straight_s.png",
+   "race": "stone",
+   "piece": "straight_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_stone_straight_w",
+   "path": "walls/wall_stone_straight_w.png",
+   "race": "stone",
+   "piece": "straight_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_stone_straight_w",
+   "path": "small/wall_stone_straight_w.png",
+   "race": "stone",
+   "piece": "straight_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_stone_straight_w",
+   "path": "lod/wall_stone_straight_w.png",
+   "race": "stone",
+   "piece": "straight_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_stone_outer_ne",
+   "path": "walls/wall_stone_outer_ne.png",
+   "race": "stone",
+   "piece": "outer_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_ne",
+   "path": "small/wall_stone_outer_ne.png",
+   "race": "stone",
+   "piece": "outer_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_ne",
+   "path": "lod/wall_stone_outer_ne.png",
+   "race": "stone",
+   "piece": "outer_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_nw",
+   "path": "walls/wall_stone_outer_nw.png",
+   "race": "stone",
+   "piece": "outer_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_nw",
+   "path": "small/wall_stone_outer_nw.png",
+   "race": "stone",
+   "piece": "outer_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_nw",
+   "path": "lod/wall_stone_outer_nw.png",
+   "race": "stone",
+   "piece": "outer_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_se",
+   "path": "walls/wall_stone_outer_se.png",
+   "race": "stone",
+   "piece": "outer_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_se",
+   "path": "small/wall_stone_outer_se.png",
+   "race": "stone",
+   "piece": "outer_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_se",
+   "path": "lod/wall_stone_outer_se.png",
+   "race": "stone",
+   "piece": "outer_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_sw",
+   "path": "walls/wall_stone_outer_sw.png",
+   "race": "stone",
+   "piece": "outer_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_sw",
+   "path": "small/wall_stone_outer_sw.png",
+   "race": "stone",
+   "piece": "outer_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_stone_outer_sw",
+   "path": "lod/wall_stone_outer_sw.png",
+   "race": "stone",
+   "piece": "outer_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_stone_inner_ne",
+   "path": "walls/wall_stone_inner_ne.png",
+   "race": "stone",
+   "piece": "inner_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_ne",
+   "path": "small/wall_stone_inner_ne.png",
+   "race": "stone",
+   "piece": "inner_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_ne",
+   "path": "lod/wall_stone_inner_ne.png",
+   "race": "stone",
+   "piece": "inner_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_nw",
+   "path": "walls/wall_stone_inner_nw.png",
+   "race": "stone",
+   "piece": "inner_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_nw",
+   "path": "small/wall_stone_inner_nw.png",
+   "race": "stone",
+   "piece": "inner_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_nw",
+   "path": "lod/wall_stone_inner_nw.png",
+   "race": "stone",
+   "piece": "inner_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_se",
+   "path": "walls/wall_stone_inner_se.png",
+   "race": "stone",
+   "piece": "inner_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_se",
+   "path": "small/wall_stone_inner_se.png",
+   "race": "stone",
+   "piece": "inner_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_se",
+   "path": "lod/wall_stone_inner_se.png",
+   "race": "stone",
+   "piece": "inner_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_sw",
+   "path": "walls/wall_stone_inner_sw.png",
+   "race": "stone",
+   "piece": "inner_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_sw",
+   "path": "small/wall_stone_inner_sw.png",
+   "race": "stone",
+   "piece": "inner_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_inner_sw",
+   "path": "lod/wall_stone_inner_sw.png",
+   "race": "stone",
+   "piece": "inner_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_stone_end_n",
+   "path": "walls/wall_stone_end_n.png",
+   "race": "stone",
+   "piece": "end_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_n",
+   "path": "small/wall_stone_end_n.png",
+   "race": "stone",
+   "piece": "end_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_n",
+   "path": "lod/wall_stone_end_n.png",
+   "race": "stone",
+   "piece": "end_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_e",
+   "path": "walls/wall_stone_end_e.png",
+   "race": "stone",
+   "piece": "end_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_e",
+   "path": "small/wall_stone_end_e.png",
+   "race": "stone",
+   "piece": "end_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_e",
+   "path": "lod/wall_stone_end_e.png",
+   "race": "stone",
+   "piece": "end_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_s",
+   "path": "walls/wall_stone_end_s.png",
+   "race": "stone",
+   "piece": "end_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_s",
+   "path": "small/wall_stone_end_s.png",
+   "race": "stone",
+   "piece": "end_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_s",
+   "path": "lod/wall_stone_end_s.png",
+   "race": "stone",
+   "piece": "end_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_w",
+   "path": "walls/wall_stone_end_w.png",
+   "race": "stone",
+   "piece": "end_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_w",
+   "path": "small/wall_stone_end_w.png",
+   "race": "stone",
+   "piece": "end_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_w",
+   "path": "lod/wall_stone_end_w.png",
+   "race": "stone",
+   "piece": "end_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_stone_end_n_rev",
+   "path": "walls/wall_stone_end_n_rev.png",
+   "race": "stone",
+   "piece": "end_n_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_n_rev",
+   "path": "small/wall_stone_end_n_rev.png",
+   "race": "stone",
+   "piece": "end_n_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_n_rev",
+   "path": "lod/wall_stone_end_n_rev.png",
+   "race": "stone",
+   "piece": "end_n_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_e_rev",
+   "path": "walls/wall_stone_end_e_rev.png",
+   "race": "stone",
+   "piece": "end_e_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_e_rev",
+   "path": "small/wall_stone_end_e_rev.png",
+   "race": "stone",
+   "piece": "end_e_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_e_rev",
+   "path": "lod/wall_stone_end_e_rev.png",
+   "race": "stone",
+   "piece": "end_e_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_s_rev",
+   "path": "walls/wall_stone_end_s_rev.png",
+   "race": "stone",
+   "piece": "end_s_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_s_rev",
+   "path": "small/wall_stone_end_s_rev.png",
+   "race": "stone",
+   "piece": "end_s_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_s_rev",
+   "path": "lod/wall_stone_end_s_rev.png",
+   "race": "stone",
+   "piece": "end_s_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_w_rev",
+   "path": "walls/wall_stone_end_w_rev.png",
+   "race": "stone",
+   "piece": "end_w_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_w_rev",
+   "path": "small/wall_stone_end_w_rev.png",
+   "race": "stone",
+   "piece": "end_w_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_stone_end_w_rev",
+   "path": "lod/wall_stone_end_w_rev.png",
+   "race": "stone",
+   "piece": "end_w_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_stone_strip_h_svg",
+   "path": "svg/wall_stone_strip_h.svg",
+   "race": "stone",
+   "tier": "svg",
+   "desc": "вектор горизонтальной полосы (одна клетка периода)"
+  },
+  {
+   "key": "wall_stone_strip_v_svg",
+   "path": "svg/wall_stone_strip_v.svg",
+   "race": "stone",
+   "tier": "svg",
+   "desc": "вектор вертикальной полосы"
+  },
+  {
+   "key": "wall_stone_tower_svg",
+   "path": "svg/wall_stone_tower.svg",
+   "race": "stone",
+   "tier": "svg",
+   "desc": "башня внешнего угла 48×48"
+  },
+  {
+   "key": "wall_stone_post_svg",
+   "path": "svg/wall_stone_post.svg",
+   "race": "stone",
+   "tier": "svg",
+   "desc": "столб внутреннего угла 48×48"
+  },
+  {
+   "key": "wall_nature_straight_n",
+   "path": "walls/wall_nature_straight_n.png",
+   "race": "nature",
+   "piece": "straight_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_nature_straight_n",
+   "path": "small/wall_nature_straight_n.png",
+   "race": "nature",
+   "piece": "straight_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_nature_straight_n",
+   "path": "lod/wall_nature_straight_n.png",
+   "race": "nature",
+   "piece": "straight_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_nature_straight_e",
+   "path": "walls/wall_nature_straight_e.png",
+   "race": "nature",
+   "piece": "straight_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_nature_straight_e",
+   "path": "small/wall_nature_straight_e.png",
+   "race": "nature",
+   "piece": "straight_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_nature_straight_e",
+   "path": "lod/wall_nature_straight_e.png",
+   "race": "nature",
+   "piece": "straight_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_nature_straight_s",
+   "path": "walls/wall_nature_straight_s.png",
+   "race": "nature",
+   "piece": "straight_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_nature_straight_s",
+   "path": "small/wall_nature_straight_s.png",
+   "race": "nature",
+   "piece": "straight_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_nature_straight_s",
+   "path": "lod/wall_nature_straight_s.png",
+   "race": "nature",
+   "piece": "straight_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_nature_straight_w",
+   "path": "walls/wall_nature_straight_w.png",
+   "race": "nature",
+   "piece": "straight_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_nature_straight_w",
+   "path": "small/wall_nature_straight_w.png",
+   "race": "nature",
+   "piece": "straight_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_nature_straight_w",
+   "path": "lod/wall_nature_straight_w.png",
+   "race": "nature",
+   "piece": "straight_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_nature_outer_ne",
+   "path": "walls/wall_nature_outer_ne.png",
+   "race": "nature",
+   "piece": "outer_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_ne",
+   "path": "small/wall_nature_outer_ne.png",
+   "race": "nature",
+   "piece": "outer_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_ne",
+   "path": "lod/wall_nature_outer_ne.png",
+   "race": "nature",
+   "piece": "outer_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_nw",
+   "path": "walls/wall_nature_outer_nw.png",
+   "race": "nature",
+   "piece": "outer_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_nw",
+   "path": "small/wall_nature_outer_nw.png",
+   "race": "nature",
+   "piece": "outer_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_nw",
+   "path": "lod/wall_nature_outer_nw.png",
+   "race": "nature",
+   "piece": "outer_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_se",
+   "path": "walls/wall_nature_outer_se.png",
+   "race": "nature",
+   "piece": "outer_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_se",
+   "path": "small/wall_nature_outer_se.png",
+   "race": "nature",
+   "piece": "outer_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_se",
+   "path": "lod/wall_nature_outer_se.png",
+   "race": "nature",
+   "piece": "outer_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_sw",
+   "path": "walls/wall_nature_outer_sw.png",
+   "race": "nature",
+   "piece": "outer_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_sw",
+   "path": "small/wall_nature_outer_sw.png",
+   "race": "nature",
+   "piece": "outer_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_nature_outer_sw",
+   "path": "lod/wall_nature_outer_sw.png",
+   "race": "nature",
+   "piece": "outer_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_nature_inner_ne",
+   "path": "walls/wall_nature_inner_ne.png",
+   "race": "nature",
+   "piece": "inner_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_ne",
+   "path": "small/wall_nature_inner_ne.png",
+   "race": "nature",
+   "piece": "inner_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_ne",
+   "path": "lod/wall_nature_inner_ne.png",
+   "race": "nature",
+   "piece": "inner_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_nw",
+   "path": "walls/wall_nature_inner_nw.png",
+   "race": "nature",
+   "piece": "inner_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_nw",
+   "path": "small/wall_nature_inner_nw.png",
+   "race": "nature",
+   "piece": "inner_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_nw",
+   "path": "lod/wall_nature_inner_nw.png",
+   "race": "nature",
+   "piece": "inner_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_se",
+   "path": "walls/wall_nature_inner_se.png",
+   "race": "nature",
+   "piece": "inner_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_se",
+   "path": "small/wall_nature_inner_se.png",
+   "race": "nature",
+   "piece": "inner_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_se",
+   "path": "lod/wall_nature_inner_se.png",
+   "race": "nature",
+   "piece": "inner_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_sw",
+   "path": "walls/wall_nature_inner_sw.png",
+   "race": "nature",
+   "piece": "inner_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_sw",
+   "path": "small/wall_nature_inner_sw.png",
+   "race": "nature",
+   "piece": "inner_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_inner_sw",
+   "path": "lod/wall_nature_inner_sw.png",
+   "race": "nature",
+   "piece": "inner_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_nature_end_n",
+   "path": "walls/wall_nature_end_n.png",
+   "race": "nature",
+   "piece": "end_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_n",
+   "path": "small/wall_nature_end_n.png",
+   "race": "nature",
+   "piece": "end_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_n",
+   "path": "lod/wall_nature_end_n.png",
+   "race": "nature",
+   "piece": "end_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_e",
+   "path": "walls/wall_nature_end_e.png",
+   "race": "nature",
+   "piece": "end_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_e",
+   "path": "small/wall_nature_end_e.png",
+   "race": "nature",
+   "piece": "end_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_e",
+   "path": "lod/wall_nature_end_e.png",
+   "race": "nature",
+   "piece": "end_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_s",
+   "path": "walls/wall_nature_end_s.png",
+   "race": "nature",
+   "piece": "end_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_s",
+   "path": "small/wall_nature_end_s.png",
+   "race": "nature",
+   "piece": "end_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_s",
+   "path": "lod/wall_nature_end_s.png",
+   "race": "nature",
+   "piece": "end_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_w",
+   "path": "walls/wall_nature_end_w.png",
+   "race": "nature",
+   "piece": "end_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_w",
+   "path": "small/wall_nature_end_w.png",
+   "race": "nature",
+   "piece": "end_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_w",
+   "path": "lod/wall_nature_end_w.png",
+   "race": "nature",
+   "piece": "end_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_nature_end_n_rev",
+   "path": "walls/wall_nature_end_n_rev.png",
+   "race": "nature",
+   "piece": "end_n_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_n_rev",
+   "path": "small/wall_nature_end_n_rev.png",
+   "race": "nature",
+   "piece": "end_n_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_n_rev",
+   "path": "lod/wall_nature_end_n_rev.png",
+   "race": "nature",
+   "piece": "end_n_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_e_rev",
+   "path": "walls/wall_nature_end_e_rev.png",
+   "race": "nature",
+   "piece": "end_e_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_e_rev",
+   "path": "small/wall_nature_end_e_rev.png",
+   "race": "nature",
+   "piece": "end_e_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_e_rev",
+   "path": "lod/wall_nature_end_e_rev.png",
+   "race": "nature",
+   "piece": "end_e_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_s_rev",
+   "path": "walls/wall_nature_end_s_rev.png",
+   "race": "nature",
+   "piece": "end_s_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_s_rev",
+   "path": "small/wall_nature_end_s_rev.png",
+   "race": "nature",
+   "piece": "end_s_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_s_rev",
+   "path": "lod/wall_nature_end_s_rev.png",
+   "race": "nature",
+   "piece": "end_s_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_w_rev",
+   "path": "walls/wall_nature_end_w_rev.png",
+   "race": "nature",
+   "piece": "end_w_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_w_rev",
+   "path": "small/wall_nature_end_w_rev.png",
+   "race": "nature",
+   "piece": "end_w_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_nature_end_w_rev",
+   "path": "lod/wall_nature_end_w_rev.png",
+   "race": "nature",
+   "piece": "end_w_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_nature_strip_h_svg",
+   "path": "svg/wall_nature_strip_h.svg",
+   "race": "nature",
+   "tier": "svg",
+   "desc": "вектор горизонтальной полосы (одна клетка периода)"
+  },
+  {
+   "key": "wall_nature_strip_v_svg",
+   "path": "svg/wall_nature_strip_v.svg",
+   "race": "nature",
+   "tier": "svg",
+   "desc": "вектор вертикальной полосы"
+  },
+  {
+   "key": "wall_nature_tower_svg",
+   "path": "svg/wall_nature_tower.svg",
+   "race": "nature",
+   "tier": "svg",
+   "desc": "башня внешнего угла 48×48"
+  },
+  {
+   "key": "wall_nature_post_svg",
+   "path": "svg/wall_nature_post.svg",
+   "race": "nature",
+   "tier": "svg",
+   "desc": "столб внутреннего угла 48×48"
+  },
+  {
+   "key": "wall_lightning_straight_n",
+   "path": "walls/wall_lightning_straight_n.png",
+   "race": "lightning",
+   "piece": "straight_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_lightning_straight_n",
+   "path": "small/wall_lightning_straight_n.png",
+   "race": "lightning",
+   "piece": "straight_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_lightning_straight_n",
+   "path": "lod/wall_lightning_straight_n.png",
+   "race": "lightning",
+   "piece": "straight_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "n"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края N"
+  },
+  {
+   "key": "wall_lightning_straight_e",
+   "path": "walls/wall_lightning_straight_e.png",
+   "race": "lightning",
+   "piece": "straight_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_lightning_straight_e",
+   "path": "small/wall_lightning_straight_e.png",
+   "race": "lightning",
+   "piece": "straight_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_lightning_straight_e",
+   "path": "lod/wall_lightning_straight_e.png",
+   "race": "lightning",
+   "piece": "straight_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "e"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края E"
+  },
+  {
+   "key": "wall_lightning_straight_s",
+   "path": "walls/wall_lightning_straight_s.png",
+   "race": "lightning",
+   "piece": "straight_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_lightning_straight_s",
+   "path": "small/wall_lightning_straight_s.png",
+   "race": "lightning",
+   "piece": "straight_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_lightning_straight_s",
+   "path": "lod/wall_lightning_straight_s.png",
+   "race": "lightning",
+   "piece": "straight_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "s"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края S"
+  },
+  {
+   "key": "wall_lightning_straight_w",
+   "path": "walls/wall_lightning_straight_w.png",
+   "race": "lightning",
+   "piece": "straight_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_lightning_straight_w",
+   "path": "small/wall_lightning_straight_w.png",
+   "race": "lightning",
+   "piece": "straight_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_lightning_straight_w",
+   "path": "lod/wall_lightning_straight_w.png",
+   "race": "lightning",
+   "piece": "straight_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "straight",
+   "edges": [
+    "w"
+   ],
+   "open_ends": [
+    "both"
+   ],
+   "desc": "прямая вдоль края W"
+  },
+  {
+   "key": "wall_lightning_outer_ne",
+   "path": "walls/wall_lightning_outer_ne.png",
+   "race": "lightning",
+   "piece": "outer_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_ne",
+   "path": "small/wall_lightning_outer_ne.png",
+   "race": "lightning",
+   "piece": "outer_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_ne",
+   "path": "lod/wall_lightning_outer_ne.png",
+   "race": "lightning",
+   "piece": "outer_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внешний угол NE: стена по краям N и E, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_nw",
+   "path": "walls/wall_lightning_outer_nw.png",
+   "race": "lightning",
+   "piece": "outer_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_nw",
+   "path": "small/wall_lightning_outer_nw.png",
+   "race": "lightning",
+   "piece": "outer_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_nw",
+   "path": "lod/wall_lightning_outer_nw.png",
+   "race": "lightning",
+   "piece": "outer_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внешний угол NW: стена по краям N и W, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_se",
+   "path": "walls/wall_lightning_outer_se.png",
+   "race": "lightning",
+   "piece": "outer_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_se",
+   "path": "small/wall_lightning_outer_se.png",
+   "race": "lightning",
+   "piece": "outer_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_se",
+   "path": "lod/wall_lightning_outer_se.png",
+   "race": "lightning",
+   "piece": "outer_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внешний угол SE: стена по краям S и E, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_sw",
+   "path": "walls/wall_lightning_outer_sw.png",
+   "race": "lightning",
+   "piece": "outer_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_sw",
+   "path": "small/wall_lightning_outer_sw.png",
+   "race": "lightning",
+   "piece": "outer_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_lightning_outer_sw",
+   "path": "lod/wall_lightning_outer_sw.png",
+   "race": "lightning",
+   "piece": "outer_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "outer",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внешний угол SW: стена по краям S и W, башня в углу"
+  },
+  {
+   "key": "wall_lightning_inner_ne",
+   "path": "walls/wall_lightning_inner_ne.png",
+   "race": "lightning",
+   "piece": "inner_ne",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_ne",
+   "path": "small/wall_lightning_inner_ne.png",
+   "race": "lightning",
+   "piece": "inner_ne",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_ne",
+   "path": "lod/wall_lightning_inner_ne.png",
+   "race": "lightning",
+   "piece": "inner_ne",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "ne",
+   "edges": [
+    "n",
+    "e"
+   ],
+   "desc": "внутренний угол NE: только столб 48×48 в углу NE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_nw",
+   "path": "walls/wall_lightning_inner_nw.png",
+   "race": "lightning",
+   "piece": "inner_nw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_nw",
+   "path": "small/wall_lightning_inner_nw.png",
+   "race": "lightning",
+   "piece": "inner_nw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_nw",
+   "path": "lod/wall_lightning_inner_nw.png",
+   "race": "lightning",
+   "piece": "inner_nw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "nw",
+   "edges": [
+    "n",
+    "w"
+   ],
+   "desc": "внутренний угол NW: только столб 48×48 в углу NW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_se",
+   "path": "walls/wall_lightning_inner_se.png",
+   "race": "lightning",
+   "piece": "inner_se",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_se",
+   "path": "small/wall_lightning_inner_se.png",
+   "race": "lightning",
+   "piece": "inner_se",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_se",
+   "path": "lod/wall_lightning_inner_se.png",
+   "race": "lightning",
+   "piece": "inner_se",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "se",
+   "edges": [
+    "s",
+    "e"
+   ],
+   "desc": "внутренний угол SE: только столб 48×48 в углу SE + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_sw",
+   "path": "walls/wall_lightning_inner_sw.png",
+   "race": "lightning",
+   "piece": "inner_sw",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_sw",
+   "path": "small/wall_lightning_inner_sw.png",
+   "race": "lightning",
+   "piece": "inner_sw",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_inner_sw",
+   "path": "lod/wall_lightning_inner_sw.png",
+   "race": "lightning",
+   "piece": "inner_sw",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "inner",
+   "corner": "sw",
+   "edges": [
+    "s",
+    "w"
+   ],
+   "desc": "внутренний угол SW: только столб 48×48 в углу SW + короткие отрезки к соседям"
+  },
+  {
+   "key": "wall_lightning_end_n",
+   "path": "walls/wall_lightning_end_n.png",
+   "race": "lightning",
+   "piece": "end_n",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_n",
+   "path": "small/wall_lightning_end_n.png",
+   "race": "lightning",
+   "piece": "end_n",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_n",
+   "path": "lod/wall_lightning_end_n.png",
+   "race": "lightning",
+   "piece": "end_n",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль N: целая со стороны W, руина в сторону E (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_e",
+   "path": "walls/wall_lightning_end_e.png",
+   "race": "lightning",
+   "piece": "end_e",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_e",
+   "path": "small/wall_lightning_end_e.png",
+   "race": "lightning",
+   "piece": "end_e",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_e",
+   "path": "lod/wall_lightning_end_e.png",
+   "race": "lightning",
+   "piece": "end_e",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль E: целая со стороны N, руина в сторону S (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_s",
+   "path": "walls/wall_lightning_end_s.png",
+   "race": "lightning",
+   "piece": "end_s",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_s",
+   "path": "small/wall_lightning_end_s.png",
+   "race": "lightning",
+   "piece": "end_s",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_s",
+   "path": "lod/wall_lightning_end_s.png",
+   "race": "lightning",
+   "piece": "end_s",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль S: целая со стороны E, руина в сторону W (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_w",
+   "path": "walls/wall_lightning_end_w.png",
+   "race": "lightning",
+   "piece": "end_w",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_w",
+   "path": "small/wall_lightning_end_w.png",
+   "race": "lightning",
+   "piece": "end_w",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_w",
+   "path": "lod/wall_lightning_end_w.png",
+   "race": "lightning",
+   "piece": "end_w",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль W: целая со стороны S, руина в сторону N (по часовой, имя по ТЗ)"
+  },
+  {
+   "key": "wall_lightning_end_n_rev",
+   "path": "walls/wall_lightning_end_n_rev.png",
+   "race": "lightning",
+   "piece": "end_n_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_n_rev",
+   "path": "small/wall_lightning_end_n_rev.png",
+   "race": "lightning",
+   "piece": "end_n_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_n_rev",
+   "path": "lod/wall_lightning_end_n_rev.png",
+   "race": "lightning",
+   "piece": "end_n_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "n"
+   ],
+   "comes_from": "e",
+   "broken_toward": "w",
+   "desc": "обрыв стены вдоль N: целая со стороны E, руина в сторону W (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_e_rev",
+   "path": "walls/wall_lightning_end_e_rev.png",
+   "race": "lightning",
+   "piece": "end_e_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_e_rev",
+   "path": "small/wall_lightning_end_e_rev.png",
+   "race": "lightning",
+   "piece": "end_e_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_e_rev",
+   "path": "lod/wall_lightning_end_e_rev.png",
+   "race": "lightning",
+   "piece": "end_e_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "e"
+   ],
+   "comes_from": "s",
+   "broken_toward": "n",
+   "desc": "обрыв стены вдоль E: целая со стороны S, руина в сторону N (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_s_rev",
+   "path": "walls/wall_lightning_end_s_rev.png",
+   "race": "lightning",
+   "piece": "end_s_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_s_rev",
+   "path": "small/wall_lightning_end_s_rev.png",
+   "race": "lightning",
+   "piece": "end_s_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_s_rev",
+   "path": "lod/wall_lightning_end_s_rev.png",
+   "race": "lightning",
+   "piece": "end_s_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "s"
+   ],
+   "comes_from": "w",
+   "broken_toward": "e",
+   "desc": "обрыв стены вдоль S: целая со стороны W, руина в сторону E (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_w_rev",
+   "path": "walls/wall_lightning_end_w_rev.png",
+   "race": "lightning",
+   "piece": "end_w_rev",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "band": 48,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_w_rev",
+   "path": "small/wall_lightning_end_w_rev.png",
+   "race": "lightning",
+   "piece": "end_w_rev",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "band": 36,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_end_w_rev",
+   "path": "lod/wall_lightning_end_w_rev.png",
+   "race": "lightning",
+   "piece": "end_w_rev",
+   "size": [
+    64,
+    64
+   ],
+   "tier": "lod",
+   "band": 18,
+   "kind": "end",
+   "edges": [
+    "w"
+   ],
+   "comes_from": "n",
+   "broken_toward": "s",
+   "desc": "обрыв стены вдоль W: целая со стороны N, руина в сторону S (зеркальный)"
+  },
+  {
+   "key": "wall_lightning_strip_h_svg",
+   "path": "svg/wall_lightning_strip_h.svg",
+   "race": "lightning",
+   "tier": "svg",
+   "desc": "вектор горизонтальной полосы (одна клетка периода)"
+  },
+  {
+   "key": "wall_lightning_strip_v_svg",
+   "path": "svg/wall_lightning_strip_v.svg",
+   "race": "lightning",
+   "tier": "svg",
+   "desc": "вектор вертикальной полосы"
+  },
+  {
+   "key": "wall_lightning_tower_svg",
+   "path": "svg/wall_lightning_tower.svg",
+   "race": "lightning",
+   "tier": "svg",
+   "desc": "башня внешнего угла 48×48"
+  },
+  {
+   "key": "wall_lightning_post_svg",
+   "path": "svg/wall_lightning_post.svg",
+   "race": "lightning",
+   "tier": "svg",
+   "desc": "столб внутреннего угла 48×48"
+  },
+  {
+   "key": "wall_owner_band_n",
+   "path": "walls/wall_owner_band_n.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "kind": "owner_band",
+   "edges": [
+    "n"
+   ],
+   "band": 48,
+   "desc": "белая гирлянда флажков 12 px по зубцам края N; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_n",
+   "path": "small/wall_owner_band_n.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "kind": "owner_band",
+   "edges": [
+    "n"
+   ],
+   "band": 36,
+   "desc": "белая гирлянда флажков 9 px ниже зубцов, по лицевой стороне стены края N; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_e",
+   "path": "walls/wall_owner_band_e.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "kind": "owner_band",
+   "edges": [
+    "e"
+   ],
+   "band": 48,
+   "desc": "белая гирлянда флажков 12 px по зубцам края E; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_e",
+   "path": "small/wall_owner_band_e.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "kind": "owner_band",
+   "edges": [
+    "e"
+   ],
+   "band": 36,
+   "desc": "белая гирлянда флажков 9 px ниже зубцов, по лицевой стороне стены края E; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_s",
+   "path": "walls/wall_owner_band_s.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "kind": "owner_band",
+   "edges": [
+    "s"
+   ],
+   "band": 48,
+   "desc": "белая гирлянда флажков 12 px по зубцам края S; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_s",
+   "path": "small/wall_owner_band_s.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "kind": "owner_band",
+   "edges": [
+    "s"
+   ],
+   "band": 36,
+   "desc": "белая гирлянда флажков 9 px ниже зубцов, по лицевой стороне стены края S; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_w",
+   "path": "walls/wall_owner_band_w.png",
+   "size": [
+    256,
+    256
+   ],
+   "tier": "walls",
+   "kind": "owner_band",
+   "edges": [
+    "w"
+   ],
+   "band": 48,
+   "desc": "белая гирлянда флажков 12 px по зубцам края W; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_w",
+   "path": "small/wall_owner_band_w.png",
+   "size": [
+    128,
+    128
+   ],
+   "tier": "small",
+   "kind": "owner_band",
+   "edges": [
+    "w"
+   ],
+   "band": 36,
+   "desc": "белая гирлянда флажков 9 px ниже зубцов, по лицевой стороне стены края W; тонировать цветом владельца умножением"
+  },
+  {
+   "key": "wall_owner_band_h_svg",
+   "path": "svg/wall_owner_band_h.svg",
+   "tier": "svg"
+  },
+  {
+   "key": "wall_owner_band_v_svg",
+   "path": "svg/wall_owner_band_v.svg",
+   "tier": "svg"
+  },
+  {
+   "key": "walls_collage",
+   "path": "previews/walls_collage.png",
+   "tier": "preview"
+  },
+  {
+   "key": "walls_demo",
+   "path": "previews/walls_demo.png",
+   "tier": "preview"
+  }
+ ]
+}

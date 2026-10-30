@@ -57,13 +57,17 @@ export function renderSlots(root: HTMLElement, modesEl: HTMLElement, S: any, o: 
   root.classList.toggle("many", cnt > 2); root.dataset.n = String(cnt);
   let h = ""; for (let i = 0; i < cnt; i++) {
     const s = S.seats[i], t = teamOf(S, i), col = s ? playerCol(S, i, o.raceCol) : PCOL[i % 8].c;
-    h += `<div class="slot ${mode === "2v2" ? "team-" + t : ""}" style="--pc:${col}" data-slot="${i}"><span class="slotno">${i + 1}</span>${o.seatHtml(i)}
+    h += `<div class="slot ${s ? (s.ready ? "is-ready" : "is-filled") : "is-empty"} ${mode === "2v2" ? "team-" + t : ""}" style="--pc:${col}" data-slot="${i}"><span class="slotno">${i + 1}</span>${o.seatHtml(i)}
       <div class="slot-f">${mode === "2v2" ? `<button class="tchip t${t}" data-team="${i}" ${o.host ? "" : "disabled"} data-tip="Сменить команду">${esc(TEAM_NAME[t])}</button>` : ""}
       ${o.host && i > 0 && !s ? `<div class="botadd" role="group" aria-label="Добавить бота"><span class="ba-l">${ic("bot")}Бот</span>${BOT_LV.map(([lv, nm]) => `<button type="button" class="ba-b" data-bot="${i}" data-lv="${lv}">${nm}</button>`).join("")}</div>` : ""}
       ${s?.bot ? `<span class="botmark">${ic("bot")}${esc(botLvName(s))}</span>${o.host ? `<button class="btn sm ghost" data-bot="${i}" data-off="1">${ic("close")}<span>Убрать</span></button>` : ""}` : ""}</div></div>`;
     if (cnt === 2 && i === 0) h += `<span class="vs">VS</span>`;
   }
+  // цвет игрока (арт swatch_1..8): занятые чужими — недоступны. Протокол (догадка): {type:"color", col:0..7} → seat.col
+  if (o.me >= 0 && S.seats[o.me]) { const mine = S.seats[o.me].col, taken = new Set(S.seats.map((x: any, k: number) => (k !== o.me && typeof x?.col === "number" ? x.col : -1)));
+    h += `<div class="colrow"><span class="lbl">Цвет</span>${PCOL.map((c, k) => `<button type="button" class="swb ${mine === k ? "on" : ""}" data-col="${k}" ${taken.has(k) ? "disabled" : ""} aria-label="${c.name}" data-tip="${c.name}${taken.has(k) ? " — занят" : ""}"><img src="/strat/ui2/players/swatch_${k + 1}.png" alt=""></button>`).join("")}</div>`; }
   root.innerHTML = h;
+  root.querySelectorAll<HTMLButtonElement>("[data-col]").forEach((b) => (b.onclick = () => o.send({ type: "color", col: +b.dataset.col! })));
   root.querySelectorAll<HTMLElement>(".slot").forEach((el) => { const i = +el.dataset.slot!, nk = el.querySelector(".nick"); if (nk && S.seats[i]) nk.textContent = S.seats[i].nick; });
   root.querySelectorAll<HTMLButtonElement>("[data-bot]").forEach((b) => (b.onclick = () => { const i = +b.dataset.bot!; b.dataset.off ? o.send({ type: "bot", slot: i, on: false }) : o.send({ type: "bot", slot: i, on: true, lv: b.dataset.lv }); }));
   root.querySelectorAll<HTMLButtonElement>("[data-team]").forEach((b) => (b.onclick = () => { const i = +b.dataset.team!; o.send({ type: "cfg", team: { slot: i, team: teamOf(S, i) === 0 ? 1 : 0 } }); }));
