@@ -134,7 +134,7 @@ export function buildMobs(bladesByEl: Record<string, string[]>, handlesByEl: Rec
     if (lvl >= 24) chests.push({ t: "strange", chance: 3 });
     const P: Record<string, any> = {
       name, desc: `${ROLE_RU[role][0].toUpperCase() + ROLE_RU[role].slice(1)}, ${ARCH_RU[tier.arch]}: чёрный урон ${tier.bdmg} % ОЗ героя, предельная броня ${tier.bcap || "—"}${tier.bcap ? " %" : ""}. Навык — «${sk[2]}».`,
-      cls, lvl, elem: el,
+      cls, lvl, elem: el, pctOnly: true, // t1062u: по игроку — только заявленный % (без плоского урона уровня и разницы уровней)
       hp: Math.round(lvl * (120 + 6 * lvl) * M.hp * (role === "tank" ? 1.3 : 1)), dmg: Math.round(lvl * (2 + 0.95 * lvl) * M.dmg * (role === "tank" ? 0.8 : 1)),
       armor: Math.round(lvl * (5 + 0.4 * lvl) * M.ar), speed: 66 + (i % 11), aggro: role === "kiter" ? 230 : role === "tank" ? 160 : 185,
       radius: role === "tank" ? 20 : 16, xp: Math.round(lvl * 10 * M.xp), scale: role === "tank" ? 1.25 : role === "assassin" ? 0.9 : 1,

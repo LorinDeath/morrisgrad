@@ -37,7 +37,7 @@ for (const t of TIERS) {
   ok(t.bcap ? d.bmDef?.bcap === expCap && Math.abs(d.bmDef.barm - expArm) < 1e-9 : !d.bmDef?.bcap, `${mob.id}: предельная ${d.bmDef?.bcap ?? 0} % / чёрная броня ${d.bmDef?.barm ?? 0} (ждали ${expCap} / ${expArm})`);
   // удар: плоский + bdmg % от 10 000 ОЗ
   const hp0 = P.zp.hp; svc.zoneHit("arinar", z, "p", d.dmg, mob.id, null, Date.now(), undefined, "swing"); const got = hp0 - P.zp.hp;
-  const swingExp = Math.round(MAXHP * expBd / 100 * vsP), swingAct = got - Math.round(d.dmg);
+  const swingExp = Math.round(MAXHP * expBd / 100 * vsP), swingAct = got - (d.bmPctOnly ? 0 : Math.round(d.dmg)); // t1062u: «только %» — плоского урона по игроку нет
   ok(Math.abs(swingAct - swingExp) <= 2, `${mob.id}: удар +${swingAct} сверху плоского (ждали +${swingExp} = ${expBd.toFixed(3)} % × ${MAXHP})`);
   // навык: настоящий каст (телеграф → castCraft), процент на попадание = pct + k × bdmg (× «множитель» формы)
   const sk = SK_DEFS[mob.skill], AD: any = (ABILITY_BY_ID as any)[mob.skill];

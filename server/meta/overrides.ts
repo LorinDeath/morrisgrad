@@ -110,7 +110,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("hp", "ОЗ (база)", 1, 1e9, "int"), N("dmg", "Урон (база)", 0, 1e6), N("armor", "Броня (база)", 0, 1e6, "int"), N("speed", "Скорость", 10, 400, "int"),
     { path: "elem", label: "Стихия (пусто — по лезвию/торсу; ледяные кусочки — только с ледяных)", t: "enum", opts: ["", ...BP_ELEMS] },
     N("aggro", "Агро, px", 0, 2000, "int"), N("radius", "Хитбокс, px", 6, 80, "int"), N("xp", "Опыт", 0, 1e7, "int"), N("scale", "Размер, ×", 0.4, 3),
-    { path: "cursed", label: "Всегда проклятый", t: "bool" }, N("ench", "Ярус зачарования (0 — по миру)", 0, 6, "int"), { path: "hidden", label: "Снят с публикации", t: "bool" },
+    { path: "cursed", label: "Всегда проклятый", t: "bool" }, { path: "pctOnly", label: "Урон по игрокам — только % (без плоского урона и разницы уровней)", t: "bool" }, N("ench", "Ярус зачарования (0 — по миру)", 0, 6, "int"), { path: "hidden", label: "Снят с публикации", t: "bool" },
     { path: "artId", label: "Артефакт игрока в руке (art_…)", t: "text" },
     ...BODY_SLOTS.map((s) => ({ path: "body." + s, label: "Тело: " + s, t: "text" as const })),
     ...BP_TYPES.map((t) => ({ path: "weapon." + t, label: "Оружие: " + t, t: "text" as const })),

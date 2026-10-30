@@ -103,6 +103,7 @@ export interface BmMob {
   scale: number; drops: BmDrop[]; gear?: BmGear[]; hidden?: boolean;
   chests?: BmChestDrop[];                    // ЭТАП 2: сундуки наград (ярус, шанс %, проклятый %) — убийце/владельцу мешка, в окно «🎁 Сундуки»
   elem?: string;                             // ICE: стихия моба (нет — по лезвию/торсу); ледяные кусочки падают только с ледяных
+  pctOnly?: boolean;                         // t1062u: урон по игрокам — только % (чёрный, навыки, чистый — от ОЗ игрока); «Урон (база)» — только по мобам
   move?: BmMove;                             // ЭТАП 2: движение (скорость ×, рывки, телепорт, послеобразы); нет — как раньше
 }
 /** параметры движения чёрного моба (всё — в админке «Чёрные мобы» → «Движение»):
@@ -351,7 +352,7 @@ export function registerBlackMobs(items?: Record<string, any>) {
     const mv0 = cleanMove(m.move), mv = mv0 && typeof mv0 === "object" ? mv0 : undefined;
     const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: Math.round(f.speed * (mv?.spd || 1)), aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobColor(mobElem(m, items)), lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
       black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: mv && (mv.dash || mv.blink) ? mv : undefined };
-    { const B = mobBm(m, items); def.bdmg = B.bdmg || undefined; def.bmDef = B.barm > 0 || B.bcap > 0 ? { barm: B.barm, bcap: B.bcap } : undefined; def.bmSkills = B.skills.length ? B.skills : undefined; } // bmMz — дула посохов (снаряды вылетают из них)
+    { const B = mobBm(m, items); def.bdmg = B.bdmg || undefined; def.bmDef = B.barm > 0 || B.bcap > 0 ? { barm: B.barm, bcap: B.bcap } : undefined; def.bmSkills = B.skills.length ? B.skills : undefined; def.bmPctOnly = m.pctOnly ? true : undefined; } // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));
