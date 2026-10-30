@@ -1,0 +1,6592 @@
+{
+ "pack": "black-kings walls-v2",
+ "version": 1,
+ "extends": "walls-v1 v1.1 (папка walls-v1 не меняется; детали walls-v1 берутся оттуда)",
+ "style": "тот же, что walls-v1: ар-деко комикс, толстая тушь, плоские заливки, слоновая кость/чёрный/золото + акцент расы",
+ "cell": 256,
+ "sizes": {
+  "walls": 256,
+  "small": 128,
+  "lod": 64
+ },
+ "bands": {
+  "gate": {
+   "walls": 48,
+   "small": 36,
+   "lod": 18
+  },
+  "shared_post_front": {
+   "walls": 24,
+   "small": 18,
+   "lod": 9
+  },
+  "note": "small/lod как в walls-v1 v1.1: утолщённый (×1,5 поперёк, ×4/3 вдоль) вектор, 2×2 / 4×4 уменьшение; lod — силуэт с контуром"
+ },
+ "gate": {
+  "opening_px_256": [
+   80,
+   176
+  ],
+  "opening_small": [
+   40,
+   88
+  ],
+  "opening_lod": [
+   20,
+   44
+  ],
+  "road_terrain_v1_px_256": [
+   87,
+   169
+  ],
+  "hole_box": {
+   "walls": {
+    "n": [
+     80,
+     18,
+     176,
+     48
+    ],
+    "e": [
+     218,
+     80,
+     246,
+     176
+    ],
+    "s": [
+     80,
+     226,
+     176,
+     256
+    ],
+    "w": [
+     10,
+     80,
+     38,
+     176
+    ]
+   },
+   "small": {
+    "n": [
+     40,
+     13,
+     88,
+     36
+    ],
+    "e": [
+     99,
+     40,
+     120,
+     88
+    ],
+    "s": [
+     40,
+     105,
+     88,
+     128
+    ],
+    "w": [
+     7,
+     40,
+     28,
+     88
+    ]
+   },
+   "lod": {
+    "n": [
+     20,
+     6,
+     44,
+     18
+    ],
+    "e": [
+     49,
+     20,
+     60,
+     44
+    ],
+    "s": [
+     20,
+     52,
+     44,
+     64
+    ],
+    "w": [
+     3,
+     20,
+     14,
+     44
+    ]
+   }
+  },
+  "hole_box_note": "x0,y0,x1,y1 (x1,y1 не включительно): проём ниже пяты арки — в этом прямоугольнике лента владельца очищается (см. assemble2.hole_box)",
+  "placement": "ворота ставятся только вместо straight_<d>, не ближе 2 клеток к углу (outer/inner/end), одни на сторону, если сторона ≥3 клеток; дорога terrain-v1 должна подходить к краю d этой клетки",
+  "lod": "закрыто: светлые пилоны + тёплая деревянная дверь со швом; открыто: проём прозрачный (видна дорога), светлые пилоны"
+ },
+ "shared": {
+  "owner": "ребро рисует хозяин: меньший id города (или старший владелец — edge_owner в assemble2.layout); вторая клетка на этом ребре ничего не рисует",
+  "when": "два соседних города одной стороны (союз/один игрок); в pieces_for оба города считаются «своими», поэтому внешние углы/inner считаются по объединению",
+  "band": "wall_owner_band_shared_<d> по альфе детали, цвет хозяина ребра",
+  "posts": "shared_post_<угол> ставится в вершине, где общее ребро кончается (встречает внешнюю стену или поворачивает); не ставится, если ребро продолжается той же линией; одна на вершину, в угол клетки-хозяина"
+ },
+ "front": {
+  "default": "враги: двойная стена — у каждого свой straight (как walls-v1, ничего нового)",
+  "option": "front=True: одна линия wall_border_front_<d> у хозяина ребра + две ленты split: _a цветом хозяина (A), _b цветом соседа (B)",
+  "open_question": "для Алекса: какой режим включать по умолчанию (двойная стена или частокол фронта); правило половин A/B — по длине ребра, а не «левая/правая половина флажка»"
+ },
+ "draw_order": "в клетке: shared/front -> детали walls-v1 и ворота -> shared_post; лента каждой детали сразу после детали",
+ "races": {
+  "fire": {
+   "name_ru": "огонь",
+   "gate": "базальтовая арка, лавовый замковый камень"
+  },
+  "ice": {
+   "name_ru": "лёд",
+   "gate": "ледяная арка с сосульками, кристалл в замке"
+  },
+  "water": {
+   "name_ru": "вода",
+   "gate": "коралловая арка, раковина в замке"
+  },
+  "stone": {
+   "name_ru": "камень",
+   "gate": "рунический портал, руна в замке"
+  },
+  "nature": {
+   "name_ru": "природа",
+   "gate": "живая арка из корней с листьями"
+  },
+  "lightning": {
+   "name_ru": "молния",
+   "gate": "медная рама с разрядником"
+  }
+ },
+ "pieces_race": {
+  "gate_n": {
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  "gate_n_open": {
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  "shared_n": {
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  "gate_e": {
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  "gate_e_open": {
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  "shared_e": {
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  "gate_s": {
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  "gate_s_open": {
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  "shared_s": {
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  "gate_w": {
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  "gate_w_open": {
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  "shared_w": {
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  "shared_post_ne": {
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  "shared_post_nw": {
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  "shared_post_se": {
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  "shared_post_sw": {
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  }
+ },
+ "pieces_common": {
+  "border_front_n": {
+   "kind": "front",
+   "edges": [
+    "n"
+   ],
+   "desc": "линия фронта (враги), край N: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  "owner_band_shared_n": {
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  "owner_band_split_n": {
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  "owner_band_split_n_a": {
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  "owner_band_split_n_b": {
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  "border_front_e": {
+   "kind": "front",
+   "edges": [
+    "e"
+   ],
+   "desc": "линия фронта (враги), край E: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  "owner_band_shared_e": {
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  "owner_band_split_e": {
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  "owner_band_split_e_a": {
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  "owner_band_split_e_b": {
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  "border_front_s": {
+   "kind": "front",
+   "edges": [
+    "s"
+   ],
+   "desc": "линия фронта (враги), край S: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  "owner_band_shared_s": {
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  "owner_band_split_s": {
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  "owner_band_split_s_a": {
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  "owner_band_split_s_b": {
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  "border_front_w": {
+   "kind": "front",
+   "edges": [
+    "w"
+   ],
+   "desc": "линия фронта (враги), край W: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  "owner_band_shared_w": {
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  "owner_band_split_w": {
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  "owner_band_split_w_a": {
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  "owner_band_split_w_b": {
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  }
+ },
+ "assembly_reference": "src/assemble2.py: layout(cells, city, side, nowall, gates, front) — эталон; owner_overlay(piece, kind, bands, wall, S)",
+ "not_included": [
+  "ворота в общей стене (shared) — в ТЗ нет; дорога между союзными городами идёт снаружи",
+  "анимация открытия ворот (только два состояния)",
+  "ворота на end_*/outer/inner — по правилу размещения не нужны"
+ ],
+ "files": [
+  {
+   "key": "wall_fire_gate_n",
+   "path": "walls/wall_fire_gate_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_n",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_n_open",
+   "path": "walls/wall_fire_gate_n_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_n_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_n",
+   "path": "walls/wall_fire_shared_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_n",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_e",
+   "path": "walls/wall_fire_gate_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_e",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_e_open",
+   "path": "walls/wall_fire_gate_e_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_e_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_e",
+   "path": "walls/wall_fire_shared_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_e",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_s",
+   "path": "walls/wall_fire_gate_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_s",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_s_open",
+   "path": "walls/wall_fire_gate_s_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_s_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_s",
+   "path": "walls/wall_fire_shared_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_s",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_w",
+   "path": "walls/wall_fire_gate_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_w",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_w_open",
+   "path": "walls/wall_fire_gate_w_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "gate_w_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_w",
+   "path": "walls/wall_fire_shared_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_w",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_shared_post_ne",
+   "path": "walls/wall_fire_shared_post_ne.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_post_ne",
+   "band": 24,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_nw",
+   "path": "walls/wall_fire_shared_post_nw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_post_nw",
+   "band": 24,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_se",
+   "path": "walls/wall_fire_shared_post_se.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_post_se",
+   "band": 24,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_sw",
+   "path": "walls/wall_fire_shared_post_sw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "fire",
+   "piece": "shared_post_sw",
+   "band": 24,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_gate_n",
+   "path": "walls/wall_ice_gate_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_n",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_n_open",
+   "path": "walls/wall_ice_gate_n_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_n_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_n",
+   "path": "walls/wall_ice_shared_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_n",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_e",
+   "path": "walls/wall_ice_gate_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_e",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_e_open",
+   "path": "walls/wall_ice_gate_e_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_e_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_e",
+   "path": "walls/wall_ice_shared_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_e",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_s",
+   "path": "walls/wall_ice_gate_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_s",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_s_open",
+   "path": "walls/wall_ice_gate_s_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_s_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_s",
+   "path": "walls/wall_ice_shared_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_s",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_w",
+   "path": "walls/wall_ice_gate_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_w",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_w_open",
+   "path": "walls/wall_ice_gate_w_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "gate_w_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_w",
+   "path": "walls/wall_ice_shared_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_w",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_shared_post_ne",
+   "path": "walls/wall_ice_shared_post_ne.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_post_ne",
+   "band": 24,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_nw",
+   "path": "walls/wall_ice_shared_post_nw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_post_nw",
+   "band": 24,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_se",
+   "path": "walls/wall_ice_shared_post_se.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_post_se",
+   "band": 24,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_sw",
+   "path": "walls/wall_ice_shared_post_sw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "ice",
+   "piece": "shared_post_sw",
+   "band": 24,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_gate_n",
+   "path": "walls/wall_water_gate_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_n",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_n_open",
+   "path": "walls/wall_water_gate_n_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_n_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_n",
+   "path": "walls/wall_water_shared_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_n",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_e",
+   "path": "walls/wall_water_gate_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_e",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_e_open",
+   "path": "walls/wall_water_gate_e_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_e_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_e",
+   "path": "walls/wall_water_shared_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_e",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_s",
+   "path": "walls/wall_water_gate_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_s",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_s_open",
+   "path": "walls/wall_water_gate_s_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_s_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_s",
+   "path": "walls/wall_water_shared_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_s",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_w",
+   "path": "walls/wall_water_gate_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_w",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_w_open",
+   "path": "walls/wall_water_gate_w_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "gate_w_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_w",
+   "path": "walls/wall_water_shared_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_w",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_shared_post_ne",
+   "path": "walls/wall_water_shared_post_ne.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_post_ne",
+   "band": 24,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_nw",
+   "path": "walls/wall_water_shared_post_nw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_post_nw",
+   "band": 24,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_se",
+   "path": "walls/wall_water_shared_post_se.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_post_se",
+   "band": 24,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_sw",
+   "path": "walls/wall_water_shared_post_sw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "water",
+   "piece": "shared_post_sw",
+   "band": 24,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_gate_n",
+   "path": "walls/wall_stone_gate_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_n",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_n_open",
+   "path": "walls/wall_stone_gate_n_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_n_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_n",
+   "path": "walls/wall_stone_shared_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_n",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_e",
+   "path": "walls/wall_stone_gate_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_e",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_e_open",
+   "path": "walls/wall_stone_gate_e_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_e_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_e",
+   "path": "walls/wall_stone_shared_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_e",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_s",
+   "path": "walls/wall_stone_gate_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_s",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_s_open",
+   "path": "walls/wall_stone_gate_s_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_s_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_s",
+   "path": "walls/wall_stone_shared_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_s",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_w",
+   "path": "walls/wall_stone_gate_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_w",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_w_open",
+   "path": "walls/wall_stone_gate_w_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "gate_w_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_w",
+   "path": "walls/wall_stone_shared_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_w",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_shared_post_ne",
+   "path": "walls/wall_stone_shared_post_ne.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_post_ne",
+   "band": 24,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_nw",
+   "path": "walls/wall_stone_shared_post_nw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_post_nw",
+   "band": 24,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_se",
+   "path": "walls/wall_stone_shared_post_se.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_post_se",
+   "band": 24,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_sw",
+   "path": "walls/wall_stone_shared_post_sw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "stone",
+   "piece": "shared_post_sw",
+   "band": 24,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_gate_n",
+   "path": "walls/wall_nature_gate_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_n",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_n_open",
+   "path": "walls/wall_nature_gate_n_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_n_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_n",
+   "path": "walls/wall_nature_shared_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_n",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_e",
+   "path": "walls/wall_nature_gate_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_e",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_e_open",
+   "path": "walls/wall_nature_gate_e_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_e_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_e",
+   "path": "walls/wall_nature_shared_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_e",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_s",
+   "path": "walls/wall_nature_gate_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_s",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_s_open",
+   "path": "walls/wall_nature_gate_s_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_s_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_s",
+   "path": "walls/wall_nature_shared_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_s",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_w",
+   "path": "walls/wall_nature_gate_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_w",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_w_open",
+   "path": "walls/wall_nature_gate_w_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "gate_w_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_w",
+   "path": "walls/wall_nature_shared_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_w",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_shared_post_ne",
+   "path": "walls/wall_nature_shared_post_ne.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_post_ne",
+   "band": 24,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_nw",
+   "path": "walls/wall_nature_shared_post_nw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_post_nw",
+   "band": 24,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_se",
+   "path": "walls/wall_nature_shared_post_se.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_post_se",
+   "band": 24,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_sw",
+   "path": "walls/wall_nature_shared_post_sw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "nature",
+   "piece": "shared_post_sw",
+   "band": 24,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_gate_n",
+   "path": "walls/wall_lightning_gate_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_n",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_n_open",
+   "path": "walls/wall_lightning_gate_n_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_n_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_n",
+   "path": "walls/wall_lightning_shared_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_n",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_e",
+   "path": "walls/wall_lightning_gate_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_e",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_e_open",
+   "path": "walls/wall_lightning_gate_e_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_e_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_e",
+   "path": "walls/wall_lightning_shared_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_e",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_s",
+   "path": "walls/wall_lightning_gate_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_s",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_s_open",
+   "path": "walls/wall_lightning_gate_s_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_s_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_s",
+   "path": "walls/wall_lightning_shared_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_s",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_w",
+   "path": "walls/wall_lightning_gate_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_w",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_w_open",
+   "path": "walls/wall_lightning_gate_w_open.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "gate_w_open",
+   "band": 48,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_w",
+   "path": "walls/wall_lightning_shared_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_w",
+   "band": 24,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_shared_post_ne",
+   "path": "walls/wall_lightning_shared_post_ne.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_post_ne",
+   "band": 24,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_nw",
+   "path": "walls/wall_lightning_shared_post_nw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_post_nw",
+   "band": 24,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_se",
+   "path": "walls/wall_lightning_shared_post_se.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_post_se",
+   "band": 24,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_sw",
+   "path": "walls/wall_lightning_shared_post_sw.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": "lightning",
+   "piece": "shared_post_sw",
+   "band": 24,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_border_front_n",
+   "path": "walls/wall_border_front_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "border_front_n",
+   "band": 24,
+   "kind": "front",
+   "edges": [
+    "n"
+   ],
+   "desc": "линия фронта (враги), край N: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_n",
+   "path": "walls/wall_owner_band_shared_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_shared_n",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_n",
+   "path": "walls/wall_owner_band_split_n.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_n",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_n_a",
+   "path": "walls/wall_owner_band_split_n_a.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_n_a",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_n_b",
+   "path": "walls/wall_owner_band_split_n_b.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_n_b",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_e",
+   "path": "walls/wall_border_front_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "border_front_e",
+   "band": 24,
+   "kind": "front",
+   "edges": [
+    "e"
+   ],
+   "desc": "линия фронта (враги), край E: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_e",
+   "path": "walls/wall_owner_band_shared_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_shared_e",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_e",
+   "path": "walls/wall_owner_band_split_e.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_e",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_e_a",
+   "path": "walls/wall_owner_band_split_e_a.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_e_a",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_e_b",
+   "path": "walls/wall_owner_band_split_e_b.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_e_b",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_s",
+   "path": "walls/wall_border_front_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "border_front_s",
+   "band": 24,
+   "kind": "front",
+   "edges": [
+    "s"
+   ],
+   "desc": "линия фронта (враги), край S: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_s",
+   "path": "walls/wall_owner_band_shared_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_shared_s",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_s",
+   "path": "walls/wall_owner_band_split_s.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_s",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_s_a",
+   "path": "walls/wall_owner_band_split_s_a.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_s_a",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_s_b",
+   "path": "walls/wall_owner_band_split_s_b.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_s_b",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_w",
+   "path": "walls/wall_border_front_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "border_front_w",
+   "band": 24,
+   "kind": "front",
+   "edges": [
+    "w"
+   ],
+   "desc": "линия фронта (враги), край W: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_w",
+   "path": "walls/wall_owner_band_shared_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_shared_w",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_w",
+   "path": "walls/wall_owner_band_split_w.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_w",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_w_a",
+   "path": "walls/wall_owner_band_split_w_a.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_w_a",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_w_b",
+   "path": "walls/wall_owner_band_split_w_b.png",
+   "tier": "walls",
+   "size": [
+    256,
+    256
+   ],
+   "race": null,
+   "piece": "owner_band_split_w_b",
+   "band": 24,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_fire_gate_n",
+   "path": "small/wall_fire_gate_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_n",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_n_open",
+   "path": "small/wall_fire_gate_n_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_n_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_n",
+   "path": "small/wall_fire_shared_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_n",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_e",
+   "path": "small/wall_fire_gate_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_e",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_e_open",
+   "path": "small/wall_fire_gate_e_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_e_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_e",
+   "path": "small/wall_fire_shared_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_e",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_s",
+   "path": "small/wall_fire_gate_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_s",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_s_open",
+   "path": "small/wall_fire_gate_s_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_s_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_s",
+   "path": "small/wall_fire_shared_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_s",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_w",
+   "path": "small/wall_fire_gate_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_w",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_w_open",
+   "path": "small/wall_fire_gate_w_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "gate_w_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_w",
+   "path": "small/wall_fire_shared_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_w",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_shared_post_ne",
+   "path": "small/wall_fire_shared_post_ne.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_post_ne",
+   "band": 18,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_nw",
+   "path": "small/wall_fire_shared_post_nw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_post_nw",
+   "band": 18,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_se",
+   "path": "small/wall_fire_shared_post_se.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_post_se",
+   "band": 18,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_sw",
+   "path": "small/wall_fire_shared_post_sw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "fire",
+   "piece": "shared_post_sw",
+   "band": 18,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_gate_n",
+   "path": "small/wall_ice_gate_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_n",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_n_open",
+   "path": "small/wall_ice_gate_n_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_n_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_n",
+   "path": "small/wall_ice_shared_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_n",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_e",
+   "path": "small/wall_ice_gate_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_e",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_e_open",
+   "path": "small/wall_ice_gate_e_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_e_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_e",
+   "path": "small/wall_ice_shared_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_e",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_s",
+   "path": "small/wall_ice_gate_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_s",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_s_open",
+   "path": "small/wall_ice_gate_s_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_s_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_s",
+   "path": "small/wall_ice_shared_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_s",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_w",
+   "path": "small/wall_ice_gate_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_w",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_w_open",
+   "path": "small/wall_ice_gate_w_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "gate_w_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_w",
+   "path": "small/wall_ice_shared_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_w",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_shared_post_ne",
+   "path": "small/wall_ice_shared_post_ne.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_post_ne",
+   "band": 18,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_nw",
+   "path": "small/wall_ice_shared_post_nw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_post_nw",
+   "band": 18,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_se",
+   "path": "small/wall_ice_shared_post_se.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_post_se",
+   "band": 18,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_sw",
+   "path": "small/wall_ice_shared_post_sw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "ice",
+   "piece": "shared_post_sw",
+   "band": 18,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_gate_n",
+   "path": "small/wall_water_gate_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_n",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_n_open",
+   "path": "small/wall_water_gate_n_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_n_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_n",
+   "path": "small/wall_water_shared_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_n",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_e",
+   "path": "small/wall_water_gate_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_e",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_e_open",
+   "path": "small/wall_water_gate_e_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_e_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_e",
+   "path": "small/wall_water_shared_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_e",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_s",
+   "path": "small/wall_water_gate_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_s",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_s_open",
+   "path": "small/wall_water_gate_s_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_s_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_s",
+   "path": "small/wall_water_shared_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_s",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_w",
+   "path": "small/wall_water_gate_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_w",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_w_open",
+   "path": "small/wall_water_gate_w_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "gate_w_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_w",
+   "path": "small/wall_water_shared_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_w",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_shared_post_ne",
+   "path": "small/wall_water_shared_post_ne.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_post_ne",
+   "band": 18,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_nw",
+   "path": "small/wall_water_shared_post_nw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_post_nw",
+   "band": 18,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_se",
+   "path": "small/wall_water_shared_post_se.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_post_se",
+   "band": 18,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_sw",
+   "path": "small/wall_water_shared_post_sw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "water",
+   "piece": "shared_post_sw",
+   "band": 18,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_gate_n",
+   "path": "small/wall_stone_gate_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_n",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_n_open",
+   "path": "small/wall_stone_gate_n_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_n_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_n",
+   "path": "small/wall_stone_shared_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_n",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_e",
+   "path": "small/wall_stone_gate_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_e",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_e_open",
+   "path": "small/wall_stone_gate_e_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_e_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_e",
+   "path": "small/wall_stone_shared_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_e",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_s",
+   "path": "small/wall_stone_gate_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_s",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_s_open",
+   "path": "small/wall_stone_gate_s_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_s_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_s",
+   "path": "small/wall_stone_shared_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_s",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_w",
+   "path": "small/wall_stone_gate_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_w",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_w_open",
+   "path": "small/wall_stone_gate_w_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "gate_w_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_w",
+   "path": "small/wall_stone_shared_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_w",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_shared_post_ne",
+   "path": "small/wall_stone_shared_post_ne.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_post_ne",
+   "band": 18,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_nw",
+   "path": "small/wall_stone_shared_post_nw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_post_nw",
+   "band": 18,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_se",
+   "path": "small/wall_stone_shared_post_se.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_post_se",
+   "band": 18,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_sw",
+   "path": "small/wall_stone_shared_post_sw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "stone",
+   "piece": "shared_post_sw",
+   "band": 18,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_gate_n",
+   "path": "small/wall_nature_gate_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_n",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_n_open",
+   "path": "small/wall_nature_gate_n_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_n_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_n",
+   "path": "small/wall_nature_shared_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_n",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_e",
+   "path": "small/wall_nature_gate_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_e",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_e_open",
+   "path": "small/wall_nature_gate_e_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_e_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_e",
+   "path": "small/wall_nature_shared_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_e",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_s",
+   "path": "small/wall_nature_gate_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_s",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_s_open",
+   "path": "small/wall_nature_gate_s_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_s_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_s",
+   "path": "small/wall_nature_shared_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_s",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_w",
+   "path": "small/wall_nature_gate_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_w",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_w_open",
+   "path": "small/wall_nature_gate_w_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "gate_w_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_w",
+   "path": "small/wall_nature_shared_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_w",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_shared_post_ne",
+   "path": "small/wall_nature_shared_post_ne.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_post_ne",
+   "band": 18,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_nw",
+   "path": "small/wall_nature_shared_post_nw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_post_nw",
+   "band": 18,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_se",
+   "path": "small/wall_nature_shared_post_se.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_post_se",
+   "band": 18,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_sw",
+   "path": "small/wall_nature_shared_post_sw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "nature",
+   "piece": "shared_post_sw",
+   "band": 18,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_gate_n",
+   "path": "small/wall_lightning_gate_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_n",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_n_open",
+   "path": "small/wall_lightning_gate_n_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_n_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_n",
+   "path": "small/wall_lightning_shared_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_n",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_e",
+   "path": "small/wall_lightning_gate_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_e",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_e_open",
+   "path": "small/wall_lightning_gate_e_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_e_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_e",
+   "path": "small/wall_lightning_shared_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_e",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_s",
+   "path": "small/wall_lightning_gate_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_s",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_s_open",
+   "path": "small/wall_lightning_gate_s_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_s_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_s",
+   "path": "small/wall_lightning_shared_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_s",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_w",
+   "path": "small/wall_lightning_gate_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_w",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_w_open",
+   "path": "small/wall_lightning_gate_w_open.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "gate_w_open",
+   "band": 36,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_w",
+   "path": "small/wall_lightning_shared_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_w",
+   "band": 18,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_shared_post_ne",
+   "path": "small/wall_lightning_shared_post_ne.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_post_ne",
+   "band": 18,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_nw",
+   "path": "small/wall_lightning_shared_post_nw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_post_nw",
+   "band": 18,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_se",
+   "path": "small/wall_lightning_shared_post_se.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_post_se",
+   "band": 18,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_sw",
+   "path": "small/wall_lightning_shared_post_sw.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": "lightning",
+   "piece": "shared_post_sw",
+   "band": 18,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_border_front_n",
+   "path": "small/wall_border_front_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "border_front_n",
+   "band": 18,
+   "kind": "front",
+   "edges": [
+    "n"
+   ],
+   "desc": "линия фронта (враги), край N: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_n",
+   "path": "small/wall_owner_band_shared_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_shared_n",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_n",
+   "path": "small/wall_owner_band_split_n.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_n",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_n_a",
+   "path": "small/wall_owner_band_split_n_a.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_n_a",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_n_b",
+   "path": "small/wall_owner_band_split_n_b.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_n_b",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_e",
+   "path": "small/wall_border_front_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "border_front_e",
+   "band": 18,
+   "kind": "front",
+   "edges": [
+    "e"
+   ],
+   "desc": "линия фронта (враги), край E: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_e",
+   "path": "small/wall_owner_band_shared_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_shared_e",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_e",
+   "path": "small/wall_owner_band_split_e.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_e",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_e_a",
+   "path": "small/wall_owner_band_split_e_a.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_e_a",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_e_b",
+   "path": "small/wall_owner_band_split_e_b.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_e_b",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_s",
+   "path": "small/wall_border_front_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "border_front_s",
+   "band": 18,
+   "kind": "front",
+   "edges": [
+    "s"
+   ],
+   "desc": "линия фронта (враги), край S: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_s",
+   "path": "small/wall_owner_band_shared_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_shared_s",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_s",
+   "path": "small/wall_owner_band_split_s.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_s",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_s_a",
+   "path": "small/wall_owner_band_split_s_a.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_s_a",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_s_b",
+   "path": "small/wall_owner_band_split_s_b.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_s_b",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_w",
+   "path": "small/wall_border_front_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "border_front_w",
+   "band": 18,
+   "kind": "front",
+   "edges": [
+    "w"
+   ],
+   "desc": "линия фронта (враги), край W: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_w",
+   "path": "small/wall_owner_band_shared_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_shared_w",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_w",
+   "path": "small/wall_owner_band_split_w.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_w",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_w_a",
+   "path": "small/wall_owner_band_split_w_a.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_w_a",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_w_b",
+   "path": "small/wall_owner_band_split_w_b.png",
+   "tier": "small",
+   "size": [
+    128,
+    128
+   ],
+   "race": null,
+   "piece": "owner_band_split_w_b",
+   "band": 18,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_fire_gate_n",
+   "path": "lod/wall_fire_gate_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_n",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_n_open",
+   "path": "lod/wall_fire_gate_n_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_n_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_n",
+   "path": "lod/wall_fire_shared_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_n",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_e",
+   "path": "lod/wall_fire_gate_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_e",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_e_open",
+   "path": "lod/wall_fire_gate_e_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_e_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_e",
+   "path": "lod/wall_fire_shared_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_e",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_s",
+   "path": "lod/wall_fire_gate_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_s",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_s_open",
+   "path": "lod/wall_fire_gate_s_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_s_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_s",
+   "path": "lod/wall_fire_shared_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_s",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_gate_w",
+   "path": "lod/wall_fire_gate_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_w",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_fire_gate_w_open",
+   "path": "lod/wall_fire_gate_w_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "gate_w_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_fire_shared_w",
+   "path": "lod/wall_fire_shared_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_w",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_fire_shared_post_ne",
+   "path": "lod/wall_fire_shared_post_ne.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_post_ne",
+   "band": 9,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_nw",
+   "path": "lod/wall_fire_shared_post_nw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_post_nw",
+   "band": 9,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_se",
+   "path": "lod/wall_fire_shared_post_se.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_post_se",
+   "band": 9,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_fire_shared_post_sw",
+   "path": "lod/wall_fire_shared_post_sw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "fire",
+   "piece": "shared_post_sw",
+   "band": 9,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_gate_n",
+   "path": "lod/wall_ice_gate_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_n",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_n_open",
+   "path": "lod/wall_ice_gate_n_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_n_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_n",
+   "path": "lod/wall_ice_shared_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_n",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_e",
+   "path": "lod/wall_ice_gate_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_e",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_e_open",
+   "path": "lod/wall_ice_gate_e_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_e_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_e",
+   "path": "lod/wall_ice_shared_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_e",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_s",
+   "path": "lod/wall_ice_gate_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_s",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_s_open",
+   "path": "lod/wall_ice_gate_s_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_s_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_s",
+   "path": "lod/wall_ice_shared_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_s",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_gate_w",
+   "path": "lod/wall_ice_gate_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_w",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_ice_gate_w_open",
+   "path": "lod/wall_ice_gate_w_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "gate_w_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_ice_shared_w",
+   "path": "lod/wall_ice_shared_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_w",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_ice_shared_post_ne",
+   "path": "lod/wall_ice_shared_post_ne.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_post_ne",
+   "band": 9,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_nw",
+   "path": "lod/wall_ice_shared_post_nw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_post_nw",
+   "band": 9,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_se",
+   "path": "lod/wall_ice_shared_post_se.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_post_se",
+   "band": 9,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_ice_shared_post_sw",
+   "path": "lod/wall_ice_shared_post_sw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "ice",
+   "piece": "shared_post_sw",
+   "band": 9,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_gate_n",
+   "path": "lod/wall_water_gate_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_n",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_n_open",
+   "path": "lod/wall_water_gate_n_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_n_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_n",
+   "path": "lod/wall_water_shared_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_n",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_e",
+   "path": "lod/wall_water_gate_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_e",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_e_open",
+   "path": "lod/wall_water_gate_e_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_e_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_e",
+   "path": "lod/wall_water_shared_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_e",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_s",
+   "path": "lod/wall_water_gate_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_s",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_s_open",
+   "path": "lod/wall_water_gate_s_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_s_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_s",
+   "path": "lod/wall_water_shared_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_s",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_gate_w",
+   "path": "lod/wall_water_gate_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_w",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_water_gate_w_open",
+   "path": "lod/wall_water_gate_w_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "gate_w_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_water_shared_w",
+   "path": "lod/wall_water_shared_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_w",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_water_shared_post_ne",
+   "path": "lod/wall_water_shared_post_ne.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_post_ne",
+   "band": 9,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_nw",
+   "path": "lod/wall_water_shared_post_nw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_post_nw",
+   "band": 9,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_se",
+   "path": "lod/wall_water_shared_post_se.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_post_se",
+   "band": 9,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_water_shared_post_sw",
+   "path": "lod/wall_water_shared_post_sw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "water",
+   "piece": "shared_post_sw",
+   "band": 9,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_gate_n",
+   "path": "lod/wall_stone_gate_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_n",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_n_open",
+   "path": "lod/wall_stone_gate_n_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_n_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_n",
+   "path": "lod/wall_stone_shared_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_n",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_e",
+   "path": "lod/wall_stone_gate_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_e",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_e_open",
+   "path": "lod/wall_stone_gate_e_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_e_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_e",
+   "path": "lod/wall_stone_shared_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_e",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_s",
+   "path": "lod/wall_stone_gate_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_s",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_s_open",
+   "path": "lod/wall_stone_gate_s_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_s_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_s",
+   "path": "lod/wall_stone_shared_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_s",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_gate_w",
+   "path": "lod/wall_stone_gate_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_w",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_stone_gate_w_open",
+   "path": "lod/wall_stone_gate_w_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "gate_w_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_stone_shared_w",
+   "path": "lod/wall_stone_shared_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_w",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_stone_shared_post_ne",
+   "path": "lod/wall_stone_shared_post_ne.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_post_ne",
+   "band": 9,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_nw",
+   "path": "lod/wall_stone_shared_post_nw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_post_nw",
+   "band": 9,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_se",
+   "path": "lod/wall_stone_shared_post_se.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_post_se",
+   "band": 9,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_stone_shared_post_sw",
+   "path": "lod/wall_stone_shared_post_sw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "stone",
+   "piece": "shared_post_sw",
+   "band": 9,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_gate_n",
+   "path": "lod/wall_nature_gate_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_n",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_n_open",
+   "path": "lod/wall_nature_gate_n_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_n_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_n",
+   "path": "lod/wall_nature_shared_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_n",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_e",
+   "path": "lod/wall_nature_gate_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_e",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_e_open",
+   "path": "lod/wall_nature_gate_e_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_e_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_e",
+   "path": "lod/wall_nature_shared_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_e",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_s",
+   "path": "lod/wall_nature_gate_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_s",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_s_open",
+   "path": "lod/wall_nature_gate_s_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_s_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_s",
+   "path": "lod/wall_nature_shared_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_s",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_gate_w",
+   "path": "lod/wall_nature_gate_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_w",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_nature_gate_w_open",
+   "path": "lod/wall_nature_gate_w_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "gate_w_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_nature_shared_w",
+   "path": "lod/wall_nature_shared_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_w",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_nature_shared_post_ne",
+   "path": "lod/wall_nature_shared_post_ne.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_post_ne",
+   "band": 9,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_nw",
+   "path": "lod/wall_nature_shared_post_nw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_post_nw",
+   "band": 9,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_se",
+   "path": "lod/wall_nature_shared_post_se.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_post_se",
+   "band": 9,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_nature_shared_post_sw",
+   "path": "lod/wall_nature_shared_post_sw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "nature",
+   "piece": "shared_post_sw",
+   "band": 9,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_gate_n",
+   "path": "lod/wall_lightning_gate_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_n",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": false,
+   "desc": "ворота в стене края N, закрыты; концы = straight_n пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_n_open",
+   "path": "lod/wall_lightning_gate_n_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_n_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "n"
+   ],
+   "replaces": "straight_n",
+   "open": true,
+   "desc": "ворота края N, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_n",
+   "path": "lod/wall_lightning_shared_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_n",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "n"
+   ],
+   "desc": "общая стена двух союзных городов по краю N: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_e",
+   "path": "lod/wall_lightning_gate_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_e",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": false,
+   "desc": "ворота в стене края E, закрыты; концы = straight_e пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_e_open",
+   "path": "lod/wall_lightning_gate_e_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_e_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "e"
+   ],
+   "replaces": "straight_e",
+   "open": true,
+   "desc": "ворота края E, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_e",
+   "path": "lod/wall_lightning_shared_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_e",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "e"
+   ],
+   "desc": "общая стена двух союзных городов по краю E: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_s",
+   "path": "lod/wall_lightning_gate_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_s",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": false,
+   "desc": "ворота в стене края S, закрыты; концы = straight_s пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_s_open",
+   "path": "lod/wall_lightning_gate_s_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_s_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "s"
+   ],
+   "replaces": "straight_s",
+   "open": true,
+   "desc": "ворота края S, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_s",
+   "path": "lod/wall_lightning_shared_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_s",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "s"
+   ],
+   "desc": "общая стена двух союзных городов по краю S: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_gate_w",
+   "path": "lod/wall_lightning_gate_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_w",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": false,
+   "desc": "ворота в стене края W, закрыты; концы = straight_w пиксель в пиксель"
+  },
+  {
+   "key": "wall_lightning_gate_w_open",
+   "path": "lod/wall_lightning_gate_w_open.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "gate_w_open",
+   "band": 18,
+   "kind": "gate",
+   "edges": [
+    "w"
+   ],
+   "replaces": "straight_w",
+   "open": true,
+   "desc": "ворота края W, открыты: проём прозрачный, видна дорога"
+  },
+  {
+   "key": "wall_lightning_shared_w",
+   "path": "lod/wall_lightning_shared_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_w",
+   "band": 9,
+   "kind": "shared",
+   "edges": [
+    "w"
+   ],
+   "desc": "общая стена двух союзных городов по краю W: тонкая (полоса 24), без зубцов и башен"
+  },
+  {
+   "key": "wall_lightning_shared_post_ne",
+   "path": "lod/wall_lightning_shared_post_ne.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_post_ne",
+   "band": 9,
+   "kind": "post",
+   "corner": "ne",
+   "desc": "столбик 24×24 в углу NE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_nw",
+   "path": "lod/wall_lightning_shared_post_nw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_post_nw",
+   "band": 9,
+   "kind": "post",
+   "corner": "nw",
+   "desc": "столбик 24×24 в углу NW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_se",
+   "path": "lod/wall_lightning_shared_post_se.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_post_se",
+   "band": 9,
+   "kind": "post",
+   "corner": "se",
+   "desc": "столбик 24×24 в углу SE: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_lightning_shared_post_sw",
+   "path": "lod/wall_lightning_shared_post_sw.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": "lightning",
+   "piece": "shared_post_sw",
+   "band": 9,
+   "kind": "post",
+   "corner": "sw",
+   "desc": "столбик 24×24 в углу SW: где общая стена встречает внешнюю или поворачивает"
+  },
+  {
+   "key": "wall_border_front_n",
+   "path": "lod/wall_border_front_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "border_front_n",
+   "band": 9,
+   "kind": "front",
+   "edges": [
+    "n"
+   ],
+   "desc": "линия фронта (враги), край N: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_n",
+   "path": "lod/wall_owner_band_shared_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_shared_n",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_n",
+   "path": "lod/wall_owner_band_split_n.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_n",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_n_a",
+   "path": "lod/wall_owner_band_split_n_a.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_n_a",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_n_b",
+   "path": "lod/wall_owner_band_split_n_b.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_n_b",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "n"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_e",
+   "path": "lod/wall_border_front_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "border_front_e",
+   "band": 9,
+   "kind": "front",
+   "edges": [
+    "e"
+   ],
+   "desc": "линия фронта (враги), край E: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_e",
+   "path": "lod/wall_owner_band_shared_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_shared_e",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_e",
+   "path": "lod/wall_owner_band_split_e.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_e",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_e_a",
+   "path": "lod/wall_owner_band_split_e_a.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_e_a",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_e_b",
+   "path": "lod/wall_owner_band_split_e_b.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_e_b",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "e"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_s",
+   "path": "lod/wall_border_front_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "border_front_s",
+   "band": 9,
+   "kind": "front",
+   "edges": [
+    "s"
+   ],
+   "desc": "линия фронта (враги), край S: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_s",
+   "path": "lod/wall_owner_band_shared_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_shared_s",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_s",
+   "path": "lod/wall_owner_band_split_s.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_s",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_s_a",
+   "path": "lod/wall_owner_band_split_s_a.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_s_a",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_s_b",
+   "path": "lod/wall_owner_band_split_s_b.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_s_b",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "s"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  },
+  {
+   "key": "wall_border_front_w",
+   "path": "lod/wall_border_front_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "border_front_w",
+   "band": 9,
+   "kind": "front",
+   "edges": [
+    "w"
+   ],
+   "desc": "линия фронта (враги), край W: нейтральный частокол, одна на все расы, полоса 24"
+  },
+  {
+   "key": "wall_owner_band_shared_w",
+   "path": "lod/wall_owner_band_shared_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_shared_w",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "shared",
+   "desc": "лента владельца для shared_<d>: белая маска, тонировать цветом хозяина ребра"
+  },
+  {
+   "key": "wall_owner_band_split_w",
+   "path": "lod/wall_owner_band_split_w.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_w",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "desc": "лента фронта целиком: маска; первая половина вдоль края = A, вторая = B"
+  },
+  {
+   "key": "wall_owner_band_split_w_a",
+   "path": "lod/wall_owner_band_split_w_a.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_w_a",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "A",
+   "desc": "половина A ленты split (n/s: x<128; e/w: y<128 на 256)"
+  },
+  {
+   "key": "wall_owner_band_split_w_b",
+   "path": "lod/wall_owner_band_split_w_b.png",
+   "tier": "lod",
+   "size": [
+    64,
+    64
+   ],
+   "race": null,
+   "piece": "owner_band_split_w_b",
+   "band": 9,
+   "kind": "band",
+   "edges": [
+    "w"
+   ],
+   "for": "front",
+   "half": "B",
+   "desc": "половина B ленты split (n/s: x≥128; e/w: y≥128 на 256)"
+  }
+ ]
+}

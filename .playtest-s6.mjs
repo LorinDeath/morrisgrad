@@ -1,4 +1,4 @@
-// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|v2|t2|mob|all] → /workspace/minigame-tz/shots/s6-ui-*
+// Скриншоты этапа 6 (арт построек Художника), локально: node .playtest-s6.mjs [lobby|demo|v2|t2|walls|mob|all] → /workspace/minigame-tz/shots/s6-ui-*
 import { createRequire } from "module"; const require = createRequire("/workspace/mc-ui-tools/");
 const { chromium } = require("playwright-core");
 const SITE = "http://127.0.0.1:4392/games/strategy", OUT = "/workspace/minigame-tz/shots/", WSQ = "&ws=ws://127.0.0.1:8872";
@@ -85,6 +85,17 @@ if (only === "all" || only === "mob") {
   const k = await king(M); await dev(M, "sel", k); await sleep(500);
   const bb = await M.$('[data-ca="build"]'); if (bb) { await bb.scrollIntoViewIfNeeded(); await bb.click(); await shot(M, "s6-ui-53-mobile-build-picker", 1200); await esc(M); } else errs.push("mob: no build button");
   await dev(M, "wpop", true); await shot(M, "s6-ui-54-mobile-wonder-popup", 1300);
+}
+if (only === "all" || only === "walls") {
+  // walls-v2: A|B свои (общая стена + столбики), C враг снизу (двойная стена / частокол front), дорога → ворота; LOD на телефоне
+  const A = await player("s6_" + T + "_wl", "&demo=15&skirm=1"); await dev(A, "s5", {}); await dev(A, "s6", { stage: 2 }); const [, cx, cy] = await myCity(A); await sleep(1500);
+  await A.addStyleTag({ content: "#hint,#minimapbox{display:none!important}" });
+  const wx = 8, wy = 8;
+  for (const [nm, o, z] of [["80-walls2-shared-double-gates", {}, 85], ["81-walls2-front-palisade-split", { front: true }, 85], ["82-walls2-gates-open", { open: true }, 85]]) {
+    await dev(A, "wtest", { x: wx, y: wy, ...o }); await dev(A, "cam", wx, wy, z); await shot(A, "s6-ui-" + nm, 1500); }
+  const M = await player("s6_" + T + "_wlm", "&demo=15&skirm=1", true); await dev(M, "s5", {}); await dev(M, "s6", { stage: 2 }); await sleep(1500);
+  await M.addStyleTag({ content: "#hint,#minimapbox{display:none!important}" });
+  for (const [nm, z] of [["83-walls2-mobile-lod-40", 40], ["83b-walls2-mobile-small-60", 60]]) { await dev(M, "wtest", { x: wx, y: wy }); await dev(M, "cam", wx, wy, z); await shot(M, "s6-ui-" + nm, 1500); }
 }
 if (only === "all" || only === "t2") {
   // terrain-v2 + аудит: столица lv1..3, застава, захваченный город, территория, метки, зоны, мини-карта, LOD; M4/M5/M7/M10

@@ -50,7 +50,7 @@ const wallArt: Record<string, WallSet> = {}; let wallTried = false;
 // Детали: straight_<d>, outer_<nw|ne|sw|se>, inner_<..>, end_<d>(_rev). Сборка — по manifest.assembly (src/assemble.py).
 type Tier = "walls" | "small" | "lod";
 const TIER_PX: Record<Tier, number> = { walls: 256, small: 128, lod: 64 };
-let wallMan: { races: Set<string>; files: Map<string, string>; band: Record<Tier, number> } | null = null, wallRedraw: () => void = () => {};
+let wallMan: { races: Set<string>; files: Map<string, string>; band: Record<Tier, number>; v2: boolean; hole: Record<string, Record<string, number[]>> } | null = null, wallRedraw: () => void = () => {};
 const wallImg = new Map<string, HTMLImageElement | null>(), tintCache = new Map<string, HTMLCanvasElement>();
 export function loadWalls(redraw: () => void) {
   if (wallTried) return; wallTried = true; wallRedraw = redraw;
@@ -61,7 +61,12 @@ export function loadWalls(redraw: () => void) {
     band.small ||= band.walls / 2; band.lod ||= band.small / 2; // ширина полосы и квадрат угла — из manifest (48/36/18), не константа
     for (const f of m.files) if (f?.path && f?.tier) files.set(f.tier + "/" + (f.key || f.path.split("/").pop().replace(".png", "")), "/strat/walls/" + f.path);
     for (const d of "nesw") for (const t of ["walls", "small", "lod"]) files.set(`${t}/wall_owner_band_${d}`, `/strat/walls/${t}/wall_owner_band_${d}.png`);
-    wallMan = { races: new Set(Object.keys(m.races || {})), files, band }; redraw();
+    wallMan = { races: new Set(Object.keys(m.races || {})), files, band, v2: false, hole: {} }; redraw();
+    // walls-v2: ворота (gate_<d>, _open), общая стена союзников (shared_<d>, shared_post_<угол>), фронт (border_front_<d> + split_<d>_a/_b)
+    return fetch("/strat/walls/manifest-v2.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((m2: any) => {
+      if (!m2?.files?.length || !wallMan) return;
+      for (const f of m2.files) if (f?.path && f?.tier) wallMan.files.set(f.tier + "/" + f.key, "/strat/walls/" + f.path);
+      wallMan.hole = m2.gate?.hole_box || {}; wallMan.v2 = true; redraw(); });
   }).catch(() => {});
 }
 function wimg(tier: Tier, key: string): HTMLImageElement | null {
@@ -71,45 +76,90 @@ function wimg(tier: Tier, key: string): HTMLImageElement | null {
 }
 /** Квадрат угла (башня/столб) под лентой не красится: B×B в пикселях тира (corner_box в assemble.py). */
 const cornerBox = (c: string, S: number, B: number): [number, number, number, number] => { const x0 = c.includes("e") ? S - B : 0, y0 = c.includes("s") ? S - B : 0; return [x0, y0, B, B]; };
-/** Деталь стены + лента цвета владельца (как owner_overlay/tint в assemble.py), кэш по детали/цвету/тиру. */
-function wallPiece(race: string, piece: string, col: string, tier: Tier): HTMLCanvasElement | null {
-  const ck = `${tier}|${race}|${piece}|${col}`, hit = tintCache.get(ck); if (hit) return hit;
-  const w = wimg(tier, `wall_${race}_${piece}`); if (!w) return null;
-  const [kind, a] = piece.split("_"), edges = kind === "straight" || kind === "end" ? [a] : a.split("").map((c) => c);
-  const bands = edges.map((e) => wimg(tier, "wall_owner_band_" + e)); if (bands.some((b) => !b)) return null; // lod/ — своя тонкая лента ≈6 px (walls-v1 v1.1)
+/** Деталь стены + лента цвета владельца (как owner_overlay/tint в assemble.py / assemble2.py), кэш по детали/цвету/тиру.
+ * band: v1-детали и ворота (лента края, у ворот проём hole_box очищен); shared — wall_owner_band_shared_<d>; front — split_<d>_a цветом col, _b цветом col2; post — без ленты. */
+function wallPiece(race: string, piece: string, col: string, tier: Tier, col2?: string): HTMLCanvasElement | null {
+  const ck = `${tier}|${race}|${piece}|${col}|${col2 || ""}`, hit = tintCache.get(ck); if (hit) return hit;
+  const front = piece.startsWith("border_front_"), w = wimg(tier, front ? `wall_${piece}` : `wall_${race}_${piece}`); if (!w) return null;
+  const parts = piece.split("_"), kind = parts[0], d = piece.slice(-1);
   const S = TIER_PX[tier], cv = document.createElement("canvas"); cv.width = cv.height = S; const c = cv.getContext("2d")!;
-  for (const b of bands) c.drawImage(b!, 0, 0, S, S);
-  if (kind === "outer" || kind === "inner") { const [x0, y0, bw, bh] = cornerBox(a, S, wallMan!.band[tier] || S * 0.1875); c.clearRect(x0, y0, bw, bh); }
-  c.globalCompositeOperation = "multiply"; c.fillStyle = col; c.fillRect(0, 0, S, S);
-  c.globalCompositeOperation = "destination-in"; for (const b of bands) c.drawImage(b!, 0, 0, S, S); c.drawImage(w, 0, 0, S, S);
-  c.globalCompositeOperation = "destination-over"; c.drawImage(w, 0, 0, S, S);
+  const tinted = (masks: HTMLImageElement[], cl: string, hole?: number[]) => { const t = document.createElement("canvas"); t.width = t.height = S; const x = t.getContext("2d")!;
+    for (const b of masks) x.drawImage(b, 0, 0, S, S); x.globalCompositeOperation = "multiply"; x.fillStyle = cl; x.fillRect(0, 0, S, S);
+    x.globalCompositeOperation = "destination-in"; for (const b of masks) x.drawImage(b, 0, 0, S, S); x.drawImage(w, 0, 0, S, S);
+    if (hole) x.clearRect(hole[0], hole[1], hole[2] - hole[0], hole[3] - hole[1]); return t; };
+  c.drawImage(w, 0, 0, S, S);
+  if (kind === "shared" && parts[1] === "post") { /* столбик — без ленты */ }
+  else if (kind === "shared") { const m = wimg(tier, "wall_owner_band_shared_" + d); if (!m) return null; c.drawImage(tinted([m], col), 0, 0); }
+  else if (front) { const ma = wimg(tier, `wall_owner_band_split_${d}_a`), mb = wimg(tier, `wall_owner_band_split_${d}_b`); if (!ma || !mb) return null;
+    c.drawImage(tinted([ma], col), 0, 0); c.drawImage(tinted([mb], col2 || col), 0, 0); }
+  else { const edges = kind === "straight" || kind === "end" || kind === "gate" ? [parts[1]] : parts[1].split("");
+    const bands = edges.map((e) => wimg(tier, "wall_owner_band_" + e)); if (bands.some((b) => !b)) return null; // lod/ — своя тонкая лента ≈6 px (walls-v1 v1.1)
+    const t = tinted(bands as HTMLImageElement[], col, kind === "gate" ? wallMan!.hole[tier]?.[parts[1]] : undefined);
+    if (kind === "outer" || kind === "inner") { const [x0, y0, bw, bh] = cornerBox(parts[1], S, wallMan!.band[tier] || S * 0.1875); t.getContext("2d")!.clearRect(x0, y0, bw, bh); }
+    c.drawImage(t, 0, 0); }
   if (tintCache.size > 600) tintCache.clear(); tintCache.set(ck, cv); return cv;
 }
-/** Сборка стен из арта в экранных направлениях (доска может быть развёрнута). false — арт ещё не готов, рисуем процедурно. */
-function drawWallsArt(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string): boolean {
-  if (!wallMan) return false; const n = G.size, tier: Tier = z * (devicePixelRatio || 1) > 140 ? "walls" : z * (devicePixelRatio || 1) > 56 ? "small" : "lod";
+/** Опции стен: сторона/союз владельца (общая стена союзников), режим фронта врагов, открытые ворота. */
+export type WallOpts = { side?: (owner: number) => number; front?: boolean; gateOpen?: (x: number, y: number, X: number, Y: number) => boolean };
+/** Ярус арта стен: walls-v2 «телефонное» правило — клетка ≤48 CSS px → lod (small там мельчит), дальше по пикселям устройства. */
+export const wallTier = (z: number): Tier => (z <= 48 ? "lod" : z * (devicePixelRatio || 1) > 140 ? "walls" : "small");
+/** Сборка стен из арта в экранных направлениях (доска может быть развёрнута). false — арт ещё не готов, рисуем процедурно.
+ * Правила walls-v2 (assemble2.layout): союзные города — одна область, общее ребро рисует меньший id (shared_<d> + столбики);
+ * враги — двойная стена (каждый свой straight) или, при front, частокол border_front_<d> + лента split A/B; ворота — вместо straight_<d> там, где подходит дорога. */
+function drawWallsArt(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string, o: WallOpts = {}): boolean {
+  if (!wallMan) return false; const n = G.size, tier: Tier = wallTier(z), v2 = wallMan.v2, front = v2 && !!o.front, sideOf = o.side || ((q: number) => q);
   // экранное направление → сдвиг по сетке
   const g2s = (dx: number, dy: number) => { const ux = Math.sign(sx(dx) - sx(0)) || 0, uy = Math.sign(sy(dy) - sy(0)) || 0; return ux > 0 ? "e" : ux < 0 ? "w" : uy > 0 ? "s" : "n"; };
   const D: Record<string, [number, number]> = {}; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) D[g2s(dx, dy)] = [dx, dy];
   if (Object.keys(D).length < 4) return false;
-  const tt: string = (G as any).map?.t || "", noWall = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n && tt[Y * n + X] === "w"; // край карты — обычная граница (README walls-v1)
+  const tt: string = (G as any).map?.t || "", inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n;
+  const noWall = (X: number, Y: number) => inb(X, Y) && tt[Y * n + X] === "w"; // край карты — обычная граница (README walls-v1)
+  const road = (X: number, Y: number) => inb(X, Y) && (tt[Y * n + X] === "r" || tt[Y * n + X] === "b");
+  // owner города по id (первая клетка)
+  const ownC = new Map<number, number>(); for (let i = 0; i < n * n; i++) if (C[i] >= 0 && !ownC.has(C[i])) ownC.set(C[i], T[i]);
+  const joined = (a: number, b: number) => a >= 0 && b >= 0 && a !== b && (front || (v2 ? sideOf(ownC.get(a)!) === sideOf(ownC.get(b)!) : true));
   let missing = false; const jobs: [HTMLCanvasElement, number, number][] = [];
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0 || !vis(x, y)) continue;
-    const o = T[i], race = wallMan.races.has(G.races[o]) ? G.races[o] : "stone", pc = col(o);
-    const same = (d: string) => { const [dx, dy] = D[d]; const X = x + dx, Y = y + dy; return X >= 0 && Y >= 0 && X < n && Y < n && C[Y * n + X] === cid; };
-    const nw = (d: string) => { const [dx, dy] = D[d]; return noWall(x + dx, y + dy); };
-    // два города вплотную: общий край строит только город с меньшим id (одна стена вместо двойной); у второго — Т-стык без стены
-    const shared = (d: string) => { const [dx, dy] = D[d]; const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= n || Y >= n) return false; const c2 = C[Y * n + X]; return c2 >= 0 && c2 !== cid && c2 < cid; };
-    const wallE: Record<string, boolean> = {}; for (const d of "nesw") wallE[d] = !same(d) && !nw(d) && !shared(d);
+  const sharedE = new Map<string, { x: number; y: number; d: string; kind: "shared" | "front"; o: number }>(); // "x,y,d" — у хозяина ребра
+  const cellJobs = new Map<number, string[]>(), postJobs: [number, number, string][] = [];
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0) continue;
+    const at = (d: string, k = 1) => { const [dx, dy] = D[d]; return [x + dx * k, y + dy * k] as const; };
+    const cAt = (X: number, Y: number) => (inb(X, Y) ? C[Y * n + X] : -1);
+    const region = (X: number, Y: number) => { const c2 = cAt(X, Y); return c2 === cid || (v2 ? joined(cid, c2) : c2 >= 0 && c2 !== cid && c2 < cid); };
+    const same = (d: string) => region(...at(d)), nw = (d: string) => noWall(...at(d));
+    // v1 (без v2): у соседнего города с большим id — Т-стык без стены (одна стена вместо двойной), как раньше
+    const v1shared = (d: string) => !v2 && (() => { const c2 = cAt(...at(d)); return c2 >= 0 && c2 !== cid && c2 < cid; })();
+    const wallE: Record<string, boolean> = {}; for (const d of "nesw") wallE[d] = !same(d) && !nw(d) && !v1shared(d);
     const pieces: string[] = [], used = new Set<string>();
     for (const cn of ["ne", "nw", "se", "sw"]) { const [a, b] = cn.split(""); if (wallE[a] && wallE[b]) { pieces.push("outer_" + cn); used.add(a); used.add(b); } }
     const side: Record<string, [string, string]> = { n: ["w", "e"], s: ["w", "e"], e: ["n", "s"], w: ["n", "s"] };
     const CW: Record<string, string> = { n: "w", e: "n", s: "e", w: "s" }; // «comes_from» для end_<d> (по часовой)
     for (const d of "nesw") { if (!wallE[d] || used.has(d)) continue; const [l, r] = side[d], nl = nw(l), nr = nw(r);
-      if (nl !== nr) { const broken = nl ? l : r; pieces.push(`end_${d}${broken === CW[d] ? "_rev" : ""}`); } else pieces.push("straight_" + d); }
+      if (nl !== nr) { const broken = nl ? l : r; pieces.push(`end_${d}${broken === CW[d] ? "_rev" : ""}`); continue; }
+      // ворота: дорога подходит к краю d (клетка дороги внутри и снаружи), и вдоль стены по обе стороны — та же стена (не у угла)
+      const [X, Y] = at(d), [lx, ly] = at(l), [rx, ry] = at(r);
+      const [ddx, ddy] = D[d], walled = (ax: number, ay: number) => cAt(ax, ay) === cid && !region(ax + ddx, ay + ddy) && !noWall(ax + ddx, ay + ddy);
+      const cand = (ax: number, ay: number) => road(ax, ay) && road(ax + ddx, ay + ddy);
+      // середина стороны ≥3 клеток, не у угла; одни ворота на участок — у соседней дороги-кандидата слева ворот нет (берём первую)
+      const gate = v2 && cand(x, y) && walled(lx, ly) && walled(rx, ry) && !(cand(lx, ly) && walled(...at(l, 2)) && walled(x, y));
+      pieces.push(gate ? `gate_${d}${o.gateOpen?.(x, y, X, Y) ? "_open" : ""}` : "straight_" + d); }
     for (const cn of ["ne", "nw", "se", "sw"]) { const [a, b] = cn.split(""); if (!same(a) || !same(b)) continue; const [ax, ay] = D[a], [bx, by] = D[b], X = x + ax + bx, Y = y + ay + by;
-      const offm = X < 0 || Y < 0 || X >= n || Y >= n; if ((offm || C[Y * n + X] !== cid) && !noWall(X, Y)) pieces.push("inner_" + cn); }
-    for (const p of pieces) { const cv = wallPiece(race, p, pc, tier); if (!cv) { missing = true; continue; } jobs.push([cv, sx(x), sy(y)]); } }
+      if (!region(X, Y) && !noWall(X, Y)) pieces.push("inner_" + cn); }
+    if (v2) for (const d of "nesw") { const c2 = cAt(...at(d)); if (joined(cid, c2) && Math.min(cid, c2) === cid) sharedE.set(`${x},${y},${d}`, { x, y, d, kind: sideOf(ownC.get(cid)!) === sideOf(ownC.get(c2)!) ? "shared" : "front", o: c2 }); }
+    cellJobs.set(i, pieces); }
+  // столбики общей стены: вершина, где ребро кончается (не продолжается той же линией другим общим ребром)
+  const vk = (x: number, y: number, cn: string) => { const [a, b] = cn.split(""); let X = x, Y = y; for (const d of [a, b]) { const [dx, dy] = D[d]; X += dx > 0 ? 1 : 0; Y += dy > 0 ? 1 : 0; } return `${X},${Y}`; };
+  const doneV = new Set<string>(), CN: Record<string, [string, string]> = { n: ["nw", "ne"], s: ["sw", "se"], w: ["nw", "sw"], e: ["ne", "se"] };
+  const along: Record<string, [string, string]> = { n: ["w", "e"], s: ["w", "e"], w: ["n", "s"], e: ["n", "s"] };
+  for (const e of sharedE.values()) { if (e.kind !== "shared") continue;
+    CN[e.d].forEach((cn, k) => { const [dx, dy] = D[along[e.d][k]], v = vk(e.x, e.y, cn); if (doneV.has(v)) return;
+      if (sharedE.get(`${e.x + dx},${e.y + dy},${e.d}`)?.kind === "shared") return; // продолжается той же линией
+      doneV.add(v); postJobs.push([e.x, e.y, "shared_post_" + cn]); }); }
+  const raceOf = (cid: number) => { const r = G.races[ownC.get(cid)!]; return wallMan!.races.has(r) ? r : "stone"; };
+  const push = (cv: HTMLCanvasElement | null, x: number, y: number) => { if (!cv) { missing = true; return; } jobs.push([cv, sx(x), sy(y)]); };
+  for (const [i, pieces] of cellJobs) { const x = i % n, y = (i / n) | 0; if (!vis(x, y)) continue; const cid = C[i], race = raceOf(cid), pc = col(T[i]);
+    for (const e of "nesw") { const s0 = sharedE.get(`${x},${y},${e}`); if (s0) push(wallPiece(race, (s0.kind === "shared" ? "shared_" : "border_front_") + e, pc, tier, s0.kind === "front" ? col(ownC.get(s0.o)!) : undefined), x, y); }
+    for (const p of pieces) push(wallPiece(race, p, pc, tier), x, y);
+    for (const [px, py, p] of postJobs) if (px === x && py === y) push(wallPiece(race, p, pc, tier), x, y); }
   if (missing && !jobs.length) return false;
   for (const [cv, X, Y] of jobs) ctx.drawImage(cv, X, Y, z, z);
   return true;
@@ -120,8 +170,8 @@ const WALL: Record<string, { base: string; hi: string; mort: string; kind: "bric
   water: { base: "#1d5d72", hi: "#6fd0d8", mort: "#0c2c38", kind: "coral" }, lightning: { base: "#2d2a44", hi: "#8f87c9", mort: "#ffe14d", kind: "plate" },
 };
 /** Стены по краю земли каждого города (стыки краёв, внешние и внутренние углы); между своими городами — тоньше. */
-export function drawWalls(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string) {
-  const n = G.size; if (z < 7) return; if (drawWallsArt(ctx, G, T, C, z, sx, sy, vis, col)) return; const t = Math.max(2.5, z * 0.15);
+export function drawWalls(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string, wo: WallOpts = {}) {
+  const n = G.size; if (z < 7) return; if (drawWallsArt(ctx, G, T, C, z, sx, sy, vis, col, wo)) return; const t = Math.max(2.5, z * 0.15);
   const cx = (x: number) => sx(x) + z / 2, cy = (y: number) => sy(y) + z / 2;
   ctx.save();
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0 || !vis(x, y)) continue;

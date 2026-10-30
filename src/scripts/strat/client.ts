@@ -30,6 +30,24 @@ import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pend
 
 const PROD_WS = "wss://morris-multiplayer.alexseylyou.workers.dev";
 const qs = new URLSearchParams(location.search);
+/** dev: синтетическая раскладка для проверки walls-v2 — A(свой) | B(свой, общая стена) сверху, C(враг) снизу, дорога сквозь A и C. */
+let wallTest: { x: number; y: number; front?: boolean; open?: boolean } | null = null;
+function wallTestLayout(G0: any, T0: Int8Array, C0: Int16Array) {
+  const n = G0.size, T = Int8Array.from(T0), C = Int16Array.from(C0), t = (G0.map?.t || "").split(""), { x, y } = wallTest!, foe = S.you === 0 ? 1 : 0;
+  const blk = (x0: number, y0: number, w: number, h: number, id: number, o: number) => { for (let j = y0; j < y0 + h; j++) for (let i = x0; i < x0 + w; i++) if (i >= 0 && j >= 0 && i < n && j < n) { C[j * n + i] = id; T[j * n + i] = o; if (t[j * n + i] === "w") t[j * n + i] = "."; } };
+  blk(x - 4, y - 4, 4, 4, 9000, S.you); blk(x, y - 4, 4, 4, 9001, S.you); blk(x - 4, y, 5, 4, 9002, foe);
+  for (let j = y - 6; j < y + 6; j++) if (j >= 0 && j < n) t[j * n + x - 2] = "r";
+  return { G: { ...G0, map: { ...G0.map, t: t.join("") } }, T, C };
+}
+/** walls-v2: союзники — общая стена; враги — двойная стена (по умолчанию) или частокол+разделённая лента (cfg.ui.wallFront / ?wallFront=1 / localStorage strat.wallFront=1 — выбор Алекса);
+ * ворота открыты, когда на клетке ворот или перед ней стоит фигура владельца. */
+function wallOpts(G0: any, T: Int8Array) {
+  const n = G0.size, ffa = modeOf(S) === "ffa" || modeOf(S) === "1v1";
+  const front = !!((cfgOf(S) as any)?.ui?.wallFront ?? (qs.get("wallFront") === "1" || (() => { try { return localStorage.getItem("strat.wallFront") === "1"; } catch { return false; } })()));
+  const occ = new Map<number, number>(); for (const q of G0.pieces || []) occ.set(q.y * n + q.x, q.owner);
+  return { front, side: (o: number) => (ffa ? o : teamOf(S, o)),
+    gateOpen: (x: number, y: number, X: number, Y: number) => { const o = T[y * n + x], a = occ.get(y * n + x), b = occ.get(Y * n + X); return a === o || b === o; } };
+}
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const WS = LOCAL ? (qs.get("ws") || "ws://127.0.0.1:8871") : PROD_WS;
 const HTTP = WS.replace(/^ws/, "http");
@@ -804,7 +822,7 @@ function drawNow() {
   // видимая область (в координатах карты) — рисуем только её
   const m = 1, vis = (x: number, y: number) => { const X = scrX(x), Y = scrY(y); return X > -z * m && Y > -z * m && X < cam.W + z * (m - 1) + z && Y < cam.H + z * (m - 1) + z; };
   const sx = scrX, sy = scrY;
-  if (T && WT) { const ec0 = ectx(); drawEcon(ctx, ec0, z, sx, sy, T, vis, () => drawWalls(ctx, G0, WT.T, WT.C, z, sx, sy, vis, raceCol)); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp, WT.C); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
+  if (T && WT) { const ec0 = ectx(); drawEcon(ctx, ec0, z, sx, sy, T, vis, () => { const w = wallTest ? wallTestLayout(G0, WT.T, WT.C) : { G: G0, T: WT.T, C: WT.C }; drawWalls(ctx, w.G, w.T, w.C, z, sx, sy, vis, raceCol, { ...wallOpts(w.G, w.T), ...(wallTest?.front != null ? { front: wallTest.front } : {}), ...(wallTest?.open ? { gateOpen: () => true } : {}) }); }); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp, WT.C); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
   const zs = zonesOf(g); if (zs.length) drawZones(ctx, zs, n, sx, sy, z, performance.now());
   const GP = new Map(G0.pieces.map((q) => [q.id, q]));
   // метки terrain-v2: mark_select (#f3d27a), mark_move/hover (белые → тон), mark_attack (#b3261e); нет арта — прежние линии
@@ -1236,7 +1254,7 @@ if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
   dbg: () => ({ S, G: gs() }),
   wpop: (mine = true) => { const c = S.g.ec.cities.find((q: any) => (mine ? q.owner === S.you : q.owner !== S.you)); showWonder(c); },
   cam: (x: number, y: number, z?: number) => { if (z) cam.z = z; centerOn(x, y); },
-  wmode: (m: any) => { W.mode = m; draw(); }, capt: (id: number) => { econFx({ e: "capture", city: id, by: S.you, cap: false }); draw(); },
+  wmode: (m: any) => { W.mode = m; draw(); }, wtest: (v: any) => { wallTest = v; draw(); }, capt: (id: number) => { econFx({ e: "capture", city: id, by: S.you, cap: false }); draw(); },
   fx: (e: any) => { const r: any = worldEvent(e, S.you, gs()!, (i: number) => S.seats[i]?.nick || "?"); const now = performance.now(); if (r?.fx) fx.push({ ...r.fx, t: now }); if (r?.dust) rubble.push({ ...r.dust, t: now }); if (r?.toast) toast(r.toast[0], r.toast[1], r.toast[2]); draw(); return r; },
   apTip: () => { const el = document.querySelector<HTMLElement>(".apbox2"); el?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); el?.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true })); },
   ratedLobby: () => { (window as any).__stratDev.lobby8("ffa", 6); S.ranked = true; S.rated = true; S.seats.forEach((x: any) => x && (x.race = null, x.picked = false, x.rating = 1400 + ((x.nick.length * 97) % 400), x.col = undefined));
