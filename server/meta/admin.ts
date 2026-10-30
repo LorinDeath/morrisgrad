@@ -243,8 +243,10 @@ export class AdminStore {
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
         this.copyOwn.clear();
         // строки разделов («main@_h_kill») сливаются с основной строкой сущности: сначала основная, затем разделы
-        // 🛠 навыки конструктора — первыми: детали оружия/мобы ссылаются на свои «skx_…»
-        const merged = [...mergeRows(rows)].sort((a: any, b: any) => (String(b[0]).startsWith("skdef:") ? 1 : 0) - (String(a[0]).startsWith("skdef:") ? 1 : 0));
+        // 🛠 по зависимостям: навыки «skx_…» → детали «bpx_…» → тела → мобы «bmx_…» → лагеря «bcx_…» (D1 отдаёт строки по (kind, id),
+        // «bmcamp» < «bmmob» < «bpart» — иначе свой моб со своей деталью и лагерь со своим мобом пропускались при перечитывании)
+        const DEP: Record<string, number> = { skdef: 0, bpart: 2, bmbody: 3, bmmob: 4, bmcamp: 5 }, dep = (k: any) => DEP[String(k).slice(0, String(k).indexOf(":"))] ?? 1; // прочие — после навыков, как раньше
+        const merged = [...mergeRows(rows)].sort((a: any, b: any) => dep(a[0]) - dep(b[0]));
         for (const [key, raw0] of merged) { const i = key.indexOf(":"), kind = key.slice(0, i) as Kind, id = key.slice(i + 1); this.touched.add(key); let raw = raw0;
           if (kind === "bchest") { const mg = migrateBchestPatch(raw); raw = mg.patch; if (mg.changed.length) console.warn(`[admin] bchest:${id} миграция шанса ☠ сундуков: ${mg.changed.join(", ")}`); } // потолок 30 %, прежние значения по умолчанию → новые
           const p = validatePatch(kind, id, raw); if (typeof p === "string") { console.warn(`[admin] ${key}: правка пропущена — ${p}`); continue; }
