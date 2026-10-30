@@ -191,6 +191,8 @@ export function mobStatusBits(dots: { kind: string; until: number }[] | undefine
   if (dots?.length) for (const dd of dots) if (dd.until > now) { const i = dd.kind === "burn" ? 0 : dd.kind === "poison" ? 1 : 2; st |= 8 << i; const sh = 13 + i * 3, c = (st >> sh) & 7; if (c < 7) st = (st & ~(7 << sh)) | ((c + 1) << sh); }
   return st;
 }
+/** «Отброс» навыка в пикселях на единицу — как у моба (applyStatus: скорость k·6, сдвиг ×10/с, затухание 0.75 за тик 100 мс ≈ 24 px) */
+export const KNOCK_PX = 24;
 export class Zone {
   projs: Proj[] = []; private nextProj = 1;
   /** Чёрный маг (blackMage.ts): купола гасят урон игроков и снаряды; null — мира без мага */
@@ -1501,7 +1503,7 @@ export class Zone {
         status: (p: ZPlayer, st: any, fx?: number, fy?: number) => { // игроку: замедление/заморозка — клиент (как на арене), отброс — сдвиг
           if (st.freeze) ev({ k: "pstatus", to: p.sid, s: "freeze", ms: Math.min(3000, Number(st.freeze) || 1000), x: R(p.x), y: R(p.y) });
           else if (st.slow) ev({ k: "pstatus", to: p.sid, s: "slow", ms: 1200, x: R(p.x), y: R(p.y) });
-          if (st.knock) { const ex = p.x - (fx ?? m.x), ey = p.y - (fy ?? m.y), L = Math.hypot(ex, ey) || 1, kd = Math.min(400, Number(st.knock) || 0); ev({ k: "pstatus", to: p.sid, s: "knock", dx: +(ex / L).toFixed(3), dy: +(ey / L).toFixed(3), d: R(kd), x: R(p.x), y: R(p.y) }); }
+          if (st.knock) { const ex = p.x - (fx ?? m.x), ey = p.y - (fy ?? m.y), L = Math.hypot(ex, ey) || 1, kd = Math.min(400, (Number(st.knock) || 0) * KNOCK_PX); ev({ k: "pstatus", to: p.sid, s: "knock", dx: +(ex / L).toFixed(3), dy: +(ey / L).toFixed(3), d: R(kd), x: R(p.x), y: R(p.y) }); }
         },
         move: (x: number, y: number) => { m.x = this.clamp(x); m.y = this.clamp(y); this.solid(m); },
         bounds: (x: number, y: number) => [this.clamp(x), this.clamp(y)],

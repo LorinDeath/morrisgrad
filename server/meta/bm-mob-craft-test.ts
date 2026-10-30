@@ -14,7 +14,7 @@ sk("skx_t_bolt", { name: "Проба: стрела", form: "proj", elem: "water"
 sk("skx_t_home", { name: "Проба: наводка", form: "proj", elem: "nature", path: "homing", seek: 900, turn: 900, spd: 500, range: 900, dmg: "black", pct: 3, k: 0, cd: 14 });
 sk("skx_t_whip", { name: "Проба: плеть", form: "cone", elem: "stone", len: 200, arc: 90, dmg: "normal", slow: "stone", cd: 11 });
 sk("skx_t_ring", { name: "Проба: кольцо", form: "nova", elem: "lightning", r: 180, ticks: 3, tickGap: 400, dmg: "pure", pct: 1, k: 0, freeze: 800, cd: 13 });
-sk("skx_t_rain", { name: "Проба: дождь", form: "rain", elem: "ice", area: 120, r: 60, drops: 8, lead: 100, gap: 60, dmg: "normal", knock: 120, sHeal: 50, cd: 15 });
+sk("skx_t_rain", { name: "Проба: дождь", form: "rain", elem: "ice", area: 120, r: 60, drops: 8, lead: 100, gap: 60, dmg: "normal", knock: 5, sHeal: 50, cd: 15 });
 sk("skx_t_dash", { name: "Проба: рывок", form: "dash", elem: "fire", len: 260, w: 60, invuln: 400, trail: 300, dmg: "normal", sHaste: 50, cd: 10 });
 ok(MOB_SKILLS.skx_t_bolt?.cd === 12 && MOB_SKILLS.skx_t_dash?.cd === 10, "кд моба = кд навыка из конструктора");
 const z: any = new Zone("arinar", [], [], { proc: false });
@@ -62,7 +62,7 @@ function cast(id: string, dx = 250, ms = 3000) {
   ok(r.ev.some((e: any) => e.k === "tele_circle" && Math.abs(e.x - (X + 300)) < 2), "дождь: телеграф на цели");
   ok(ar && Math.abs(ar.x - (X + 300)) < 2 && ar.pts?.length === 8, `дождь: центр на цели, капель 8 (${ar?.pts?.length})`);
   ok(r.hits.length >= 1 && r.hits.every((h) => Math.abs(h.dmg - 100 * Math.max(0.8, Math.min(1.8, 1)) / 4) < 30), `дождь: ×1/4 за каплю (${r.hits.length} попаданий)`);
-  ok(r.ev.some((e: any) => e.k === "pstatus" && e.s === "knock" && e.d === 120), "«Отброс» 120 → pstatus knock"); }
+  ok(r.ev.some((e: any) => e.k === "pstatus" && e.s === "knock" && e.d === 120), "«Отброс» 5 → pstatus knock 120 px (как у моба: 5 × 24)"); }
 { const r = cast("skx_t_dash", 150);
   ok(r.m.x - r.x0 > 200 && r.hits.length >= 1, `рывок: моб сместился (${Math.round(r.m.x - r.x0)}) и попал`);
   ok(r.ev.some((e: any) => e.k === "aline" && e.id === "skx_t_dash"), "рывок: событие aline (лист навыка)");
