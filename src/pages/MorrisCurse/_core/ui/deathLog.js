@@ -7,7 +7,11 @@ import { esc } from './overlay.js';
 
 const CAST = { meteor: 'Метеор', ice_fan: 'Ледяной веер', spear_rain: 'Дождь копий', war_axe: 'Боевой топор', glyph_mine: 'Руна-мина', plague_puddle: 'Чумная лужа', auto_daggers: 'Кинжалы',
   circle: 'Круг', nova: 'Взрыв', ring: 'Кольцо', line: 'Луч' };
-const PROJ = { fireball: 'Огненный шар', fire_spark: 'Искра', ice_bolt: 'Ледяная стрела', arrow: 'Стрела', bolt: 'Болт', rock: 'Камень', spit: 'Плевок', bone: 'Кость', web: 'Паутина' };
+const PROJ = { fireball: ['🔥', 'Огненный шар'], fire_spark: ['🔥', 'Искра'], ice_bolt: ['❄', 'Ледяная стрела'], bolt: ['🏹', 'Болт'],
+  enemy_fire: ['🔥', 'Огненный снаряд'], enemy_frost: ['❄', 'Ледяной снаряд'], enemy_lightning: ['⚡', 'Молния'], enemy_water: ['💧', 'Водяной снаряд'],
+  enemy_acid: ['🧪', 'Кислота'], enemy_arcane: ['🔮', 'Тайный снаряд'], enemy_blood: ['🩸', 'Кровавый снаряд'], enemy_bone: ['🦴', 'Кость'],
+  enemy_boss: ['💀', 'Снаряд босса'], enemy_rock: ['🪨', 'Камень'], enemy_shadow: ['🌑', 'Теневой снаряд'], enemy_web: ['🕸', 'Паутина'] };
+const CAST_IC = { meteor: '☄️', ice_fan: '❄', spear_rain: '🔱', war_axe: '🪓', glyph_mine: '💥', plague_puddle: '🧪', auto_daggers: '🗡' };
 const DOT = { burn: ['🔥', 'Горение'], poison: ['🧪', 'Яд'], bleed: ['🩸', 'Кровотечение'], shock: ['⚡', 'Разряд'], chill: ['❄', 'Холод'] };
 const ELN = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.name]));
 
@@ -17,8 +21,8 @@ export function howOf(h) {
   if (h.k === 'e') return a === 'expl' ? ['💥', 'Взрыв мага'] : ['🏹', 'Стрела мага'];
   if (a === 'dot') return DOT[b] || ['☣', 'Урон со временем'];
   if (h.b && h.el) { const ic = BP_ELEM_ICONS[h.el] || '🜏'; return a === 'swing' || a === 'melee' ? [ic, `Чёрный взмах · ${ELN[h.el] || h.el}`] : [ic, `Чёрный снаряд · ${ELN[h.el] || h.el}`]; }
-  if (a === 'proj') return [b === 'fireball' ? '🔥' : '🏹', PROJ[b] || 'Снаряд'];
-  if (a === 'cast') return ['☄', CAST[b] || 'Умение'];
+  if (a === 'proj') return PROJ[b] || ['🏹', 'Снаряд'];
+  if (a === 'cast') return [CAST_IC[b] || '✨', CAST[b] || 'Умение'];
   if (a === 'aux') return ['✴', 'Осколок'];
   if (a === 'dash') return ['💨', 'Рывок'];
   if (a === 'swing') return ['⚔', 'Взмах'];
@@ -57,7 +61,7 @@ export function deathLogHtml(list) {
           <span class="mc-dl-n" style="color:${col}">${h.c ? '✦' : ''}${h.z ? '0' : h.d}${h.p ? `<small> (${BP_ELEM_ICONS[h.el] || '✦'}${h.p})</small>` : ''}</span>
           <span class="mc-dl-p">${pct(h.d, r.mx)}%</span></div>`;
       }).join('') || '<p class="mc-dim">Ударов не записано</p>'}</div>
-      <div class="mc-dl-f mc-dim">Всего ${tot} урона за ${hits.length ? (hits[0].ago / 1000).toFixed(1) : 0} с · ${pct(tot, r.mx)}% макс. ОЗ</div>
+      <div class="mc-dl-f mc-dim">Всего ${tot} урона за ${hits.length ? (hits[0].ago / 1000).toFixed(1) : 0} с · ${pct(tot, r.mx)}% макс. ОЗ${hits.length >= 12 ? ' · последние 12 ударов' : ''}</div>
     </details>`;
   }).join('')}</div>`;
 }
