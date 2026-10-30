@@ -24,7 +24,7 @@ import { wonderPopup } from "./bldart";
 import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, razeTargets, buildChoices, towerCells, claimable, cityName, apTip, HS_NAME, HS_COL, hsByHp, loadWalls, cityBld, towersOf, terrCities } from "./world";
 import { bName } from "./econ-ui";
 import { TECHS } from "../../../server/strat/econ-cfg";
-import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type EvCtx, type LibItem } from "./history";
+import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
 import { hpBarArt, unitHpArt, HS_STEP } from "./ui2art";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
 
@@ -161,9 +161,10 @@ function openMatch() {
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.type === "chat" || m.type === "chat_err") chatRecv(m);
+    if (rpMsg(m)) return;
     if (m.type === "st") { m.skew = Date.now() - m.now; if (hv?.replay) { hv.back = m; rec.push(m.code, m.g, m.ev || []); return; }
       const viewing = !!hv, prev = liveS || S; S = m; onState(prev); applyIntent(); rec.push(S.code, S.g, S.ev || []); if (Array.isArray(S.hist)) rec.merge(S.code, framesFrom(S.hist));
-      if (viewing && hv) { liveS = S; applyView(); } else renderMoves(); }
+      if (viewing && hv) { liveS = S; applyView(); } else renderMoves(); if (S.replay?.id && (!srvMv || hv || S.phase === "over")) askMoves(); }
     if (m.type === "err") toast(ERR[m.err] || m.err, "bad");
     if (m.type === "left") { left = true; S = null; curCode = ""; resetMatchUi(); const u = new URL(location.href); u.searchParams.delete("join"); history.replaceState(null, "", u); render(); }
   };
@@ -311,7 +312,7 @@ function goalPopup(side: number, q: Goal, count: number, need: number) {
 
 // ---------- история ходов и повторы (history.ts) ----------
 const rec = new Recorder();
-type HV = { idx: number; replay: Rec | null; playing: boolean; speed: number; timer: number; saved: boolean; back: any };
+type HV = { idx: number; replay: Rec | null; playing: boolean; speed: number; timer: number; saved: boolean; back: any; sub?: { i: number; f: Frame } | null; run?: number };
 let hv: HV | null = null, liveS: any = null;
 const hFrames = (): Frame[] => (hv?.replay ? hv.replay.frames : rec.frames);
 const hMarks = (F: Frame[]) => F.map((f, i) => i).filter((i) => !F[i + 1] || F[i + 1].turn !== F[i].turn || F[i + 1].cur !== F[i].cur);
@@ -323,11 +324,11 @@ function histOpen(idx: number, replay?: Rec | null) {
   if (replay !== undefined && replay) { stopPlay(); hv = { idx: 0, replay, playing: false, speed: 1, timer: 0, saved: !!replay.saved, back: hv?.back ?? liveS ?? S }; liveS = null; }
   const F = hFrames(); if (!F.length) return toast("История пока пуста — она появится после первого хода", "info", "hist");
   if (!hv?.replay && idx >= F.length - 1) return goLive();
-  if (!hv) { liveS = S; hv = { idx, replay: null, playing: false, speed: 1, timer: 0, saved: false, back: null }; }
-  hv.idx = Math.max(0, Math.min(F.length - 1, idx)); applyView();
+  if (!hv) { liveS = S; hv = { idx, replay: null, playing: false, speed: 1, timer: 0, saved: false, back: null }; askMoves(); }
+  hv.sub = null; hv.idx = Math.max(0, Math.min(F.length - 1, idx)); applyView();
 }
 function applyView() {
-  if (!hv) return; const F = hFrames(), f = F[hv.idx]; if (!f) return goLive();
+  if (!hv) return; const F = hFrames(), f = hv.sub?.f || F[hv.idx]; if (!f) return goLive();
   const base = hv.replay ? { code: "REPLAY", phase: "view", you: hv.replay.you ?? -1, size: f.g.size, seats: hv.replay.nicks.map((n) => ({ nick: n, race: null, online: true })), skew: 0, mapInfo: null } : liveS;
   S = { ...base, g: { ...f.g, map: f.g.map || hv.replay?.map || rec.map || liveS?.g?.map }, ev: [], phase: "view", clock: null, viewing: true };
   gsCache = { s: null, g: null } as any; sel = null; document.body.classList.add("hist-view"); render(); renderHistBar(); renderMoves();
@@ -336,25 +337,85 @@ function goLive() {
   stopPlay(); if (!hv) return; const back = hv.replay ? hv.back : liveS; hv = null; liveS = null; S = back || null;
   gsCache = { s: null, g: null } as any; document.body.classList.remove("hist-view"); const hb = $("#histbar"); if (hb) { hb.hidden = true; hb.innerHTML = ""; } render(); renderMoves();
 }
-function histStep(d: number) { const F = hFrames(), M = hMarks(F); if (!M.length) return; const cur = hv ? hv.idx : F.length - 1;
+function histStep(d: number) { askMoves(); const F = hFrames(), M = hMarks(F); if (!M.length) return; const cur = hv ? hv.idx : F.length - 1;
   const at = d < 0 ? [...M].reverse().find((i) => i < cur) : M.find((i) => i > cur); if (at == null) { if (d > 0 && !hv?.replay) goLive(); return; } histOpen(at); }
-function stopPlay() { if (hv?.timer) { clearInterval(hv.timer); hv.timer = 0; } if (hv) hv.playing = false; }
-function togglePlay() { if (!hv?.replay) return; if (hv.playing) { stopPlay(); renderHistBar(); return; } const F = hFrames(); if (hv.idx >= F.length - 1) hv.idx = 0; hv.playing = true;
-  hv.timer = window.setInterval(() => { if (!hv) return; if (hv.idx >= hFrames().length - 1) { stopPlay(); renderHistBar(); return; } hv.idx++; applyView(); }, 900 / hv.speed); renderHistBar(); }
+function stopPlay() { if (hv?.timer) { clearTimeout(hv.timer); hv.timer = 0; } if (hv) { hv.playing = false; hv.run = (hv.run || 0) + 1; } }
+function togglePlay() { if (!hv?.replay) return; if (hv.playing) { stopPlay(); renderHistBar(); return; } const F = hFrames(); if (hv.idx >= F.length - 1) { hv.idx = 0; hv.sub = null; }
+  hv.playing = true; const run = hv.run = (hv.run || 0) + 1; renderHistBar(); hv.timer = window.setTimeout(() => playTick(run), 250); }
+/** Автопроигрывание. Серверный повтор — по действиям: кадры между концами полуходов пакетами from/to (§14.I, до 40 за запрос), пауза — dt действия («как было») или по скорости. */
+async function playTick(run: number) {
+  const h = hv; if (!h?.playing || h.run !== run || !h.replay) return; const R = h.replay, F = R.frames, rp = R.rp;
+  const later = (ms: number) => { if (hv === h && h.playing && h.run === run) h.timer = window.setTimeout(() => playTick(run), ms); };
+  if (h.idx >= F.length - 1 && !h.sub) { stopPlay(); renderHistBar(); return; }
+  if (rp && rp.idx.length === F.length) {
+    const b = rp.idx[h.idx + 1], ni = (h.sub?.i ?? rp.idx[h.idx]) + 1;
+    if (b != null && ni < b) { const f = await rpFrame(R, ni, b - 1); if (hv !== h || !h.playing || h.run !== run) return;
+      if (f) { h.sub = { i: ni, f }; applyView(); return later(rpDelay(R, ni)); } }
+    h.sub = null; h.idx++; applyView(); return later(rpDelay(R, b ?? 0));
+  }
+  const at0 = F[h.idx]?.at || 0; h.idx++; applyView(); later(h.speed === 0 ? Math.max(250, Math.min(3000, (F[h.idx]?.at || 0) - at0 || 900)) : 900 / h.speed);
+}
+const rpDelay = (R: Rec, i: number) => { const sp = hv?.speed ?? 1; if (sp !== 0) return 450 / sp; const a = R.rp?.list.find((x) => +x.i === i - 1); return Math.max(150, Math.min(3000, +(a?.dt ?? 600) || 600)); };
+const rpCache = new Map<string, Frame>(), rpLoading = new Map<string, Promise<void>>();
+/** Кадр i серверного повтора; при промахе — пакет from=i&to=min(i+39, b). */
+async function rpFrame(R: Rec, i: number, b: number): Promise<Frame | null> {
+  const id = R.rp!.id, key = (k: number) => id + "#" + k; if (rpCache.has(key(i))) return rpCache.get(key(i))!;
+  const to = Math.min(b, i + 39), lk = id + "@" + i;
+  if (!rpLoading.has(lk)) rpLoading.set(lk, (async () => {
+    const j: any = await fetch(HTTP + "/strat/replay?id=" + encodeURIComponent(id) + "&from=" + i + "&to=" + to).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    for (const x of Array.isArray(j?.frames) ? j.frames : []) { const [f] = framesFrom([{ frame: x.frame }]); if (f && Number.isFinite(+x.i)) rpCache.set(key(+x.i), f); rpDiv(R, x.diverged); }
+    while (rpCache.size > 160) rpCache.delete(rpCache.keys().next().value!);
+  })());
+  await rpLoading.get(lk); rpLoading.delete(lk); return rpCache.get(key(i)) || null;
+}
+/** diverged: индекс первого расходящегося действия (null/−1/false — совпадает). */
+function rpDiv(R: Rec, d: any) { const v = d === true ? 0 : Number.isFinite(+d) && d !== null && d !== false && +d >= 0 ? +d : null; if (v != null && R.rp && (R.rp.div == null || v < R.rp.div)) R.rp.div = v; }
+// ---------- §14.I в партии: WS {type:"moves"} → список ходов; {type:"frame", i} → кадры до первого своего ----------
+type SrvMoves = { id: string; live: boolean; n: number; turns: { turn: number; side: number; from: number; to: number }[]; list: any[] };
+let srvMv: SrvMoves | null = null, srvAskAt = 0, srvDiv: number | null = null, srvOff = false, srvT = 0;
+const srvWant = new Set<number>(), srvGot = new Map<number, Frame>();
+/** В демо запросы уходят в подменный канал (для скриншотов), иначе — в WS партии. */
+function sendRp(o: any) { if (demo) return void (window as any).__stratRpOut?.(o); if (ws?.readyState === 1) ws.send(JSON.stringify(o)); }
+function askMoves() { const r = (liveS || S)?.replay; if (srvOff || !r?.id || hv?.replay) return; if (srvMv?.id === String(r.id) && srvMv.n === +r.n) return; if (Date.now() - srvAskAt < 1200) return; srvAskAt = Date.now(); sendRp({ type: "moves" }); }
+function onSrvMoves(m: any) {
+  if (!Array.isArray(m?.turns)) return; const id = String(m.id ?? ""); if (srvMv && srvMv.id !== id) { srvGot.clear(); srvWant.clear(); srvDiv = null; }
+  srvMv = { id, live: !!m.live, n: +m.n || 0, turns: m.turns.filter((t: any) => Number.isFinite(+t?.to)).map((t: any) => ({ turn: +t.turn, side: +t.side, from: +t.from, to: +t.to })), list: Array.isArray(m.list) ? m.list : [] };
+  const own = rec.frames.slice(rec.preN), first = own[0]; let k0 = srvMv.turns.length;
+  if (first) { k0 = srvMv.turns.findIndex((t) => t.turn > first.turn || (t.turn === first.turn && t.side === first.cur)); if (k0 < 0) k0 = srvMv.turns.length; }
+  const want = [0, ...srvMv.turns.slice(0, k0).map((t) => t.to)].filter((i, k, a) => a.indexOf(i) === k && !srvGot.has(i) && !srvWant.has(i)).slice(-80);
+  for (const i of want) { srvWant.add(i); sendRp({ type: "frame", i }); }
+  renderMoves(); if (hv) renderHistBar();
+}
+function onSrvFrame(m: any) {
+  const i = +m?.i; if (!Number.isFinite(i) || !m.frame) return; srvWant.delete(i);
+  const d = m.diverged, v = d === true ? 0 : d != null && d !== false && Number.isFinite(+d) && +d >= 0 ? +d : null; if (v != null && (srvDiv == null || v < srvDiv)) srvDiv = v;
+  const t = srvMv?.turns.find((x) => x.to === i), [f] = framesFrom([{ frame: m.frame, turn: t?.turn }]); if (!f) return; srvGot.set(i, f);
+  clearTimeout(srvT); srvT = window.setTimeout(() => { const P = [...srvGot.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]), sh = rec.setPre((liveS || S)?.code, P);
+    if (hv && !hv.replay) { hv.idx = Math.max(0, hv.idx + sh); applyView(); } else renderMoves(); }, 120);
+}
+/** Ответы сервера повторов в WS партии; true — сообщение обработано. */
+function rpMsg(m: any): boolean {
+  if (m?.type === "moves") { onSrvMoves(m); return true; } if (m?.type === "frame") { onSrvFrame(m); return true; }
+  if (m?.type === "err" && m.err === "no_replay") { srvOff = true; return true; } return false;
+}
+function histWarn(): string[] {
+  const R = hv?.replay, w: string[] = [], dv = R ? R.rp?.div : srvDiv;
+  if (R?.rp?.rulesChanged) w.push("Правила с тех пор изменились"); if (dv != null) w.push(`Расходится с партией с действия ${dv + 1}`); return w;
+}
 function renderHistBar() {
   const hb = $("#histbar"); if (!hb || !hv) return; const F = hFrames(), f = F[hv.idx], live = liveS?.g;
   const side = f ? evCtx().nick(f.cur) : ""; hb.hidden = false;
-  const canSave = !!(hv.replay ? !hv.replay.saved : rec.frames.length), h = viewBarHtml({ turn: f?.turn ?? 1, side, live: !hv, replay: !!hv.replay, idx: hv.idx, max: F.length - 1, playing: hv.playing, speed: hv.speed, canSave, saved: hv.saved });
+  const canSave = !!(hv.replay ? !hv.replay.saved : rec.frames.length), h = viewBarHtml({ turn: (hv.sub?.f || f)?.turn ?? 1, side, live: !hv, replay: !!hv.replay, idx: hv.idx, max: F.length - 1, playing: hv.playing, speed: hv.speed, canSave, saved: hv.saved, warn: histWarn() });
   if (hb.dataset.h !== h) { hb.dataset.h = h; hb.innerHTML = h; bindHistBar(hb); }
-  hb.querySelector(".hv-s")!.textContent = `ходит ${side}` + (hv.replay ? ` · ${hv.idx + 1}/${F.length}` : live ? ` · идёт ход ${live.turn}` : "");
+  hb.querySelector(".hv-s")!.textContent = `ходит ${side}` + (hv.replay ? ` · ${hv.idx + 1}/${F.length}` + (hv.sub ? ` · действие ${hv.sub.i}` : "") : live ? ` · идёт ход ${live.turn}` : "");
   (hb.querySelector(".hv-scrub") as HTMLInputElement).value = String(hv.idx);
 }
 function bindHistBar(hb: HTMLElement) {
   hb.querySelectorAll<HTMLButtonElement>("[data-hv]").forEach((b) => (b.onclick = () => { const k = b.dataset.hv, F = hFrames();
-    if (k === "first") histOpen(0); if (k === "prev") histStep(-1); if (k === "next") histStep(1); if (k === "play") togglePlay(); if (k === "save") saveReplay();
+    if (k !== "play") { stopPlay(); if (hv) hv.sub = null; } if (k === "first") histOpen(0); if (k === "prev") histStep(-1); if (k === "next") histStep(1); if (k === "play") togglePlay(); if (k === "save") saveReplay();
     if (k === "last") hv?.replay ? histOpen(F.length - 1) : goLive(); if (k === "live" || k === "close") goLive(); }));
-  hb.querySelectorAll<HTMLButtonElement>("[data-sp]").forEach((b) => (b.onclick = () => { if (!hv) return; hv.speed = +b.dataset.sp! || 1; const was = hv.playing; stopPlay(); hb.dataset.h = ""; if (was) togglePlay(); else renderHistBar(); }));
-  const sc = hb.querySelector<HTMLInputElement>(".hv-scrub")!; sc.oninput = () => { stopPlay(); const i = +sc.value; if (!hv?.replay && i >= hFrames().length - 1) return goLive(); histOpen(i); };
+  hb.querySelectorAll<HTMLButtonElement>("[data-sp]").forEach((b) => (b.onclick = () => { if (!hv) return; hv.speed = Number.isFinite(+b.dataset.sp!) ? +b.dataset.sp! : 1; const was = hv.playing; stopPlay(); hb.dataset.h = ""; if (was) togglePlay(); else renderHistBar(); }));
+  const sc = hb.querySelector<HTMLInputElement>(".hv-scrub")!; sc.oninput = () => { stopPlay(); if (hv) hv.sub = null; const i = +sc.value; if (!hv?.replay && i >= hFrames().length - 1) return goLive(); histOpen(i); };
 }
 /** Список ходов: по полуходам, события с разбором «почему» во всплывающей подсказке. */
 function renderMoves() {
@@ -365,6 +426,9 @@ function renderMoves() {
   for (const mi of M) { const f = F[mi], evs: string[] = [];
     for (let i = from; i <= mi; i++) { const before = F[i - 1]?.g || F[i].g; for (const e of F[i].ev) { const l = evLine(e, before, F[i].g, c); if (!l) continue; const w = l.why ? evWhy(e, before, c, passOf) : null;
       evs.push(`<li class="mv-e" style="${l.side != null && l.side >= 0 ? `--pc:${raceCol(l.side)}` : ""}" ${w ? `data-tip="${esc(whyHtml(w))}" tabindex="0"` : ""} data-f="${i}">${ic(l.icon)}<span>${esc(l.txt)}</span>${w ? `<i class="mv-why" aria-hidden="true">?</i>` : ""}</li>`); } }
+    // кадры с сервера (§14.I) без событий — короткая запись действий из moves.list: «→e4», «×d5», «★c3», «—»
+    const L = hv?.replay?.rp || srvMv; if (!evs.length && L) { const t = L.turns.find((x) => x.turn === f.turn && x.side === f.cur);
+      if (t) for (const a of L.list.filter((x: any) => +x.i >= t.from && +x.i < t.to).slice(-8)) evs.push(`<li class="mv-e mv-n" style="--pc:${raceCol(f.cur)}" data-f="${mi}">${ic(a.auto ? "clock" : "arrow")}<span>${esc(String(a.n ?? a.a?.type ?? "—"))}</span></li>`); }
     rows.push(`<div class="mv-t ${mi === cur || (cur >= from && cur <= mi) ? "on" : ""}" role="listitem"><button type="button" class="mv-jump" data-f="${mi}" style="--pc:${raceCol(f.cur)}"><b>${f.turn}</b><span class="mv-nk"></span><small>${evs.length ? evs.length + " соб." : "—"}</small></button>${evs.length ? `<ul>${evs.slice(-8).join("")}</ul>` : ""}</div>`);
     from = mi + 1; }
   const h = rows.reverse().join(""); if (box.dataset.h === h) return; box.dataset.h = h; box.innerHTML = h;
@@ -381,9 +445,19 @@ function curRec(saved: boolean): Rec | null {
   return { id: "loc-" + (base.code || "demo") + "-" + (F[0].at || Date.now()), code: base.code, at: Date.now(), races: g.races || [], nicks: (base.seats || []).map((x: any) => x?.nick || "?"), winner: base.result?.winner ?? null,
     turns: g.turn, you: base.you, map: rec.map, frames: F, saved };
 }
+/** §14.I lib_save {id, title?}: название до 60 символов; пустое — без названия, «Отмена» — не сохранять. */
+function askTitle(def: string): Promise<string | null> {
+  const m = modal({ title: "Сохранить партию", icon: "rp_save", cls: "small rptitle", sub: "Название увидите в «Библиотеке партий»",
+    body: `<label class="fld"><span>Название (необязательно)</span><input type="text" maxlength="60" autocomplete="off" enterkeyhint="done"></label>`,
+    acts: [{ label: "Отмена", cls: "ghost", val: false }, { label: "Сохранить", cls: "gold", val: true, icon: "rp_save" }] });
+  const inp = m.el.querySelector("input")!; inp.value = def.slice(0, 60); inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); m.close(true); } }; setTimeout(() => { inp.focus(); inp.select(); }, 50);
+  return m.done.then((v) => (v === true ? inp.value.trim().slice(0, 60) : null));
+}
+const defTitle = (r: { nicks?: string[]; turns?: number }) => `${(r.nicks || []).filter(Boolean).join(" — ") || "Партия"}${r.turns ? `, ${r.turns} ход.` : ""}`;
 async function saveReplay() {
-  const r = curRec(true); if (!r) return; const rid = hv?.replay?.srv ? hv.replay.id : (liveS || S)?.replay?.id; // §14.I: id повтора = st.replay.id («КОД:старт_мс»)
-  const sv = !demo && rid ? await hubReq("lib_save", { id: rid }) : { err: "local" };
+  const r0 = curRec(true); if (!r0) return; const title = await askTitle(r0.title || defTitle(r0)); if (title === null) return; const r = { ...r0, title: title || undefined };
+  const rid = hv?.replay?.srv ? hv.replay.id : (liveS || S)?.replay?.id; // §14.I: id повтора = st.replay.id («КОД:старт_мс»)
+  const sv = !demo && rid ? await hubReq("lib_save", { id: rid, ...(title ? { title } : {}) }) : { err: "local" };
   const okLocal = lsPut(r); if (hv) hv.saved = true; if (hv?.replay) hv.replay.saved = true; $("#histbar") && ($("#histbar")!.dataset.h = ""); renderHistBar();
   toast(!sv?.err ? "Партия сохранена в библиотеку" : sv.err === "lib_full" ? "Библиотека заполнена — уберите старые партии" : sv.err === "live" && okLocal ? "Партия ещё идёт — сохранено на этом устройстве" : okLocal ? "Сохранено на этом устройстве" : "Не удалось сохранить — мало места", !sv?.err || okLocal ? "good" : "bad", "save");
 }
@@ -395,14 +469,18 @@ async function openReplay(id: string) {
   if (!r) return toast("Повтор недоступен", "bad", "warn");
   document.getElementById("profdlg")?.remove(); document.getElementById("endscreen")?.remove(); histOpen(0, r);
 }
-/** §14.I HTTP: GET /strat/replay?id= → {meta, log, moves:{turns:[{turn,side,from,to}]}}, затем кадры на конец каждого хода (&i=turns[k].to, по 6 параллельно). */
+/** §14.I HTTP: GET /strat/replay?id= → {meta, log, moves:{turns:[{turn,side,from,to}], list:[{i,…,dt}]}, rulesChanged}; кадры на конец каждого полухода (&i=turns[k].to, по 6 параллельно) —
+ *  для шагов и перемотки; между ними при автопроигрывании — пакеты &from=&to= (rpFrame). */
 async function fetchReplay(id: string): Promise<Rec | null> {
   const get = (q: string) => fetch(HTTP + "/strat/replay?id=" + encodeURIComponent(id) + q).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  const j: any = await get(""); if (!j?.meta) return null; const meta = j.meta, turns: any[] = Array.isArray(j.moves?.turns) ? j.moves.turns.slice(0, 400) : [];
-  const idx = [0, ...turns.map((t) => +t.to).filter((v) => Number.isFinite(v))], out: any[] = new Array(idx.length);
-  for (let k = 0; k < idx.length; k += 6) await Promise.all(idx.slice(k, k + 6).map(async (i, o) => { const f: any = await get("&i=" + i); if (f?.frame) out[k + o] = { frame: f.frame, turn: turns[k + o - 1]?.turn }; }));
-  const F = framesFrom(out.filter(Boolean)); if (!F.length) return null; const it = itemFrom(meta, !!meta.saved)!;
-  return { ...it, frames: F, map: j.log?.map ?? F[0].g.map, nicks: it.nicks.length ? it.nicks : (F[0].g.races || []).map((_: any, i: number) => "Игрок " + (i + 1)) };
+  const j: any = await get(""); if (!j?.meta) return null; const meta = j.meta, turns: any[] = (Array.isArray(j.moves?.turns) ? j.moves.turns : []).filter((t: any) => Number.isFinite(+t?.to)).slice(0, 400);
+  const idx = [0, ...turns.map((t) => +t.to)], out: any[] = new Array(idx.length); let div: number | null = null;
+  for (let k = 0; k < idx.length; k += 6) await Promise.all(idx.slice(k, k + 6).map(async (i, o) => { const f: any = await get("&i=" + i); if (f?.frame) out[k + o] = { frame: f.frame, turn: turns[k + o - 1]?.turn, i };
+    const d = f?.diverged; if (d != null && d !== false && Number.isFinite(+d) && +d >= 0 && (div == null || +d < div)) div = +d; }));
+  const ok = out.filter(Boolean), F = framesFrom(ok); if (!F.length || F.length !== ok.length) return null; const it = itemFrom(meta, !!meta.saved)!;
+  const rp: RpInfo = { id, n: +(j.log?.n ?? j.moves?.list?.length ?? 0), idx: ok.map((x) => +x.i), turns: turns.map((t) => ({ turn: +t.turn, side: +t.side, from: +t.from, to: +t.to })),
+    list: (Array.isArray(j.moves?.list) ? j.moves.list : []).map((a: any) => ({ i: +a.i, side: a.side, n: a.n, dt: a.dt, auto: a.auto })), rulesChanged: !!j.rulesChanged, div };
+  return { ...it, frames: F, rp, map: j.log?.map ?? F[0].g.map, nicks: it.nicks.length ? it.nicks : (F[0].g.races || []).map((_: any, i: number) => "Игрок " + (i + 1)) };
 }
 function libDeps() { return { html: () => libHtml(null, { crest, loading: true }), bind: (el: HTMLElement) => { loadLib(el); } }; }
 /** ?menudemo: ответ lib_list в форме рабочей ветки сервера (ReplayMeta), только для скриншотов меню. */
@@ -418,7 +496,8 @@ async function loadLib(el: HTMLElement) {
   el.querySelectorAll<HTMLButtonElement>("[data-lib]").forEach((b) => (b.onclick = async () => { const id = b.dataset.id!, k = b.dataset.lib;
     if (k === "open") return openReplay(id);
     if (k === "del") { lsDel(id); if (!demo && !id.startsWith("loc-")) await hubReq("lib_unsave", { id }); }
-    if (k === "save") { const r = lsGetRec(id); if (r) lsPut({ ...r, saved: true }); if (!demo && !id.startsWith("loc-")) { const e: any = await hubReq("lib_save", { id }); if (e?.err === "lib_full") toast("Библиотека заполнена — уберите старые партии", "bad", "warn"); } }
+    if (k === "save") { const r = lsGetRec(id), it = all.find((x) => x.id === id); const title = await askTitle(it?.title || defTitle(it || r || {})); if (title === null) return;
+      if (r) lsPut({ ...r, saved: true, title: title || undefined }); if (!demo && !menuDemo && !id.startsWith("loc-")) { const e: any = await hubReq("lib_save", { id, ...(title ? { title } : {}) }); if (e?.err) toast(ERR[e.err] || "Не удалось сохранить", "bad", "warn"); } }
     loadLib(el); }));
 }
 
@@ -696,6 +775,7 @@ function openChiefTree(auto: boolean) {
 function renderInfo() {
   const box = $("#info"); const g = S?.g; const p = g && sel != null ? g.pieces.find((q: any) => q.id === sel) : null;
   const m: MapData | undefined = g?.map, at = p ? [p.x, p.y] : selCell;
+  document.body.classList.toggle("selinfo", !!(p || at) && !(hv && hv.replay));
   if (!p && !at) { box.className = "info idle"; box.innerHTML = `<div class="empty">${ic("target")}<span>Выберите фигуру: золото — ход, красное — атака. Пустая клетка — описание местности.</span></div>`; return; }
   let h = ""; const cfg = cfgOf(S);
   if (p) { const race = g.races[p.o], P = gs()!.pieces.find((q) => q.id === p.id)!, lv = pieceLv(ectx(), P);
@@ -714,7 +794,9 @@ function renderInfo() {
     const tp = terrainPassive(t, tn), sp = st !== "." ? structPassive(st, (STRUCT as any)[st]) : null;
     h += `<div class="cellinfo"><span class="ci-t">${ic(t === "f" ? "leaf" : t === "w" ? "wave" : t === "m" ? "mountain" : t === "#" ? "wall" : "map")}<b>${esc(tn)}</b>${pasIcon(tp)}</span>${terrEff(t) ? `<small>${terrEff(t)}</small>` : ""}
       ${sp ? `<span class="ci-t">${ic("castle")}<b>${esc(sp.name)}</b>${pasIcon(sp)}</span><small>${esc((STRUCT as any)[st]?.eff || "")}</small>` : ""}</div>`; }
-  box.className = "info"; box.innerHTML = h;
+  h = `<button type="button" class="info-x" data-infox aria-label="Снять выбор">${ic("close")}</button>` + h;
+  box.className = "info" + (p && S.phase === "play" && p.o === S.you ? " mine" : ""); box.innerHTML = h;
+  box.querySelector<HTMLElement>("[data-infox]")!.onclick = () => { sel = null; selCell = null; renderInfo(); draw(); };
   if (p) { const sub = box.querySelector(".uc-sub"); if (sub) sub.textContent = (p.o === S.you ? "Ваш" : "Враг") + (p.k === "king" ? " · " + chiefName(p.o) : " · " + (RACE_NAME[g.races[p.o]] || ""));
     const P = gs()!.pieces.find((q) => q.id === p.id)!; bindPieceActs(ectx(), P, box); bindChiefActs(P, box);
     box.querySelectorAll<HTMLButtonElement>("[data-raze]").forEach((b) => (b.onclick = () => send({ type: "act", act: { a: "raze", id: P.id, city: +b.dataset.raze!, b: b.dataset.b } })));
@@ -991,9 +1073,13 @@ function setMSheet(k: string) {
   document.body.dataset.msheet = k;
   document.querySelectorAll<HTMLElement>("#mtabs [data-ms]").forEach((b) => { const on = b.dataset.ms === k; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
 }
+const lcolNarrow = matchMedia("(orientation: landscape) and (max-height: 500px) and (max-width: 740px)");
 function initMobileTabs() {
   document.querySelectorAll<HTMLElement>("#mtabs [data-ms]").forEach((b) => (b.onclick = () => setMSheet(document.body.dataset.msheet === b.dataset.ms ? "" : b.dataset.ms!)));
-  $("#stage").addEventListener("pointerdown", () => { if (document.body.dataset.msheet) setMSheet(""); });
+  $("#stage").addEventListener("pointerdown", () => { if (document.body.dataset.msheet) setMSheet(""); if (lcolNarrow.matches) document.body.classList.remove("lcol-x"); });
+  // телефон-ландшафт: левая колонка (игроки, ходы, чат) сворачивается; на узком экране (≤740px) свёрнута по умолчанию
+  const lb = document.querySelector<HTMLElement>("#lcolbtn");
+  if (lb) lb.onclick = () => { const on = document.body.classList.toggle("lcol-x"); lb.setAttribute("aria-pressed", String(lcolNarrow.matches ? on : !on)); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.dataset.msheet) setMSheet(""); });
 }
 
@@ -1375,7 +1461,11 @@ if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
       rec.push(S.code || "demo", k === n - 1 ? G0 : g, ev); }
     renderMoves(); return rec.frames.length; },
   view: (i: number) => histOpen(i), live: () => goLive(), hv: () => (hv ? { idx: hv.idx, replay: !!hv.replay, playing: hv.playing, speed: hv.speed } : null),
-  replay: () => { const r = curRec(false); if (r) histOpen(0, r); return !!r; }, saveRec: (saved = true) => { const r = curRec(saved); return r ? lsPut(r) : false; },
+  replay: () => { const r = curRec(false); if (r) histOpen(0, r); return !!r; },
+  /** §14.I для скриншотов: ответы WS повторов (moves/frame) и кадры записи. */
+  rpMsg: (m: any) => rpMsg(m), stReplay: (id: string, n: number) => { S.replay = { id, n }; }, recFrames: () => rec.frames.map((f) => ({ turn: f.turn, cur: f.cur, g: { ...f.g, map: undefined }, ev: f.ev })),
+  recKeep: (n: number) => { rec.frames = rec.frames.slice(-n); rec.preN = 0; renderMoves(); return rec.frames.length; }, recLen: () => rec.frames.length, openRp: (id: string) => openReplay(id),
+  hvSub: () => hv?.sub?.i ?? null, saveRec: (saved = true) => { const r = curRec(saved); return r ? lsPut(r) : false; },
   ffa: (n: number) => { S.seats = Array.from({ length: n }, (_, i) => S.seats[i] || { nick: ["Алекс", "Сайфер", "Мира", "Горн", "Ласка", "Вихрь", "Тень", "Бот"][i], online: i !== 3 }); S.g.races = Array.from({ length: n }, (_, i) => S.g.races[i] || ["water", "stone", "nature", "lightning", "fire", "ice"][i % 6]); S.mode = "ffa"; render(); } };
 (window as any).__stratFocus = (id: number) => { const p = S?.g?.pieces?.find((q: any) => q.id === id); if (!p) return; sel = id; centerOn(p.x, p.y); renderInfo(); draw(); };
 if (LOCAL && (qs.get("demo") || qs.get("menudemo"))) { (window as any).__stratRatingDemo = () => ({ leagues: { fast: { r: 1612, rd: 48, games: 41, w: 25, l: 14, d: 2, peak: 1660 }, normal: { r: 1532, rd: 72, games: 17, w: 9, l: 7, d: 1, peak: 1561 }, tactic: { r: 1500, rd: 190, games: 3, w: 2, l: 1, d: 0, peak: 1514 } } });

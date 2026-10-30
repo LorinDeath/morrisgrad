@@ -242,12 +242,19 @@ export function renderTech(c: Ctx) {
   dlg.querySelector<HTMLElement>("[data-x]")!.onclick = close; dlg.onclick = (e) => { if (e.target === dlg) close(); };
   for (const b of dlg.querySelectorAll<HTMLButtonElement>("[data-t]")) b.onclick = () => { if (!b.getAttribute("aria-disabled")) c.send({ type: "act", act: { a: "research", t: b.dataset.t } }); };
   const eb = dlg.querySelector<HTMLButtonElement>("#erabtn"); if (eb) eb.onclick = () => c.send({ type: "act", act: { a: "era" } });
-  requestAnimationFrame(() => techLinks(dlg, nodes));
+  requestAnimationFrame(() => { techFit(dlg); techLinks(dlg, nodes); });
+}
+/** Телефон в ландшафте: древо (ветви — строки) ужимается по высоте, чтобы карточки не резались; не мельче 0.72. */
+const techShort = typeof matchMedia === "function" ? matchMedia("(orientation: landscape) and (max-height: 500px)") : null;
+function techFit(dlg: HTMLElement) {
+  const sc = dlg.querySelector<HTMLElement>(".tscroll"), grid = dlg.querySelector<HTMLElement>(".tgrid"); if (!sc || !grid) return;
+  grid.style.zoom = ""; if (!techShort?.matches) return;
+  const need = grid.scrollHeight, have = sc.clientHeight; if (need > have + 1) grid.style.zoom = String(Math.max(0.72, Math.floor((have - 4) / need * 100) / 100));
 }
 /** Линии «требует» между узлами (только если в данных есть req). */
 function techLinks(dlg: HTMLElement, nodes: TNode[]) {
   const svg = dlg.querySelector<SVGSVGElement>(".tlinks"), grid = dlg.querySelector<HTMLElement>(".tgrid"); if (!svg || !grid) return;
-  const g = grid.getBoundingClientRect(); svg.setAttribute("viewBox", `0 0 ${g.width} ${g.height}`); svg.style.width = g.width + "px"; svg.style.height = g.height + "px";
+  const g = grid.getBoundingClientRect(); svg.setAttribute("viewBox", `0 0 ${g.width} ${g.height}`); const z = parseFloat(grid.style.zoom) || 1; svg.style.width = g.width / z + "px"; svg.style.height = g.height / z + "px";
   let h = "";
   for (const n of nodes) for (const r of n.req) {
     const a = grid.querySelector<HTMLElement>(`[data-node="${r}"]`), b = grid.querySelector<HTMLElement>(`[data-node="${n.id}"]`); if (!a || !b) continue;
@@ -318,11 +325,12 @@ export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx
     const fill = t2Tint("territory_fill", c.col(o), px);
     if (fill) { ctx.globalAlpha = 0.5; ctx.drawImage(fill, X, Y, cell + 0.5, cell + 0.5); ctx.globalAlpha = 1; } else { ctx.fillStyle = c.col(o) + "1c"; ctx.fillRect(X, Y, cell, cell); }
     // M6 аудита: где есть стены города (walls-v1), видимая граница — сама стена; border_* — только без стен (нет walls / дальний план)
-    if (cell < 7 || walls) continue;
-    const es = edgeSet((dx, dy) => own(x + dx, y + dy) !== o, flip);
+    // S6b: при стенах border_* тоже рисуется — бледным тоном под стеной (стены ложатся сверху), чтобы край земли читался и между башнями
+    if (cell < 7) continue;
+    const es = edgeSet((dx, dy) => own(x + dx, y + dy) !== o, flip); if (walls) ctx.globalAlpha = 0.38;
     for (const k of es.corners) B("border_corner_" + k, o, X, Y);
     for (const d of es.sides) if (!es.corners.some((k) => k.includes(d))) B("border_" + d, o, X, Y);
-    for (const k of es.inner) B("border_inner_" + k, o, X, Y); }
+    for (const k of es.inner) B("border_inner_" + k, o, X, Y); ctx.globalAlpha = 1; }
   walls?.();
   // города terrain-v2: столица city_capital_<раса>_lv1..3 (512×256 = 2 клетки, якорь (256,230)) + city_owned_mask в цвет владельца;
   // застава city_outpost_<раса> (256, якорь (128,230)) + флажок terrain-v1 flag_mask; захваченный город — city_captured_overlay

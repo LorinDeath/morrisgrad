@@ -2,6 +2,7 @@
 import { createRequire } from "module"; const require = createRequire("/workspace/mc-ui-tools/");
 const { chromium } = require("playwright-core");
 const SITE = "http://127.0.0.1:4392/games/strategy", OUT = "/workspace/minigame-tz/shots/", WSQ = "&ws=ws://127.0.0.1:8872";
+const SUF = process.env.SUF || "", N = (n) => n + SUF;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const T = Date.now() % 1e6, only = process.argv[2] || "all";
 const br = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox"] });
@@ -15,7 +16,7 @@ async function player(uid, extra = "", mobile = false) {
   p.on("response", (r) => r.status() >= 400 && !/favicon/.test(r.url()) && errs.push(uid + " HTTP " + r.status() + " " + r.url().slice(0, 140)));
   await p.goto(SITE + "?devUser=" + uid + extra + WSQ); await sleep(1800); await p.addStyleTag({ content: "astro-dev-toolbar{display:none!important}" }); return p;
 }
-const shot = async (P, name, wait = 600) => { await sleep(wait); await P.screenshot({ path: OUT + name + ".png" }); console.log("shot", name); };
+const shot = async (P, name, wait = 600) => { await sleep(wait); await P.screenshot({ path: OUT + N(name) + ".png" }); console.log("shot", N(name)); };
 const dev = (P, f, ...a) => P.evaluate(([f, a]) => { const r = window.__stratDev[f](...a); return typeof r === "object" ? null : r; }, [f, a]).catch((e) => errs.push("dev " + f + ": " + e.message));
 const noAdmin = async (P, where) => { const n = await P.evaluate(() => document.querySelectorAll("#admin:not([hidden]), #modrefresh:not([hidden]), #modq:not([hidden]), [data-admin]").length); console.log("admin nodes", where, n); if (n) errs.push("admin entry visible: " + where); };
 const closeDlg = (P) => P.locator("[data-x]:visible").first().click().then(() => sleep(350)).catch((e) => errs.push("close: " + e.message));
@@ -31,7 +32,7 @@ if (only === "all" || only === "lobby") {
   await sleep(600); console.log("hhp visible/checked:", await L.isVisible("#hhp"), await L.isChecked("#hhp").catch(() => "?"));
   await L.evaluate(() => document.querySelector("#hhpwrap")?.scrollIntoView({ block: "center" })); await L.mouse.move(5, 5);
   await noAdmin(L, "lobby"); await shot(L, "s6-ui-01-lobby-hidden-hp-on", 700);
-  await L.locator("#hhpwrap").screenshot({ path: OUT + "s6-ui-01b-lobby-hidden-hp-toggle.png" }).catch((e) => errs.push("hhpwrap: " + e.message));
+  await L.locator("#hhpwrap").screenshot({ path: OUT + N("s6-ui-01b-lobby-hidden-hp-toggle") + ".png" }).catch((e) => errs.push("hhpwrap: " + e.message));
   const LM = await player("s6_" + T + "_mlob", "&demo=8&skirm=1", true);
   await dev(LM, "lobby8", "ffa", 4); await LM.evaluate(() => { const { S } = window.__stratDev.dbg(); S.hiddenHp = true; S.ranked = false; S.rated = false; window.__stratDev.away(1, false); });
   await LM.evaluate(() => document.querySelector("#hhpwrap")?.scrollIntoView({ block: "center" })); await shot(LM, "s6-ui-02-mobile-lobby-hidden-hp-on", 700);
@@ -73,7 +74,7 @@ if (only === "all" || only === "v2") {
   await V.click("#techbtn").catch((e) => errs.push("techbtn: " + e.message)); await sleep(900);
   await V.evaluate(() => document.querySelector(".tcell.e4, .e4fr")?.scrollIntoView({ block: "center", inline: "center" })); await shot(V, "s6-ui-65-v2-era4-node-frames", 600); await closeDlg(V);
   await dev(V, "hist", 8); await dev(V, "replay"); await shot(V, "s6-ui-66-v2-replay-bar-icons", 1200);
-  await V.locator(".histbar").screenshot({ path: OUT + "s6-ui-66b-v2-replay-bar-crop.png" }).catch((e) => errs.push("histbar: " + e.message)); await dev(V, "live");
+  await V.locator(".histbar").screenshot({ path: OUT + N("s6-ui-66b-v2-replay-bar-crop") + ".png" }).catch((e) => errs.push("histbar: " + e.message)); await dev(V, "live");
   await dev(V, "prof"); await shot(V, "s6-ui-67-v2-profile-coin", 1200); await esc(V);
   await dev(V, "drum", 6); await shot(V, "s6-ui-68-v2-race-drum-frame", 3600);
 }
@@ -128,7 +129,7 @@ if (only === "all" || only === "t2") {
   await A.evaluate(([x, y]) => { const { S } = window.__stratDev.dbg(); S.g.zones = [{ k: "burn", x: x - 3, y, r: 1 }, { k: "frost", x: x + 3, y, r: 1 }, { k: "wall", x, y: y - 3, r: 1 }, { k: "vines", x, y: y + 3, r: 1 }, { k: "flood", x: x + 3, y: y + 3, r: 1 }]; }, [cx, cy]);
   await dev(A, "cam", cx, cy, 70); await shot(A, "s6-ui-73-t2-zones-burn-frost-wall-vines-flood", 1500); await A.evaluate(() => { delete window.__stratDev.dbg().S.g.zones; });
   await A.evaluate(() => document.querySelectorAll("style").forEach((e) => /#hint,#minimapbox/.test(e.textContent) && e.remove())); await sleep(300);
-  await A.locator("#minimapbox").screenshot({ path: OUT + "s6-ui-74-t2-minimap-frame.png" }).catch((e) => errs.push("minimap: " + e.message));
+  await A.locator("#minimapbox").screenshot({ path: OUT + N("s6-ui-74-t2-minimap-frame") + ".png" }).catch((e) => errs.push("minimap: " + e.message));
   await hideUi(A); await dev(A, "cam", cx, cy - 1, 60); await shot(A, "s6-ui-75-t2-territory-fill-blends", 1300);
   // M5: повторный захват 5 ходов (2 из 5), поселение 12 ходов
   await A.evaluate(([x, y]) => { const { S } = window.__stratDev.dbg(), n = S.g.size; S.g.ec.ct = { [(y - 2) * n + x + 1]: { o: 1 - S.you, n: 2, max: 5 } }; }, [cx, cy]); await dev(A, "render");
@@ -147,7 +148,7 @@ if (only === "all" || only === "menu") {
   for (const [k, vp] of Object.entries(VP)) for (const md of ["", "&menudemo=1"]) {
     const P = await player("s6_" + T + "_mn" + k + (md ? "d" : ""), md, vp); await sleep(1200); await noAdmin(P, "menu " + k);
     const tag = k + (md ? "-demo" : "-placeholder"); await shot(P, "s6-ui-menu-" + tag, md ? 900 : 5500);
-    if (k !== "desk") await P.screenshot({ path: OUT + "s6-ui-menu-" + tag + "-full.png", fullPage: true });
+    if (k !== "desk") await P.screenshot({ path: OUT + N("s6-ui-menu-" + tag + "-full") + ".png", fullPage: true });
     await small(P, tag);
     if (md || k === "desk") {
       await P.click("#topbtn"); await shot(P, "s6-ui-menu-" + tag + "-leaderboard", md ? 1500 : 6000); await esc(P);
@@ -163,7 +164,7 @@ if (only === "all" || only === "menu") {
 }
 if (only === "all" || only === "mobile") {
   // мобильный проход по игровым экранам: 390×844, 844×390, планшет 820×1180; ОД до 14; цели ≥44px; ничего не теряется
-  const VP = { p390: { width: 390, height: 844 }, l844: { width: 844, height: 390 }, tab: { width: 820, height: 1180 } };
+  const VP = { p390: { width: 390, height: 844 }, l844: { width: 844, height: 390 }, l667: { width: 667, height: 375 }, tab: { width: 820, height: 1180 } };
   const small = async (P, nm) => { const n = await P.evaluate(() => [...document.querySelectorAll("#match button:not([hidden]), #match [role=button], .modal button, .sheet button")].filter((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width && r.height && cs.visibility !== "hidden" && Math.max(r.width, r.height) < 44; }).map((e) => (e.id || e.getAttribute("data-ca") || e.className || e.tagName).toString().slice(0, 24) + ":" + Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height))); console.log("small targets", nm, n.length, [...new Set(n)].slice(0, 30).join(", ")); };
   const missing = (P, nm) => P.evaluate(() => (getComputedStyle(document.getElementById("mtabs")).display !== "none" ? ["#end", ".apbox", "#techbtn", "#menubtn", "#chatfab", "#turnbox", "#mtabs"] : ["#end", ".apbox", "#score", "#techbtn", "#menubtn", "#goals", document.getElementById("chatfab")?.offsetParent ? "#chatfab" : "#chat", "#turnbox"]).map((q) => { const e = document.querySelector(q); if (!e) return q + ":none"; const inV = () => { const r = e.getBoundingClientRect(); return r.width && r.height && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.left >= -1 && r.top >= -1; }; if (inV()) return ""; const sy = scrollY; e.scrollIntoView({ block: "nearest" }); const ok = inV() && scrollY === sy; return q + (ok ? ":in-column-scroll" : ":off"); }).filter(Boolean)).then((m) => console.log("missing/offscreen", nm, m.join(" ") || "none"));
   for (const [k, vp] of Object.entries(VP)) {
@@ -172,8 +173,21 @@ if (only === "all" || only === "mobile") {
     const [cid, cx, cy] = await myCity(M); await dev(M, "cam", cx, cy, 50);
     await shot(M, "s6-ui-mobile-" + k + "-board-ap14", 1200); await small(M, k + " board"); await missing(M, k + " board"); console.log("vp", k, await M.evaluate(() => { const r = document.getElementById("mtabs").getBoundingClientRect(); return [innerWidth, innerHeight, document.documentElement.scrollWidth, visualViewport?.height, Math.round(r.top), Math.round(r.bottom)].join(","); }));
     const kk = await king(M); await dev(M, "sel", kk); await shot(M, "s6-ui-mobile-" + k + "-selected-chief", 900); await small(M, k + " sel");
-    await dev(M, "sel", -1); await dev(M, "city", cid); await shot(M, "s6-ui-mobile-" + k + "-city-sheet", 1100); await small(M, k + " city"); await esc(M); await closeDlg(M);
-    const tb = await M.$("#techbtn:visible"); if (tb) { await tb.click(); await shot(M, "s6-ui-mobile-" + k + "-tech", 1100); await esc(M); await closeDlg(M); }
+    // «Построить» без прокрутки страницы: кнопка целиком в окне, scrollY не менялся
+    console.log("build-btn", k, await M.evaluate(() => { const b = document.querySelector('[data-ca="build"]'); if (!b) return "none"; const r = b.getBoundingClientRect(); const end = document.getElementById("end").getBoundingClientRect();
+      return (r.top >= 0 && r.bottom <= innerHeight && r.height ? "in-view" : "OFF") + " y=" + Math.round(r.top) + " scrollY=" + Math.round(scrollY) + (r.bottom > end.top && r.top < end.bottom && r.right > end.left && r.left < end.right ? " OVERLAPS-END" : ""); }));
+    console.log("uc-port", k, await M.evaluate(() => { const i = document.querySelector("#info .uc-port img"); if (!i) return "no-img"; const r = i.getBoundingClientRect(); return i.src.replace(location.origin, "") + " " + i.naturalWidth + "x" + i.naturalHeight + " box=" + Math.round(r.width) + "x" + Math.round(r.height); }));
+    if (await M.$(".info-x:visible")) { await M.click(".info-x"); await sleep(300); console.log("info-x closes", k, await M.evaluate(() => !document.body.classList.contains("selinfo"))); }
+    await dev(M, "sel", -1); await dev(M, "city", cid); await shot(M, "s6-ui-mobile-" + k + "-city-sheet", 1100); await small(M, k + " city");
+    console.log("city-x-overlap", k, await M.evaluate(() => { const x = document.querySelector(".citydlg .xbtn, .modal .xbtn, .dlg .xbtn"), rs = [...document.querySelectorAll(".dlg-h .dlg-res > *")]; if (!x) return "no-x"; const a = x.getBoundingClientRect();
+      return rs.filter((e) => { const r = e.getBoundingClientRect(); return r.right > a.left + 2 && r.left < a.right - 2 && r.bottom > a.top + 2 && r.top < a.bottom - 2; }).length ? "OVERLAP" : "clear"; }));
+    await esc(M); await closeDlg(M);
+    const tb = await M.$("#techbtn:visible"); if (tb) { await tb.click(); await sleep(900);
+      console.log("tech-fit", k, await M.evaluate(() => { const sc = document.querySelector(".techscreen .tscroll"); if (!sc) return "none"; const cut = [...sc.querySelectorAll(".tnode")].filter((e) => { const r = e.getBoundingClientRect(), b = sc.getBoundingClientRect(); return r.top < b.top - 1 || r.bottom > b.bottom + 1; }).length;
+        return "vscroll=" + (sc.scrollHeight - sc.clientHeight) + " hscroll=" + (sc.scrollWidth - sc.clientWidth) + " cards-cut-vertically=" + cut; }));
+      await shot(M, "s6-ui-mobile-" + k + "-tech", 300); await esc(M); await closeDlg(M); }
+    if (!(await M.$("#mtabs:visible"))) console.log("goals-in-view", k, await M.evaluate(() => { const g = document.getElementById("goals"), r = g.getBoundingClientRect(); return r.height && r.top >= 0 && r.bottom <= innerHeight + 1 ? "yes" : "no top=" + Math.round(r.top) + " bottom=" + Math.round(r.bottom); }));
+    if (await M.$("#lcolbtn:visible")) { await M.click("#lcolbtn"); await sleep(400); await shot(M, "s6-ui-mobile-" + k + "-lcol-toggle", 300); console.log("lcol", k, await M.evaluate(() => getComputedStyle(document.querySelector("#play > .lside")).display + " sw=" + document.documentElement.scrollWidth)); await M.click("#lcolbtn"); await sleep(300); }
     // портрет: шторки по вкладкам — всё, что ушло с экрана, должно открываться
     if (await M.$("#mtabs:visible")) for (const [ms, q] of [["players", "#score"], ["goals", "#goals"], ["moves", "#moves"], ["view", "#pstyle"]]) {
       await M.click(`#mtabs [data-ms=${ms}]`); await sleep(350);
@@ -188,6 +202,46 @@ if (only === "all" || only === "mobile") {
     console.log("longpress", k, lp ? "sheet ok" : "NO SHEET"); await shot(M, "s6-ui-mobile-" + k + "-longpress-tip", 400);
     await M.context().close();
   }
+}
+if (only === "all" || only === "replay") {
+  // §14.I: WS moves/frame в партии (подмена канала в демо), HTTP повтор: from/to автоплей, «как было» (dt), rulesChanged, diverged; имя для lib_save
+  const R = await player("s6_" + T + "_rpw", "&demo=15&skirm=1"); await dev(R, "s5", {}); await dev(R, "hist", 8);
+  await R.evaluate(() => { const D = window.__stratDev, all = D.recFrames(), n = all.length; window.__rpLog = [];
+    const turns = all.map((f, k) => ({ turn: f.turn, side: f.cur, from: 3 * k, to: 3 * k + 3 })), list = [];
+    for (let i = 0; i < 3 * n; i++) list.push({ i, side: all[Math.floor(i / 3)].cur, a: "move", n: ["a3–b4", "c2:d3", "строит Казарму", "e5–e6"][i % 4], auto: i % 7 === 6 ? 1 : 0, dt: 400 + (i % 5) * 300 });
+    D.recKeep(3); D.stReplay("rpW", 3 * n);
+    window.__stratRpOut = (o) => { window.__rpLog.push(o.type + (o.i != null ? ":" + o.i : "")); setTimeout(() => {
+      if (o.type === "moves") D.rpMsg({ type: "moves", id: "rpW", live: true, n: 3 * n, turns, list });
+      if (o.type === "frame") { const k = Math.max(0, turns.findIndex((t) => t.to === o.i)); D.rpMsg({ type: "frame", id: "rpW", i: o.i, n: 3 * n, live: true, diverged: o.i >= 12 ? 13 : null, frame: { g: all[k].g } }); } }, 30); }; });
+  const before = await dev(R, "recLen"); await R.click("#hprev"); await sleep(1500);
+  console.log("ws replay: frames", before, "→", await dev(R, "recLen"), "sent", await R.evaluate(() => window.__rpLog.join(",")));
+  await R.evaluate(() => { for (let k = 0; k < 8; k++) document.getElementById("hprev")?.click(); }); await sleep(600);
+  console.log("ws replay: histbar", await R.evaluate(() => document.querySelector("#histbar")?.innerText.replace(/\s+/g, " ")));
+  await shot(R, "s6-ui-90-replay-ws-moves-prefill", 500);
+  await R.locator(".lside").screenshot({ path: OUT + N("s6-ui-90b-replay-ws-moves-list") + ".png" }).catch((e) => errs.push("moves crop: " + e.message));
+  // HTTP: /strat/replay?id= → meta/moves/rulesChanged, &i=, &from&to (≤40)
+  const H = await player("s6_" + T + "_rph", "&demo=15&skirm=1"); await dev(H, "s5", {}); await dev(H, "hist", 8);
+  const data = await H.evaluate(() => { const D = window.__stratDev, S = D.dbg().S, all = D.recFrames().map((f) => ({ ...f, g: { ...f.g, map: S.g.map } })), n = all.length;
+    const turns = all.map((f, k) => ({ turn: f.turn, side: f.cur, from: 3 * k, to: 3 * k + 3 })), list = [];
+    for (let i = 0; i < 3 * n; i++) list.push({ i, side: all[Math.floor(i / 3)].cur, a: "move", n: ["a3–b4", "c2:d3", "строит Казарму", "e5–e6"][i % 4], auto: i % 7 === 6 ? 1 : 0, dt: 300 + (i % 4) * 250 });
+    return { all, turns, list, n: 3 * n }; });
+  const reqs = []; const fr = (i) => ({ g: data.all[Math.min(data.all.length - 1, Math.max(0, Math.ceil(i / 3) - 1))].g });
+  await H.route(/\/strat\/replay\?/, (rt) => { const u = new URL(rt.request().url()), q = u.searchParams; reqs.push(u.search); let body;
+    if (q.has("from")) { const a = +q.get("from"), b = Math.min(+q.get("to"), a + 39); body = { n: data.n, frames: Array.from({ length: b - a + 1 }, (_, k) => ({ i: a + k, diverged: a + k >= 10 ? 10 : null, frame: fr(a + k) })) }; }
+    else if (q.has("i")) { const i = +q.get("i"); body = { n: data.n, i, diverged: i >= 10 ? 10 : null, frame: fr(i) }; }
+    else body = { meta: { id: "rpH", nicks: ["Алекс", "Соперник"], races: ["fire", "ice"], turns: data.all.at(-1).turn, at: Date.now() }, log: { n: data.n }, moves: { turns: data.turns, list: data.list }, rulesChanged: true };
+    rt.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(body) }); });
+  await dev(H, "openRp", "rpH"); await sleep(2500);
+  console.log("http replay: histbar", await H.evaluate(() => document.querySelector("#histbar")?.innerText.replace(/\s+/g, " ")));
+  await H.click('#histbar [data-sp="0"]').catch((e) => errs.push("speed0: " + e.message)); await H.click('#histbar [data-hv="play"]').catch((e) => errs.push("play: " + e.message));
+  await sleep(2600); const sub = await dev(H, "hvSub"); await shot(H, "s6-ui-91-replay-http-asplayed-warn", 0);
+  await H.locator("#histbar").screenshot({ path: OUT + N("s6-ui-91b-replay-http-bar-crop") + ".png" }).catch((e) => errs.push("bar crop: " + e.message));
+  console.log("http replay: sub action", sub, "requests", reqs.length, "batch", reqs.filter((x) => /from=/.test(x)).join(" ") || "NONE");
+  await H.click('#histbar [data-hv="play"]').catch(() => {}); await sleep(300);
+  await H.click('#histbar [data-hv="save"]').catch((e) => errs.push("save: " + e.message)); await sleep(500);
+  await H.fill(".rptitle input", "Финал у реки — проба названия"); await shot(H, "s6-ui-92-replay-save-title", 300); await H.press(".rptitle input", "Enter"); await sleep(700);
+  console.log("saved title", await H.evaluate(() => JSON.parse(localStorage.getItem("strat.lib.v1") || "{}").recs?.find((r) => r.id === "rpH")?.title));
+  await noAdmin(H, "replay");
 }
 await br.close();
 console.log(errs.length ? "ERRORS:\n" + [...new Set(errs)].join("\n") : "no errors");

@@ -12,7 +12,9 @@ import { esc } from "./ui-kit";
 
 export type Frame = { turn: number; cur: number; v?: number; g: any; ev: any[]; at: number };
 export type LibItem = { id: string; code?: string; at: number; races: string[]; nicks: string[]; winner?: number | null; turns?: number; league?: string; saved?: boolean; local?: boolean; title?: string; rated?: boolean; srv?: boolean };
-export type Rec = LibItem & { you?: number; map?: any; frames: Frame[] };
+/** §14.I сервер повторов: idx[k] — номер действия для кадра k (конец полухода), list — действия с dt, div — первое расхождение. */
+export type RpInfo = { id: string; n: number; idx: number[]; turns: { turn: number; side: number; from: number; to: number }[]; list: { i: number; side?: number; n?: string; dt?: number; auto?: number }[]; rulesChanged?: boolean; div?: number | null };
+export type Rec = LibItem & { you?: number; map?: any; frames: Frame[]; rp?: RpInfo };
 
 const num = (v: any, d = 0) => (Number.isFinite(+v) ? +v : d);
 /** Кадры из любого из ожидаемых видов ответа. */
@@ -38,22 +40,27 @@ export function libFrom(x: any): { saved: LibItem[]; recent: LibItem[]; keepDays
 // ---------- запись кадров (клиент) ----------
 const MAX_FRAMES = 1500;
 export class Recorder {
-  code = ""; frames: Frame[] = []; map: any = null; private src: any = null;
-  reset(code: string) { this.code = code; this.frames = []; this.map = null; this.src = null; }
+  code = ""; frames: Frame[] = []; map: any = null; preN = 0; private src: any = null;
+  reset(code: string) { this.code = code; this.frames = []; this.map = null; this.src = null; this.preN = 0; }
   /** Кадр без карты (она одна на партию) — память не растёт от карты в каждом кадре. */
   push(code: string, g: any, ev: any[]) {
-    if (!g?.pieces) return; code = code || "local"; if (code !== this.code) this.reset(code); if (g === this.src) return; this.src = g;
+    if (!g?.pieces) return; if (code && code !== this.code) this.reset(code); if (g === this.src) return; this.src = g;
     if (g.map) this.map = g.map;
     const last = this.frames[this.frames.length - 1], f: Frame = { turn: num(g.turn, 1), cur: num(g.cur), v: g.v, g: { ...g, map: undefined }, ev: ev || [], at: Date.now() };
     if (last && g.v != null && last.v === g.v) { this.frames[this.frames.length - 1] = { ...f, ev: [...last.ev, ...f.ev] }; return; }
-    this.frames.push(f); if (this.frames.length > MAX_FRAMES) this.frames.splice(1, this.frames.length - MAX_FRAMES);
+    this.frames.push(f); const cut = this.frames.length - MAX_FRAMES; if (cut > 0) { this.frames.splice(1, cut); if (this.preN > 1) this.preN = Math.max(1, this.preN - cut); }
   }
   /** Кадры от сервера (S.hist, при входе в идущую партию) — дополняем начало, своё не трогаем. */
   merge(code: string, F: Frame[]) {
-    if (!F.length) return; code = code || "local"; if (code !== this.code) this.reset(code);
+    if (!F.length) return; if (code && code !== this.code) this.reset(code);
     const first = this.frames[0], older = first ? F.filter((f) => f.turn < first.turn || (f.turn === first.turn && f.cur < first.cur)) : F;
     if (older.length) this.frames = [...older.map((f) => ({ ...f, g: { ...f.g, map: undefined } })), ...this.frames];
     if (!this.map) this.map = F.find((f) => f.g?.map)?.g.map || null;
+  }
+  /** §14.I WS frame: кадры с сервера до первого своего (вход в идущую партию, переподключение), по номеру действия. Возвращает сдвиг индексов. */
+  setPre(code: string, P: Frame[]): number {
+    if (code && code !== this.code) this.reset(code); const own = this.frames.slice(this.preN), d = P.length - this.preN;
+    this.frames = [...P.map((f) => ({ ...f, g: { ...f.g, map: undefined } })), ...own]; this.preN = P.length; if (!this.map) this.map = P.find((f) => f.g?.map)?.g.map || null; return d;
   }
   /** Последний кадр каждого полухода (ход N, сторона) — шаги «назад/вперёд» идут по ним. */
   turnMarks(): number[] { const out: number[] = []; this.frames.forEach((f, i) => { const nx = this.frames[i + 1]; if (!nx || nx.turn !== f.turn || nx.cur !== f.cur) out.push(i); }); return out; }
@@ -154,14 +161,14 @@ export function whyHtml(w: { title: string; rows: [string, string][]; foot?: str
 }
 
 // ---------- разметка ----------
-export function viewBarHtml(o: { turn: number; side: string; live: boolean; replay: boolean; idx: number; max: number; playing: boolean; speed: number; canSave: boolean; saved: boolean }): string {
-  const sp = [0.5, 1, 2, 4];
-  return `<div class="hv-l">${ic("rp_hist")}<span class="hv-t">${o.replay ? "Повтор" : "Просмотр"} · ход <b>${o.turn}</b></span><small class="hv-s"></small></div>
+export function viewBarHtml(o: { turn: number; side: string; live: boolean; replay: boolean; idx: number; max: number; playing: boolean; speed: number; canSave: boolean; saved: boolean; warn?: string[] }): string {
+  const sp = [0, 0.5, 1, 2, 4]; // 0 — «как было» (по dt действий)
+  return `<div class="hv-l">${ic("rp_hist")}<span class="hv-t">${o.replay ? "Повтор" : "Просмотр"} · ход <b>${o.turn}</b></span><small class="hv-s"></small></div>${o.warn?.length ? `<span class="hv-w" role="note">${ic("warn")}<span>${o.warn.map(esc).join(" · ")}</span></span>` : ""}
     <div class="hv-c"><button class="hv-b" data-hv="first" aria-label="В начало" data-tip="В начало">${ic("rp_start")}</button><button class="hv-b" data-hv="prev" aria-label="Ход назад" data-tip="Назад (←)">${ic("rp_back")}</button>
     ${o.replay ? `<button class="hv-b play" data-hv="play" aria-label="${o.playing ? "Пауза" : "Воспроизвести"}" data-tip="${o.playing ? "Пауза" : "Воспроизвести"} (пробел)">${ic(o.playing ? "rp_pause" : "rp_play")}</button>` : ""}
     <button class="hv-b" data-hv="next" aria-label="Ход вперёд" data-tip="Вперёд (→)">${ic("rp_fwd")}</button><button class="hv-b" data-hv="last" aria-label="${o.replay ? "В конец" : "К игре"}" data-tip="${o.replay ? "В конец" : "К текущему ходу"}">${ic("rp_end")}</button></div>
     <input class="hv-scrub" type="range" min="0" max="${Math.max(0, o.max)}" value="${o.idx}" aria-label="Ход партии">
-    ${o.replay ? `<div class="hv-sp" role="group" aria-label="Скорость">${sp.map((s) => `<button class="hv-spb ${s === o.speed ? "on" : ""}" data-sp="${s}">${s}×</button>`).join("")}</div>` : ""}
+    ${o.replay ? `<div class="hv-sp" role="group" aria-label="Скорость">${sp.map((s) => `<button class="hv-spb ${s === o.speed ? "on" : ""}" data-sp="${s}" ${s ? "" : `data-tip="Скорость как в партии — по времени каждого действия"`}>${s ? s + "×" : "как было"}</button>`).join("")}</div>` : ""}
     ${o.canSave ? `<button class="btn sm ${o.saved ? "" : "gold"}" data-hv="save" ${o.saved ? "disabled" : ""}>${ic("rp_save")}<span>${o.saved ? "Сохранено" : "Сохранить"}</span></button>` : ""}
     ${o.replay ? `<button class="btn sm ghost" data-hv="close">${ic("close")}<span>Закрыть</span></button>` : `<button class="btn sm gold" data-hv="live">${ic("arrow")}<span>К игре</span></button>`}`;
 }

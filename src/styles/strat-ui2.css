@@ -608,3 +608,81 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
   .tip.sheet { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
   .tip.sheet .tip-x { position: static; display: flex; width: auto; height: 44px; min-width: 96px; margin: 10px 0 0 auto; padding: 0 14px; justify-content: center; }
 }
+
+/* ===== S6b · доводка ===== */
+/* повтор §14.I: предупреждения, запись действий, имя записи */
+.histbar .hv-w { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: .72rem; color: #ffd28a; background: #4a1d14cc; border: 1px solid var(--red-lo, #8a3a2a); border-radius: 999px; white-space: nowrap; }
+.histbar .hv-w .ic { width: 13px; height: 13px; color: #ffb35c; flex: none; }
+.mv-e.mv-n { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: .74rem; color: var(--ivory-3); }
+.mv-e.mv-n.on { color: var(--gold-hi); background: rgba(224,176,74,.12); }
+.rptitle .fld { display: flex; flex-direction: column; gap: 6px; } .rptitle input { min-height: 44px; padding: 0 10px; font-size: 1rem; background: var(--ink); color: var(--ivory); border: 2px solid var(--gold-dk); }
+.rptitle input:focus-visible { border-color: var(--gold); outline: none; } .rptitle small { color: var(--ivory-3); font-size: .74rem; }
+/* выбранная фигура: кнопка «снять выбор» нужна только в нижней шторке */
+.info-x { display: none; }
+#lcolbtn { display: none; }
+@media (max-width: 820px) and (orientation: portrait) {
+  /* карточка выбранного — шторка над полосой хода: действия («Построить», «Нанять»…) сразу под заголовком, без прокрутки страницы */
+  body.selinfo .side > #info:not(.idle) { position: fixed; left: 0; right: 0; bottom: calc(112px + env(safe-area-inset-bottom)); z-index: 16; display: flex; flex-direction: column; gap: 6px;
+    max-height: 42dvh; overflow-y: auto; min-height: 0; padding: 8px 56px 10px 10px; margin: 0; background: var(--ink); border: 0; border-top: 3px solid var(--gold); box-shadow: 0 -12px 30px #000c; }
+  body.selinfo .side > #info:not(.idle) > * { order: 3; } body.selinfo .side > #info > .uc-h { order: 0; }
+  body.selinfo .side > #info > .uc-acts, body.selinfo .side > #info > .abilbar { order: 1; } body.selinfo .side > #info > .uc-stats { order: 2; }
+  body.selinfo .side > #info .uc-port { width: 44px; height: 44px; }
+  body.selinfo .side > #info .uc-acts .btn { min-height: 44px; }
+  body.selinfo .side > #info .info-x { display: grid; place-items: center; position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; padding: 0; background: var(--panel); color: var(--ivory-2); border: 2px solid var(--gold-dk); cursor: pointer; }
+  body.selinfo .side > #info .info-x .ic { width: 18px; height: 18px; }
+  body[data-msheet="players"] .side > #info, body[data-msheet="goals"] .side > #info, body[data-msheet="moves"] .side > #info, body[data-msheet="view"] .side > #info { display: none !important; }
+  .side > #info.idle { display: none; }
+}
+/* узкие диалоги: крестик не наезжает на ресурсы в шапке (город, древо, Вождь) */
+@media (max-width: 900px) {
+  .dlg-h { padding-right: 34px; flex-wrap: wrap; row-gap: 4px; } .dlg-h .dlg-res { gap: 8px; font-size: .95rem; }
+  .dlg .xbtn { top: -18px; right: -18px; width: 44px; height: 44px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  /* древо: эпохи идут вбок, ветви — строки; карточки целиком видны, прокрутка только горизонтальная */
+  .dlg.techscreen { width: 98vw; max-height: calc(100dvh - 12px); padding-top: 12px; padding-bottom: 12px; }
+  .techscreen .dlg-h { margin-top: -6px; margin-bottom: 6px; padding-bottom: 6px; } .techscreen .dlg-sub { display: none; }
+  .techscreen .dlg-h h3 { font-size: 1.1rem; } .techscreen .dlg-ic { width: 34px; height: 34px; } .techscreen .dlg-ic .ic { width: 20px; height: 20px; }
+  .techscreen .tscroll { overflow-x: auto; overflow-y: auto; flex: 1 1 auto; }
+  .techscreen .tgrid { grid-template-columns: 70px; grid-template-rows: auto repeat(var(--cols), auto); grid-auto-flow: column; grid-auto-columns: max-content; gap: 6px 10px; }
+  .techscreen .th { flex-direction: column; gap: 2px; font-size: .58rem; letter-spacing: .04em; padding: 2px; border-bottom: 0; border-right: 2px solid var(--gold-dk); text-align: center; }
+  .techscreen .te { flex-direction: row; gap: 6px; font-size: 1rem; border-bottom: 2px solid var(--gold-dk); }
+  .techscreen .tcell { flex-wrap: nowrap; } .techscreen .tcell .and { display: none; } .techscreen .tcell.empty { min-height: 40px; min-width: 120px; }
+  .techscreen .tnode { flex: 0 0 186px; width: 186px; padding: 5px 7px; gap: 2px; }
+  .techscreen .tnode::before { left: -6px; top: 50%; transform: translateY(-50%) rotate(45deg); }
+  .techscreen .tnode small { font-size: .68rem; line-height: 1.2; } .techscreen .tn-h b { font-size: .8rem; } .techscreen .tn-ic { width: 22px; height: 22px; } .techscreen .tn-ic .ic, .techscreen .tn-ic img { width: 16px; height: 16px; }
+  .techscreen .tnode .pas-row { display: none; } .techscreen .un { font-size: .62rem; padding: 0 4px; } .techscreen .tnode em { font-size: .7rem; }
+  .techscreen .dlg-f { margin-top: 6px; padding-top: 6px; flex-wrap: nowrap; } .techscreen .tlegend { display: none; }
+  .techscreen #erabtn { min-height: 40px; height: 40px; font-size: .8rem; }
+  /* правая колонка: без подсказки «выберите фигуру» цели помещаются без прокрутки */
+  #play .side > #info.idle { display: none; }
+  #play #lcolbtn { display: grid; flex: none; --bh: 44px; min-width: 44px; min-height: 44px; }
+  body.lcol-x #play.game { grid-template-columns: 0 minmax(0, calc(100dvh - 64px)) minmax(210px, 1fr); column-gap: 6px; }
+  body.lcol-x #play.game > .lside { display: none; }
+  #lcolbtn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--gold); }
+}
+/* узкий ландшафт (667px): колонка игроков свёрнута, открывается выдвижной панелью поверх доски */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 740px) {
+  #play.game, body.lcol-x #play.game { grid-template-columns: 0 minmax(0, calc(100dvh - 64px)) minmax(0, 1fr); column-gap: 4px; }
+  #play.game > .lside { display: none; }
+  body.lcol-x #play.game > .lside { display: flex; flex-direction: column; gap: 6px; position: fixed; left: 0; top: 48px; bottom: 0; width: min(280px, 48vw); z-index: 22; padding: 6px; background: var(--ink); border-right: 3px solid var(--gold); box-shadow: 12px 0 30px #000c; overflow-y: auto; animation: rise .2s var(--ease-out); }
+  #play .endzone .endturn { max-width: 140px; }
+}
+/* S6b-2 · ландшафт: выбранная фигура — действия сразу под заголовком (над «Концом хода»), карточка Вождя уступает место; древо — компактные карточки */
+@media (orientation: landscape) and (max-height: 500px) {
+  body.selinfo #play .side > #chief { display: none; }
+  body.selinfo #play .side > #info:not(.idle) { display: flex; flex-direction: column; gap: 6px; }
+  body.selinfo #play .side > #info:not(.idle) > * { order: 3; } body.selinfo #play .side > #info > .uc-h { order: 0; }
+  body.selinfo #play .side > #info > .uc-acts, body.selinfo #play .side > #info > .abilbar { order: 1; } body.selinfo #play .side > #info > .uc-stats { order: 2; }
+  body.selinfo #play .side > #info .uc-port { width: 44px; height: 44px; } body.selinfo #play .side > #info .uc-h { grid-template-columns: 44px 1fr; }
+  .techscreen .tnode small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .techscreen .te { padding: 0 0 2px; font-size: .9rem; }
+  .techscreen .dlg-h { margin-bottom: 4px; padding-bottom: 4px; } .dlg.techscreen { padding-top: 8px; padding-bottom: 8px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .techscreen .tnode.fog { min-height: 0; } .techscreen .fogq { font-size: 1.5rem; }
+  .techscreen .dlg-ic { display: none; } .techscreen .dlg-h h3 { font-size: .95rem; } .techscreen .dlg-h { margin-top: -4px; }
+  .techscreen #erabtn { min-height: 36px; height: 36px; } .techscreen .dlg-f .muted { font-size: .72rem; }
+}
+/* портрет фигуры в карточке: арт крупнее рамки, обрезан сверху по центру (раньше <img> раздувался до 307px и в окне была пустота) */
+.uc-port { position: relative; } .uc-port img { position: absolute; left: -15%; top: -4%; width: 130%; height: 130%; max-width: none; object-fit: cover; object-position: 50% 0; }
