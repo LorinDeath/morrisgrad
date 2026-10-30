@@ -70,4 +70,9 @@ function cast(id: string, dx = 250, ms = 3000) {
 { // выключатель админки skillCraft — прежнее поведение
   const { BMA_CFG } = await import("./blackArt"); BMA_CFG.skillCraft = false; const r = cast("skx_t_bolt"); BMA_CFG.skillCraft = true;
   ok(!r.ev.some((e: any) => e.k === "proj" && e.t === "skx_t_bolt" && e.pth), "skillCraft выкл — старая форма"); }
+// B8: «Навесом» у моба падает в точку цели (раньше — всегда на всю «Дальность», игрок ближе неё не задевался)
+sk("skx_t_lob", { name: "Проба: навес", form: "proj", elem: "fire", path: "lob", spd: 420, range: 600, boom: 120, boomMul: 1, dmg: "normal", cd: 14 });
+{ const r = cast("skx_t_lob", 220, 4000); const pr: any = r.ev.find((e: any) => e.k === "proj");
+  ok(pr && pr.arc && Math.abs((pr.range ?? pr.r ?? 0) - 220) < 30, `снаряд навесом летит до цели: дальность ${pr?.range ?? pr?.r} (было 600)`);
+  ok(r.hits.some((h) => h.how === "skill:skx_t_lob"), `взрыв навеса задевает игрока в 220 px (${r.hits.length} попад.)`); }
 console.log(`${P} PASS / ${F} FAIL`); if (F) process.exitCode = 1;

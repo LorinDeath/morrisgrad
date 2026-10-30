@@ -1510,7 +1510,7 @@ export class Zone {
         buff: (b: any) => { if (b.heal) m.hp = Math.min(m.maxHp, m.hp + b.heal); if (b.invuln || b.dr) m.shieldUntil = Math.max(m.shieldUntil, this.now + Math.min(4000, (b.invuln || 0) + (b.dr || 0))); },
         later: (ms: number, fn: () => void) => this.mlater(ms, () => { if (!m.dead) fn(); }),
         ev: (e: any) => ev({ ...e, sid: undefined, o: "m", mob: m.id, ...(BMA_CFG.skillArt === false ? { art: 0 } : {}), ...((Number(BMA_CFG.skillFxScale) || 1) !== 1 ? { fs: Number(BMA_CFG.skillFxScale) } : {}) }),
-        fire: (o: any) => { const oh = o.onHit, oe = o.onEnd; return this.fire({ ...o, o: "m", mob: m.id, onHit: oh ? (p: any, i: number) => oh(p, i) : undefined, onEnd: oe } as any); },
+        fire: (o: any) => { const oh = o.onHit, oe = o.onEnd; if (o.arc) o.range = Math.max(60, Math.min(o.range, Math.hypot(tx - o.x, ty - o.y))); /* «Навесом»: моб бросает в точку цели, а не на всю дальность */ return this.fire({ ...o, o: "m", mob: m.id, onHit: oh ? (p: any, i: number) => oh(p, i) : undefined, onEnd: oe } as any); },
       };
       try { castCraft(id, sk, c, k, BMA_CFG.skillArt !== false, () => this.rand(), projSprite(id, "fireball")); } catch (e) { void e; }
     });
