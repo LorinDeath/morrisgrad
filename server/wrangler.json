@@ -8,6 +8,14 @@
       {
         "name": "GAME_ROOM",
         "class_name": "GameRoom"
+      },
+      {
+        "name": "STRAT_MATCH",
+        "class_name": "StratMatch"
+      },
+      {
+        "name": "STRAT_INDEX",
+        "class_name": "StratIndex"
       }
     ]
   },
@@ -16,6 +24,13 @@
       "tag": "v1",
       "new_sqlite_classes": [
         "GameRoom"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "StratMatch",
+        "StratIndex"
       ]
     }
   ],
