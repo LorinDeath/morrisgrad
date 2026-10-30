@@ -615,13 +615,13 @@ export class Zone {
   bmFoe(m: ZMob) { const f = factionOf(m.type); return (t: ZMob) => t !== m && !t.dead && !t.reset && factionOf(t.type) !== f && (hostile(m.type, t.type) || hostile(t.type, m.type) || t.mobTarget === m.id || m.mobTarget === t.id); }
   /** взмах чёрного моба: событие marc (клиент рисует огненную дугу ровно range × 2·arc) и урон КАЖДОМУ внутри дуги, по разу:
    *  игрокам (onHit) и враждебным мобам (mobHit). Возвращает число задетых. */
-  bmSwing(m: ZMob, d: any, ux: number, uy: number, dmgP: number, dmgM: number, players: Map<string, ZPlayer> | null, onHit: ((sid: string, dmg: number, src: string, mob?: ZMob) => void) | null, onKill: (m: ZMob) => void) {
+  bmSwing(m: ZMob, d: any, ux: number, uy: number, dmgP: number, dmgM: number, players: Map<string, ZPlayer> | null, onHit: ((sid: string, dmg: number, src: string, mob?: ZMob, bm?: number, how?: string) => void) | null, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, R = A.range, arc = A.arc || 1, max = Math.max(1, BMA_CFG.arcMax | 0), seen = new Set<number | string>();
     this.events.push({ k: "marc", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), r: R, a: +arc.toFixed(3), ...(d.elem && d.elem !== "fire" ? { el: d.elem } : {}), ...swingEv() });
     if (players && onHit) for (const p of players.values()) {
       if (seen.size >= max) break;
       if (!p.alive || seen.has(p.sid) || !inArc(m.x, m.y, ux, uy, R, arc, p.x, p.y, 14)) continue;
-      seen.add(p.sid); onHit(p.sid, dmgP, m.type, m);
+      seen.add(p.sid); onHit(p.sid, dmgP, m.type, m, undefined, "swing");
     }
     const foe = this.bmFoe(m);
     for (const t of this.near(m.x, m.y, R + 80)) {
@@ -643,7 +643,7 @@ export class Zone {
   }
   /** чёрный моб против игрока: держит дистанцию своего лезвия; ближнее — взмах-дуга, дальнее — прицел (телеграф) и снаряд */
   bmMobVsPlayer(m: ZMob, d: any, best: ZPlayer, players: Map<string, ZPlayer>, now: number, mul: number, dist: number, ux: number, uy: number, sp: number, dt: number,
-    onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void, onKill: (m: ZMob) => void) {
+    onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number, how?: string) => void, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1);
     (m as any).bmFl = faceLeftOf(ux, (m as any).bmFl); (m as any).bmFt = now + 600; // смотрит на цель (клиенту — биты 26/27)
     if (this.bmMoveStep(m, d, dist, ux, uy, A.kind === "proj" ? Math.min(A.range * 0.6, 220) : Math.max(d.radius + 10, A.range * 0.55), now, dt, A.kind === "proj")) return;
@@ -1131,7 +1131,7 @@ export class Zone {
     else if (c.kind === "ring") this.events.push({ k: "tele_ring", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r0: c.r0, r: c.r, t, fx: c.fx });
     else this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t, nova: 1, fx: c.fx });
   }
-  resolveCasts(m: ZMob, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void) {
+  resolveCasts(m: ZMob, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number, how?: string) => void) {
     for (let i = m.casts.length - 1; i >= 0; i--) {
       const c = m.casts[i];
       if (now < c.at) continue;
@@ -1139,8 +1139,8 @@ export class Zone {
       if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); this.solid(m); }
       if (c.kind === "line" && c.proj) { // настоящий снаряд моба: летит от моба, от него можно отойти
         this.fire({ o: "m", mob: m.id, t: c.proj, x: (c as any).sz ? c.x : m.x, y: (c as any).sz ? c.y : m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: (c as any).spd || (c.proj === "fireball" ? 480 : PROJ_SPEED.mob), ...((c as any).sz ? { sz: (c as any).sz, bm: 1 } : {}),
-          ...((c as any).el ? { el: (c as any).el } : {}), ...((c as any).shot && (BMA_CFG as any).shotOn !== false ? { shot: (c as any).shot, onAux: (pl: ZPlayer, k: number) => onHit(pl.sid, c.dmg * k, m.type, m, c.bm) } : {}),
-          onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type, m, c.bm) });
+          ...((c as any).el ? { el: (c as any).el } : {}), ...((c as any).shot && (BMA_CFG as any).shotOn !== false ? { shot: (c as any).shot, onAux: (pl: ZPlayer, k: number) => onHit(pl.sid, c.dmg * k, m.type, m, c.bm, "aux") } : {}),
+          onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type, m, c.bm, "proj:" + c.proj) });
         continue;
       }
       for (const p of players.values()) {
@@ -1149,7 +1149,7 @@ export class Zone {
         const hit = c.kind === "circle" || c.kind === "nova" ? dist < c.r! + 8
           : c.kind === "ring" ? dist > c.r0! - 8 && dist < c.r! + 8
           : segDist(p.x, p.y, c.x, c.y, c.dx!, c.dy!, c.len!) < c.w! / 2 + 10;
-        if (hit) onHit(p.sid, c.dmg, m.type, m, c.bm);
+        if (hit) onHit(p.sid, c.dmg, m.type, m, c.bm, "cast:" + (c.fx || c.kind));
       }
       if (c.kind === "line") this.events.push({ k: "mshot", id: m.id, x: Math.round(c.x), y: Math.round(c.y), tx: Math.round(c.x + c.dx! * c.len!), ty: Math.round(c.y + c.dy! * c.len!) });
       else this.events.push({ k: "slam", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, r0: c.r0, fx: c.fx, nova: c.kind === "nova" ? 1 : undefined }); // fx — спрайт атласа снарядов (метеор, копья, осколки…)
@@ -1203,7 +1203,7 @@ export class Zone {
   }
 
   // players: sid → состояние игрока в мире. onHit(sid, dmg) — урон игроку; onKill(mob) — смерть моба.
-  update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void, onKill: (m: ZMob) => void) {
+  update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number, how?: string) => void, onKill: (m: ZMob) => void) {
     this.now = now; this.pl = players;
     this.syncBlackCamps(now);
     if (this.projs.length) this.updateProjs(dt, players);
@@ -1342,7 +1342,7 @@ export class Zone {
       if (m.dashT > 0) {
         const dsp = d.size === "s" ? 330 : 420;
         m.dashT -= dt; m.x += m.dashX * dsp * dt; m.y += m.dashY * dsp * dt; this.solid(m);
-        for (const p of players.values()) if (p.alive && Math.hypot(p.x - m.x, p.y - m.y) < d.radius + 12 && !m.usedAbility.has("dash:" + p.sid)) { onHit(p.sid, d.dmg * 1.5 * eliteDmg, m.type, m); m.usedAbility.add("dash:" + p.sid); }
+        for (const p of players.values()) if (p.alive && Math.hypot(p.x - m.x, p.y - m.y) < d.radius + 12 && !m.usedAbility.has("dash:" + p.sid)) { onHit(p.sid, d.dmg * 1.5 * eliteDmg, m.type, m, undefined, "dash"); m.usedAbility.add("dash:" + p.sid); }
         if (m.dashT <= 0) for (const k of [...m.usedAbility]) if (k.startsWith("dash:")) m.usedAbility.delete(k);
         m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
         continue;
@@ -1402,7 +1402,7 @@ export class Zone {
         else if (want > d.radius + 14 && dist < want - 50) { m.x -= ux * sp * 0.6 * dt; m.y -= uy * sp * 0.6 * dt; } // держит дистанцию
         if (dist <= d.radius + 16 && m.atkCd <= 0) {
           const tank = d.role === "tank";
-          onHit(best.sid, d.dmg * eliteDmg * (tank ? 1.25 : d.role === "swarm" ? 0.9 : 1), m.type, m);
+          onHit(best.sid, d.dmg * eliteDmg * (tank ? 1.25 : d.role === "swarm" ? 0.9 : 1), m.type, m, undefined, "melee");
           m.atkCd = tank ? 1.4 : d.role === "swarm" ? 0.9 : 1.1;
         }
       } else {

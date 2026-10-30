@@ -185,7 +185,7 @@ export class ZoneView {
       if ((e.k === 'acone' || e.k === 'ability' || e.k === 'aline' || e.k === 'arain') && skillEvent(e, (t) => { if (this.teles.length < (FX_LIM.low ? FX_LIM.skfMax * 0.6 : FX_LIM.skfMax)) this.teles.push(t); }, (x, y, r) => [...this.mobs.values()].filter((o) => !o.demo && Math.hypot(o.x - x, o.y - y) <= r))) continue;
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
       if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; const PL = pureList(e), pp = PL.reduce((q, [, n]) => q + n, 0), ice = e.el === 'ice';
-        out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pp)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : '#ffb347') : '#fff' });
+        out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pp)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#ffb347') : '#ffb347') : '#fff', crit: e.crit ? 1 : undefined }); // чёрный удар — цвет своей стихии (вода/камень/природа/молния — не оранжевым)
         // ICE: чистый урон стихий — отдельные числа (огонь — оранжевый, лёд — голубой)
         PL.forEach(([el, n], j) => out.push({ k: 'float', x: o.x + (j % 2 ? -14 : 14), y: o.y - 16 - 10 * (j >> 1), text: `${BP_ELEM_ICONS[el] || '✦'}${Math.round(n)}`, color: ELEM_COLOR[el] || '#fff' }));
         if (ice && e.d > 0) { this.efx('ice_hit', 'hit', o.x, o.y, 0.45, 1.7); (this._iceHit ||= new Map()).set(e.id, performance.now()); } if (e.bm && e.d > 0 && (e.by === myId || this.nearMe(o.x, o.y, 400))) uiSfx('bm_hit'); } }
@@ -248,7 +248,8 @@ export class ZoneView {
       else if (e.k === 'aline') { const id = String(e.id || '').replace(/^rs:/, ''); if (DASH_FX[id]) this.teles.push({ kind: 'dash', fx: DASH_FX[id], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, col: e.cz ? curseRGB() : null }); else this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, cz: !!e.cz }); }
       else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty, e.cz);
       else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (String(e.id || '').replace(/^rs:/, '') === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.95 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
-      else if (e.k === 'phit' && e.sid === myId) { out.push({ k: 'hurt', d: e.d, pf: e.pf || 0, pi: e.pi || 0, pe: e.pe, z: e.z || 0 }); this.mobStruck(e.src);
+      else if (e.k === 'phit' && e.sid !== myId && e.by === myId && e.d > 0) out.push({ k: 'ohit', sid: e.sid, d: e.d, pf: e.pf || 0, pi: e.pi || 0, pe: e.pe, el: e.el, crit: e.crit, z: e.z || 0 }); // PK: свой урон по другому игроку — цифры над ним
+      else if (e.k === 'phit' && e.sid === myId) { out.push({ k: 'hurt', d: e.d, pf: e.pf || 0, pi: e.pi || 0, pe: e.pe, z: e.z || 0, el: e.el }); this.mobStruck(e.src);
         const p = this.myPos; if (p) { if (e.z) this.efx('ice_zero', 'zero', p.x, p.y, 0.5, 1.4, 1.6); else if (e.el === 'ice' || e.pi) this.efx('ice_hit', 'hit', p.x, p.y, 0.45, 1.6); } } // ICE: «0 урона» — броня поглотила удар
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }

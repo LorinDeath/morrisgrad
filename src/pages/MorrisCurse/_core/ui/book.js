@@ -24,6 +24,7 @@ import { bossCfg, bossLairs, pickLair, spawnText } from './bossSpawn.js';
 import { skillIcon } from './actionBar.js';
 import { bprevHtml } from './beastPreview.js';
 import { rArtifacts, rArtSkillLib, artGlyph, isArtItem, ART_TAG } from './bmArtUi.js';
+import { deathLogHtml } from './deathLog.js';
 
 const TABS = [
   ['quests', '📜', 'Задания', 'J'],
@@ -31,6 +32,7 @@ const TABS = [
   ['skills', '✦', 'Навыки', 'K'],
   ['gear', '🎒', 'Снаряжение', 'I'],
   ['artifacts', '🔥', 'Артефакты', ''],
+  ['deaths', '☠', 'Последние смерти', ''], // кто/чем/сколько бил перед гибелью (ui/deathLog.js)
   ['library', '📚', 'Библиотека', 'L'],
   ['bestiary', '👁️', 'Бестиарий', 'B'],
   ['runskills', '🌀', 'Кодекс навыков', ''],
@@ -307,7 +309,7 @@ export class Book {
     this.tabsEl.innerHTML = TABS.filter(([id]) => id !== 'soul' || this.canSoul() || (st?.account?.creation || 0) > 0 || (st?.account?.soul || []).length)
       .map(([id, ic, nm, key]) => { const n = this.badge(id); return `<button data-act="tab" data-v="${id}" class="${this.tab === id ? 'on' : ''}" title="${nm}${key ? ` [${key}]` : ''}">${ic}<span>${nm}</span>${n ? `<em class="mc-cnt">${n}</em>` : ''}</button>`; }).join('');
     if (!st) { this.body.innerHTML = '<p class="mc-dim">Нет связи с сервером: прогресс героя хранится на сервере и сейчас недоступен. Соло-забеги работают офлайн.</p>'; return; }
-    const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, library: this.rLibrary, craft: this.rCraft, bestiary: this.rBestiary, runskills: this.rRunSkills, soul: this.rSoul, artifacts: this.rArtifacts }[this.tab] || this.rQuests;
+    const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, library: this.rLibrary, craft: this.rCraft, bestiary: this.rBestiary, runskills: this.rRunSkills, soul: this.rSoul, artifacts: this.rArtifacts, deaths: this.rDeaths }[this.tab] || this.rQuests;
     if ((this.tab === 'library' || this.tab === 'bestiary' || this.tab === 'runskills' || this.tab === 'gear' || this.tab === 'artifacts') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
     // прокрутка сохраняется у тела И у всех внутренних списков (сетка Библиотеки, Бестиарий, Кодекс, сумка, карточка):
     // перерисовка после клика по предмету/«просмотрено» не должна прыгать в начало
@@ -318,6 +320,8 @@ export class Book {
     if (tabKey === this.lastTab) { this.body.scrollTop = scroll; for (const [k, v] of inner) { const [cls, i] = k.split('#'); const e = this.body.querySelectorAll('.' + cls)[+i]; if (e) e.scrollTop = v; } }
     this.lastTab = tabKey;
   }
+  // ☠ последние смерти: при открытии вкладки — запрос (сервер хранит в памяти; свежая смерть приходит сама)
+  rDeaths() { if (this.lastTab !== 'deaths') this.meta.send({ type: 'death_log_get' }); return deathLogHtml(this.meta.deathLog); }
   // счётчики «новое» на вкладках
   badge(id) {
     const u = this.meta.unread();

@@ -106,6 +106,8 @@ export class MetaClient {
   refresh() { this.send({ type: 'meta_get' }); }
   // Библиотека предметов/мобов (вкладки Книги): сервер присылает только открытое
   libGet() { this.send({ type: 'lib_get' }); }
+  /** ☠ «Последние смерти» с сервера: список новых первыми */
+  applyDeathLog(d) { this.deathLog = Array.isArray(d?.list) ? d.list : []; for (const fn of this.listeners) { try { fn(this.state); } catch (err) { console.error('[meta]', err); } } }
   applyLibrary(lib) { this.library = lib; addCards(lib.items); this.libVersion = (this.libVersion || 0) + 1; for (const fn of this.listeners) { try { fn(this.state); } catch (err) { console.error('[meta]', err); } } }
   // Снять «новое»: копим id и отправляем пачкой (не чаще раза в 600 мс)
   markSeen(kind, ids) {

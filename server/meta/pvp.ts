@@ -6,6 +6,7 @@
 // Урон считает сервер: статы героев (снаряжение, таланты) — с сервера, разброс/крит — криптографический ГСЧ,
 // темп ударов и перезарядки — серверные, попадание — по позициям сервера и форме удара оружия.
 // Клиентские числа урона и любые «duel_action» игнорируются. Счёт — в D1 (миграция 0005_duels.sql).
+import { dlHit, dlDeath, dlList } from "./deathLog";
 import { skillPowerMult } from "./cursed";
 import { isInvuln } from "./dash";
 import { effectiveArmor } from "./balance";
@@ -256,6 +257,7 @@ export class Pvp {
     c.d.hits[c.i] += real;
     if (eff.lifestealPct) this.lsHeal(c, session, real * eff.lifestealPct / 100);
     c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: real, crit: crit || undefined, x: Math.round(c.os.x), y: Math.round(c.os.y), ...(xf || {}) });
+    dlHit(c.op, Date.now(), "p", this.host.displayName(session), "duel", real, { c: crit, b: black, el: xf?.el, p: xf ? (xf.pf || 0) + (xf.pi || 0) : 0 }); // «Последние смерти»
     if (c.op.zp.hp <= 0 && !this.revived(c.d, c)) this.finish(c.d, c.i as 0 | 1, "ko");
     return real;
   }
@@ -275,7 +277,7 @@ export class Pvp {
     const tr = traitsFor(wt, this.host.equippedOf?.(session) || [], skill); if (!tr.length) return;
     const d = c.d, live = () => this.duels.has(d.id) && c.op.zp.hp > 0;
     applyTraits(tr, real, cryptoRand, {
-      dot: (kind, dps, dur) => { for (let t = 1; t <= Math.min(10, Math.round(dur)); t++) setTimeout(() => { if (!live()) return; if (isInvuln(c.op)) return; const v = Math.max(1, Math.round(dps)); c.op.zp.hp = Math.max(0, c.op.zp.hp - v); d.hits[c.i] += v; d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: v, dot: kind, x: Math.round(c.os.x), y: Math.round(c.os.y) }); if (c.op.zp.hp <= 0 && !this.revived(d, c)) this.finish(d, c.i as 0 | 1, "ko"); }, t * 1000); },
+      dot: (kind, dps, dur) => { for (let t = 1; t <= Math.min(10, Math.round(dur)); t++) setTimeout(() => { if (!live()) return; if (isInvuln(c.op)) return; const v = Math.max(1, Math.round(dps)); c.op.zp.hp = Math.max(0, c.op.zp.hp - v); d.hits[c.i] += v; dlHit(c.op, Date.now(), "p", this.host.displayName(session), "dot:" + kind, v); d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: v, dot: kind, x: Math.round(c.os.x), y: Math.round(c.os.y) }); if (c.op.zp.hp <= 0 && !this.revived(d, c)) this.finish(d, c.i as 0 | 1, "ko"); }, t * 1000); },
       slow: () => { c.op.slowUntil = Date.now() + 2000; d.ev.push({ k: "pstatus", to: c.os.id, s: "slow" }); },
       knock: (p) => { const dx = c.os.x - session.x, dy = c.os.y - session.y, L = Math.hypot(dx, dy) || 1, S = W_ARENA; const k = 40 * Math.min(3, p || 1);
         c.os.x = Math.max(46, Math.min(S - 46, c.os.x + dx / L * k)); c.os.y = Math.max(46, Math.min(S - 46, c.os.y + dy / L * k)); c.op.zp.x = c.os.x; c.op.zp.y = c.os.y;
@@ -305,7 +307,7 @@ export class Pvp {
       if (live.length >= 5) return;
       live.push(now + st.dur * 1000);
       d.ev.push({ k: "pstatus", to: c.os.id, s: st.kind, ms: st.dur * 1000, n: live.length });
-      for (let t = 1; t <= Math.min(10, Math.round(st.dur)); t++) setTimeout(() => { if (!this.duels.has(d.id) || c.op.zp.hp <= 0) return; if (isInvuln(c.op)) return; const v = Math.max(1, Math.round(st.dps!)); c.op.zp.hp = Math.max(0, c.op.zp.hp - v); d.hits[c.i] += v;
+      for (let t = 1; t <= Math.min(10, Math.round(st.dur)); t++) setTimeout(() => { if (!this.duels.has(d.id) || c.op.zp.hp <= 0) return; if (isInvuln(c.op)) return; const v = Math.max(1, Math.round(st.dps!)); c.op.zp.hp = Math.max(0, c.op.zp.hp - v); d.hits[c.i] += v; dlHit(c.op, Date.now(), "p", this.host.displayName(session), "dot:" + st.kind, v);
         d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: v, dot: st.kind, x: Math.round(c.os.x), y: Math.round(c.os.y) }); if (c.op.zp.hp <= 0 && !this.revived(d, c)) this.finish(d, c.i as 0 | 1, "ko"); }, t * 1000);
     }
   }
@@ -459,6 +461,8 @@ export class Pvp {
     this.duels.delete(d.id);
     const sd = this.sides(d);
     const hpPct = sd.map((x) => (x?.ms ? Math.round((Math.max(0, x.ms.zp.hp) / Math.max(1, x.ms.zp.maxHp)) * 100) : 0));
+    sd.forEach((x, i) => { if (!x?.ms) return; // «Последние смерти»: поражение нокаутом — запись (дуэль), иначе кольцо ударов дуэли сбрасываем
+      if (reason === "ko" && winner !== null && i !== winner) { dlDeath(x.ms, now, "duel", true); this.host.send(x.ws, { type: "death_log", list: dlList(x.ms.pkey), fresh: now }); } else (x.ms as any).dlog = []; });
     const rec = this.host.recordDuel(d, winner, reason).catch((e) => console.error("[mc] duel record", e?.message || e));
     sd.forEach((x, i) => {
       this.bySid.delete(d.sids[i]);

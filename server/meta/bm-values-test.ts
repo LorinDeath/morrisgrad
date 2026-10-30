@@ -49,7 +49,7 @@ for (const el of BP_ELEMS) for (const ranged of [false, true]) {
     const expD = Math.round(bmHit(m.maxHp, cat, eff.bm, 0, crit, 1)), expP = Object.values(bmPure(5000, eff.bm, cat, 1, crit)).reduce((s: number, v: any) => s + v, 0);
     ok(h && h.bm === 1 && elOk(h, el) && Math.abs(h.d - (expD + expP)) <= 2 && pureOf(h) === expP && (expP > 0 || !st[pk]),
       `${tag} ×${mul}: по мобу ${h?.d} = ${expD} чёрн. + ${expP} чист. (${JSON.stringify({ el: h?.el, pf: h?.pf, pi: h?.pi, pe: h?.pe })})${crit ? " крит" : ""}`);
-    (W as any)[`d${mul}`] = h?.d; (globalThis as any)[`__${el}${ranged}${mul}`] = h?.d;
+    (W as any)[`d${mul}`] = h?.d; (globalThis as any)[`__${el}${ranged}${mul}`] = h?.d; (globalThis as any)[`__${el}${ranged}e${mul}`] = expD + expP; (globalThis as any)[`__${el}${ranged}n${mul}`] = Math.round(bmHit(m.maxHp, cat, eff.bm, 0, false, 1)) + Object.values(bmPure(5000, eff.bm, cat, 1, false)).reduce((s: number, v: any) => s + v, 0);
     // игрок (PK): та же стихия и чистый урон
     m.dead = true; W.svc.ms.get("a").lastAtk = 0; W.z.events.length = 0;
     W.svc.zoneAttack(null, sa, { tx: W.X + 1500, ty: W.Y }); for (let k = 0; k < 30; k++) W.z.updateProjs(0.05, pl);
@@ -59,6 +59,7 @@ for (const el of BP_ELEMS) for (const ranged of [false, true]) {
     Object.assign(snap, keep);
   }
   const d1 = (globalThis as any)[`__${el}${ranged}1`], d3 = (globalThis as any)[`__${el}${ranged}3`];
-  ok(d1 > 0 && d3 > d1 * 2.2, `${tag}: слепок ×3 → урон ×${(d3 / d1).toFixed(2)} (крит может менять)`);
+  const G = globalThis as any, e1 = G[`__${el}${ranged}e1`], e3 = G[`__${el}${ranged}e3`], n1 = G[`__${el}${ranged}n1`], n3 = G[`__${el}${ranged}n3`];
+  ok(d1 > 0 && Math.abs(d3 / d1 - e3 / e1) < 0.05 && n3 > n1 * 2.2, `${tag}: слепок ×3 → урон без крита ×${(n3 / n1).toFixed(2)}, факт ×${(d3 / d1).toFixed(2)} = ожид. ×${(e3 / e1).toFixed(2)}`);
 }
 console.log(`\nbm-values ${pass} PASS / ${fail} FAIL`); if (fail) process.exit(1);

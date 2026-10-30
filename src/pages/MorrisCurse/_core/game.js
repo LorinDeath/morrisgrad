@@ -647,6 +647,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('fog_add', (d) => { fog.add(d); if (worldMap.isOpen) worldMap.draw(); });
   net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests, d.tasks));
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
+  net.on('death_log', (d) => meta.applyDeathLog(d)); // ☠ «Последние смерти» (книга перерисуется через meta.on)
   // Рейтинг и просмотр персонажа (данные — только от сервера)
   const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), onParty: (sid) => party.invite(sid), canParty: (sid) => !!sid && sid !== myId && party.canInvite(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
   social.uiDrag = uiDrag; // настройки → ✥ Расположение интерфейса
@@ -959,8 +960,11 @@ async function boot(canvasId, username, userId, api) {
       else if (e.k === 'toast') overlay.toast(e.text, e.color);
       else if (e.k === 'dome_repel') cityView.repel(e.x, e.y); // тот же эффект, что у игрока (сервер: не чаще раза в 3 с на моба)
       else if (e.k === 'hurt') { flashHurt(); const PL = pureList(e), pp = PL.reduce((s, [, n]) => s + n, 0);
-        overlay.float(toX(player.x), 2.6, toZ(player.y), e.z ? `0 урона · −${e.d - pp}` : `-${e.d - pp}`, e.z ? '#cbd5e1' : '#f87171');
+        overlay.float(toX(player.x), 2.6, toZ(player.y), e.z ? `0 урона · −${e.d - pp}` : `-${e.d - pp}`, e.z ? '#cbd5e1' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#f87171') : '#f87171');
         PL.forEach(([el, n], i) => overlay.float(toX(player.x) + (i % 2 ? -0.6 : 0.6), 3.0 + 0.3 * (i >> 1), toZ(player.y), `${BP_ELEM_ICONS[el] || '✦'}-${n}`, ELEM_COLOR[el] || '#fff')); } // ICE: чистый урон стихий оси
+      else if (e.k === 'ohit') { const o = others.get(e.sid); if (o) { dpsMeter.add(e.d); const PL = pureList(e), pp = PL.reduce((s, [, n]) => s + n, 0); // PK: мой урон по игроку — над ним, цвет стихии
+        overlay.float(toX(o.x), 2.6, toZ(o.y), e.z ? '0 урона' : `${e.crit ? '✦' : ''}${e.d - pp}`, e.crit ? '#fde047' : e.el && e.el !== 'fire' ? (ELEM_COLOR[e.el] || '#fca5a5') : '#fca5a5', !!e.crit);
+        PL.forEach(([el, n], i) => overlay.float(toX(o.x) + (i % 2 ? -0.6 : 0.6), 3.0 + 0.3 * (i >> 1), toZ(o.y), `${BP_ELEM_ICONS[el] || '✦'}${n}`, ELEM_COLOR[el] || '#fff')); } }
       else if (e.k === 'died') overlay.toast('Вы пали! Возрождение через 5 с…', '#fca5a5');
     }
   });

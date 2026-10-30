@@ -96,6 +96,7 @@ import { skillElem } from "./blackArt";
 import { worldBounds, OPEN_AOI, ARINAR_LAYOUT_VER } from "../worlds/sizes";
 import { walkable, freeWalk, POS_WORLDS } from "./walkable";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
+import { dlHit, dlDeath, dlList } from "./deathLog";
 
 export interface MetaSess {
   sid: string; pkey: string; verified: boolean; ready: boolean;
@@ -120,7 +121,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
   party_invite: S({ sid: "s" }), party_respond: S({ from: "s", accept: "b" }), party_leave: S({}), party_kick: S({ sid: "s" }), party_promote: S({ sid: "s" }), party_get: S({}),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
-  save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
+  save_now: S({}), death_log_get: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
   admin_bchest_preview: S({ patch: "o", L: "n", cat: "s" }), admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_save_sec: S({ kind: "s", id: "s", sec: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }), admin_dialogue_save: S({ questId: "s", dialogue: "o" }),
   admin_qdraft_get: S({ id: "s" }), admin_qdraft_save: S({ id: "s", meta: "o?", wins: "a?", len: "o?" }), admin_qdraft_publish: S({ id: "s" }), admin_qdraft_discard: S({ id: "s" }), admin_qdraft_list: S({}),
   quest_choice: S({ id: "s", ph: "s", wi: "n", ci: "n" }), // выбор в окне диалога квеста (ветка: награда и открытие квестов)
@@ -538,6 +539,8 @@ export class MetaService {
     try { if (boardEvent(a, h, ev, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) })) { ms.dirty = true; this.boardSoon(session); } }
     catch (e: any) { console.error("[mc]", "MC-B01", "board event", e?.message || e); }
   }
+  /** «Последние смерти»: свежая запись — сразу герою (вкладка книги обновится без запроса) */
+  dlSend(sid: string, rec: any) { if (!rec) return; const e = this.sessionLookup?.(sid), ms = this.ms.get(sid); if (e?.[0] && ms) this.send(e[0], { type: "death_log", list: dlList(ms.pkey), fresh: rec.at }); }
   bevSid(sid: string, ev: any) { const e = this.sessionLookup?.(sid); if (e?.[1]) this.bev(e[1], ev); }
   /** прогресс доски без meta_state (рывки, навыки): не чаще раза в 0,5 с; ближайший push всё равно отправит состояние */
   boardSoon(session: any) {
@@ -998,6 +1001,7 @@ export class MetaService {
         this.send(ws, { type: "ui_layout", ok: true, dev: c.dev, at: c.lay.at, n: Object.keys(c.lay.off).length });
         return true;
       }
+      case "death_log_get": this.send(ws, { type: "death_log", list: dlList(ms.pkey) }); return true; // «Последние смерти» (только память воркера)
       case "save_now": {
         // кнопка «Сохранить сейчас» у Алтаря перевоплощения (автосохранение тоже работает)
         if (!this.nearNpcOrAltar(session)) { this.send(ws, { type: "toast_error", message: "Сохранение — у Алтаря перевоплощения" }); return true; }
@@ -1937,10 +1941,11 @@ export class MetaService {
     ms.zp.hp -= real; (ms as any).hurtAt = now;
     this.qNote(ms, "hit", now);
     z?.events.push({ k: "phit", sid, d: real, src: "black_mage", bm: src === "expl" ? 2 : 1 });
+    dlHit(ms, now, "e", "black_mage", src, real, { b: 1 }); // «Последние смерти»
     if (blkAdd > 0) { const e = this.sessionLookup?.(sid), cls = e?.[1]?.stats?.classId; if (cls && blackenEquipped(this.store.account(ms.pkey), this.store.hero(ms.pkey, cls), blkAdd)) { ms.dirty = true; (ms as any).bmMeta = true; } }
     if (ms.zp.hp <= 0 && tryRevive(ms as any)) { z?.events.push({ k: "previve", sid, hp: ms.zp.hp }); this.bevSid(sid, { type: "revive" }); }
     else if (ms.zp.hp <= 0) {
-      ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid, bm: 1 }); ST.inc("deaths"); this.bevSid(sid, { type: "death", by: "bm" });
+      ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid, bm: 1 }); ST.inc("deaths"); this.bevSid(sid, { type: "death", by: "bm" }); this.dlSend(sid, dlDeath(ms, now, "arinar"));
       this.bmDeath(sid, ms);
     }
   }
@@ -2155,10 +2160,11 @@ export class MetaService {
     }
     vms.zp.hp -= real; (vms as any).hurtAt = now; this.qNote(vms, "hit", now);
     z?.events.push({ k: "phit", sid: vSid, d: real, src: "pvp", by: aSid, crit: crit ? 1 : undefined, ...pureEv(pure, zeroHit, eff.art?.elem) });
+    dlHit(vms, now, "p", this.displayName(sa), proj ? "pvp_r" : "pvp", real, { el: eff.art?.elem, p: pure ? pureSum(pure) : 0, c: crit, b: eff.art && eff.bm, z: zeroHit }); // «Последние смерти»
     if (vms.zp.hp <= 0 && tryRevive(vms as any)) { z?.events.push({ k: "previve", sid: vSid, hp: vms.zp.hp }); return true; }
     if (vms.zp.hp > 0) return true;
     // смерть — обычная (как от моба): без новых потерь
-    vms.zp.hp = 0; vms.zp.alive = false; vms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid: vSid, pvp: aSid }); ST.inc("deaths"); ST.inc("pvp_kills"); this.bm.hits.delete(vSid);
+    vms.zp.hp = 0; vms.zp.alive = false; vms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid: vSid, pvp: aSid }); ST.inc("deaths"); ST.inc("pvp_kills"); this.dlSend(vSid, dlDeath(vms, now, "arinar")); this.bm.hits.delete(vSid);
     this.onPvpKill(aSid, ams, sa, vSid, vms, sv, how, now);
     return true;
   }
@@ -2337,7 +2343,7 @@ export class MetaService {
     return Object.keys(BM_MOBS).length;
   }
   /** удар моба по игроку (zone.update): общий путь — им же пользуется плейтест купола (dev domeHit) */
-  zoneHit(w: string, zone: any, sid: string, dmg: number, src: string, mob: any, now: number, bm?: number) {
+  zoneHit(w: string, zone: any, sid: string, dmg: number, src: string, mob: any, now: number, bm?: number, how?: string) {
     const ms = this.ms.get(sid);
     if (!ms || !ms.zp.alive) return;
     if (mob && !mob.qf?.has(sid)) this.engage(mob, sid); // моб ударил первым — бой (условия квестов) начался
@@ -2356,8 +2362,9 @@ export class MetaService {
     ms.zp.hp -= real; (ms as any).hurtAt = now;
     this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
     zone.events.push({ k: "phit", sid, d: real, src, ...pureEv(pp, dz?.zero ? 1 : 0, md?.elem) });
+    dlHit(ms, now, "m", src, how || "hit", real, { el: md?.black ? md.elem || "fire" : undefined, p: pp ? pureSum(pp) : 0, b: bm || md?.black, z: dz?.zero, n: md?.name }); // «Последние смерти»: кто, чем, сколько
     if (ms.zp.hp <= 0 && tryRevive(ms as any)) { zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); this.bevSid(sid, { type: "revive" }); } // талант: раз за бой
-    else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); this.bevSid(sid, { type: "death" }); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
+    else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); this.bevSid(sid, { type: "death" }); this.dlSend(sid, dlDeath(ms, now, w)); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
   }
   /** dev (MC_DEV_TRUST_USERID): PK сразу, накрутить убийства, включить места NPC, статус */
   cityDev(ws: WebSocket, session: any, ms: any, a: any, o: any) {
@@ -2589,7 +2596,7 @@ export class MetaService {
       const { players, socks } = byWorld[w];
       const zt0 = performance.now();
       if (!zone.onEngage) zone.onEngage = (m, sid) => this.engage(m, sid);
-      zone.update(dt, now, players, (sid, dmg, src, mob, bm) => this.zoneHit(w, zone, sid, dmg, src, mob, now, bm), (mm) => this.onMobKilled(mm));
+      zone.update(dt, now, players, (sid, dmg, src, mob, bm, how) => this.zoneHit(w, zone, sid, dmg, src, mob, now, bm, how), (mm) => this.onMobKilled(mm));
       if (w === "arinar" && this.bm.loaded && zone.guard === this.guardMux) {
         try { this.bm.tick(Math.min(0.5, dt), zone as any, players as any); } catch (e: any) { console.error("[mc] black mage tick", e?.message || e); }
         for (const [, s] of socks) { const ms = this.ms.get(s.id); if (ms) { this.bmGround(s, ms, now); if ((ms as any).bmMeta && now - ((ms as any).bmMetaAt || 0) > 1500) { (ms as any).bmMeta = false; (ms as any).bmMetaAt = now; this.refreshZonePlayer(s); const e = this.sessionLookup?.(s.id); if (e) this.send(e[0], { type: "meta_state", ...this.snap(s) }); } } }
