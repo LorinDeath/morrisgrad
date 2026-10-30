@@ -1,5 +1,6 @@
 // «Партия Чёрных королей» — клиент этапа 1 (/games/strategy). Сервер авторитетен: клиент только рисует снимок
 // и подсвечивает ходы тем же движком (server/strat/rules.ts), что и сервер.
+import { loadArt, unitSprite, tileSprite, hitFx, groundRatio, type Pose } from "./art";
 import { moveTargets, attackTargets, STRAT_CFG, type GameState, type Piece, type Kind } from "../../../server/strat/rules";
 
 const PROD_WS = "wss://morris-multiplayer.alexseylyou.workers.dev";
@@ -16,7 +17,7 @@ const RACE_COL: Record<string, [string, string]> = { fire: ["#ff7a3d", "#7a1d08"
 const REASON: Record<string, string> = { king: "Вождь пал", forfeit: "сдача", disconnect: "соперник не вернулся", limit: "лимит ходов (по очкам)" };
 const ERR: Record<string, string> = {
   not_your_turn: "Сейчас ход соперника", already_acted: "Эта фигура уже действовала", no_ap: "Очки действий кончились", bad_move: "Туда нельзя",
-  bad_attack: "Эту цель не достать", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято",
+  bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято",
   auth_bad: "Вход не подтверждён — обновите страницу", auth_expired: "Сессия истекла — обновите страницу", no_ident: "Нужно войти или играть гостем",
   invite_rate: "Не чаще раза в 10 секунд", spectator: "Вы зритель", rate: "Слишком часто — подождите минуту",
 };
@@ -108,11 +109,22 @@ function gs(): GameState | null {
 // ---------- отрисовка ----------
 const cv = () => $<HTMLCanvasElement>("#board");
 let fx: { x: number; y: number; t: number; txt: string; col: string }[] = [];
+// анимации поверх снимка: позы (attack/hit), «призраки» павших (death), кадры эффекта удара
+const poses = new Map<number, { pose: Pose; until: number }>();
+let ghosts: { p: any; race: string; t: number }[] = [], bursts: { x: number; y: number; race: string; t: number }[] = [];
+const POSE_MS = 420, DEATH_MS = 750, FX_MS = 480;
 function onState(prev: any) {
   if (S.phase !== "play") sel = null;
   if (S.g && prev?.g && S.g.cur !== prev.g.cur) sel = null;
+  const now = performance.now();
   for (const e of S.ev || []) {
     const g = S.g; if (!g) break;
+    if (e.e === "hit") {
+      poses.set(e.id, { pose: "attack", until: now + POSE_MS });
+      const t = g.pieces.find((q: any) => q.id === e.t) || prev?.g?.pieces.find((q: any) => q.id === e.t);
+      if (t) { poses.set(e.t, { pose: "hit", until: now + POSE_MS }); const a = g.pieces.find((q: any) => q.id === e.id) || prev?.g?.pieces.find((q: any) => q.id === e.id); bursts.push({ x: t.x, y: t.y, race: a ? g.races[a.o] : "", t: now }); }
+    }
+    if (e.e === "kill") { const d = prev?.g?.pieces.find((q: any) => q.id === e.id); if (d) ghosts.push({ p: d, race: g.races[d.o], t: now }); }
     const p = g.pieces.find((q: any) => q.id === (e.t ?? e.id));
     if (e.e === "hit" && p) fx.push({ x: p.x, y: p.y, t: performance.now(), txt: "-" + e.dmg + (e.burn ? "🔥" : e.chill ? "❄" : ""), col: "#ff5b5b" });
     if (e.e === "burn" && p) fx.push({ x: p.x, y: p.y, t: performance.now(), txt: "-" + e.dmg + "🔥", col: "#ffa03d" });
@@ -140,8 +152,12 @@ function render() {
     const host = me === 0;
     for (const b of document.querySelectorAll<HTMLButtonElement>("[data-size]")) { b.classList.toggle("on", +b.dataset.size! === S.size); b.disabled = !host; }
     for (const b of document.querySelectorAll<HTMLButtonElement>("[data-race]")) b.classList.toggle("on", seats[me]?.race === b.dataset.race);
-    const sc = STRAT_CFG.sizes[S.size];
-    $("#sizeinfo").textContent = `${S.size}×${S.size}: ${sc.ap} ОД за ход, ${sc.turnSec} с на ход + запас ${sc.reserveSec / 60} мин, лимит ${sc.turnLimit} ходов`;
+    const sc = STRAT_CFG.sizes[S.size], tl = S.turnLimit ?? sc.turnLimit;
+    const sel_ = $<HTMLSelectElement>("#tl"); sel_.disabled = !host;
+    (sel_.options[0] as HTMLOptionElement).textContent = `по умолчанию (${sc.turnLimit})`;
+    sel_.value = S.turnLimit == null ? "" : String(S.turnLimit);
+    if (sel_.value !== (S.turnLimit == null ? "" : String(S.turnLimit))) { const o = document.createElement("option"); o.value = o.textContent = String(S.turnLimit); sel_.appendChild(o); sel_.value = o.value; }
+    $("#sizeinfo").textContent = `${S.size}×${S.size}: ${sc.ap} ОД за ход, ${sc.turnSec} с на ход + запас ${sc.reserveSec / 60} мин, ${tl ? "лимит " + tl + " ходов" : "без лимита ходов"}`;
     $<HTMLButtonElement>("#bot").hidden = !host; $("#bot").textContent = seats[1]?.bot ? "Убрать бота" : "Играть с ботом";
     $<HTMLButtonElement>("#bot").disabled = !!seats[1] && !seats[1].bot;
     $("#ready").textContent = seats[me]?.ready ? "Не готов" : "Готов!";
@@ -152,7 +168,7 @@ function render() {
     const name = (i: number) => (i === me ? "Вы" : seats[i]?.nick || "?");
     $("#status").textContent = S.phase === "over"
       ? (S.result.winner === 2 ? "Ничья" : S.result.winner === me ? "Победа!" : me < 0 ? `Победил ${seats[S.result.winner].nick}` : "Поражение") + " — " + (REASON[S.result.reason] || S.result.reason)
-      : `Ход ${g.turn}/${g.turnLimit} · ${myTurn ? "ваш ход" : "ходит " + name(g.cur)} · ОД ${g.ap}/${g.apMax}` + (S.check?.[me] ? " · ШАХ вашему Вождю!" : "");
+      : `Ход ${g.turn}/${g.turnLimit || "∞"} · ${myTurn ? "ваш ход" : "ходит " + name(g.cur)} · ОД ${g.ap}/${g.apMax}` + (S.check?.[me] ? " · ШАХ вашему Вождю!" : "");
     $("#status").classList.toggle("myturn", myTurn);
     $<HTMLButtonElement>("#end").disabled = !myTurn; $<HTMLButtonElement>("#end").hidden = S.phase !== "play"; $<HTMLButtonElement>("#forfeit").hidden = S.phase !== "play" || me < 0;
     $<HTMLButtonElement>("#rematch").hidden = S.phase !== "over" || me < 0;
@@ -174,21 +190,27 @@ function draw() {
   if (c.width !== Math.round(w * dpr)) c.width = c.height = Math.round(w * dpr);
   const ctx = c.getContext("2d")!, { n, cell, flip } = geom(), g = S.g;
   const sx = (x: number) => (flip ? n - 1 - x : x) * cell, sy = (y: number) => (flip ? n - 1 - y : y) * cell;
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { ctx.fillStyle = (x + y) % 2 ? "#2b2233" : "#3a2f45"; ctx.fillRect(sx(x), sy(y), cell, cell); }
+  const tL = tileSprite(null, true), tD = tileSprite(null, false);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const dark = (x + y) % 2 === 1, t = dark ? tD : tL;
+    if (t) ctx.drawImage(t, sx(x), sy(y), cell + 0.5, cell + 0.5); else { ctx.fillStyle = dark ? "#2b2233" : "#3a2f45"; ctx.fillRect(sx(x), sy(y), cell, cell); }
+  }
   const G = gs()!; const P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
     ctx.fillStyle = "rgba(90,220,120,.35)"; for (const [x, y] of moveTargets(G, P)) ctx.fillRect(sx(x), sy(y), cell, cell);
     ctx.strokeStyle = "rgba(255,80,80,.9)"; ctx.lineWidth = Math.max(2, cell * 0.08); for (const [x, y] of attackTargets(G, P)) ctx.strokeRect(sx(x) + 2, sy(y) + 2, cell - 4, cell - 4);
   }
+  const now0 = performance.now();
+  ghosts = ghosts.filter((d) => now0 - d.t < DEATH_MS);
+  for (const d of ghosts) { ctx.globalAlpha = 1 - (now0 - d.t) / DEATH_MS; drawUnit(ctx, d.p, d.race, "death", sx(d.p.x), sy(d.p.y), cell, false); ctx.globalAlpha = 1; }
   for (const p of g.pieces) {
-    const [hi, lo] = RACE_COL[g.races[p.o]], cx = sx(p.x) + cell / 2, cy = sy(p.y) + cell / 2, r = cell * 0.4;
-    const grd = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r); grd.addColorStop(0, hi); grd.addColorStop(1, lo);
-    ctx.globalAlpha = p.a && p.o === g.cur ? 0.55 : 1;
-    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
-    ctx.lineWidth = Math.max(1.5, cell * 0.05); ctx.strokeStyle = p.o === S.you ? "#f5e6a8" : "#1a1014"; ctx.stroke();
+    const cx = sx(p.x) + cell / 2, cy = sy(p.y) + cell / 2, r = cell * 0.4;
+    const ps = poses.get(p.id), pose: Pose = ps && ps.until > now0 ? ps.pose : "idle";
+    ctx.globalAlpha = p.a && p.o === g.cur ? 0.6 : 1;
+    drawUnit(ctx, p, g.races[p.o], pose, sx(p.x), sy(p.y), cell, true);
     if (p.id === sel) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 3, 0, 7); ctx.stroke(); }
     if (p.k === "king" && S.check?.[p.o]) { ctx.strokeStyle = "#ff3030"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 5, 0, 7); ctx.stroke(); }
-    ctx.fillStyle = "#fff"; ctx.font = `${Math.round(cell * 0.46)}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(GLYPH[p.k as Kind], cx, cy + 1);
     const bw = cell * 0.7, bx = cx - bw / 2, by = sy(p.y) + cell * 0.88; ctx.fillStyle = "#000a"; ctx.fillRect(bx, by, bw, cell * 0.08);
     ctx.fillStyle = p.hp / p.mh > 0.5 ? "#6be36b" : p.hp / p.mh > 0.25 ? "#e3c16b" : "#e36b6b"; ctx.fillRect(bx, by, bw * Math.max(0, p.hp / p.mh), cell * 0.08);
     if (p.b) { ctx.font = `${Math.round(cell * 0.22)}px sans-serif`; ctx.fillText("🔥", sx(p.x) + cell * 0.15, sy(p.y) + cell * 0.15); }
@@ -196,9 +218,32 @@ function draw() {
     ctx.globalAlpha = 1;
   }
   const now = performance.now(); fx = fx.filter((f) => now - f.t < 1100);
+  bursts = bursts.filter((b) => now - b.t < FX_MS);
+  for (const b of bursts) { const fr = hitFx(b.race); if (!fr.length) continue; const i = Math.min(fr.length - 1, Math.floor(((now - b.t) / FX_MS) * fr.length)), s2 = cell * 1.25; ctx.drawImage(fr[i], sx(b.x) + cell / 2 - s2 / 2, sy(b.y) + cell / 2 - s2 / 2, s2, s2); }
   for (const f of fx) { const k = (now - f.t) / 1100; ctx.globalAlpha = 1 - k; ctx.fillStyle = f.col; ctx.font = `bold ${Math.round(cell * 0.3)}px sans-serif`; ctx.fillText(f.txt, sx(f.x) + cell / 2, sy(f.y) + cell * (0.3 - k * 0.4)); }
   ctx.globalAlpha = 1;
-  if (fx.length) requestAnimationFrame(draw);
+  const busy = fx.length || bursts.length || ghosts.length || [...poses.values()].some((q) => q.until > now);
+  if (busy) requestAnimationFrame(draw);
+}
+/** Фигура: спрайт из манифеста (поза → idle) или заглушка-кружок с глифом. Свои смотрят вправо, чужие — влево. */
+function drawUnit(ctx: CanvasRenderingContext2D, p: any, race: string, pose: Pose, x0: number, y0: number, cell: number, withGlyph: boolean) {
+  const [hi, lo] = RACE_COL[race] || ["#ccc", "#333"], cx = x0 + cell / 2, cy = y0 + cell / 2, r = cell * 0.4;
+  const spr = unitSprite(race, p.k, pose);
+  if (spr) {
+    // подставка: цвет расы + обводка «свой/чужой»
+    ctx.fillStyle = hi + "55"; ctx.strokeStyle = p.o === S.you ? "#f5e6a8" : "#1a1014"; ctx.lineWidth = Math.max(1.5, cell * 0.04);
+    ctx.beginPath(); ctx.ellipse(cx, y0 + cell * 0.8, cell * 0.36, cell * 0.12, 0, 0, 7); ctx.fill(); ctx.stroke();
+    const sz = cell * 1.08, gy = y0 + cell * 0.84; // земля спрайта (groundY) — на подставке
+    const top = gy - sz * groundRatio(), left = cx - sz / 2, mirror = p.o !== (S.you < 0 ? 0 : S.you);
+    ctx.save(); if (mirror) { ctx.translate(cx * 2, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(spr, left, top, sz, sz); ctx.restore();
+    return;
+  }
+  const grd = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r); grd.addColorStop(0, hi); grd.addColorStop(1, lo);
+  ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
+  ctx.lineWidth = Math.max(1.5, cell * 0.05); ctx.strokeStyle = p.o === S.you ? "#f5e6a8" : "#1a1014"; ctx.stroke();
+  if (pose === "hit") { ctx.fillStyle = "#ffffff55"; ctx.fill(); }
+  if (withGlyph || pose === "death") { ctx.fillStyle = "#fff"; ctx.font = `${Math.round(cell * 0.46)}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(GLYPH[p.k as Kind], cx, cy + 1); }
 }
 function onBoard(ev: MouseEvent) {
   if (!S?.g || S.phase !== "play") return;
@@ -247,6 +292,7 @@ export function boot() {
   $("#copy").onclick = async () => { const u = location.origin + location.pathname + "?join=" + S.code; try { await navigator.clipboard.writeText(u); toast("Ссылка скопирована"); } catch { prompt("Ссылка на лобби:", u); } };
   for (const b of document.querySelectorAll<HTMLButtonElement>("[data-size]")) b.onclick = () => send({ type: "cfg", size: +b.dataset.size! });
   for (const b of document.querySelectorAll<HTMLButtonElement>("[data-race]")) b.onclick = () => send({ type: "race", race: b.dataset.race });
+  $<HTMLSelectElement>("#tl").onchange = (e) => { const v = (e.target as HTMLSelectElement).value; send({ type: "cfg", turnLimit: v === "" ? null : +v }); };
   $("#bot").onclick = () => send({ type: "bot", on: !S.seats[1]?.bot });
   $("#ready").onclick = () => send({ type: "ready", on: !S.seats[S.you]?.ready });
   $("#end").onclick = () => send({ type: "act", act: { a: "end" } });
@@ -257,7 +303,7 @@ export function boot() {
   $<HTMLInputElement>("#nick").value = localStorage.getItem("strat_nick") || "";
   cv().onclick = onBoard; addEventListener("resize", draw);
   setInterval(tick, 250);
-  connectHub(); loadOpen(); render();
+  connectHub(); loadOpen(); render(); loadArt(draw);
   const j = qs.get("join"); if (j) joinCode(j);
 }
 
@@ -267,7 +313,7 @@ if (LOCAL && qs.get("devUser")) (window as any).__stratPlan = () => {
   const G = gs()!, mine = G.pieces.filter((p) => p.owner === S.you && !p.acted);
   const r = cv().getBoundingClientRect(), n = G.size, cell = r.width / n;
   const px = (x: number, y: number) => { if (S.you === 1) { x = n - 1 - x; y = n - 1 - y; } return [r.left + (x + 0.5) * cell, r.top + (y + 0.5) * cell]; };
-  for (const p of mine) { const t = attackTargets(G, p)[0]; if (t) return { from: px(p.x, p.y), to: px(t[0], t[1]) }; }
+  for (const p of mine) { const t = attackTargets(G, p)[0]; if (t) return { from: px(p.x, p.y), to: px(t[0], t[1]), atk: true, kind: p.kind }; }
   const opts = mine.flatMap((p) => moveTargets(G, p).map((t) => ({ p, t, d: (S.you === 0 ? t[1] - p.y : p.y - t[1]) })));
   opts.sort((a, b) => a.d - b.d || Math.random() - 0.5);
   const o = opts[0]; return o ? { from: px(o.p.x, o.p.y), to: px(o.t[0], o.t[1]) } : "end";

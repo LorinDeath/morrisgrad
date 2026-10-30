@@ -1,0 +1,32 @@
+{
+ "version": 1,
+ "style": "variant_c",
+ "cell": 256,
+ "groundY": 240,
+ "units": {
+  "fire": {
+   "knight": {
+    "attack": "/strat/art/fire/knight_attack.png",
+    "death": "/strat/art/fire/knight_death.png",
+    "hit": "/strat/art/fire/knight_hit.png",
+    "idle": "/strat/art/fire/knight_idle.png"
+   }
+  }
+ },
+ "tiles": {
+  "common:dark": "/strat/art/tiles/common_tile_dark.png",
+  "common:light": "/strat/art/tiles/common_tile_light.png"
+ },
+ "fx": {
+  "fire": [
+   "/strat/art/fx/hit_fire_01.png",
+   "/strat/art/fx/hit_fire_02.png",
+   "/strat/art/fx/hit_fire_03.png",
+   "/strat/art/fx/hit_fire_04.png",
+   "/strat/art/fx/hit_fire_05.png",
+   "/strat/art/fx/hit_fire_06.png",
+   "/strat/art/fx/hit_fire_07.png",
+   "/strat/art/fx/hit_fire_08.png"
+  ]
+ }
+}

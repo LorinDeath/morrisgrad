@@ -19,18 +19,22 @@ await A.screenshot({ path: OUT + "s1-01-home.png" });
 await A.selectOption("#size", "8"); await A.click("#create"); await sleep(1200);
 const code = (await A.textContent("#code")).trim(); console.log("code", code);
 await B.fill("#joincode", code); await B.click("#joinbtn"); await sleep(1200);
+await A.selectOption("#tl", "30"); await sleep(400);
 await A.click('[data-race="fire"]'); await B.click('[data-race="ice"]'); await sleep(500);
 await A.screenshot({ path: OUT + "s1-02-lobby-host.png" }); await B.screenshot({ path: OUT + "s1-03-lobby-guest-blind.png" });
 await A.click("#ready"); await B.click("#ready"); await sleep(1200);
 await A.screenshot({ path: OUT + "s1-04-start-A.png" });
+await (await A.$("#board")).screenshot({ path: OUT + "s1-13-art-board.png" });
 // играем: каждый ход — первое доступное действие (атака приоритетно), выбирая фигуры кликами по холсту
 async function playOne(P) {
   const plan = await P.evaluate(() => window.__stratPlan?.());
   if (plan === "over") return "over"; if (!plan || plan === "wait") return "wait";
   if (plan === "end") { await P.click("#end"); return "end"; }
-  await P.mouse.click(...plan.from); await sleep(120); await P.mouse.click(...plan.to); await sleep(250); return "act";
+  await P.mouse.click(...plan.from); await sleep(120); await P.mouse.click(...plan.to);
+  if (plan.atk && hitShots < 2) { await sleep(110); await (await P.$("#board")).screenshot({ path: OUT + `s1-14-hit-fx-${++hitShots}.png` }); }
+  await sleep(250); return "act";
 }
-let shotsTaken = 0;
+let shotsTaken = 0, hitShots = 0;
 for (let i = 0; i < 400; i++) {
   for (const P of [A, B]) {
     const r = await playOne(P);
@@ -45,6 +49,7 @@ for (let i = 0; i < 400; i++) {
 }
 await sleep(800);
 await A.screenshot({ path: OUT + "s1-07-end-A.png" }); await B.screenshot({ path: OUT + "s1-08-end-B.png" });
+console.log("limit shown:", await A.textContent("#sizeinfo").catch(() => ""), "| B select:", await B.$eval("#tl", (e) => e.value + (e.disabled ? " (disabled)" : "")));
 console.log("status A:", await A.textContent("#status")); console.log("status B:", await B.textContent("#status"));
 await A.click("#rematch"); await B.click("#rematch"); await sleep(800); await A.screenshot({ path: OUT + "s1-09-rematch-lobby.png" });
 // бот на 15×15
