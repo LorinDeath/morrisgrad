@@ -25,7 +25,7 @@ import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { pathWorld, steer, hbTouch } from "./skillCraft";
 import { mitigateDamage } from "./balance";
-import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, aimDirs, faceLeftOf, swingEv } from "./blackArt";
+import { BMA_CFG, bmSkillPct, bmPure, bmDefendEx, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, aimDirs, faceLeftOf, swingEv } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, campElems, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
@@ -38,7 +38,8 @@ export function skillsFor(type: string, n: number, salt = 0): string[] {
 }
 /** явные навыки моба из админки (Бестиарий); случайные добираются в Zone.rollSkills */
 export function ownSkills(d: any): string[] {
-  return ((d?.skills as string[] | undefined) || []).filter((k) => MOB_SKILLS[k]).slice(0, 5);
+  // чёрный моб: + навыки деталей его оружия (поле «Навык части» в кузне), как у артефакта игрока
+  return [...new Set([...((d?.skills as string[] | undefined) || []), ...((d?.bmSkills as string[] | undefined) || [])])].filter((k) => MOB_SKILLS[k]).slice(0, 5);
 }
 /** сколько случайных навыков у босса: мировой (special=boss) — CURSE.worldBossSkills*, обычный босс — CURSE.bossSkills*, остальные — 0 */
 export function bossSkillRange(m: { special?: string }, d: any): [number, number] {
@@ -1521,12 +1522,15 @@ export class Zone {
     const sh = m.shieldUntil > Date.now() ? 0.5 : 1;
     const pq: Record<string, number> = {}; if (pen?.pure) for (const k of Object.keys(pen.pure)) pq[k] = Math.max(0, Math.round((Number(pen.pure[k]) || 0) * sh)); // ICE: чистый урон стихий оси — сверху, мимо брони
     const pv = pureEvFields(pq), pSum = pureSum(pq);
-    const real = (pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh))) + pSum; // 🜏 чёрный урон: броня моба не действует
+    let main = pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh)); // 🜏 чёрный урон: броня моба не действует
+    // 🜏 чёрная броня / предельная броня деталей оружия чёрного моба — от ударов игроков (та же формула, что у игрока: bmDefendEx)
+    let bz = false; if (d.bmDef && sid && !sid.startsWith("mob:") && main > 0) { const z = bmDefendEx(main, d.bmDef, m.maxHp); main = Math.max(0, Math.round(z.d)); bz = z.zero; }
+    const real = main + pSum;
     if (sid && !m.qf?.has(sid)) this.onEngage?.(m, sid); // начало боя игрока с мобом (условия квестов)
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
-    this.events.push({ k: "hit", id: m.id, d: real, by: sid, bm: pen?.black ? 1 : undefined, ...pv, ...(pen?.el && pen.el !== "fire" ? { el: pen.el } : {}) }); // bm — чёрный удар (вспышка/звук у клиента); by — для счётчика DPS у клиента
+    this.events.push({ k: "hit", id: m.id, d: real, by: sid, bm: pen?.black ? 1 : undefined, ...(bz ? { zero: 1 } : {}), ...pv, ...(pen?.el && pen.el !== "fire" ? { el: pen.el } : {}) }); // bm — чёрный удар (вспышка/звук у клиента); by — для счётчика DPS у клиента
     if (this.guard && sid) this.guard.noteFight(m, sid); // «рядом идёт бой» — Чёрный маг идёт защищать
     if (m.hp <= 0) { (m as any).killer = sid; m.k1 = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);

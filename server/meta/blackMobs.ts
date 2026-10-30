@@ -333,13 +333,25 @@ export function mobAtk(w: Record<string, string>, ranged: boolean): { kind: "arc
 }
 /** цвет моба: огонь — прежний «#ff5a1a», остальные — цвет стихии (правится в админке) */
 export const mobColor = (el: string) => (el === "fire" && ELEM_COLOR.fire === "#ff8a2a" ? "#ff5a1a" : ELEM_COLOR[el] || "#ff5a1a");
+/** 🜏 чёрные статы и навыки моба из деталей оружия (как артефакт игрока): bdmg — % макс. ОЗ игрока сверху удара,
+ *  barm/bcap — его защита от ударов игроков (bmDefendEx), skills — навыки деталей (поле «Навык части»), до 5.
+ *  Боевые потолки игрока (caps.bdmg 5 %) мобу не действуют; bcap > 0 — не ниже caps.bcap, как у игрока. */
+export function mobBm(m: BmMob, items?: Record<string, any>): { bdmg: number; barm: number; bcap: number; skills: string[] } {
+  const w = mobWeapon(m, items); let bdmg = 0, barm = 0, bcap = 0; const skills: string[] = [];
+  for (const slot of BP_TYPES) { const id = w[slot], p: any = id && BM_PARTS[id]; if (!p) continue;
+    bdmg += Number(p.stats?.bdmg) || 0; barm += Number(p.stats?.barm) || 0; bcap += Number(p.stats?.bcap) || 0;
+    if (p.skill && !skills.includes(p.skill)) skills.push(p.skill); }
+  const r3 = (v: number) => Math.round(v * 1000) / 1000, cc = Number((BMA_CFG as any).caps?.bcap) || 0;
+  return { bdmg: r3(Math.max(0, bdmg)), barm: r3(Math.max(0, barm)), bcap: bcap > 0 ? r3(Math.max(cc, bcap)) : 0, skills: skills.slice(0, 5) };
+}
 /** живая регистрация: ZONE_MOBS[bmx_…] и MONSTER_LOOT (правка «на месте» — ссылки у живых мобов остаются верными) */
 export function registerBlackMobs(items?: Record<string, any>) {
   for (const [id, m] of Object.entries(BM_MOBS)) {
     const f = mobFinal(m, items), role = f.ranged ? (m.cls === "mage" ? "caster" : "ranged") : CLASS_ROLE[m.cls] || "melee";
     const mv0 = cleanMove(m.move), mv = mv0 && typeof mv0 === "object" ? mv0 : undefined;
     const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: Math.round(f.speed * (mv?.spd || 1)), aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobColor(mobElem(m, items)), lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
-      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: mv && (mv.dash || mv.blink) ? mv : undefined }; // bmMz — дула посохов (снаряды вылетают из них)
+      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: mv && (mv.dash || mv.blink) ? mv : undefined };
+    { const B = mobBm(m, items); def.bdmg = B.bdmg || undefined; def.bmDef = B.barm > 0 || B.bcap > 0 ? { barm: B.barm, bcap: B.bcap } : undefined; def.bmSkills = B.skills.length ? B.skills : undefined; } // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));

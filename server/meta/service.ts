@@ -2354,11 +2354,15 @@ export class MetaService {
     const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
     const dr = ((ms as any).drUntil || 0) > now ? 0.5 : 1, vbm = (ms.zp as any).bm;
     // 🜏 навык артефакта у моба: % макс. ОЗ игрока × vsPlayer (без брони и разницы уровней); чёрная цель — своя защита (0 возможен)
-    const raw = bm ? ms.zp.maxHp * bm / 100 * Math.max(0, Number(BMA_CFG.vsPlayer) || 0) : dmg * gap;
-    const dz = vbm ? bmDefendEx(raw * dr, vbm, ms.zp.maxHp) : null;
+    const vsP = Math.max(0, Number(BMA_CFG.vsPlayer) || 0), md: any = ZONE_MOBS[src];
+    const raw = bm ? ms.zp.maxHp * bm / 100 * vsP : dmg * gap;
+    // 🜏 «Чёрный урон, %» деталей оружия чёрного моба: обычный удар/выстрел = плоский урон + bdmg% макс. ОЗ игрока × vsPlayer
+    // (множители удара — танк ×1.25, снаряд ×1.2, ярус — те же, что у плоского: dmg / d.dmg); мимо брони и разницы уровней
+    const bAdd = !bm && md?.black && md.bdmg > 0 && (how === "swing" || how === "aux" || String(how || "").startsWith("proj:")) ? ms.zp.maxHp * md.bdmg / 100 * vsP * (md.dmg > 0 ? dmg / md.dmg : 1) : 0;
+    const dz = vbm ? bmDefendEx((raw + bAdd) * dr, vbm, ms.zp.maxHp) : null;
     // ICE: чистый урон чёрного моба — % ЕГО макс. ОЗ (сумма pfire/pice частей) × pureVsPlayer × pureMob, сверху (мимо брони, если pureArmor выкл.)
-    const md: any = ZONE_MOBS[src], pp = md?.bmPure && mob ? pureVsDef(bmPure(mob.maxHp || md.hp, md.bmPure, "player", (Number(BMA_CFG.pureVsPlayer) || 0) * (Number(BMA_CFG.pureMob) || 0) * dr), vbm, ms.zp.maxHp) : null;
-    const real = (dz ? Math.max(0, Math.round(dz.d)) : bm ? Math.max(0, Math.round(raw * dr)) : Math.max(1, Math.round(raw * (1 - ms.zp.armorRed) * dr))) + pureSum(pp);
+    const pp = md?.bmPure && mob ? pureVsDef(bmPure(mob.maxHp || md.hp, md.bmPure, "player", (Number(BMA_CFG.pureVsPlayer) || 0) * (Number(BMA_CFG.pureMob) || 0) * dr), vbm, ms.zp.maxHp) : null;
+    const real = (dz ? Math.max(0, Math.round(dz.d)) : bm ? Math.max(0, Math.round(raw * dr)) : Math.max(1, Math.round(raw * (1 - ms.zp.armorRed) * dr)) + Math.round(bAdd * dr)) + pureSum(pp);
     ms.zp.hp -= real; (ms as any).hurtAt = now;
     this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
     zone.events.push({ k: "phit", sid, d: real, src, ...pureEv(pp, dz?.zero ? 1 : 0, md?.elem) });

@@ -131,7 +131,7 @@ const P = (sid: string, x: number, y: number): ZPlayer => ({ sid, x, y, hp: 1e9,
   const front = P("f", cx + 40, cy), back = P("b", cx - 70, cy), far = P("x", cx + 400, cy);
   const pl = new Map([["f", front], ["b", back], ["x", far]]); const got: Record<string, number> = {};
   let arcs = 0;
-  for (let i = 0; i < 120; i++) { now += 50; z.events.length = 0; z.update(0.05, now, pl, (sid) => { got[sid] = (got[sid] || 0) + 1; }, () => {}); arcs += z.events.filter((e: any) => e.k === "marc" && e.id === wm.id).length; wm.x = cx; wm.y = cy; }
+  for (let i = 0; i < 120; i++) { now += 50; z.events.length = 0; z.update(0.05, now, pl, (sid: string, _d: number, _s: string, _m?: any, _b?: number, how?: string) => { if (how === "swing") got[sid] = (got[sid] || 0) + 1; }, () => {}); arcs += z.events.filter((e: any) => e.k === "marc" && e.id === wm.id).length; wm.x = cx; wm.y = cy; }
   ok(arcs > 0 && got.f === arcs, `взмах стража: дуга видна (marc ×${arcs}), игрок в дуге получает урон ровно раз за взмах (${got.f})`);
   ok(!got.b && !got.x, "за спиной и вне досягаемости — урона нет");
   const ev = (() => { z.events.length = 0; wm.atkCd = 0; now += 50; z.update(0.05, now, pl, () => {}, () => {}); return z.events.find((e: any) => e.k === "marc") as any; })();
