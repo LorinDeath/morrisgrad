@@ -4,7 +4,8 @@ import { DurableObject } from "cloudflare:workers";
 import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limits";
 import { identify } from "./ident";
 import { CODE_ALPHABET, CODE_RE } from "./match";
-import { SIZES } from "./rules";
+import { SIZES, STRAT_CFG } from "./rules";
+import { loadStratCfg, saveStratPatch } from "./cfg";
 import { saveMap, listMaps, flagMap, modQueue, moderate, isStratAdmin, getMapRow, rowToMap } from "./maps";
 
 type Lob = { code: string; pub: boolean; phase: string; size: number; host: string; n: number; at: number };
@@ -85,7 +86,8 @@ export class StratIndex extends DurableObject {
       const id = await identify(this.env, a.url, m); if ("err" in id) return this.send(ws, { type: "err", err: id.err });
       const prev = this.online().find(([pk]) => pk === id.pkey);
       a.pkey = id.pkey; a.nick = id.nick; a.verified = id.verified; a.sid = prev ? prev[1].sid : [...crypto.getRandomValues(new Uint8Array(6))].map((x) => x.toString(16).padStart(2, "0")).join("");
-      ws.serializeAttachment(a); this.send(ws, { type: "hello_ok", nick: id.nick, guest: !id.verified, sid: a.sid, admin: await isStratAdmin(this.env, id.pkey, id.verified) }); this.pushOnline(); return;
+      const prefs = id.verified ? ((await this.ctx.storage.get("pref:" + id.pkey)) as any) || null : null; // вид фигур — в профиле вошедшего; гость — только localStorage
+      ws.serializeAttachment(a); this.send(ws, { type: "hello_ok", nick: id.nick, guest: !id.verified, sid: a.sid, admin: await isStratAdmin(this.env, id.pkey, id.verified), prefs }); this.pushOnline(); return;
     }
     if (!a.pkey) return;
     if (m?.type === "invite" && typeof m.to === "string" && CODE_RE.test(m.code)) {
@@ -95,6 +97,19 @@ export class StratIndex extends DurableObject {
       for (const w of this.ctx.getWebSockets()) { const b = w.deserializeAttachment() as Att; if (b?.sid === m.to && b.pkey !== a.pkey) { this.send(w, { type: "invite", from: a.nick, code: m.code, ttl: INVITE_TTL_S }); n++; } }
       this.send(ws, { type: "invite_sent", ok: n > 0 });
       return;
+    }
+    if (m?.type === "pref_set") {
+      if (!a.verified) return this.send(ws, { type: "err", err: "guest" });
+      const pr = { pieceStyle: m.pieceStyle === "tok" ? "tok" : "fig", glyphBadge: m.glyphBadge !== false };
+      await this.ctx.storage.put("pref:" + a.pkey, pr); return this.send(ws, { type: "pref_ok", prefs: pr });
+    }
+    if (m?.type === "cfg_get" || m?.type === "cfg_set") { // настройки экономики (админка): база + правка из game_overrides
+      const reply = (o: any) => this.send(ws, { type: m.type + "_r", rq: m.rq, ...o });
+      if (!(await isStratAdmin(this.env, a.pkey, !!a.verified))) return reply({ err: "not_admin" });
+      try {
+        if (m.type === "cfg_get") { const c = await loadStratCfg(this.env, true); return reply({ base: STRAT_CFG, patch: c.patch, cfg: c.cfg }); }
+        return reply(await saveStratPatch(this.env, a.pkey, m.patch));
+      } catch { return reply({ err: "db" }); }
     }
     if (typeof m?.type === "string" && m.type.startsWith("map")) return this.mapMsg(ws, a, m);
     if (m?.type === "decline" && typeof m.to === "string") return; // этап 1: отказ просто закрывает плашку у приглашённого

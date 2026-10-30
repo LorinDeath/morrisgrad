@@ -3,10 +3,13 @@
 
 import { type MapData, openMap, generateMap, passable, stopsSlide, blocksShot, coverArm, str as mapStr, TER_RULES } from "./terrain";
 export type { MapData } from "./terrain";
+import { ECON, BUILD, TALENTS } from "./econ-cfg";
+import { type Econ, type EconAction, ECON_ACTS, initEcon, startTurn, applyEcon, effAtk, effArm, mageShot, apFor, burnTurns, burnDmg, chillTurns, onHit, onEnter, checkGlory, hasFree, limitScore, botEcon, botPawnGoal, talBonus } from "./econ";
 
-export type Race = "fire" | "ice";
+export type Race = "fire" | "ice" | "water" | "stone" | "nature" | "lightning";
 export type Kind = "pawn" | "knight" | "mage" | "rook" | "hero" | "king";
-export const RACES: Race[] = ["fire", "ice"];
+export const RACES: Race[] = ["fire", "ice", "water", "stone", "nature", "lightning"]; // этап 2: 4 новые расы — заглушки (арт + простые числа), полные правила позже
+export const FULL_RACES: Race[] = ["fire", "ice"];
 export const KINDS: Kind[] = ["pawn", "knight", "mage", "rook", "hero", "king"];
 
 export type UnitStats = { hp: number; atk: number; arm: number; cost: number };
@@ -16,7 +19,7 @@ export type SizeCfg = {
 };
 
 export const STRAT_CFG = {
-  version: 1,
+  version: 2,
   units: {
     pawn: { hp: 10, atk: 4, arm: 0, cost: 3 },
     knight: { hp: 14, atk: 6, arm: 1, cost: 7 },
@@ -29,13 +32,16 @@ export const STRAT_CFG = {
   elementBonus: 0.10, // мягкий круг: Вода→Огонь→Лёд→Природа→Камень→Молния→Вода
   race: {
     fire: { hpMul: 0.9, burnTurns: 2, burnDmg: 1 },
-    ice: { hpMul: 1.0, chillMove: 1 },
+    ice: { hpMul: 1.0, chillMove: 1, chillTurns: 1, knowPen: 1, knowFloor: 2 }, // knowFloor: штраф «−1 знание» не опускает доход ниже 2 (баланс-сим)
+    // заглушки этапа 2 (только числа из ТЗ, без особых механик): Вода — Страж АТК −1; Камень — +1 БРН всем; Молния — −10% HP; Природа — пока без пассивки
+    water: { hpMul: 1.0, atk: 0, arm: 0, rookAtk: -1 }, stone: { hpMul: 1.0, atk: 0, arm: 1, rookAtk: 0 }, nature: { hpMul: 1.0, atk: 0, arm: 0, rookAtk: 0 }, lightning: { hpMul: 0.9, atk: 0, arm: 0, rookAtk: 0 },
   },
   sizes: {
     5: { size: 5, turnLimit: 15, turnSec: 20, reserveSec: 60, ap: 1, army: [["knight", "king", "rook"]] },
     8: { size: 8, turnLimit: 25, turnSec: 40, reserveSec: 180, ap: 2, army: [["rook", "knight", "king", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn"]] },
     15: { size: 15, turnLimit: 40, turnSec: 60, reserveSec: 300, ap: 3, army: [["rook", "mage", "knight", "king", "hero", "knight", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] },
   } as Record<number, SizeCfg>,
+  econ: ECON, build: BUILD, talents: TALENTS, // этап 2 (econ-cfg.ts)
 };
 export type StratCfg = typeof STRAT_CFG;
 export const SIZES = [5, 8, 15];
@@ -56,7 +62,8 @@ export function elementMul(att: string, def: string, cfg: StratCfg = STRAT_CFG):
   return (i + 1) % CYCLE.length === j ? 1 + cfg.elementBonus : 1;
 }
 
-export type Piece = { id: number; owner: 0 | 1; kind: Kind; x: number; y: number; hp: number; maxHp: number; atk: number; arm: number; acted: boolean; burn: number; chill: number };
+export type Piece = { id: number; owner: 0 | 1; kind: Kind; x: number; y: number; hp: number; maxHp: number; atk: number; arm: number; acted: boolean; burn: number; chill: number;
+  xp?: number; tal?: string[]; mv?: boolean; cm?: number }; // этап 2: опыт, выбранные таланты, «ходила в прошлый ход»
 export type Seat = { race: Race };
 export type GameState = {
   v: number; size: number; turn: number; first: 0 | 1; cur: 0 | 1; ap: number; apMax: number; turnLimit: number;
@@ -64,6 +71,7 @@ export type GameState = {
   map: MapData; // рельеф и постройки (terrain.ts)
   winner: -1 | 0 | 1 | 2; // -1 идёт, 2 ничья
   reason: string; lastEv: Ev[];
+  ec: Econ; // этап 2: ресурсы, города, технологии (econ.ts)
 };
 export type Ev =
   | { e: "move"; id: number; x: number; y: number }
@@ -73,11 +81,13 @@ export type Ev =
   | { e: "heal"; id: number; hp: number; n: number }
   | { e: "promote"; id: number; kind: Kind }
   | { e: "turn"; cur: 0 | 1; turn: number }
-  | { e: "end"; winner: number; reason: string };
+  | { e: "end"; winner: number; reason: string }
+  | { e: "inc" | "glory" | "lvl" | "ruin" | "siege" | "capture" | "grow" | "recruit" | "build" | "tech" | "era" | "talent" | "found" | "swap"; [k: string]: any };
 export type Action =
   | { a: "move"; id: number; x: number; y: number; promo?: Kind }
   | { a: "attack"; id: number; x: number; y: number }
-  | { a: "end" };
+  | { a: "end" }
+  | EconAction;
 
 const PROMO_OK: Kind[] = ["knight", "mage", "rook"];
 
@@ -109,7 +119,7 @@ export function makeMap(size: number, id: string | null | undefined, cfg: StratC
 export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg: StratCfg = STRAT_CFG, turnLimit?: number | null, map?: MapData): GameState {
   const sc = cfg.sizes[size]; if (!sc) throw new Error("bad size");
   if (map && map.size !== size) throw new Error("map size");
-  const g: GameState = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: turnLimit ?? sc.turnLimit, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [], map: map || openMap(size) };
+  const g = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: turnLimit ?? sc.turnLimit, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [], map: map || openMap(size) } as unknown as GameState;
   for (const owner of [0, 1] as const) {
     sc.army.forEach((row, r) => {
       const x0 = Math.floor((size - row.length) / 2);
@@ -119,11 +129,13 @@ export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg
       });
     });
   }
+  initEcon(g, cfg); startTurn(g, first, [], cfg); g.ap = g.apMax = apFor(g, first, cfg);
+  const fa = (cfg.econ.start as any).firstAp1 || 0; if (fa > 0) g.ap = g.apMax = Math.min(g.apMax, fa); // смягчение преимущества первого хода
   return g;
 }
 function mkPiece(g: GameState, owner: 0 | 1, kind: Kind, x: number, y: number, cfg: StratCfg): Piece {
   const u = cfg.units[kind], hp = Math.max(1, Math.round(u.hp * (cfg.race as any)[g.races[owner]].hpMul));
-  return { id: g.nextId++, owner, kind, x, y, hp, maxHp: hp, atk: u.atk, arm: u.arm, acted: false, burn: 0, chill: 0 };
+  return { id: g.nextId++, owner, kind, x, y, hp, maxHp: hp, atk: u.atk, arm: u.arm, acted: false, burn: 0, chill: 0, xp: 0, tal: [] };
 }
 
 export const at = (g: GameState, x: number, y: number) => g.pieces.find((p) => p.x === x && p.y === y);
@@ -148,8 +160,8 @@ export function moveTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): 
   const out: [number, number][] = [], r = cfg.range;
   const cap = p.chill > 0 ? 1 : 99;
   switch (p.kind) {
-    case "pawn": {
-      for (const [dx, dy] of [[0, fwd(p.owner)], [1, 0], [-1, 0]]) { const x = p.x + dx, y = p.y + dy; if (canStand(g, p, x, y)) out.push([x, y]); }
+    case "pawn": { // 1 вперёд или вбок + отступление на 1 по диагонали назад (только ход, без атаки)
+      for (const [dx, dy] of [[0, fwd(p.owner)], [1, 0], [-1, 0], [1, -fwd(p.owner)], [-1, -fwd(p.owner)]]) { const x = p.x + dx, y = p.y + dy; if (canStand(g, p, x, y)) out.push([x, y]); }
       break;
     }
     case "knight": if (cap >= 2) for (const [dx, dy] of KN) { const x = p.x + dx, y = p.y + dy; if (canStand(g, p, x, y)) out.push([x, y]); } break; // прыжок через рельеф, но приземляется на проходимую
@@ -167,7 +179,7 @@ export function attackTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG)
   switch (p.kind) {
     case "pawn": cells.push([p.x + 1, p.y + fwd(p.owner)], [p.x - 1, p.y + fwd(p.owner)]); break;
     case "knight": for (const [dx, dy] of KN) cells.push([p.x + dx, p.y + dy]); break;
-    case "mage": for (const [dx, dy] of DD) for (let s = 1; s <= cfg.range.mageShot; s++) {
+    case "mage": for (const [dx, dy] of DD) for (let s = 1, R = mageShot(g, p, cfg); s <= R; s++) {
       const x = p.x + dx * s, y = p.y + dy * s; cells.push([x, y]);
       if (!inB(g, x, y) || blocksShot(g.map, x, y)) break; // обстрел закрывают стены и горы
     } break;
@@ -179,7 +191,7 @@ export function attackTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG)
 
 export function damage(g: GameState, a: Piece, t: Piece, cfg: StratCfg = STRAT_CFG): number {
   const mul = elementMul(g.races[a.owner], g.races[t.owner], cfg);
-  return Math.max(1, Math.round((a.atk - t.arm - coverArm(g.map, t.x, t.y)) * mul)); // лес/ворота/башня — укрытие
+  return Math.max(1, Math.round((effAtk(g, a, t, cfg) - effArm(g, t, cfg) - coverArm(g.map, t.x, t.y)) * mul - 1e-9)); // ровно .5 округляем вниз: иначе +10% превращается в +20% на малом уроне // лес/ворота/башня — укрытие; технологии/Кузня/Стена
 }
 
 /** Шах: Вождь игрока side под ударом хотя бы одной вражеской фигуры. */
@@ -196,6 +208,13 @@ export function apply(g: GameState, side: 0 | 1, act: Action, cfg: StratCfg = ST
   if (side !== g.cur) return { ok: false, err: "not_your_turn" };
   const ev: Ev[] = [];
   if (act.a === "end") { endTurn(g, ev, cfg); return done(g, ev); }
+  if (ECON_ACTS.includes(act.a)) {
+    const r = applyEcon(g, side, act as EconAction, cfg, (o, k, x, y) => mkPiece(g, o, k, x, y, cfg));
+    if (!r.ok) return r;
+    ev.push(...r.ev); checkWin(g, ev, cfg);
+    if (act.a === "found" && g.winner === -1 && g.ap <= 0 && !hasFree(g, side, cfg)) endTurn(g, ev, cfg);
+    return done(g, ev);
+  }
   const p = g.pieces.find((q) => q.id === act.id);
   if (!p || p.owner !== side) return { ok: false, err: "bad_piece" };
   if (p.acted) return { ok: false, err: "already_acted" };
@@ -204,7 +223,7 @@ export function apply(g: GameState, side: 0 | 1, act: Action, cfg: StratCfg = ST
   if (act.a === "move") {
     if (!moveTargets(g, p, cfg).some(([a, b]) => a === x && b === y)) return { ok: false, err: "bad_move" };
     p.x = x; p.y = y; ev.push({ e: "move", id: p.id, x, y });
-    promote(g, p, act.promo, ev, cfg);
+    promote(g, p, act.promo, ev, cfg); onEnter(g, p, ev, cfg);
   } else if (act.a === "attack") {
     if (!attackTargets(g, p, cfg).some(([a, b]) => a === x && b === y)) return { ok: false, err: "bad_attack" };
     const t = at(g, x, y)!;
@@ -212,17 +231,18 @@ export function apply(g: GameState, side: 0 | 1, act: Action, cfg: StratCfg = ST
     t.hp -= dmg;
     const race = g.races[side];
     const burn = race === "fire" && t.hp > 0, chill = race === "ice" && t.hp > 0;
-    if (burn) t.burn = cfg.race.fire.burnTurns;
-    if (chill) t.chill = 1;
+    if (burn) t.burn = burnTurns(g, side, cfg);
+    if (chill) t.chill = Math.max(t.chill, chillTurns(g, side, cfg));
     ev.push({ e: "hit", id: p.id, t: t.id, dmg, hp: Math.max(0, t.hp), ...(burn ? { burn } : {}), ...(chill ? { chill } : {}) });
+    onHit(g, p, t, t.hp <= 0, ev, cfg);
     if (t.hp <= 0) {
       kill(g, t, p.id, ev);
-      if (p.kind !== "mage") { p.x = x; p.y = y; ev.push({ e: "move", id: p.id, x, y }); promote(g, p, undefined, ev, cfg); } // ближний встаёт на клетку
+      if (p.kind !== "mage") { p.x = x; p.y = y; ev.push({ e: "move", id: p.id, x, y }); promote(g, p, undefined, ev, cfg); onEnter(g, p, ev, cfg); } // ближний встаёт на клетку
     }
   } else return { ok: false, err: "bad_action" };
   p.acted = true; g.ap -= 1;
-  checkWin(g, ev);
-  if (g.winner === -1 && g.ap <= 0) endTurn(g, ev, cfg); // ОД кончились — ход передаётся сам
+  checkWin(g, ev, cfg);
+  if (g.winner === -1 && g.ap <= 0 && !hasFree(g, side, cfg)) endTurn(g, ev, cfg); // ОД кончились и делать в городах нечего — ход передаётся сам
   return done(g, ev);
 }
 function done(g: GameState, ev: Ev[]): Result { g.v++; g.lastEv = ev; return { ok: true, ev }; }
@@ -234,63 +254,76 @@ function promote(g: GameState, p: Piece, to: Kind | undefined, ev: Ev[], cfg: St
   const kind: Kind = to && PROMO_OK.includes(to) ? to : "rook";
   const u = cfg.units[kind], mul = (cfg.race as any)[g.races[p.owner]].hpMul;
   const maxHp = Math.max(1, Math.round(u.hp * mul));
-  p.kind = kind; p.atk = u.atk; p.arm = u.arm; p.hp = Math.max(1, Math.round(maxHp * (p.hp / p.maxHp))); p.maxHp = maxHp;
+  p.kind = kind; p.tal = []; p.atk = u.atk; p.arm = u.arm; p.hp = Math.max(1, Math.round(maxHp * (p.hp / p.maxHp))); p.maxHp = maxHp;
   ev.push({ e: "promote", id: p.id, kind });
 }
 function kill(g: GameState, t: Piece, by: number, ev: Ev[]) {
   g.pieces = g.pieces.filter((q) => q !== t);
   ev.push({ e: "kill", id: t.id, by });
 }
-function checkWin(g: GameState, ev: Ev[]) {
+function checkWin(g: GameState, ev: Ev[], cfg: StratCfg = STRAT_CFG) {
   for (const s of [0, 1] as const) if (!g.pieces.some((p) => p.owner === s && p.kind === "king")) {
     finish(g, (1 - s) as 0 | 1, "king", ev); return;
   }
+  const gw = checkGlory(g, cfg); if (gw >= 0) finish(g, gw as 0 | 1, "glory", ev);
 }
 export function finish(g: GameState, winner: 0 | 1 | 2, reason: string, ev: Ev[]) {
   if (g.winner !== -1) return;
   g.winner = winner; g.reason = reason; ev.push({ e: "end", winner, reason });
 }
-/** Очки на лимите ходов (этап 1: материал = сумма цен живых фигур + доля HP; Вождь = 10). */
+/** Материал (сумма цен живых фигур × доля HP; Вождь = 10) — справочно и для бота; на лимите решает Слава (limitScore). */
 export function score(g: GameState, side: 0 | 1, cfg: StratCfg = STRAT_CFG): number {
   return g.pieces.filter((p) => p.owner === side).reduce((s, p) => s + (p.kind === "king" ? 10 : cfg.units[p.kind].cost) * (p.hp / p.maxHp), 0);
 }
 
 function endTurn(g: GameState, ev: Ev[], cfg: StratCfg) {
   const prev = g.cur;
-  for (const p of g.pieces) if (p.owner === prev) { p.acted = false; if (p.chill > 0) p.chill--; }
+  for (const p of g.pieces) if (p.owner === prev) { p.acted = false; if (p.chill > 0) { p.chill--; if (!p.chill) p.cm = 1; } else if (p.cm) p.cm = 0; } // cm: «была обморожена» до конца следующего хода (для «Инея»)
   const next = (1 - prev) as 0 | 1;
   if (next === g.first) g.turn++; // номер хода растёт, когда круг вернулся к первому игроку
-  if (g.turnLimit > 0 && g.turn > g.turnLimit) { // 0 = без лимита
-    const a = score(g, 0, cfg), b = score(g, 1, cfg);
-    finish(g, Math.abs(a - b) < 0.5 ? 2 : a > b ? 0 : 1, "limit", ev); return;
+  if (g.turnLimit > 0 && g.turn > g.turnLimit) { // 0 = без лимита; итог — по Славе, равенство — ничья
+    const a = limitScore(g, 0), b = limitScore(g, 1);
+    finish(g, a === b ? 2 : a > b ? 0 : 1, "limit", ev); return;
   }
-  g.cur = next; g.ap = g.apMax;
+  if (g.ec) { g.ec.quiet++; if (g.turnLimit === 0 && g.ec.quiet >= cfg.econ.quiet.draw * 2) { finish(g, 2, "quiet", ev); return; } }
+  g.cur = next;
   // колодец: лечит свою фигуру, стоящую на нём, в начале её хода
   for (const p of g.pieces) if (p.owner === next && p.hp < p.maxHp && mapStr(g.map, p.x, p.y) === "W") { const h = Math.min(TER_RULES.wellHeal, p.maxHp - p.hp); p.hp += h; ev.push({ e: "heal", id: p.id, hp: p.hp, n: h }); }
   // поджог: урон в начале хода владельца горящей фигуры
   for (const p of [...g.pieces]) if (p.owner === next && p.burn > 0) {
-    p.burn--; p.hp -= cfg.race.fire.burnDmg; ev.push({ e: "burn", id: p.id, dmg: cfg.race.fire.burnDmg, hp: Math.max(0, p.hp) });
+    const bd = burnDmg(g, next, cfg); p.burn--; p.hp -= bd; ev.push({ e: "burn", id: p.id, dmg: bd, hp: Math.max(0, p.hp) });
     if (p.hp <= 0) kill(g, p, 0, ev);
   }
-  checkWin(g, ev);
+  checkWin(g, ev, cfg); if (g.winner !== -1) return;
+  const cw = startTurn(g, next, ev, cfg); g.ap = g.apMax = apFor(g, next, cfg);
+  if (cw >= 0) { finish(g, cw as 0 | 1, "capital", ev); return; }
+  checkWin(g, ev, cfg);
   if (g.winner === -1) ev.push({ e: "turn", cur: next, turn: g.turn });
 }
 
-/** Простой бот (этап 1, для «Играть с ботом» и самопроверки): жадно — убийство > выгодный удар > ход к Вождю. */
+/** Бот: сначала экономика (таланты → эпоха → исследование → города → застава), затем жадно — убийство > выгодный удар > ход к цели. */
 export function botAction(g: GameState, side: 0 | 1, cfg: StratCfg = STRAT_CFG): Action {
+  const e = botEcon(g, side, cfg); if (e) return e;
+  if (g.ap < 1) return { a: "end" };
   const mine = g.pieces.filter((p) => p.owner === side && !p.acted);
   let best: { s: number; act: Action } | null = null;
   const ek = g.pieces.find((p) => p.owner !== side && p.kind === "king");
+  const ecap = g.ec?.cities.find((c) => c.owner !== side && c.cap);
+  const myCities = g.ec?.cities.filter((c) => c.owner === side) || [];
+  const sieging = new Set(g.pieces.filter((p) => p.owner !== side && myCities.some((c) => c.x === p.x && c.y === p.y)).map((p) => p.id));
   for (const p of mine) {
     for (const [x, y] of attackTargets(g, p, cfg)) {
       const t = at(g, x, y)!; const d = damage(g, p, t, cfg);
-      const s = (d >= t.hp ? 100 + (t.kind === "king" ? 1000 : cfg.units[t.kind].cost) : d * 2) + (t.kind === "king" ? 20 : 0);
+      const s = (d >= t.hp ? 100 + (t.kind === "king" ? 1000 : cfg.units[t.kind].cost) : d * 2) + (t.kind === "king" ? 20 : 0) + (sieging.has(t.id) ? 300 : 0);
       if (!best || s > best.s) best = { s, act: { a: "attack", id: p.id, x, y } };
     }
     if (p.kind === "king") continue;
+    const goal = (p.kind === "pawn" && botPawnGoal(g, p, cfg)) || (ecap && Math.random() < 0.5 ? ecap : ek);
     for (const [x, y] of moveTargets(g, p, cfg)) {
-      const dist = ek ? Math.max(Math.abs(ek.x - x), Math.abs(ek.y - y)) : 0;
-      const s = 10 - dist * 0.5 + Math.random() * 0.1;
+      const dist = goal ? Math.max(Math.abs(goal.x - x), Math.abs(goal.y - y)) : 0;
+      const cur = goal ? Math.max(Math.abs(goal.x - p.x), Math.abs(goal.y - p.y)) : 0;
+      let s = 10 - dist * 0.5 + (dist < cur ? 1 : 0) + Math.random() * 0.1;
+      if (ecap && ecap.x === x && ecap.y === y) s += 60; // осада столицы
       if (!best || s > best.s) best = { s, act: { a: "move", id: p.id, x, y } };
     }
   }
@@ -298,7 +331,9 @@ export function botAction(g: GameState, side: 0 | 1, cfg: StratCfg = STRAT_CFG):
 }
 
 /** Снимок для клиента (этап 1 — без тумана: всё видно обоим). */
-export function view(g: GameState, withMap = true) {
+export function view(g: GameState, withMap = true, cfg: StratCfg = STRAT_CFG) {
   return { v: g.v, ...(withMap ? { map: g.map } : {}), size: g.size, turn: g.turn, cur: g.cur, ap: g.ap, apMax: g.apMax, turnLimit: g.turnLimit, races: g.races, winner: g.winner, reason: g.reason, first: g.first,
-    pieces: g.pieces.map((p) => ({ id: p.id, o: p.owner, k: p.kind, x: p.x, y: p.y, hp: p.hp, mh: p.maxHp, atk: p.atk, arm: p.arm, a: p.acted ? 1 : 0, b: p.burn, c: p.chill })) };
+    pieces: g.pieces.map((p) => ({ id: p.id, o: p.owner, k: p.kind, x: p.x, y: p.y, hp: p.hp, mh: p.maxHp, atk: p.atk, arm: p.arm, a: p.acted ? 1 : 0, b: p.burn, c: p.chill,
+      ...(p.xp ? { xp: p.xp } : {}), ...(p.tal?.length ? { tl: p.tal } : {}), ...(p.mv ? { mv: 1 } : {}), ...(p.cm ? { cm: 1 } : {}), ea: effAtk(g, p, null, cfg), er: effArm(g, p, cfg) })),
+    ec: g.ec, glory: cfg.econ.sizes[g.size]?.glory || 0 };
 }

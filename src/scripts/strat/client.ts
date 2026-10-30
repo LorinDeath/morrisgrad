@@ -1,7 +1,9 @@
 // «Партия Чёрных королей» — клиент этапа 1 (/games/strategy). Сервер авторитетен: клиент только рисует снимок
 // и подсвечивает ходы тем же движком (server/strat/rules.ts), что и сервер.
 import { loadArt, unitSprite, hitFx, spriteBox, type Pose } from "./art";
-import { terrainLayer, drawStruct, GOLD, INK } from "./terrain-draw";
+import { terrainLayer, drawStruct, drawStructIcon, GOLD, INK } from "./terrain-draw";
+import { renderBar, renderCity, renderTech, pieceExtra, bindPieceExtra, boardClick, drawEcon, econFx, econToast, cfgOf, ui as eui, KIND_NAME, ECON_ERR, type Ctx } from "./econ-ui";
+import { territory } from "../../../server/strat/econ";
 import { TERRAIN, STRUCT, TER_RULES, openMap, type MapData } from "../../../server/strat/terrain";
 import { moveTargets, attackTargets, STRAT_CFG, type GameState, type Piece, type Kind } from "../../../server/strat/rules";
 
@@ -12,16 +14,15 @@ const WS = LOCAL ? (qs.get("ws") || "ws://127.0.0.1:8871") : PROD_WS;
 const HTTP = WS.replace(/^ws/, "http");
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
-const RACE_NAME: Record<string, string> = { fire: "Огонь", ice: "Лёд" };
-const KIND_NAME: Record<Kind, string> = { pawn: "Пешка", knight: "Конь", mage: "Маг", rook: "Ладья", hero: "Герой", king: "Вождь" };
+const RACE_NAME: Record<string, string> = { fire: "Огонь", ice: "Лёд", water: "Вода", stone: "Камень", nature: "Природа", lightning: "Молния" };
 const GLYPH: Record<Kind, string> = { pawn: "♟", knight: "♞", mage: "♝", rook: "♜", hero: "♛", king: "♚" };
 // Стиль показа фигур: «фишки» (кружок с глифом) или «фигуры» (рисунки Художника). Хранится в localStorage.
 type PieceStyle = "figures" | "tokens";
 let pieceStyle: PieceStyle = (localStorage.getItem("strat.pieceStyle") as PieceStyle) === "tokens" ? "tokens" : "figures";
 let glyphBadge = localStorage.getItem("strat.glyphBadge") !== "0";
-const RACE_COL: Record<string, [string, string]> = { fire: ["#ff7a3d", "#7a1d08"], ice: ["#7fd6ff", "#123d66"] };
-const REASON: Record<string, string> = { king: "Вождь пал", forfeit: "сдача", disconnect: "соперник не вернулся", limit: "лимит ходов (по очкам)" };
-const ERR: Record<string, string> = {
+const RACE_COL: Record<string, [string, string]> = { fire: ["#ff7a3d", "#7a1d08"], ice: ["#7fd6ff", "#123d66"], water: ["#3fa7d6", "#0d3a5c"], stone: ["#c2a27a", "#4a3a2a"], nature: ["#7ccf5a", "#1f4d1a"], lightning: ["#ffe14d", "#4a3d8f"] };
+const REASON: Record<string, string> = { glory: "Слава", capital: "столица взята", king: "Вождь пал", forfeit: "сдача", disconnect: "соперник не вернулся", limit: "лимит ходов (по очкам)" };
+const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нельзя", bad_action: "Неверное действие", guest: "Только для вошедших",
   not_your_turn: "Сейчас ход соперника", already_acted: "Эта фигура уже действовала", no_ap: "Очки действий кончились", bad_move: "Туда нельзя",
   bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято",
   auth_bad: "Вход не подтверждён — обновите страницу", auth_expired: "Сессия истекла — обновите страницу", no_ident: "Нужно войти или играть гостем",
@@ -51,7 +52,7 @@ function connectHub() {
   hub.onopen = async () => hub!.send(JSON.stringify({ type: "hello", ...(await helloMsg()) }));
   hub.onmessage = (e) => {
     const m = JSON.parse(e.data);
-    if (m.type === "hello_ok") { $("#me").textContent = m.nick + (m.guest ? " (гость)" : ""); isAdmin = !!m.admin; $("#admin").hidden = !isAdmin; if (isAdmin) loadQueue(); }
+    if (m.type === "hello_ok") { $("#me").textContent = m.nick + (m.guest ? " (гость)" : ""); isAdmin = !!m.admin; $("#admin").hidden = !isAdmin; applyPrefs(m.prefs); if (isAdmin) loadQueue(); }
     if (typeof m.type === "string" && m.type.endsWith("_r") && m.rq && hubWait.has(m.rq)) { hubWait.get(m.rq)!(m); hubWait.delete(m.rq); return; }
     if (m.type === "online") { online = m.list; renderOnline(); }
     if (m.type === "invite") showInvite(m.from, m.code, m.ttl);
@@ -117,7 +118,7 @@ const send = (o: any) => ws?.readyState === 1 && ws.send(JSON.stringify(o));
 // ---------- снимок → GameState для подсветки ----------
 function gs(): GameState | null {
   if (!S?.g) return null; const g = S.g;
-  return { ...g, nextId: 0, lastEv: [], pieces: g.pieces.map((p: any) => ({ id: p.id, owner: p.o, kind: p.k, x: p.x, y: p.y, hp: p.hp, maxHp: p.mh, atk: p.atk, arm: p.arm, acted: !!p.a, burn: p.b, chill: p.c })) };
+  return { ...g, nextId: 0, lastEv: [], pieces: g.pieces.map((p: any) => ({ id: p.id, owner: p.o, kind: p.k, x: p.x, y: p.y, hp: p.hp, maxHp: p.mh, atk: p.atk, arm: p.arm, acted: !!p.a, burn: p.b, chill: p.c, xp: p.xp, tal: p.tl, mv: !!p.mv, cm: p.cm })) };
 }
 
 // ---------- отрисовка ----------
@@ -142,6 +143,10 @@ function onState(prev: any) {
     const p = g.pieces.find((q: any) => q.id === (e.t ?? e.id));
     if (e.e === "hit" && p) fx.push({ x: p.x, y: p.y, t: performance.now(), txt: "-" + e.dmg + (e.burn ? "🔥" : e.chill ? "❄" : ""), col: "#ff5b5b" });
     if (e.e === "burn" && p) fx.push({ x: p.x, y: p.y, t: performance.now(), txt: "-" + e.dmg + "🔥", col: "#ffa03d" });
+    const ef = econFx(e); if (ef) { const c = e.city != null ? g.ec?.cities.find((q: any) => q.id === e.city) : null, at = c || p || (e.x != null ? e : null);
+      if (at) fx.push({ x: at.x, y: at.y, t: now, txt: ef.txt, col: ef.col }); }
+    if (e.e === "build" || e.e === "grow") { const c = g.ec?.cities.find((q: any) => q.id === e.city); if (c) e.side = c.owner; }
+    const tt = econToast(e, S.you); if (tt) toast(tt);
     if (e.e === "promote" && p) fx.push({ x: p.x, y: p.y, t: performance.now(), txt: "↑ " + KIND_NAME[e.kind as Kind], col: "#ffd76a" });
   }
   render();
@@ -189,9 +194,10 @@ function render() {
     $<HTMLButtonElement>("#end").disabled = !myTurn; $<HTMLButtonElement>("#end").hidden = S.phase !== "play"; $<HTMLButtonElement>("#forfeit").hidden = S.phase !== "play" || me < 0;
     $<HTMLButtonElement>("#rematch").hidden = S.phase !== "over" || me < 0;
     $("#rematch").textContent = seats[me]?.rematch ? "Ждём соперника…" : "Реванш";
-    $("#score").innerHTML = [0, 1].map((i) => `<span class="race ${g.races[i]}">${RACE_NAME[g.races[i]]}</span> ${i === me ? "вы" : ""} · фигур: ${g.pieces.filter((p: any) => p.o === i).length}`).join("<br>");
-    renderInfo();
+    $("#score").innerHTML = [0, 1].map((i) => `<span class="race ${g.races[i]}">${RACE_NAME[g.races[i]]}</span> ${i === me ? "вы" : ""} · фигур: ${g.pieces.filter((p: any) => p.o === i).length}${g.ec ? " · ⭐ " + g.ec.res[i].glory : ""}`).join("<br>");
+    renderInfo(); renderBar(ectx());
   }
+  if (S.phase === "lobby") { $("#ecbar").hidden = true; $("#citycard").hidden = true; $("#techdlg").hidden = true; }
   for (const id of ["#mapbadge", "#mapbadge2"]) $(id).hidden = !(S.mapInfo && S.mapInfo.xp === false);
   draw();
 }
@@ -241,13 +247,24 @@ async function loadQueue() {
 }
 function renderInfo() {
   const g = S?.g; const p = g && sel != null ? g.pieces.find((q: any) => q.id === sel) : null;
-  $("#info").innerHTML = p ? `<b>${KIND_NAME[p.k as Kind]}</b> · HP ${p.hp}/${p.mh} · АТК ${p.atk} · БРН ${p.arm}${p.b ? ` · горит ${p.b}` : ""}${p.c ? " · обморожен" : ""}${p.a ? " · уже ходил" : ""}`
+  $("#info").innerHTML = p ? `<b>${KIND_NAME[p.k as Kind]}</b> · HP ${p.hp}/${p.mh} · АТК ${p.ea ?? p.atk} · БРН ${p.er ?? p.arm}${p.b ? ` · горит ${p.b}` : ""}${p.c ? " · обморожен" : ""}${p.a ? " · уже ходил" : ""}`
     : selCell ? "" : '<span class="muted">Нажмите на свою фигуру: зелёные клетки — ход, красные — атака. Клетка без фигуры — описание рельефа</span>';
   const m: MapData | undefined = g?.map, at = p ? [p.x, p.y] : selCell;
   if (m && at) { const [x, y] = at, t = m.t[y * m.size + x], st = m.s[y * m.size + x];
     const eff = t === "f" ? `укрытие +${TER_RULES.forestArm} БРН, скольжение останавливается` : t === "g" ? `проход в стене, укрытие +${TER_RULES.gateArm} БРН` : t === "w" ? "не пройти (кроме расы Воды); стрелять через воду можно" : t === "m" ? "не пройти (кроме расы Камня); закрывает обстрел" : t === "#" ? "не пройти, закрывает обстрел" : t === "b" ? "переправа через реку" : "";
     $("#info").innerHTML += `<div class="cellinfo"><b>${(TERRAIN as any)[t]?.name || t}</b>${eff ? " — " + eff : ""}${st !== "." ? `<br><b>${(STRUCT as any)[st]?.name}</b> — ${(STRUCT as any)[st]?.eff}` : ""}</div>`; }
+  const P = p ? gs()!.pieces.find((q) => q.id === p.id) : null;
+  if (P && S.phase === "play") { $("#info").insertAdjacentHTML("beforeend", pieceExtra(ectx(), P)); bindPieceExtra(ectx(), P); }
 }
+/** контекст панелей экономики */
+function ectx(): Ctx { return { S, G: gs()!, me: S.you, send, redraw: draw, toast, col: (i: number) => (RACE_COL[S.g.races[i]] || [GOLD])[0] }; }
+/** вид фигур из профиля (сервер хранит fig/tok, клиент — figures/tokens) */
+function applyPrefs(pr: any) {
+  if (!pr) return; if (pr.pieceStyle === "fig" || pr.pieceStyle === "tok") { pieceStyle = pr.pieceStyle === "tok" ? "tokens" : "figures"; localStorage.setItem("strat.pieceStyle", pieceStyle); }
+  if (typeof pr.glyphBadge === "boolean") { glyphBadge = pr.glyphBadge; localStorage.setItem("strat.glyphBadge", glyphBadge ? "1" : "0"); }
+  (window as any).__syncPs?.(); draw();
+}
+function savePrefs() { hub?.readyState === 1 && hub.send(JSON.stringify({ type: "pref_set", pieceStyle: pieceStyle === "tokens" ? "tok" : "fig", glyphBadge })); }
 function geom() { const c = cv(), n = S.g.size, side = c.width, cell = side / n; return { c, n, cell, flip: S.you === 1 }; }
 function draw() {
   const c = cv(); if (!S?.g || c.offsetParent === null) return;
@@ -258,7 +275,9 @@ function draw() {
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
   // рельеф и постройки — пререндер (не шахматка); цвет точек спавна — цвет расы стороны
   const map: MapData = g.map || openMap(n);
-  ctx.drawImage(terrainLayer(map, c.width, flip, [(RACE_COL[g.races[0]] || [GOLD])[0], (RACE_COL[g.races[1]] || [GOLD])[0]]), 0, 0);
+  const G0 = gs()!, T = G0.ec ? territory(G0, cfgOf(S)) : null;
+  ctx.drawImage(terrainLayer(map, c.width, flip, [(RACE_COL[g.races[0]] || [GOLD])[0], (RACE_COL[g.races[1]] || [GOLD])[0]], T ? (x, y) => T[y * n + x] : undefined), 0, 0);
+  if (G0.ec) drawEcon(ctx, ectx(), cell, sx, sy);
   if (selCell) { ctx.strokeStyle = "#f3cf68"; ctx.lineWidth = Math.max(2, cell * 0.05); ctx.setLineDash([cell * 0.12, cell * 0.08]); ctx.strokeRect(sx(selCell[0]) + 2, sy(selCell[1]) + 2, cell - 4, cell - 4); ctx.setLineDash([]); }
   const G = gs()!; const P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
@@ -280,7 +299,7 @@ function draw() {
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     if (p.b) { ctx.font = `${Math.round(cell * 0.2)}px sans-serif`; ctx.fillText("🔥", sx(p.x) + cell * 0.85, sy(p.y) + cell * 0.15); }
     if (p.c) { ctx.font = `${Math.round(cell * 0.2)}px sans-serif`; ctx.fillText("❄", sx(p.x) + cell * 0.85, sy(p.y) + cell * (p.b ? 0.36 : 0.15)); }
-    const st = map.s[p.y * n + p.x]; if (st && st !== ".") drawStruct(ctx, st, sx(p.x) + cell * 0.14, sy(p.y) + cell * 0.72, cell * 0.26, GOLD); // постройка под фигурой — значком в углу
+    const st = map.s[p.y * n + p.x]; if (st && st !== ".") drawStructIcon(ctx, st, sx(p.x) + cell * 0.14, sy(p.y) + cell * 0.72, cell * 0.26); // постройка под фигурой — значком в углу
     ctx.globalAlpha = 1;
   }
   const now = performance.now(); fx = fx.filter((f) => now - f.t < 1100);
@@ -346,6 +365,7 @@ function onBoard(ev: MouseEvent) {
   let x = Math.floor((ev.clientX - r.left) / cell), y = Math.floor((ev.clientY - r.top) / cell);
   if (S.you === 1) { x = n - 1 - x; y = n - 1 - y; }
   const G = gs()!, here = G.pieces.find((p) => p.x === x && p.y === y);
+  if (G.ec && boardClick(ectx(), x, y, !here)) { selCell = null; sel = null; renderInfo(); return draw(); }
   selCell = here ? null : [x, y];
   if (here && here.owner === S.you) { sel = here.id === sel ? null : here.id; renderInfo(); return draw(); }
   const P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
@@ -399,8 +419,10 @@ export function boot() {
   $<HTMLInputElement>("#nick").value = localStorage.getItem("strat_nick") || "";
   const ps = $<HTMLButtonElement>("#pstyle"), pb = $<HTMLInputElement>("#pbadge");
   const syncPs = () => { ps.textContent = pieceStyle === "figures" ? "Вид: фигуры ⇄ фишки" : "Вид: фишки ⇄ фигуры"; ps.dataset.style = pieceStyle; pb.checked = glyphBadge; pb.parentElement!.hidden = pieceStyle !== "figures"; };
-  ps.onclick = () => { pieceStyle = pieceStyle === "figures" ? "tokens" : "figures"; localStorage.setItem("strat.pieceStyle", pieceStyle); syncPs(); draw(); };
-  pb.onchange = () => { glyphBadge = pb.checked; localStorage.setItem("strat.glyphBadge", glyphBadge ? "1" : "0"); draw(); };
+  ps.onclick = () => { pieceStyle = pieceStyle === "figures" ? "tokens" : "figures"; localStorage.setItem("strat.pieceStyle", pieceStyle); syncPs(); draw(); savePrefs(); };
+  pb.onchange = () => { glyphBadge = pb.checked; localStorage.setItem("strat.glyphBadge", glyphBadge ? "1" : "0"); draw(); savePrefs(); };
+  (window as any).__syncPs = syncPs;
+  addEventListener("keydown", (e) => { if (e.key === "Escape") { eui.tech = false; eui.recruit = null; $("#techdlg").hidden = true; draw(); } });
   syncPs();
   $<HTMLSelectElement>("#mapsel").onchange = (e) => send({ type: "cfg", map: (e.target as HTMLSelectElement).value });
   $("#modrefresh").onclick = loadQueue;
@@ -414,7 +436,8 @@ export function boot() {
 if (LOCAL && qs.get("devUser")) (window as any).__stratS = () => S;
 if (LOCAL && qs.get("devUser")) (window as any).__stratPlan = () => {
   if (!S?.g) return "wait"; if (S.phase === "over") return "over"; if (S.g.cur !== S.you) return "wait";
-  const G = gs()!, mine = G.pieces.filter((p) => p.owner === S.you && !p.acted);
+  const G = gs()!; if (G.ap < 1) return "end"; // ОД кончились, но есть «бесплатные» действия — плейтест просто завершает ход
+  const mine = G.pieces.filter((p) => p.owner === S.you && !p.acted);
   const r = cv().getBoundingClientRect(), n = G.size, cell = r.width / n;
   const px = (x: number, y: number) => { if (S.you === 1) { x = n - 1 - x; y = n - 1 - y; } return [r.left + (x + 0.5) * cell, r.top + (y + 0.5) * cell]; };
   for (const p of mine) { const t = attackTargets(G, p)[0]; if (t) return { from: px(p.x, p.y), to: px(t[0], t[1]), atk: true, kind: p.kind }; }

@@ -75,6 +75,7 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   ok(!apply(g, 0, { a: "move", id: p1.id, x: p1.x, y: p1.y + 1 }).ok, "чужая фигура отклонена");
   ok(!apply(g, 0, { a: "move", id: 999, x: 0, y: 0 }).ok, "несуществующая фигура отклонена");
   const pawn2 = g.pieces.find((p) => p.owner === 0 && p.kind === "pawn" && !p.acted)!;
+  g.ec.res[0].gold = 0; g.ec.res[0].know = 0; // нечего делать в городе → ход передастся сам
   const v0 = g.v;
   ok(apply(g, 0, { a: "move", id: pawn2.id, x: pawn2.x, y: pawn2.y - 1 }).ok && g.cur === 1 && g.ap === g.apMax, "2 ОД на 8×8 кончились → ход сопернику");
   ok(g.v === v0 + 1, "версия растёт на каждое действие");
@@ -121,11 +122,12 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
 // --- лимит ходов → очки
 {
   const g = board(5, ["fire", "ice"], [[0, "rook", 0, 4], [0, "king", 2, 4], [1, "king", 2, 0]]);
+  g.ec.res[0].glory += 7; // Слава решает на лимите
   for (let i = 0; i < 100 && g.winner === -1; i++) apply(g, g.cur, { a: "end" });
-  ok(g.winner === 0 && g.reason === "limit", "лимит ходов: побеждает тот, у кого больше очков");
+  ok(g.winner === 0 && g.reason === "limit", "лимит ходов: побеждает тот, у кого больше Славы");
   const g2 = board(5, ["fire", "fire"], [[0, "king", 2, 4], [1, "king", 2, 0]]);
   for (let i = 0; i < 100 && g2.winner === -1; i++) apply(g2, g2.cur, { a: "end" });
-  ok(g2.winner === 2, "равные очки → ничья");
+  ok(g2.winner === 2, "равная Слава → ничья");
   ok(g2.turn === STRAT_CFG.sizes[5].turnLimit + 1, "лимит считает полные круги");
 }
 // --- лимит ходов из лобби
@@ -134,8 +136,10 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   ok([4, 201, -1, 2.5, "10", true].every((v) => validTurnLimit(v) === undefined), "лимит ходов: 4, 201, −1, дробь, строка — отклоняются");
   ok(newGame(8, ["fire", "ice"], 0, STRAT_CFG, 12).turnLimit === 12 && newGame(8, ["fire", "ice"], 0, STRAT_CFG, null).turnLimit === 25, "свой лимит / по умолчанию для размера");
   const g = newGame(5, ["fire", "fire"], 0, STRAT_CFG, 0); g.pieces = g.pieces.filter((p) => p.kind === "king");
-  for (let i = 0; i < 2 * TURN_LIMIT.max + 50; i++) apply(g, g.cur, { a: "end" });
-  ok(g.winner === -1 && g.turn > TURN_LIMIT.max, "без лимита: партия не кончается по ходам");
+  for (let i = 0; i < 2 * STRAT_CFG.econ.quiet.draw - 2; i++) apply(g, g.cur, { a: "end" });
+  ok(g.winner === -1, "без лимита: партия не кончается по ходам");
+  for (let i = 0; i < 4; i++) apply(g, g.cur, { a: "end" });
+  ok(g.winner === 2 && g.reason === "quiet", "без лимита: 30 тихих ходов подряд → автоничья (анти-затяжка)");
   const g3 = newGame(5, ["fire", "ice"], 1, STRAT_CFG, 5); g3.pieces = g3.pieces.filter((p) => p.kind === "king");
   for (let i = 0; i < 30 && g3.winner === -1; i++) apply(g3, g3.cur, { a: "end" });
   ok(g3.reason === "limit" && g3.turn === 6, "свой лимит 5 срабатывает после 5 полных кругов");
@@ -151,7 +155,24 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   }
   ok(fin === 300 && bad === 0, `бот×бот: 300/300 партий доиграны, ${bad} недопустимых действий (П0 ${wins[0]}, П1 ${wins[1]}, ничьи ${wins[2]})`);
 }
-ok(JSON.stringify(view(newGame(15, ["fire", "ice"]))).length < 4000, "снимок 15×15 < 4 КБ");
+// --- Ополченец: отступление на 1 по диагонали назад (только ход, без атаки)
+{
+  const g = board(8, ["fire", "ice"], [[0, "pawn", 3, 4], [1, "pawn", 4, 2], [1, "king", 7, 0], [0, "king", 0, 7]]);
+  const p0 = g.pieces[0], mt = moveTargets(g, p0);
+  ok(has(mt, 2, 5) && has(mt, 4, 5) && has(mt, 3, 3) && has(mt, 2, 4) && has(mt, 4, 4) && !has(mt, 3, 5) && !has(mt, 2, 3), "Ополченец (низ): вперёд, вбок и 2 диагонали назад; прямо назад и диагональ вперёд — нет");
+  const p1 = g.pieces[1], m1 = moveTargets(g, p1);
+  ok(has(m1, 3, 1) && has(m1, 5, 1) && !has(m1, 4, 1), "Ополченец (верх): отступление — по диагонали к своему краю");
+  ok(apply(g, 0, { a: "move", id: p0.id, x: 4, y: 5 }).ok && p0.x === 4 && p0.y === 5, "отступление на пустую клетку разрешено");
+  const g2 = board(8, ["fire", "ice"], [[0, "pawn", 3, 4], [1, "pawn", 2, 5], [0, "rook", 4, 5], [1, "king", 7, 0], [0, "king", 0, 7]]);
+  const q = g2.pieces[0];
+  ok(!has(attackTargets(g2, q), 2, 5) && !has(moveTargets(g2, q), 2, 5), "назад по диагонали нельзя бить (враг сзади не цель)");
+  ok(!apply(g2, 0, { a: "attack", id: q.id, x: 2, y: 5 }).ok && g2.pieces.length === 5, "атака назад отклонена сервером");
+  ok(!has(moveTargets(g2, q), 4, 5), "своя фигура сзади по диагонали блокирует отступление");
+  const g3 = withMap(board(8, ["fire", "ice"], [[0, "pawn", 3, 4], [1, "king", 7, 0], [0, "king", 0, 7]]), ["........", "........", "........", "........", "........", "..#.w...", "........", "........"]);
+  const m3 = moveTargets(g3, g3.pieces[0]);
+  ok(!has(m3, 2, 5) && !has(m3, 4, 5), "стена и вода блокируют отступление");
+}
+ok(JSON.stringify(view(newGame(15, ["fire", "ice"]))).length < 6000, "снимок 15×15 < 6 КБ");
 // --- рельеф и карты
 import { validateMap, passable, type MapData } from "./terrain";
 function withMap(g: GameState, rows: string[], st?: string[]): GameState { const n = g.size; g.map = { id: "t", name: "t", size: n, t: rows.join("").replace(/ /g, ""), s: (st || rows.map((r) => ".".repeat(r.replace(/ /g, "").length))).join("") }; return g; }
@@ -195,6 +216,6 @@ for (let seed = 1; seed <= 40; seed++) { const m = makeMap(15, "rnd:" + seed), a
   g.pieces[0].hp = 10; g.cur = 1; apply(g, 1, { a: "end" } as any);
   ok(g.pieces[0].hp === 11, "Колодец: +1 HP своей фигуре в начале хода");
 }
-ok(JSON.stringify(view(newGame(15, ["fire", "ice"], 0, STRAT_CFG, null, makeMap(15, "o15a")))).length < 4000, "снимок 15×15 с картой < 4 КБ");
+ok(JSON.stringify(view(newGame(15, ["fire", "ice"], 0, STRAT_CFG, null, makeMap(15, "o15a")))).length < 6500, "снимок 15×15 с картой < 6.5 КБ");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `ALL OK ${n}`); if (fails) process.exit(1);

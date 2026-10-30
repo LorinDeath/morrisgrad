@@ -24,7 +24,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
     .card { background: #1b1220cc; border: 1px solid #ffffff1a; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
     .card h2 { font-size: 1rem; margin: 0 0 10px; color: #ffd76a; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 760px) { .grid, .game { grid-template-columns: 1fr !important; } }
+    @media (max-width: 760px) { .grid, .game { grid-template-columns: minmax(0, 1fr) !important; } }
     .btn { background: linear-gradient(180deg, #7b3fa0, #4f2468); color: #fff; border: 1px solid #b37ad6; border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-size: .9rem; }
     .btn:hover:not(:disabled) { filter: brightness(1.15); }
     .btn:disabled { opacity: .45; cursor: default; }
@@ -57,6 +57,38 @@ const title = 'Партия Чёрных королей | Моррис Град'
     .cellinfo { margin-top: 8px; padding-top: 8px; border-top: 1px solid #ffffff1a; font-size: .85rem; }
     .modrow { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid #ffffff14; align-items: flex-start; }
     .rules li { margin: 3px 0; font-size: .85rem; opacity: .85; }
+    .race.water { background: #3fa7d633; color: #a9dcf2; } .race.stone { background: #c2a27a33; color: #e6d2b5; } .race.nature { background: #7ccf5a33; color: #c3eeae; } .race.lightning { background: #ffe14d33; color: #fff0a0; }
+    /* этап 2 — экономика (вариант C: тёмная подложка, золото, тонкая линия) */
+    .ecbar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; background: #1a1014e6; border: 1px solid #d9a44155; border-radius: 12px; padding: 7px 12px; margin-bottom: 8px; max-width: 640px; box-sizing: border-box; }
+    .ecbar[hidden], .citycard[hidden], .techdlg[hidden] { display: none; }
+    .ecbar .res { display: flex; gap: 14px; align-items: center; font-variant-numeric: tabular-nums; } .ecbar .res b { font-size: 1.05rem; color: #ffe7a8; } .ecbar small { color: #9be39b; font-weight: 700; }
+    .ecbar .era { border: 1px solid #d9a441; color: #f3cf68; border-radius: 6px; padding: 1px 8px; font-size: .78rem; font-weight: 800; letter-spacing: .04em; }
+    .ecbar .glory { display: flex; gap: 6px; align-items: center; flex: 1 1 200px; } .gl { flex: 1; display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: center; font-size: .72rem; }
+    .gl em { display: block; height: 8px; border-radius: 4px; background: #00000066; box-shadow: inset 0 0 0 1px #d9a44144; overflow: hidden; min-width: 40px; }
+    .gl i { display: block; height: 100%; border-radius: 4px; min-width: 2px; } .gl b { font-variant-numeric: tabular-nums; font-size: .7rem; color: #e8d9b0; }
+    .gl > span { opacity: .7; } .gl.mine > span { color: #ffd76a; opacity: 1; } .ecbar .glory .gs { font-size: .9rem; }
+    .ecbar .ebtns { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+    .citycard .ch, .tdlg .ch { display: flex; gap: 8px; align-items: baseline; margin-bottom: 6px; } .ch .x { margin-left: auto; }
+    .citycard .bar { height: 6px; background: #ffffff14; border-radius: 4px; overflow: hidden; margin: 4px 0 8px; } .citycard .bar i { display: block; height: 100%; background: linear-gradient(90deg, #a0702a, #f3cf68); }
+    .sub { font-weight: 700; color: #f3cf68; font-size: .82rem; margin: 10px 0 4px; letter-spacing: .03em; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { background: #0f0a12; color: #f1e9f5; border: 1px solid #d9a44188; border-radius: 16px; padding: 4px 10px; font-size: .8rem; cursor: pointer; } .chip small { color: #f3cf68; }
+    .chip.on { background: #d9a441; color: #1a1014; } .chip.on small { color: #1a1014; } .chip:disabled { opacity: .38; cursor: default; }
+    .bcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+    .bcard { text-align: left; background: #0f0a12; color: #f1e9f5; border: 1px solid #ffffff22; border-radius: 10px; padding: 6px 8px; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 0 6px; font-size: .78rem; }
+    .bcard .ic { grid-row: span 2; font-size: 1.1rem; color: #f3cf68; } .bcard small { opacity: .65; font-size: .7rem; line-height: 1.2; } .bcard em { grid-column: 2; font-style: normal; color: #f3cf68; font-weight: 700; margin-top: 2px; }
+    .bcard:hover:not(:disabled) { border-color: #d9a441; } .bcard:disabled { opacity: .4; cursor: default; } .bcard.have { opacity: 1; border-color: #6be36b66; } .bcard.have em { color: #6be36b; }
+    .techdlg { position: fixed; inset: 0; background: #0009; display: flex; align-items: center; justify-content: center; z-index: 50; padding: 10px; }
+    .tdlg { max-width: 860px; width: 100%; max-height: 92vh; overflow: auto; border-color: #d9a44166; }
+    .tgrid { display: grid; gap: 6px; align-items: stretch; } .tgrid .th { color: #f3cf68; font-weight: 800; font-size: .85rem; text-align: center; } .tgrid .te { font-size: .75rem; font-weight: 700; align-self: center; }
+    .tcell { display: flex; gap: 4px; align-items: stretch; background: #ffffff06; border-radius: 10px; padding: 4px; } .tcell.empty { justify-content: center; align-items: center; font-size: .72rem; }
+    .tcell .or { align-self: center; font-size: .65rem; opacity: .5; }
+    .tech { flex: 1; text-align: left; background: #0f0a12; color: #f1e9f5; border: 1px solid #ffffff22; border-radius: 8px; padding: 5px 7px; font-size: .76rem; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+    .tech small { opacity: .65; font-size: .68rem; line-height: 1.2; } .tech em { font-style: normal; color: #f3cf68; font-weight: 700; font-size: .72rem; }
+    .tech.can { border-color: #d9a441; box-shadow: 0 0 0 1px #d9a44144; } .tech.got { border-color: #6be36b; background: #12301a; } .tech.got em { color: #6be36b; }
+    .tech.lock { opacity: .3; text-decoration: line-through; } .tech.off:disabled { opacity: .5; } .tech:disabled { cursor: default; }
+    .pext { margin-top: 4px; font-size: .8rem; color: #f3cf68; } .tal { margin-top: 6px; font-size: .82rem; } .tal .btn small { font-weight: 400; opacity: .8; }
+    @media (max-width: 760px) { .game { grid-template-columns: minmax(0, 1fr); } .game > * { min-width: 0; } .ecbar { font-size: .85rem; max-width: 100%; padding: 6px 8px; gap: 6px 10px; } .ecbar .glory { flex: 1 1 100%; order: 3; } .ecbar .ebtns { margin-left: 0; } .tgrid { grid-template-columns: 52px repeat(3, 1fr) !important; } .tcell { flex-direction: column; } .tcell .or { display: none; } }
   </style>
 </head>
 <body>
@@ -91,7 +123,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
       <h2>Коротко о правилах</h2>
       <ul>
         <li>Цель — сразить вражеского <b>Вождя</b> ♚. Ходы по очереди; за ход — несколько <b>очков действий</b> (ОД): 1 на 5×5, 2 на 8×8, 3 на 15×15. Каждая фигура действует раз за ход.</li>
-        <li>Пешка ходит вперёд и вбок, бьёт по диагонали вперёд и превращается на последней линии. Конь прыгает буквой «Г». Маг ходит по диагонали и стреляет на 2 клетки. Ладья — по прямым до 4. Герой — в любую сторону до 3.</li>
+        <li>Ополченец ходит на 1 вперёд или вбок, отступает на 1 по диагонали назад (без атаки), бьёт по диагонали вперёд и превращается на последней линии. Конь прыгает буквой «Г». Маг ходит по диагонали и стреляет на 2 клетки. Ладья — по прямым до 4. Герой — в любую сторону до 3.</li>
         <li>Удар снимает HP (атака − броня). Добив врага вплотную, фигура встаёт на его клетку.</li>
         <li><span class="race fire">Огонь</span> поджигает цель (−1 HP два хода), но у его фигур на 10% меньше HP. <span class="race ice">Лёд</span> обмораживает: цель следующий ход ходит лишь на 1 клетку.</li>
         <li>Карта — рельеф: <b>река</b> не пройти, кроме мостов; <b>стены</b> и <b>горы</b> не пройти и закрывают обстрел; <b>лес</b> останавливает скольжение и даёт +1 БРН; <b>башня</b> +2 БРН; <b>колодец</b> лечит на 1 HP в начале вашего хода.</li>
@@ -116,13 +148,15 @@ const title = 'Партия Чёрных королей | Моррис Град'
       <div class="muted" id="sizeinfo"></div>
       <div class="row">Карта: <select id="mapsel"></select> <span class="xpbadge" id="mapbadge" hidden>карта не проверена — без опыта</span></div>
       <div class="row" style="align-items:flex-start"><canvas id="mappv" width="220" height="220"></canvas><div class="muted" id="mapdesc" style="max-width:300px"></div></div>
-      <div class="row">Раса (вслепую): <button class="btn sm" data-race="fire">🔥 Огонь</button><button class="btn sm" data-race="ice">❄ Лёд</button></div>
+      <div class="row">Раса (вслепую): <button class="btn sm" data-race="fire">🔥 Огонь</button><button class="btn sm" data-race="ice">❄ Лёд</button><button class="btn sm" data-race="water">🌊 Вода</button><button class="btn sm" data-race="stone">⛰ Камень</button><button class="btn sm" data-race="nature">🌿 Природа</button><button class="btn sm" data-race="lightning">⚡ Молния</button></div>
+      <div class="muted" style="font-size:.78rem">Вода, Камень, Природа и Молния — черновые правила (полные расы — следующий этап)</div>
       <div class="row"><button class="btn gold" id="ready">Готов!</button><button class="btn ghost" id="bot">Играть с ботом</button></div>
     </div>
     <div id="play" hidden>
       <div class="game">
-        <div><canvas id="board" width="640" height="640"></canvas></div>
+        <div><div id="ecbar" class="ecbar" hidden></div><canvas id="board" width="640" height="640"></canvas></div>
         <div>
+          <div class="card citycard" id="citycard" hidden></div>
           <div class="card">
             <div class="row" style="margin:0 0 6px"><span id="mapname" class="muted"></span> <span class="xpbadge" id="mapbadge2" hidden>карта не проверена — без опыта</span></div>
             <div id="clock"></div>
@@ -135,6 +169,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
     </div>
   </section>
 </div>
+<div id="techdlg" class="techdlg" hidden></div>
 <div id="toasts"></div>
 <script>
   import { boot } from '../../scripts/strat/client';

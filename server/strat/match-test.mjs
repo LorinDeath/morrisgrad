@@ -137,5 +137,38 @@ h1.send({ type: "invite", to: bsid, code: code2 }); ok((await h1.wait("err"))?.e
   ok(s5?.mapInfo?.xp === true, "после одобрения — опыт начисляется (xp=true)");
   for (const c of [M, N, hg, ha]) try { c.close(); } catch {}
 }
+// ---------- этап 2: экономика, админ-конфиг, настройки профиля
+{
+  const ha = await client("/strat/hub"); ha.send({ type: "hello", userId: "dev_strat_admin", nick: "Админ" }); await ha.wait("hello_ok");
+  h2.send({ type: "cfg_get", rq: 21 }); ok((await h2.wait("cfg_get_r", (m) => m.rq === 21))?.err === "not_admin", "конфиг правил: не админ не читает");
+  h2.send({ type: "cfg_set", rq: 22, patch: { econ: { start: { gold: 99 } } } }); ok((await h2.wait("cfg_set_r", (m) => m.rq === 22))?.err === "not_admin", "конфиг правил: не админ не меняет");
+  ha.send({ type: "cfg_get", rq: 23 }); const cg = await ha.wait("cfg_get_r", (m) => m.rq === 23);
+  ok(cg?.base?.econ?.start && cg?.cfg?.econ?.city, "админ читает базу и итоговый конфиг");
+  ha.send({ type: "cfg_set", rq: 24, patch: { econ: { start: { gold: 9 } }, evil: 1 } }); const cs = await ha.wait("cfg_set_r", (m) => m.rq === 24);
+  ok(cs && !cs.err, "админ сохраняет правку (лишние ключи отброшены)");
+  const c6 = await newLobby(8); const E = await client("/strat/m/" + c6); E.send({ type: "hello", userId: uA, nick: "Альфа" }); await E.wait("st");
+  E.send({ type: "race", race: "stone" }); ok((await E.wait("st", (m) => m.seats[0]?.race === "stone")) !== null, "новая раса (Камень) выбирается в лобби");
+  E.send({ type: "race", race: "mana" }); ok((await E.wait("err"))?.err === "bad_race", "неизвестная раса — отказ");
+  E.send({ type: "race", race: "fire" }); E.send({ type: "bot", on: true }); E.send({ type: "ready", on: true });
+  let s6 = await E.wait("st", (m) => m.phase === "play" && m.g.cur === m.you, 15000);
+  ok(s6?.cfgPatch?.econ?.start?.gold === 9 && s6.g.ec, "партия получила админ-правку (cfgPatch) и экономику");
+  const my = s6.you, cap = s6.g.ec.cities.find((c) => c.owner === my && c.cap);
+  E.clear(); E.send({ type: "act", act: { a: "build", city: cap.id, b: "barracks" } });
+  s6 = await E.wait("st", (m) => m.g.ec.cities.find((c) => c.id === cap.id)?.bld?.includes("barracks"));
+  ok(!!s6 && s6.ev.some((e) => e.e === "build"), "постройка Казармы через сервер");
+  E.clear(); E.send({ type: "act", act: { a: "build", city: cap.id, b: "stable" } }); ok((await E.wait("err"))?.err === "city_acted", "город раз в ход — отказ сервера");
+  E.clear(); E.send({ type: "act", act: { a: "research", t: "<script>" } }); ok(["bad_tech", "bad_action"].includes((await E.wait("err"))?.err), "мусорная технология отклонена");
+  E.clear(); E.send({ type: "act", act: { a: "trade", to: 1 - my, give: { gold: 1 }, get: { know: 1 } } }); ok((await E.wait("err"))?.err === "no_ally", "обмен в 1 на 1 — нет союзника");
+  E.clear(); E.send({ type: "act", act: { a: "build", city: cap.id, b: "barracks", __proto__: { x: 1 }, extra: "x".repeat(50) } }); ok(!!(await E.wait("err")), "лишние поля действия не ломают сервер");
+  E.send({ type: "forfeit" }); await E.wait("st", (m) => m.phase === "over");
+  ha.send({ type: "cfg_set", rq: 25, patch: {} }); await ha.wait("cfg_set_r", (m) => m.rq === 25); // вернуть базу
+  // настройки профиля
+  const hg2 = await client("/strat/hub"); hg2.send({ type: "hello", guest: "g".repeat(12) + T }); await hg2.wait("hello_ok");
+  hg2.send({ type: "pref_set", pieceStyle: "fig" }); ok((await hg2.wait("err"))?.err === "guest", "гость: стиль фигур не сохраняется в профиль");
+  h1.send({ type: "pref_set", pieceStyle: "tok", glyphBadge: true }); ok(!!(await h1.wait("pref_ok")), "вошедший: стиль сохранён");
+  const h3 = await client("/strat/hub"); h3.send({ type: "hello", userId: uA, nick: "Альфа" }); const ho = await h3.wait("hello_ok");
+  ok(ho?.prefs?.pieceStyle === "tok", "стиль фигур возвращается при входе (с другого устройства)");
+  for (const c of [ha, E, hg2, h3]) try { c.close(); } catch {}
+}
 for (const c of [A, B, X, P, O2, H, h1, h2]) try { c.close(); } catch {}
 console.log(`${pass} PASS, ${fail} FAIL`); process.exit(fail ? 1 : 0);

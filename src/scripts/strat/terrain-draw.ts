@@ -2,6 +2,7 @@
 // ар-деко-мотивы; чёрный/золото/слоновая кость/красный + стихийные акценты). Заглушки до арта Художника
 // (заказ: minigame-tz/art-request-terrain.md). Рельеф пререндерится в offscreen-canvas один раз на карту/размер.
 import type { MapData } from "../../../server/strat/terrain";
+import { terrainImg, artVer } from "./art";
 
 export const INK = "#1a1014", GOLD = "#d9a441", GOLD2 = "#f3cf68", IVORY = "#efe6cf", RED = "#b3261e";
 const C = {
@@ -66,6 +67,7 @@ function roadBand(ctx: CanvasRenderingContext2D, px: number, py: number, c: numb
 
 /** Клетка рельефа. px,py — экранный угол клетки, nb — сосед в экранных направлениях. */
 export function drawTerrainCell(ctx: CanvasRenderingContext2D, t: string, x: number, y: number, px: number, py: number, c: number, nb: Nb) {
+  if (artCell(ctx, t, x, y, px, py, c, nb)) return;
   ctx.lineJoin = "round";
   switch (t) {
     case "w": waterCell(ctx, x, y, px, py, c, nb); break;
@@ -118,6 +120,77 @@ export function drawTerrainCell(ctx: CanvasRenderingContext2D, t: string, x: num
   }
 }
 
+// ---------- арт Художника (terrain-v1): тайлы 256×256, автотайлинг дорог/стен/берегов; нет файла — заглушка кодом ----------
+const pick = (base: string, n: number, x: number, y: number) => terrainImg(`${base}_${1 + Math.floor(hash(x * 3 + 1, y * 5 + 2) * n)}`) || terrainImg(base + "_1");
+/** имя по связям сторон n/e/s/w (README terrain-v1: corner_xy, t_<шляпка>, end_<куда уходит>) */
+function linkName(base: string, n: boolean, e: boolean, s: boolean, w: boolean, none: string): string {
+  const k = +n + +e + +s + +w;
+  if (k === 4) return base + "_cross";
+  if (k === 3) return base + "_t_" + (!s ? "n" : !w ? "e" : !n ? "s" : "w");
+  if (k === 2) { if (n && s) return base + (base.endsWith("road") ? "_straight_v" : "_v"); if (e && w) return base + (base.endsWith("road") ? "_straight_h" : "_h");
+    return base + "_corner_" + (n ? "n" : "s") + (e ? "e" : "w"); }
+  if (k === 1) return base + "_end_" + (n ? "n" : e ? "e" : s ? "s" : "w");
+  return none;
+}
+function blit(ctx: CanvasRenderingContext2D, im: HTMLImageElement | null, px: number, py: number, c: number) { if (!im) return false; ctx.drawImage(im, px, py, c + 0.6, c + 0.6); return true; }
+function artCell(ctx: CanvasRenderingContext2D, t: string, x: number, y: number, px: number, py: number, c: number, nb: Nb): boolean {
+  if (!terrainImg("tile_plain_1")) return false; // набор не загружен (или ?terrainArt=0)
+  const wet = (q: string) => q === "w" || q === "b" || q === "?";
+  const water = () => { if (!blit(ctx, pick("tile_water", 3, x, y), px, py, c)) return false; // берега: сторона / скруглённый угол / внутренний угол
+    const N = !wet(nb(0, -1)), E = !wet(nb(1, 0)), S = !wet(nb(0, 1)), W = !wet(nb(-1, 0)), ov: string[] = [];
+    const corner = (a: boolean, b: boolean, nm: string) => { if (a && b) ov.push("shore_corner_" + nm); };
+    corner(N, E, "ne"); corner(N, W, "nw"); corner(S, E, "se"); corner(S, W, "sw");
+    if (N && !E && !W) ov.push("shore_n"); if (S && !E && !W) ov.push("shore_s"); if (E && !N && !S) ov.push("shore_e"); if (W && !N && !S) ov.push("shore_w");
+    if (N && S && E && W) ov.length = 0, ov.push("shore_n", "shore_s", "shore_e", "shore_w");
+    const diag = (dx: number, dy: number, a: boolean, b: boolean, nm: string) => { if (!a && !b && !wet(nb(dx, dy))) ov.push("shore_inner_" + nm); };
+    diag(1, -1, N, E, "ne"); diag(-1, -1, N, W, "nw"); diag(1, 1, S, E, "se"); diag(-1, 1, S, W, "sw");
+    for (const o of ov) blit(ctx, terrainImg(o), px, py, c); return true; };
+  switch (t) {
+    case "w": return water();
+    case "b": { const vert = nb(0, -1) !== "w" && nb(0, 1) !== "w"; return blit(ctx, terrainImg(vert ? "tile_bridge_v" : "tile_bridge_h"), px, py, c); }
+    case "f": return blit(ctx, pick("tile_forest", 3, x, y), px, py, c);
+    case "m": return blit(ctx, pick("tile_mountain", 3, x, y), px, py, c);
+    case ",": return blit(ctx, pick("tile_meadow", 3, x, y), px, py, c);
+    case "r": { const L = (q: string) => q === "r" || q === "b" || q === "g";
+      const nm = linkName("tile_road", L(nb(0, -1)), L(nb(1, 0)), L(nb(0, 1)), L(nb(-1, 0)), "tile_road_straight_v");
+      return blit(ctx, terrainImg(nm) || terrainImg("tile_road_cross"), px, py, c); }
+    case "#": { const L = (q: string) => q === "#" || q === "g";
+      const nm = linkName("tile_wall", L(nb(0, -1)), L(nb(1, 0)), L(nb(0, 1)), L(nb(-1, 0)), "tile_wall_h");
+      return blit(ctx, terrainImg(nm) || terrainImg("tile_wall_h"), px, py, c); }
+    case "g": { const hz = nb(-1, 0) === "#" || nb(1, 0) === "#" || !(nb(0, -1) === "#" || nb(0, 1) === "#"); return blit(ctx, terrainImg(hz ? "tile_gate_h" : "tile_gate_v"), px, py, c); }
+    default: return blit(ctx, pick("tile_plain", 4, x, y), px, py, c);
+  }
+}
+const tintCache = new Map<string, HTMLCanvasElement>();
+/** белая маска → цвет (умножение по RGB, альфа маски) */
+function tinted(name: string, col: string): HTMLCanvasElement | null {
+  const k = name + col, hit = tintCache.get(k); if (hit) return hit; const im = terrainImg(name); if (!im) return null;
+  const cv = document.createElement("canvas"); cv.width = im.naturalWidth; cv.height = im.naturalHeight; const x = cv.getContext("2d")!;
+  x.drawImage(im, 0, 0); x.globalCompositeOperation = "multiply"; x.fillStyle = col; x.fillRect(0, 0, cv.width, cv.height);
+  x.globalCompositeOperation = "destination-in"; x.drawImage(im, 0, 0); tintCache.set(k, cv); return cv;
+}
+/** Постройка Художника в клетке (px,py,c). owner: -1 — ничья, иначе цвет владельца на флажке; P — знамя в цвет стороны. */
+export function drawStructArt(ctx: CanvasRenderingContext2D, ch: string, px: number, py: number, c: number, ownerCol: string | null, sideCol: string): boolean {
+  if (ch === "P") { const im = terrainImg("struct_P"); if (!im) return false; ctx.drawImage(im, px, py, c, c); const m = tinted("struct_P_banner_mask", sideCol); if (m) ctx.drawImage(m, px, py, c, c); return true; }
+  const im = (ownerCol && terrainImg(`struct_${ch}_owned`)) || terrainImg("struct_" + ch); if (!im) return false;
+  ctx.drawImage(im, px, py, c, c);
+  if (ownerCol && terrainImg(`struct_${ch}_owned`)) { const m = tinted("flag_mask", ownerCol); if (m) ctx.drawImage(m, px, py, c, c); }
+  return true;
+}
+/** Маленький значок постройки (под фигурой): icon_<код> или заглушка кодом. */
+export function drawStructIcon(ctx: CanvasRenderingContext2D, ch: string, cx: number, cy: number, s: number) {
+  const im = terrainImg("icon_" + ch); if (im) { ctx.drawImage(im, cx - s / 2, cy - s / 2, s, s); return; } drawStruct(ctx, ch, cx, cy, s, GOLD);
+}
+/** Рамка доски 9-slice (frame_board 96×96, отступ 32); t — толщина на экране. */
+function drawFrame(ctx: CanvasRenderingContext2D, W: number, t: number): boolean {
+  const im = terrainImg("frame_board"); if (!im) return false; const s = 32, M = 96 - 2 * s, L = W - 2 * t;
+  const P: [number, number, number, number, number, number, number, number][] = [
+    [0, 0, s, s, 0, 0, t, t], [s, 0, M, s, t, 0, L, t], [96 - s, 0, s, s, W - t, 0, t, t],
+    [0, s, s, M, 0, t, t, L], [96 - s, s, s, M, W - t, t, t, L],
+    [0, 96 - s, s, s, 0, W - t, t, t], [s, 96 - s, M, s, t, W - t, L, t], [96 - s, 96 - s, s, s, W - t, W - t, t, t]];
+  for (const q of P) ctx.drawImage(im, ...q); return true;
+}
+
 /** Иконка постройки, центр (cx,cy), размер s (≈ 0.7 клетки). side — для точки спавна: цвет стороны. */
 export function drawStruct(ctx: CanvasRenderingContext2D, ch: string, cx: number, cy: number, s: number, sideCol = GOLD) {
   ctx.save(); ctx.translate(cx, cy); ctx.lineJoin = "round"; ctx.lineCap = "round";
@@ -156,8 +229,10 @@ export function drawStruct(ctx: CanvasRenderingContext2D, ch: string, cx: number
 
 const cache = new Map<string, HTMLCanvasElement>();
 /** Пререндер рельефа (+ постройки) в offscreen-canvas. flip — вид со стороны игрока 1. */
-export function terrainLayer(m: MapData, side: number, flip: boolean, sideCols: [string, string]): HTMLCanvasElement {
-  const key = m.id + "|" + side + "|" + flip + "|" + sideCols.join() + "|" + m.t + m.s;
+export function terrainLayer(m: MapData, side: number, flip: boolean, sideCols: [string, string], owner?: (x: number, y: number) => number): HTMLCanvasElement {
+  const own = (x: number, y: number) => (owner ? owner(x, y) : -1);
+  let ok = ""; if (owner) for (let i = 0; i < m.s.length; i++) if (m.s[i] !== ".") ok += own(i % m.size, Math.floor(i / m.size)) + 1;
+  const key = m.id + "|" + side + "|" + flip + "|" + sideCols.join() + "|" + m.t + m.s + "|" + ok + "|" + artVer;
   const hit = cache.get(key); if (hit) return hit;
   if (cache.size > 6) cache.clear();
   const n = m.size, c = side / n, cv = document.createElement("canvas"); cv.width = cv.height = side;
@@ -177,8 +252,10 @@ export function terrainLayer(m: MapData, side: number, flip: boolean, sideCols: 
   for (let i = 1; i < n; i++) { ctx.beginPath(); ctx.moveTo(i * c, 0); ctx.lineTo(i * c, side); ctx.moveTo(0, i * c); ctx.lineTo(side, i * c); ctx.stroke(); }
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
     const ch = m.s[y * n + x]; if (ch === ".") continue; const [sx, sy] = scr(x, y);
-    drawStruct(ctx, ch, (sx + 0.5) * c, (sy + 0.5) * c, c * 0.7, sideCols[y > (n - 1) / 2 ? 0 : 1]);
+    const o = own(x, y), sc = sideCols[y > (n - 1) / 2 ? 0 : 1];
+    if (!drawStructArt(ctx, ch, sx * c, sy * c, c, o >= 0 ? sideCols[o] : null, sc)) drawStruct(ctx, ch, (sx + 0.5) * c, (sy + 0.5) * c, c * 0.7, sc);
   }
+  if (drawFrame(ctx, side, Math.max(6, Math.min(c * 0.22, side * 0.03)))) { cache.set(key, cv); return cv; }
   // рамка в стиле C: чёрная линия + золотая кайма
   ctx.lineWidth = Math.max(3, c * 0.08); ctx.strokeStyle = INK; ctx.strokeRect(0, 0, side, side);
   ctx.lineWidth = Math.max(1.5, c * 0.03); ctx.strokeStyle = GOLD; ctx.strokeRect(c * 0.06, c * 0.06, side - c * 0.12, side - c * 0.12);

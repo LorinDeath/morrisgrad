@@ -6,7 +6,9 @@ import { admitMessage, originAllowed, isLocalRequest, isDevRequest, MSG_BURST } 
 import { identify, type Ident } from "./ident";
 import { resolveLobbyMap } from "./maps";
 import { type MapData } from "./terrain";
-import { newGame, makeMap, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, validTurnLimit, type GameState, type Race, type Action, type Ev, type Kind } from "./rules";
+import { newGame, makeMap, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, validTurnLimit, type GameState, type Race, type Action, type Ev, type Kind, type StratCfg } from "./rules";
+import { loadStratCfg } from "./cfg";
+import { ECON_ACTS } from "./econ";
 
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без O/0, I/1
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
@@ -23,6 +25,8 @@ type L = {
   turnLimit?: number | null; // null/нет = по умолчанию для размера; 0 = без лимита; иначе TURN_LIMIT.min..max
   phase: "lobby" | "play" | "over"; seats: [SeatS | null, SeatS | null];
   game: GameState | null; clock: Clock | null; result?: { winner: number; reason: string };
+  cfgPatch?: any; // правка админки (маленькая) — уходит клиенту, чтобы подсказки совпадали с сервером
+  cfg?: StratCfg; // снимок правил (STRAT_CFG + правки админки) на момент старта партии
   devTurnMs?: number; // только локальные плейтесты (MC_DEV_TRUST_USERID=1 + localhost): короткий таймер хода без запаса
 };
 type Att = { pkey?: string; nick?: string; verified?: boolean; url: string; tk: number; at: number; st: number };
@@ -166,7 +170,7 @@ export class StratMatch extends DurableObject {
         (me as any).rematch = true;
         if (L.seats.every((s) => s && (s.bot || (s as any).rematch))) {
           for (const s of L.seats) if (s) { (s as any).rematch = false; s.ready = !!s.bot; if (!s.bot) s.race = null; }
-          L.phase = "lobby"; L.game = null; L.clock = null; L.result = undefined;
+          L.phase = "lobby"; L.game = null; L.clock = null; L.result = undefined; L.cfg = undefined; L.cfgPatch = undefined;
         }
         break;
       }
@@ -199,8 +203,9 @@ export class StratMatch extends DurableObject {
       if (r.err || !r.map) { this.setMap(null); } else this.setMap({ map: r.map, xp: r.xp, status: r.status });
     }
     const first = (crypto.getRandomValues(new Uint8Array(1))[0] & 1) as 0 | 1; // кто ходит первым — случайно
-    L.game = newGame(L.size, [L.seats[0]!.race!, L.seats[1]!.race!], first, STRAT_CFG, L.turnLimit, L.map);
-    const sc = STRAT_CFG.sizes[L.size], res = L.devTurnMs ? 0 : sc.reserveSec * 1000;
+    { const c = await loadStratCfg(this.env, true); L.cfg = c.cfg; L.cfgPatch = c.patch && Object.keys(c.patch).length ? c.patch : undefined; }
+    L.game = newGame(L.size, [L.seats[0]!.race!, L.seats[1]!.race!], first, L.cfg, L.turnLimit, L.map);
+    const sc = L.cfg.sizes[L.size], res = L.devTurnMs ? 0 : sc.reserveSec * 1000;
     L.clock = { turnStart: Date.now(), reserve: [res, res] };
     L.phase = "play"; this.lastEv = [{ e: "turn", cur: first, turn: 1 }];
     this.botMaybe();
@@ -209,7 +214,7 @@ export class StratMatch extends DurableObject {
 
   doAct(seat: 0 | 1, act: Action): string {
     const L = this.L!, g = L.game!, prevCur = g.cur;
-    const r = apply(g, seat, act); if (!r.ok) return r.err;
+    const r = apply(g, seat, act, this.cfg()); if (!r.ok) return r.err;
     this.lastEv = r.ev;
     if (g.cur !== prevCur || g.winner !== -1) this.turnPassed(prevCur);
     if (g.winner !== -1) this.finish(g.winner as any, g.reason);
@@ -223,7 +228,8 @@ export class StratMatch extends DurableObject {
     if (over > 0) c.reserve[prev] = Math.max(0, c.reserve[prev] - over);
     c.turnStart = Date.now();
   }
-  turnMs(): number { const L = this.L!; return L.devTurnMs || STRAT_CFG.sizes[L.size].turnSec * 1000; }
+  cfg(): StratCfg { return this.L?.cfg || STRAT_CFG; }
+  turnMs(): number { const L = this.L!; return L.devTurnMs || this.cfg().sizes[L.size].turnSec * 1000; }
   deadline(): number { const L = this.L!, c = L.clock!; return c.turnStart + this.turnMs() + c.reserve[L.game!.cur]; }
 
   finish(winner: 0 | 1 | 2, reason: string) {
@@ -236,7 +242,7 @@ export class StratMatch extends DurableObject {
   async record() {
     const L = this.L!, g = L.game!, db = this.env.GAME_DB; if (!db) return;
     await db.prepare("INSERT OR REPLACE INTO strat_matches (id, code, size, p0, p1, race0, race1, first, winner, reason, turns, turn_limit, map_id, xp, cfg_version, started_at, ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(L.code + ":" + L.created + ":" + (L.clock?.turnStart || 0), L.code, L.size, L.seats[0]!.pkey, L.seats[1]!.pkey, g.races[0], g.races[1], g.first, g.winner, g.reason, g.turn, g.turnLimit, L.mapId || "", this.xpAllowed() ? 1 : 0, STRAT_CFG.version, L.created, Date.now()).run();
+      .bind(L.code + ":" + L.created + ":" + (L.clock?.turnStart || 0), L.code, L.size, L.seats[0]!.pkey, L.seats[1]!.pkey, g.races[0], g.races[1], g.first, g.winner, g.reason, g.turn, g.turnLimit, L.mapId || "", this.xpAllowed() ? 1 : 0, this.cfg().version, L.created, Date.now()).run();
   }
   /** Опыт за партию (сервер решает сам): только на официальных/одобренных картах. Гостям опыт не начисляется никогда. */
   xpAllowed(): boolean { return this.L!.xpMap !== false;
@@ -249,7 +255,7 @@ export class StratMatch extends DurableObject {
     this.botTimer = setTimeout(async () => {
       this.botTimer = null; const L2 = await this.load(); if (!L2 || L2.phase !== "play") return;
       const side = L2.game!.cur; if (!L2.seats[side]?.bot) return;
-      const err = this.doAct(side, botAction(L2.game!, side));
+      const err = this.doAct(side, botAction(L2.game!, side, this.cfg()));
       if (err) this.doAct(side, { a: "end" });
       await this.save(); this.broadcast();
     }, BOT_STEP_MS);
@@ -299,7 +305,7 @@ export class StratMatch extends DurableObject {
       mapInfo: { id: L.mapId || "", name: L.mapName || "", status: L.mapStatus || "official", xp: L.xpMap !== false } };
     if (L.phase === "lobby" && L.map) out.lobbyMap = L.map; // предпросмотр
     if (L.game) {
-      const g = L.game; out.g = view(g); out.check = [inCheck(g, 0), inCheck(g, 1)];
+      const g = L.game; out.g = view(g, true, this.cfg()); if (L.cfgPatch) out.cfgPatch = L.cfgPatch; out.check = [inCheck(g, 0), inCheck(g, 1)];
       if (L.clock && L.phase === "play") out.clock = { deadline: this.deadline(), turnEnds: L.clock.turnStart + this.turnMs(), reserve: L.clock.reserve };
     }
     if (L.result) out.result = L.result;
@@ -315,6 +321,27 @@ function parseAct(a: any): Action | null {
     const o: any = { a: a.a, id: a.id, x: a.x, y: a.y };
     if (a.a === "move" && ["knight", "mage", "rook"].includes(a.promo)) o.promo = a.promo as Kind;
     return o;
+  }
+  return parseEcon(a);
+}
+/** Экономика (этап 2): только целые id/координаты и строки из белого списка; остальное проверяет движок. */
+function parseEcon(a: any): Action | null {
+  if (!ECON_ACTS.includes(a.a)) return null;
+  const id = (v: any) => Number.isInteger(v) && v >= 0 && v < 1e6, int = (v: any) => Number.isInteger(v) && v >= 0 && v < 64;
+  const word = (v: any) => typeof v === "string" && /^[a-z0-9_]{1,16}$/.test(v);
+  const KINDS = ["pawn", "knight", "mage", "rook", "hero"];
+  switch (a.a) {
+    case "recruit": return id(a.city) && KINDS.includes(a.kind) && int(a.x) && int(a.y) ? { a: "recruit", city: a.city, kind: a.kind, x: a.x, y: a.y } : null;
+    case "build": return id(a.city) && word(a.b) ? { a: "build", city: a.city, b: a.b, ...(KINDS.includes(a.kind) ? { kind: a.kind } : {}) } as any : null;
+    case "research": return word(a.t) ? { a: "research", t: a.t } : null;
+    case "era": return { a: "era" };
+    case "talent": return id(a.id) && word(a.t) ? { a: "talent", id: a.id, t: a.t } : null;
+    case "found": return id(a.id) ? { a: "found", id: a.id } : null;
+    case "swap": return id(a.city) && Number.isInteger(a.n) && a.n >= 0 && a.n < 8 ? { a: "swap", city: a.city, n: a.n } : null;
+    case "trade": { // 2×2: союзный обмен (крюк; в 1×1 движок ответит no_ally)
+      const res = (o: any) => { const r: any = {}; if (!o || typeof o !== "object") return r; for (const k of ["gold", "know"]) if (Number.isInteger(o[k]) && o[k] > 0 && o[k] < 1000) r[k] = o[k]; return r; };
+      return Number.isInteger(a.to) && a.to >= 0 && a.to < 4 ? { a: "trade", to: a.to, give: res(a.give), get: res(a.get) } : null;
+    }
   }
   return null;
 }
