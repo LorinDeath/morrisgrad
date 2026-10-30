@@ -1,6 +1,9 @@
 // «Партия Чёрных королей» — движок правил (этап 1). Чистые функции без I/O: один модуль для сервера (StratMatch),
 // клиента (подсветка ходов), бота и симулятора. Все числа — в STRAT_CFG (позже правятся в админке, game_overrides strat_*).
 
+import { type MapData, openMap, generateMap, passable, stopsSlide, blocksShot, coverArm, str as mapStr, TER_RULES } from "./terrain";
+export type { MapData } from "./terrain";
+
 export type Race = "fire" | "ice";
 export type Kind = "pawn" | "knight" | "mage" | "rook" | "hero" | "king";
 export const RACES: Race[] = ["fire", "ice"];
@@ -58,6 +61,7 @@ export type Seat = { race: Race };
 export type GameState = {
   v: number; size: number; turn: number; first: 0 | 1; cur: 0 | 1; ap: number; apMax: number; turnLimit: number;
   races: [Race, Race]; pieces: Piece[]; nextId: number;
+  map: MapData; // рельеф и постройки (terrain.ts)
   winner: -1 | 0 | 1 | 2; // -1 идёт, 2 ничья
   reason: string; lastEv: Ev[];
 };
@@ -66,6 +70,7 @@ export type Ev =
   | { e: "hit"; id: number; t: number; dmg: number; hp: number; burn?: boolean; chill?: boolean }
   | { e: "kill"; id: number; by: number }
   | { e: "burn"; id: number; dmg: number; hp: number }
+  | { e: "heal"; id: number; hp: number; n: number }
   | { e: "promote"; id: number; kind: Kind }
   | { e: "turn"; cur: 0 | 1; turn: number }
   | { e: "end"; winner: number; reason: string };
@@ -76,9 +81,35 @@ export type Action =
 
 const PROMO_OK: Kind[] = ["knight", "mage", "rook"];
 
-export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg: StratCfg = STRAT_CFG, turnLimit?: number | null): GameState {
+/** Клетки стартовой армии игрока 0 (игрок 1 — центрально-симметрично) и колонка Вождя. */
+export function armyCells(size: number, cfg: StratCfg = STRAT_CFG): { cells: [number, number][]; kingCol: number; rows: number } {
+  const sc = cfg.sizes[size]; const cells: [number, number][] = []; let kingCol = Math.floor(size / 2);
+  sc.army.forEach((row, r) => { const x0 = Math.floor((size - row.length) / 2); row.forEach((k, i) => { cells.push([x0 + i, size - 1 - r]); if (k === "king") kingCol = x0 + i; }); });
+  return { cells, kingCol, rows: sc.army.length };
+}
+/** Официальные карты (генерируются детерминированно, симметричны; позже — из админки). */
+const OFFICIAL: Record<number, { id: string; name: string; seed: number }[]> = {
+  5: [{ id: "o5a", name: "Колодец", seed: 51 }, { id: "o5b", name: "Опушка", seed: 77 }],
+  8: [{ id: "o8a", name: "Две переправы", seed: 801 }, { id: "o8b", name: "Горный брод", seed: 813 }],
+  15: [{ id: "o15a", name: "Река Чёрных королей", seed: 1501 }, { id: "o15b", name: "Стена и рудники", seed: 1544 }],
+};
+const mapCache = new Map<string, MapData>();
+export function officialMaps(size: number) { return (OFFICIAL[size] || []).map((o) => ({ id: o.id, name: o.name })); }
+export function makeMap(size: number, id: string | null | undefined, cfg: StratCfg = STRAT_CFG): MapData {
+  if (id === "open") return openMap(size);
+  const list = OFFICIAL[size] || []; const off = list.find((o) => o.id === id) || (!id ? list[0] : undefined); // без id — первая официальная
+  const seed = off ? off.seed : id && /^rnd:\d+$/.test(id) ? +id.slice(4) : list[0]?.seed ?? 1;
+  const key = size + ":" + seed; const hit = mapCache.get(key); if (hit && off) return hit;
+  const a = armyCells(size, cfg);
+  const m = generateMap({ size, seed, armyRows: a.rows, armyCols: a.cells, kingCol: a.kingCol, id: off ? off.id : "rnd:" + seed, name: off ? off.name : "Случайная" });
+  if (off) mapCache.set(key, m);
+  return m;
+}
+
+export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg: StratCfg = STRAT_CFG, turnLimit?: number | null, map?: MapData): GameState {
   const sc = cfg.sizes[size]; if (!sc) throw new Error("bad size");
-  const g: GameState = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: turnLimit ?? sc.turnLimit, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [] };
+  if (map && map.size !== size) throw new Error("map size");
+  const g: GameState = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: turnLimit ?? sc.turnLimit, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [], map: map || openMap(size) };
   for (const owner of [0, 1] as const) {
     sc.army.forEach((row, r) => {
       const x0 = Math.floor((size - row.length) / 2);
@@ -102,11 +133,13 @@ const D8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]
 const D4 = D8.slice(0, 4), DD = D8.slice(4);
 const KN = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
 
+const canStand = (g: GameState, p: Piece, x: number, y: number) => inB(g, x, y) && !at(g, x, y) && passable(g.map, x, y, g.races[p.owner]);
 function slide(g: GameState, p: Piece, dirs: number[][], max: number, out: [number, number][]) {
   for (const [dx, dy] of dirs) for (let s = 1; s <= max; s++) {
     const x = p.x + dx * s, y = p.y + dy * s;
-    if (!inB(g, x, y) || at(g, x, y)) break;
+    if (!canStand(g, p, x, y)) break;
     out.push([x, y]);
+    if (stopsSlide(g.map, x, y)) break; // лес: дальше в этот ход нельзя
   }
 }
 
@@ -116,10 +149,10 @@ export function moveTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): 
   const cap = p.chill > 0 ? 1 : 99;
   switch (p.kind) {
     case "pawn": {
-      for (const [dx, dy] of [[0, fwd(p.owner)], [1, 0], [-1, 0]]) { const x = p.x + dx, y = p.y + dy; if (inB(g, x, y) && !at(g, x, y)) out.push([x, y]); }
+      for (const [dx, dy] of [[0, fwd(p.owner)], [1, 0], [-1, 0]]) { const x = p.x + dx, y = p.y + dy; if (canStand(g, p, x, y)) out.push([x, y]); }
       break;
     }
-    case "knight": if (cap >= 2) for (const [dx, dy] of KN) { const x = p.x + dx, y = p.y + dy; if (inB(g, x, y) && !at(g, x, y)) out.push([x, y]); } break;
+    case "knight": if (cap >= 2) for (const [dx, dy] of KN) { const x = p.x + dx, y = p.y + dy; if (canStand(g, p, x, y)) out.push([x, y]); } break; // прыжок через рельеф, но приземляется на проходимую
     case "mage": slide(g, p, DD, Math.min(cap, r.mageMove), out); break;
     case "rook": slide(g, p, D4, Math.min(cap, r.rookMove), out); break;
     case "hero": slide(g, p, D8, Math.min(cap, r.heroMove), out); break;
@@ -134,7 +167,10 @@ export function attackTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG)
   switch (p.kind) {
     case "pawn": cells.push([p.x + 1, p.y + fwd(p.owner)], [p.x - 1, p.y + fwd(p.owner)]); break;
     case "knight": for (const [dx, dy] of KN) cells.push([p.x + dx, p.y + dy]); break;
-    case "mage": for (const [dx, dy] of DD) for (let s = 1; s <= cfg.range.mageShot; s++) cells.push([p.x + dx * s, p.y + dy * s]); break;
+    case "mage": for (const [dx, dy] of DD) for (let s = 1; s <= cfg.range.mageShot; s++) {
+      const x = p.x + dx * s, y = p.y + dy * s; cells.push([x, y]);
+      if (!inB(g, x, y) || blocksShot(g.map, x, y)) break; // обстрел закрывают стены и горы
+    } break;
     case "rook": for (const [dx, dy] of D4) cells.push([p.x + dx, p.y + dy]); break;
     case "hero": case "king": for (const [dx, dy] of D8) cells.push([p.x + dx, p.y + dy]); break;
   }
@@ -143,7 +179,7 @@ export function attackTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG)
 
 export function damage(g: GameState, a: Piece, t: Piece, cfg: StratCfg = STRAT_CFG): number {
   const mul = elementMul(g.races[a.owner], g.races[t.owner], cfg);
-  return Math.max(1, Math.round((a.atk - t.arm) * mul));
+  return Math.max(1, Math.round((a.atk - t.arm - coverArm(g.map, t.x, t.y)) * mul)); // лес/ворота/башня — укрытие
 }
 
 /** Шах: Вождь игрока side под ударом хотя бы одной вражеской фигуры. */
@@ -229,6 +265,8 @@ function endTurn(g: GameState, ev: Ev[], cfg: StratCfg) {
     finish(g, Math.abs(a - b) < 0.5 ? 2 : a > b ? 0 : 1, "limit", ev); return;
   }
   g.cur = next; g.ap = g.apMax;
+  // колодец: лечит свою фигуру, стоящую на нём, в начале её хода
+  for (const p of g.pieces) if (p.owner === next && p.hp < p.maxHp && mapStr(g.map, p.x, p.y) === "W") { const h = Math.min(TER_RULES.wellHeal, p.maxHp - p.hp); p.hp += h; ev.push({ e: "heal", id: p.id, hp: p.hp, n: h }); }
   // поджог: урон в начале хода владельца горящей фигуры
   for (const p of [...g.pieces]) if (p.owner === next && p.burn > 0) {
     p.burn--; p.hp -= cfg.race.fire.burnDmg; ev.push({ e: "burn", id: p.id, dmg: cfg.race.fire.burnDmg, hp: Math.max(0, p.hp) });
@@ -260,7 +298,7 @@ export function botAction(g: GameState, side: 0 | 1, cfg: StratCfg = STRAT_CFG):
 }
 
 /** Снимок для клиента (этап 1 — без тумана: всё видно обоим). */
-export function view(g: GameState) {
-  return { v: g.v, size: g.size, turn: g.turn, cur: g.cur, ap: g.ap, apMax: g.apMax, turnLimit: g.turnLimit, races: g.races, winner: g.winner, reason: g.reason, first: g.first,
+export function view(g: GameState, withMap = true) {
+  return { v: g.v, ...(withMap ? { map: g.map } : {}), size: g.size, turn: g.turn, cur: g.cur, ap: g.ap, apMax: g.apMax, turnLimit: g.turnLimit, races: g.races, winner: g.winner, reason: g.reason, first: g.first,
     pieces: g.pieces.map((p) => ({ id: p.id, o: p.owner, k: p.kind, x: p.x, y: p.y, hp: p.hp, mh: p.maxHp, atk: p.atk, arm: p.arm, a: p.acted ? 1 : 0, b: p.burn, c: p.chill })) };
 }

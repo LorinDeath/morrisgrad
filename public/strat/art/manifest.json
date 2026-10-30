@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "style": "variant_c",
  "cell": 256,
  "groundY": 240,
@@ -10,12 +10,84 @@
     "death": "/strat/art/fire/knight_death.png",
     "hit": "/strat/art/fire/knight_hit.png",
     "idle": "/strat/art/fire/knight_idle.png"
+   },
+   "king": {
+    "attack": "/strat/art/fire/king_attack.png",
+    "death": "/strat/art/fire/king_death.png",
+    "hit": "/strat/art/fire/king_hit.png",
+    "idle": "/strat/art/fire/king_idle.png"
+   },
+   "rook": {
+    "attack": "/strat/art/fire/rook_attack.png",
+    "death": "/strat/art/fire/rook_death.png",
+    "hit": "/strat/art/fire/rook_hit.png",
+    "idle": "/strat/art/fire/rook_idle.png"
+   },
+   "hero": {
+    "attack": "/strat/art/fire/hero_attack.png",
+    "death": "/strat/art/fire/hero_death.png",
+    "hit": "/strat/art/fire/hero_hit.png",
+    "idle": "/strat/art/fire/hero_idle.png"
+   },
+   "mage": {
+    "attack": "/strat/art/fire/mage_attack.png",
+    "death": "/strat/art/fire/mage_death.png",
+    "hit": "/strat/art/fire/mage_hit.png",
+    "idle": "/strat/art/fire/mage_idle.png"
+   },
+   "pawn": {
+    "attack": "/strat/art/fire/pawn_attack.png",
+    "death": "/strat/art/fire/pawn_death.png",
+    "hit": "/strat/art/fire/pawn_hit.png",
+    "idle": "/strat/art/fire/pawn_idle.png"
+   }
+  },
+  "ice": {
+   "king": {
+    "attack": "/strat/art/ice/king_attack.png",
+    "death": "/strat/art/ice/king_death.png",
+    "hit": "/strat/art/ice/king_hit.png",
+    "idle": "/strat/art/ice/king_idle.png"
+   },
+   "rook": {
+    "attack": "/strat/art/ice/rook_attack.png",
+    "death": "/strat/art/ice/rook_death.png",
+    "hit": "/strat/art/ice/rook_hit.png",
+    "idle": "/strat/art/ice/rook_idle.png"
+   },
+   "hero": {
+    "attack": "/strat/art/ice/hero_attack.png",
+    "death": "/strat/art/ice/hero_death.png",
+    "hit": "/strat/art/ice/hero_hit.png",
+    "idle": "/strat/art/ice/hero_idle.png"
+   },
+   "mage": {
+    "attack": "/strat/art/ice/mage_attack.png",
+    "death": "/strat/art/ice/mage_death.png",
+    "hit": "/strat/art/ice/mage_hit.png",
+    "idle": "/strat/art/ice/mage_idle.png"
+   },
+   "pawn": {
+    "attack": "/strat/art/ice/pawn_attack.png",
+    "death": "/strat/art/ice/pawn_death.png",
+    "hit": "/strat/art/ice/pawn_hit.png",
+    "idle": "/strat/art/ice/pawn_idle.png"
+   },
+   "knight": {
+    "attack": "/strat/art/ice/knight_attack.png",
+    "death": "/strat/art/ice/knight_death.png",
+    "hit": "/strat/art/ice/knight_hit.png",
+    "idle": "/strat/art/ice/knight_idle.png"
    }
   }
  },
  "tiles": {
   "common:dark": "/strat/art/tiles/common_tile_dark.png",
-  "common:light": "/strat/art/tiles/common_tile_light.png"
+  "common:light": "/strat/art/tiles/common_tile_light.png",
+  "fire:dark": "/strat/art/tiles/fire_tile_dark.png",
+  "fire:light": "/strat/art/tiles/fire_tile_light.png",
+  "ice:dark": "/strat/art/tiles/ice_tile_dark.png",
+  "ice:light": "/strat/art/tiles/ice_tile_light.png"
  },
  "fx": {
   "fire": [
@@ -27,6 +99,354 @@
    "/strat/art/fx/hit_fire_06.png",
    "/strat/art/fx/hit_fire_07.png",
    "/strat/art/fx/hit_fire_08.png"
+  ],
+  "ice": [
+   "/strat/art/fx/hit_ice_01.png",
+   "/strat/art/fx/hit_ice_02.png",
+   "/strat/art/fx/hit_ice_03.png",
+   "/strat/art/fx/hit_ice_04.png",
+   "/strat/art/fx/hit_ice_05.png",
+   "/strat/art/fx/hit_ice_06.png",
+   "/strat/art/fx/hit_ice_07.png",
+   "/strat/art/fx/hit_ice_08.png"
+  ]
+ },
+ "bbox": {
+  "/strat/art/fire/knight_attack.png": [
+   12,
+   46,
+   247,
+   242,
+   256
+  ],
+  "/strat/art/fire/knight_death.png": [
+   12,
+   130,
+   240,
+   242,
+   256
+  ],
+  "/strat/art/fire/knight_hit.png": [
+   48,
+   34,
+   214,
+   242,
+   256
+  ],
+  "/strat/art/fire/knight_idle.png": [
+   47,
+   23,
+   244,
+   242,
+   256
+  ],
+  "/strat/art/fire/king_attack.png": [
+   17,
+   11,
+   249,
+   243,
+   256
+  ],
+  "/strat/art/fire/king_death.png": [
+   11,
+   79,
+   206,
+   243,
+   256
+  ],
+  "/strat/art/fire/king_hit.png": [
+   19,
+   15,
+   188,
+   243,
+   256
+  ],
+  "/strat/art/fire/king_idle.png": [
+   75,
+   7,
+   181,
+   243,
+   256
+  ],
+  "/strat/art/fire/rook_attack.png": [
+   11,
+   48,
+   209,
+   243,
+   256
+  ],
+  "/strat/art/fire/rook_death.png": [
+   8,
+   144,
+   209,
+   243,
+   256
+  ],
+  "/strat/art/fire/rook_hit.png": [
+   41,
+   67,
+   170,
+   243,
+   256
+  ],
+  "/strat/art/fire/rook_idle.png": [
+   79,
+   71,
+   177,
+   243,
+   256
+  ],
+  "/strat/art/fire/hero_attack.png": [
+   17,
+   16,
+   249,
+   243,
+   256
+  ],
+  "/strat/art/fire/hero_death.png": [
+   9,
+   134,
+   195,
+   243,
+   256
+  ],
+  "/strat/art/fire/hero_hit.png": [
+   11,
+   24,
+   172,
+   243,
+   256
+  ],
+  "/strat/art/fire/hero_idle.png": [
+   53,
+   49,
+   203,
+   243,
+   256
+  ],
+  "/strat/art/fire/mage_attack.png": [
+   47,
+   72,
+   249,
+   243,
+   256
+  ],
+  "/strat/art/fire/mage_death.png": [
+   10,
+   97,
+   185,
+   243,
+   256
+  ],
+  "/strat/art/fire/mage_hit.png": [
+   22,
+   45,
+   166,
+   243,
+   256
+  ],
+  "/strat/art/fire/mage_idle.png": [
+   89,
+   34,
+   167,
+   243,
+   256
+  ],
+  "/strat/art/fire/pawn_attack.png": [
+   74,
+   106,
+   239,
+   243,
+   256
+  ],
+  "/strat/art/fire/pawn_death.png": [
+   36,
+   154,
+   179,
+   243,
+   256
+  ],
+  "/strat/art/fire/pawn_hit.png": [
+   24,
+   81,
+   162,
+   243,
+   256
+  ],
+  "/strat/art/fire/pawn_idle.png": [
+   95,
+   77,
+   161,
+   243,
+   256
+  ],
+  "/strat/art/ice/king_attack.png": [
+   17,
+   11,
+   249,
+   243,
+   256
+  ],
+  "/strat/art/ice/king_death.png": [
+   11,
+   79,
+   206,
+   243,
+   256
+  ],
+  "/strat/art/ice/king_hit.png": [
+   19,
+   15,
+   188,
+   243,
+   256
+  ],
+  "/strat/art/ice/king_idle.png": [
+   75,
+   7,
+   181,
+   243,
+   256
+  ],
+  "/strat/art/ice/rook_attack.png": [
+   11,
+   48,
+   209,
+   243,
+   256
+  ],
+  "/strat/art/ice/rook_death.png": [
+   8,
+   144,
+   209,
+   243,
+   256
+  ],
+  "/strat/art/ice/rook_hit.png": [
+   41,
+   67,
+   170,
+   243,
+   256
+  ],
+  "/strat/art/ice/rook_idle.png": [
+   79,
+   71,
+   177,
+   243,
+   256
+  ],
+  "/strat/art/ice/hero_attack.png": [
+   17,
+   16,
+   249,
+   243,
+   256
+  ],
+  "/strat/art/ice/hero_death.png": [
+   12,
+   132,
+   195,
+   243,
+   256
+  ],
+  "/strat/art/ice/hero_hit.png": [
+   11,
+   24,
+   172,
+   243,
+   256
+  ],
+  "/strat/art/ice/hero_idle.png": [
+   53,
+   53,
+   203,
+   243,
+   256
+  ],
+  "/strat/art/ice/mage_attack.png": [
+   47,
+   72,
+   249,
+   243,
+   256
+  ],
+  "/strat/art/ice/mage_death.png": [
+   10,
+   97,
+   185,
+   243,
+   256
+  ],
+  "/strat/art/ice/mage_hit.png": [
+   22,
+   45,
+   166,
+   243,
+   256
+  ],
+  "/strat/art/ice/mage_idle.png": [
+   89,
+   34,
+   167,
+   243,
+   256
+  ],
+  "/strat/art/ice/pawn_attack.png": [
+   74,
+   106,
+   239,
+   243,
+   256
+  ],
+  "/strat/art/ice/pawn_death.png": [
+   36,
+   154,
+   179,
+   243,
+   256
+  ],
+  "/strat/art/ice/pawn_hit.png": [
+   24,
+   81,
+   162,
+   243,
+   256
+  ],
+  "/strat/art/ice/pawn_idle.png": [
+   95,
+   77,
+   161,
+   243,
+   256
+  ],
+  "/strat/art/ice/knight_attack.png": [
+   12,
+   46,
+   239,
+   242,
+   256
+  ],
+  "/strat/art/ice/knight_death.png": [
+   12,
+   130,
+   240,
+   242,
+   256
+  ],
+  "/strat/art/ice/knight_hit.png": [
+   45,
+   34,
+   210,
+   242,
+   256
+  ],
+  "/strat/art/ice/knight_idle.png": [
+   47,
+   23,
+   245,
+   242,
+   256
   ]
  }
 }

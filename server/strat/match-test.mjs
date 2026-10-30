@@ -96,5 +96,46 @@ ok(ol && ol.list.some((p) => p.sid === bsid) && !JSON.stringify(ol).includes(uB)
 h1.send({ type: "invite", to: bsid, code: code2 });
 ok((await h2.wait("invite"))?.code === code2, "приглашение доходит");
 h1.send({ type: "invite", to: bsid, code: code2 }); ok((await h1.wait("err"))?.err === "invite_rate", "не чаще 1 раза в 10 с");
+// ---------- рельеф и карты игроков (ручная модерация; неодобренная — без опыта)
+{
+  const d1 = (q) => JSON.parse(execSync(`${process.env.WRANGLER || "npx wrangler"} d1 execute morrisgrad_db --local --persist-to ${process.env.PERSIST} --config wrangler.json --json --command "${q}"`, { stdio: "pipe" }).toString())[0].results;
+  const c4 = await newLobby(8, true); const M = await client("/strat/m/" + c4);
+  M.send({ type: "hello", userId: uA, nick: "Альфа" }); let s4 = await M.wait("st");
+  ok(s4?.mapInfo?.status === "official" && s4.mapInfo.id === "o8a" && s4.mapInfo.xp === true && s4.lobbyMap?.t?.length === 64, "лобби: официальная карта по умолчанию, предпросмотр рельефа");
+  const base = s4.lobbyMap;
+  const hg = await client("/strat/hub"); hg.send({ type: "hello", guest: "q".repeat(12) + T }); await hg.wait("hello_ok");
+  hg.send({ type: "map_save", rq: 1, map: { name: "Гостевая", size: 8, t: base.t, s: base.s } }); ok((await hg.wait("map_save_r"))?.err === "login_required", "гость не сохраняет карты");
+  h1.send({ type: "map_save", rq: 2, map: { name: "Плохая", size: 8, t: "#".repeat(64), s: ".".repeat(64) } }); ok(String((await h1.wait("map_save_r"))?.err).startsWith("invalid:"), "сервер проверяет карту (стены везде — отказ)");
+  await sleep(5100);
+  h1.send({ type: "map_save", rq: 3, map: { name: "Тест Альфы", size: 8, t: base.t, s: base.s } }); const sv = await h1.wait("map_save_r", (m) => m.rq === 3);
+  const mid = sv?.id; ok(/^u[0-9a-f]{10}$/.test(mid || ""), "карта сохранена, статус pending: " + mid);
+  h2.send({ type: "map_list", rq: 4, size: 8 }); let ls = await h2.wait("map_list_r");
+  ok(ls && !ls.list.some((m) => m.id === mid) && ls.list.some((m) => m.kind === "official"), "чужой: неодобренной карты нет в списке");
+  h1.send({ type: "map_list", rq: 5, size: 8 }); ls = await h1.wait("map_list_r");
+  ok(ls && ls.list.some((m) => m.id === mid && m.status === "pending"), "автор видит свою карту со статусом «на проверке»");
+  const c5 = await newLobby(8); const N = await client("/strat/m/" + c5); N.send({ type: "hello", userId: uB }); await N.wait("st");
+  N.clear(); N.send({ type: "cfg", map: mid }); ok((await N.wait("err"))?.err === "map_not_approved", "не автор не может выбрать неодобренную карту");
+  M.send({ type: "cfg", map: mid }); s4 = await M.wait("st", (m) => m.mapInfo?.id === mid);
+  ok(s4 && s4.mapInfo.xp === false && s4.mapInfo.status === "pending", "автор играет на своей карте: xp=false (бейдж «без опыта»)");
+  await sleep(300); const op = await (await fetch(SRV + "/strat/open")).json();
+  ok(!op.list.some((l) => l.code === c4), "лобби на неодобренной карте не попадает в публичный список (только по коду)");
+  M.send({ type: "bot", on: true }); M.send({ type: "race", race: "fire" }); M.send({ type: "ready", on: true });
+  s4 = await M.wait("st", (m) => m.phase === "play"); ok(s4?.g?.map?.id === mid, "партия идёт на карте игрока");
+  M.send({ type: "forfeit" }); await M.wait("st", (m) => m.phase === "over"); await sleep(600);
+  const r4 = d1(`SELECT map_id, xp FROM strat_matches WHERE code='${c4}'`);
+  ok(r4.length === 1 && r4[0].map_id === mid && r4[0].xp === 0, "D1: партия на неодобренной карте записана с xp=0");
+  h2.send({ type: "map_mod", rq: 6, id: mid, act: "approve" }); ok((await h2.wait("map_mod_r"))?.err === "not_admin", "не админ не модерирует");
+  const ha = await client("/strat/hub"); ha.send({ type: "hello", userId: "dev_strat_admin", nick: "Админ" }); const hok = await ha.wait("hello_ok");
+  ok(hok?.admin === true, "админ опознан сервером (player_roles)");
+  ha.send({ type: "map_queue", rq: 7 }); const q = await ha.wait("map_queue_r");
+  ok(q?.list?.some((m) => m.id === mid && m.checks && m.t), "очередь модерации: карта с предпросмотром и автопроверками");
+  ha.send({ type: "map_mod", rq: 8, id: mid, act: "reject" }); ok((await ha.wait("map_mod_r", (m) => m.rq === 8))?.err === "reason_required", "отклонение — только с причиной");
+  ha.send({ type: "map_mod", rq: 9, id: mid, act: "approve" }); ok((await ha.wait("map_mod_r", (m) => m.rq === 9))?.status === "approved", "админ одобрил карту");
+  h2.send({ type: "map_list", rq: 10, size: 8 }); ls = await h2.wait("map_list_r", (m) => m.rq === 10);
+  ok(ls?.list?.some((m) => m.id === mid && m.status === "approved"), "после одобрения — в публичном списке");
+  N.clear(); N.send({ type: "cfg", map: mid }); const s5 = await N.wait("st", (m) => m.mapInfo?.id === mid);
+  ok(s5?.mapInfo?.xp === true, "после одобрения — опыт начисляется (xp=true)");
+  for (const c of [M, N, hg, ha]) try { c.close(); } catch {}
+}
 for (const c of [A, B, X, P, O2, H, h1, h2]) try { c.close(); } catch {}
 console.log(`${pass} PASS, ${fail} FAIL`); process.exit(fail ? 1 : 0);

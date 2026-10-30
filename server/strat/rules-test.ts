@@ -1,5 +1,5 @@
 // Тесты движка «Партии Чёрных королей» (этап 1): bun server/strat/rules-test.ts
-import { newGame, apply, moveTargets, attackTargets, damage, elementMul, inCheck, botAction, view, at, STRAT_CFG, validTurnLimit, TURN_LIMIT, type GameState, type Piece } from "./rules";
+import { makeMap, officialMaps, armyCells, newGame, apply, moveTargets, attackTargets, damage, elementMul, inCheck, botAction, view, at, STRAT_CFG, validTurnLimit, TURN_LIMIT, type GameState, type Piece } from "./rules";
 let fails = 0, n = 0; const ok = (c: any, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
 const has = (arr: [number, number][], x: number, y: number) => arr.some(([a, b]) => a === x && b === y);
 // пустая доска с выбранными фигурами
@@ -152,4 +152,49 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   ok(fin === 300 && bad === 0, `бот×бот: 300/300 партий доиграны, ${bad} недопустимых действий (П0 ${wins[0]}, П1 ${wins[1]}, ничьи ${wins[2]})`);
 }
 ok(JSON.stringify(view(newGame(15, ["fire", "ice"]))).length < 4000, "снимок 15×15 < 4 КБ");
+// --- рельеф и карты
+import { validateMap, passable, type MapData } from "./terrain";
+function withMap(g: GameState, rows: string[], st?: string[]): GameState { const n = g.size; g.map = { id: "t", name: "t", size: n, t: rows.join("").replace(/ /g, ""), s: (st || rows.map((r) => ".".repeat(r.replace(/ /g, "").length))).join("") }; return g; }
+for (const s of [5, 8, 15]) for (const o of officialMaps(s)) {
+  const m = makeMap(s, o.id), a = armyCells(s), v = validateMap(m, { armyRows: a.rows, armyCols: a.cells });
+  ok(v.errors.length === 0, `${s}×${s} «${o.name}»: карта валидна (${v.errors.join(",") || "ok"})`);
+  ok(!v.warnings.includes("not_symmetric"), `${s}×${s} «${o.name}»: симметрична`);
+  const kinds = new Set(m.t); ok(s < 8 || (kinds.has("w") && kinds.has("b")), `${s}×${s} «${o.name}»: есть река и мост`);
+  if (s >= 15) ok(["m", "f", "#", "g", "r"].every((c) => kinds.has(c)) && new Set(m.s.replace(/\./g, "")).size >= 8, `15×15 «${o.name}»: горы, лес, стена, ворота, дорога, ≥8 видов построек`);
+  const g = newGame(s, ["fire", "ice"], 0, STRAT_CFG, null, m);
+  ok(g.pieces.every((p) => passable(m, p.x, p.y)), `${s}×${s} «${o.name}»: армии стоят на проходимых клетках`);
+}
+for (let seed = 1; seed <= 40; seed++) { const m = makeMap(15, "rnd:" + seed), a = armyCells(15); if (validateMap(m, { armyRows: a.rows, armyCols: a.cells }).errors.length) { ok(false, "rnd:" + seed + " невалидна"); break; } if (seed === 40) ok(true, "40 случайных карт 15×15 валидны"); }
+{
+  const g = withMap(board(8, ["fire", "ice"], [[0, "rook", 0, 4], [0, "pawn", 4, 6], [0, "knight", 6, 6], [1, "king", 7, 0], [0, "king", 0, 7]]), [
+    "........", "........", "........", "........", "..f.#...", "....w...", "....m...", "........"]);
+  const r = g.pieces[0], mt = moveTargets(g, r);
+  ok(has(mt, 2, 4) && !has(mt, 3, 4), "Лес: скольжение Стража останавливается на опушке");
+  const g2 = withMap(board(8, ["fire", "ice"], [[0, "rook", 6, 4], [1, "king", 7, 0], [0, "king", 0, 7]]), ["........", "........", "........", "........", "....#...", "........", "........", "........"]);
+  ok(has(moveTargets(g2, g2.pieces[0]), 5, 4) && !has(moveTargets(g2, g2.pieces[0]), 4, 4) && !has(moveTargets(g2, g2.pieces[0]), 3, 4), "Стена: блокирует ход");
+  const p = g.pieces[1]; ok(!has(moveTargets(g, p), 4, 5), "Река: Ополченец не входит в воду");
+  const kn = g.pieces[2]; ok(!has(moveTargets(g, kn), 4, 5) && has(moveTargets(g, kn), 5, 4), "Всадник: не приземляется на воду/горы, прыгает через рельеф");
+}
+{
+  const g = withMap(board(8, ["fire", "ice"], [[0, "mage", 2, 6], [1, "pawn", 4, 4], [1, "king", 7, 0], [0, "king", 0, 7]]), ["........", "........", "........", "........", "........", "...m....", "........", "........"]);
+  ok(attackTargets(g, g.pieces[0]).length === 0, "Горы: закрывают обстрел Мага");
+  g.map = { ...g.map, t: ".".repeat(64) }; ok(attackTargets(g, g.pieces[0]).length === 1, "Без гор — Маг стреляет");
+}
+{
+  const g = board(8, ["ice", "ice"], [[0, "rook", 3, 3], [1, "rook", 3, 2], [1, "king", 7, 0], [0, "king", 0, 7]]);
+  const d0 = damage(g, g.pieces[0], g.pieces[1]);
+  const t = ".".repeat(64).split(""); t[2 * 8 + 3] = "f"; g.map = { ...g.map, t: t.join("") };
+  const d1 = damage(g, g.pieces[0], g.pieces[1]);
+  const st = ".".repeat(64).split(""); st[2 * 8 + 3] = "T"; g.map = { ...g.map, t: ".".repeat(64), s: st.join("") };
+  const d2 = damage(g, g.pieces[0], g.pieces[1]);
+  ok(d1 === Math.max(1, d0 - 1) && d2 === Math.max(1, d0 - 2), `Укрытие: лес −1, башня −2 урона (${d0}/${d1}/${d2})`);
+}
+{
+  const g = board(8, ["ice", "ice"], [[0, "rook", 3, 3], [1, "king", 7, 0], [0, "king", 0, 7]]);
+  const st = ".".repeat(64).split(""); st[3 * 8 + 3] = "W"; g.map = { ...g.map, s: st.join("") };
+  g.pieces[0].hp = 10; g.cur = 1; apply(g, 1, { a: "end" } as any);
+  ok(g.pieces[0].hp === 11, "Колодец: +1 HP своей фигуре в начале хода");
+}
+ok(JSON.stringify(view(newGame(15, ["fire", "ice"], 0, STRAT_CFG, null, makeMap(15, "o15a")))).length < 4000, "снимок 15×15 с картой < 4 КБ");
+
 console.log(fails ? `FAILED ${fails}/${n}` : `ALL OK ${n}`); if (fails) process.exit(1);

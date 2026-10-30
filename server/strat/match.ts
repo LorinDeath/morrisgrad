@@ -4,7 +4,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { admitMessage, originAllowed, isLocalRequest, isDevRequest, MSG_BURST } from "../limits";
 import { identify, type Ident } from "./ident";
-import { newGame, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, validTurnLimit, type GameState, type Race, type Action, type Ev, type Kind } from "./rules";
+import { resolveLobbyMap } from "./maps";
+import { type MapData } from "./terrain";
+import { newGame, makeMap, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, validTurnLimit, type GameState, type Race, type Action, type Ev, type Kind } from "./rules";
 
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без O/0, I/1
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
@@ -16,6 +18,8 @@ type SeatS = { pkey: string; nick: string; verified: boolean; race: Race | null;
 type Clock = { turnStart: number; reserve: [number, number] };
 type L = {
   code: string; created: number; touched: number; size: number; pub: boolean; fair: boolean;
+  mapId?: string; mapName?: string; mapStatus?: string; xpMap?: boolean; // выбранная карта; xpMap=false — неодобренная карта (без опыта)
+  map?: MapData; // предпросмотр в лобби и рельеф партии
   turnLimit?: number | null; // null/нет = по умолчанию для размера; 0 = без лимита; иначе TURN_LIMIT.min..max
   phase: "lobby" | "play" | "over"; seats: [SeatS | null, SeatS | null];
   game: GameState | null; clock: Clock | null; result?: { winner: number; reason: string };
@@ -33,7 +37,7 @@ export class StratMatch extends DurableObject {
   /** Сводка лобби → StratIndex (список «Ждут соперника»); только при изменении. */
   report() {
     const L = this.L; if (!L || !this.env.STRAT_INDEX) return;
-    const sum = { code: L.code, pub: L.pub, phase: L.phase, size: L.size, host: L.seats[0]?.nick || "", n: L.seats.filter(Boolean).length };
+    const sum = { code: L.code, pub: L.pub && L.xpMap !== false, map: L.mapName || "", phase: L.phase, size: L.size, host: L.seats[0]?.nick || "", n: L.seats.filter(Boolean).length };
     const k = JSON.stringify(sum); if (k === this.lastReport) return; this.lastReport = k;
     const stub = this.env.STRAT_INDEX.get(this.env.STRAT_INDEX.idFromName("index"));
     this.ctx.waitUntil?.(stub.fetch("https://internal/report", { method: "POST", body: k }).catch(() => {}));
@@ -47,6 +51,7 @@ export class StratMatch extends DurableObject {
       if (!CODE_RE.test(String(b.code))) return new Response("bad", { status: 400 });
       const size = SIZES.includes(b.size) ? b.size : 8;
       this.L = { code: b.code, created: Date.now(), touched: Date.now(), size, pub: !!b.pub, fair: false, phase: "lobby", seats: [null, null], game: null, clock: null };
+      this.setMap(null);
       await this.save(); return Response.json({ ok: true });
     }
     if (request.headers.get("Upgrade") !== "websocket") return new Response("Ожидался WebSocket", { status: 426 });
@@ -122,7 +127,8 @@ export class StratMatch extends DurableObject {
     switch (m.type) {
       case "cfg": {
         if (seat !== 0) return "not_host"; if (L.phase !== "lobby") return "bad_phase";
-        if (m.size !== undefined) { if (!SIZES.includes(m.size)) return "bad_size"; L.size = m.size; }
+        if (m.size !== undefined) { if (!SIZES.includes(m.size)) return "bad_size"; if (m.size !== L.size) { L.size = m.size; this.setMap(null); } }
+        if (m.map !== undefined) { const e = await this.pickMap(String(m.map).slice(0, 24), pkey); if (e) return e; }
         if (m.pub !== undefined) L.pub = !!m.pub;
         if (m.fair !== undefined) L.fair = !!m.fair;
         if (m.turnLimit !== undefined) { const t = validTurnLimit(m.turnLimit); if (t === undefined) return "bad_turn_limit"; L.turnLimit = t; }
@@ -142,7 +148,7 @@ export class StratMatch extends DurableObject {
       case "ready": {
         if (L.phase !== "lobby") return "bad_phase"; if (!me.race) return "pick_race";
         me.ready = !!m.on;
-        if (L.seats[0]?.ready && L.seats[1]?.ready) this.start();
+        if (L.seats[0]?.ready && L.seats[1]?.ready) await this.start();
         break;
       }
       case "act": {
@@ -176,10 +182,24 @@ export class StratMatch extends DurableObject {
     return "";
   }
 
-  start() {
+  setMap(map: { map: MapData; xp: boolean; status: string } | null) {
+    const L = this.L!; const d = map || { map: makeMap(L.size, null), xp: true, status: "official" };
+    L.map = d.map; L.mapId = d.map.id; L.mapName = d.map.name; L.mapStatus = d.status; L.xpMap = d.xp;
+  }
+  async pickMap(id: string, hostPkey: string): Promise<string> {
+    const L = this.L!; const r = await resolveLobbyMap(this.env, id, L.size, hostPkey);
+    if (r.err || !r.map) return r.err || "bad_map";
+    this.setMap({ map: r.map, xp: r.xp, status: r.status }); return "";
+  }
+  async start() {
     const L = this.L!;
+    if (!L.map || L.map.size !== L.size) this.setMap(null);
+    if (L.mapId && /^u/.test(L.mapId)) { // статус могли поменять в админке, пока ждали соперника
+      const r = await resolveLobbyMap(this.env, L.mapId, L.size, L.seats[0]!.pkey);
+      if (r.err || !r.map) { this.setMap(null); } else this.setMap({ map: r.map, xp: r.xp, status: r.status });
+    }
     const first = (crypto.getRandomValues(new Uint8Array(1))[0] & 1) as 0 | 1; // кто ходит первым — случайно
-    L.game = newGame(L.size, [L.seats[0]!.race!, L.seats[1]!.race!], first, STRAT_CFG, L.turnLimit);
+    L.game = newGame(L.size, [L.seats[0]!.race!, L.seats[1]!.race!], first, STRAT_CFG, L.turnLimit, L.map);
     const sc = STRAT_CFG.sizes[L.size], res = L.devTurnMs ? 0 : sc.reserveSec * 1000;
     L.clock = { turnStart: Date.now(), reserve: [res, res] };
     L.phase = "play"; this.lastEv = [{ e: "turn", cur: first, turn: 1 }];
@@ -215,8 +235,11 @@ export class StratMatch extends DurableObject {
   /** Итог партии в D1 (strat_matches; миграция 0025). Опыт Полководца — этап 7. */
   async record() {
     const L = this.L!, g = L.game!, db = this.env.GAME_DB; if (!db) return;
-    await db.prepare("INSERT OR REPLACE INTO strat_matches (id, code, size, p0, p1, race0, race1, first, winner, reason, turns, turn_limit, cfg_version, started_at, ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(L.code + ":" + L.created + ":" + (L.clock?.turnStart || 0), L.code, L.size, L.seats[0]!.pkey, L.seats[1]!.pkey, g.races[0], g.races[1], g.first, g.winner, g.reason, g.turn, g.turnLimit, STRAT_CFG.version, L.created, Date.now()).run();
+    await db.prepare("INSERT OR REPLACE INTO strat_matches (id, code, size, p0, p1, race0, race1, first, winner, reason, turns, turn_limit, map_id, xp, cfg_version, started_at, ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(L.code + ":" + L.created + ":" + (L.clock?.turnStart || 0), L.code, L.size, L.seats[0]!.pkey, L.seats[1]!.pkey, g.races[0], g.races[1], g.first, g.winner, g.reason, g.turn, g.turnLimit, L.mapId || "", this.xpAllowed() ? 1 : 0, STRAT_CFG.version, L.created, Date.now()).run();
+  }
+  /** Опыт за партию (сервер решает сам): только на официальных/одобренных картах. Гостям опыт не начисляется никогда. */
+  xpAllowed(): boolean { return this.L!.xpMap !== false;
   }
 
   // ---------- бот ----------
@@ -272,7 +295,9 @@ export class StratMatch extends DurableObject {
     const hideRace = L.phase === "lobby"; // выбор вслепую: чужую расу не видно до старта
     const seats = L.seats.map((s, i) => s && { nick: s.nick, guest: !s.verified && !s.bot, bot: !!s.bot, ready: s.ready, picked: !!s.race,
       race: hideRace && i !== seat ? null : s.race, online: !s.goneAt, rematch: !!(s as any).rematch });
-    const out: any = { type: "st", code: L.code, phase: L.phase, size: L.size, pub: L.pub, fair: L.fair, turnLimit: L.turnLimit ?? null, you: seat, seats, ev, now: Date.now() };
+    const out: any = { type: "st", code: L.code, phase: L.phase, size: L.size, pub: L.pub, fair: L.fair, turnLimit: L.turnLimit ?? null, you: seat, seats, ev, now: Date.now(),
+      mapInfo: { id: L.mapId || "", name: L.mapName || "", status: L.mapStatus || "official", xp: L.xpMap !== false } };
+    if (L.phase === "lobby" && L.map) out.lobbyMap = L.map; // предпросмотр
     if (L.game) {
       const g = L.game; out.g = view(g); out.check = [inCheck(g, 0), inCheck(g, 1)];
       if (L.clock && L.phase === "play") out.clock = { deadline: this.deadline(), turnEnds: L.clock.turnStart + this.turnMs(), reserve: L.clock.reserve };

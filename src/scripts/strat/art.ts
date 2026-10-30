@@ -2,7 +2,7 @@
 // Всё, что есть, перечислено в /strat/art/manifest.json (собирает tools/strat/sync_art.py). Чего нет или не загрузилось —
 // клиент рисует заглушку (кружок с глифом). Поэтому новые наборы рас подключаются без правки кода.
 export type Pose = "idle" | "attack" | "hit" | "death";
-type Manifest = { cell: number; groundY: number; units: Record<string, Record<string, Partial<Record<Pose, string>>>>; tiles: Record<string, string>; fx: Record<string, string[]> };
+type Manifest = { cell: number; groundY: number; units: Record<string, Record<string, Partial<Record<Pose, string>>>>; tiles: Record<string, string>; fx: Record<string, string[]>; bbox?: Record<string, number[]> };
 
 const img = new Map<string, HTMLImageElement>(); // только успешно загруженные
 let man: Manifest | null = null;
@@ -32,6 +32,11 @@ const got = (u?: string) => (u ? img.get(u) || null : null);
 export function unitSprite(race: string, kind: string, pose: Pose): HTMLImageElement | null {
   const k = man?.units?.[race]?.[kind]; if (!k) return null;
   return got(k[pose]) || got(k.idle);
+}
+/** Непрозрачная область спрайта [x0,y0,x1,y1,size] из манифеста (для центровки в клетке). */
+export function spriteBox(i: HTMLImageElement): number[] | null {
+  for (const [u, im] of img) if (im === i) return man?.bbox?.[u] || null;
+  return null;
 }
 export function tileSprite(race: string | null, light: boolean): HTMLImageElement | null {
   const t = man?.tiles || {}; const key = light ? "light" : "dark";

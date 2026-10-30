@@ -5,9 +5,10 @@ import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limit
 import { identify } from "./ident";
 import { CODE_ALPHABET, CODE_RE } from "./match";
 import { SIZES } from "./rules";
+import { saveMap, listMaps, flagMap, modQueue, moderate, isStratAdmin, getMapRow, rowToMap } from "./maps";
 
 type Lob = { code: string; pub: boolean; phase: string; size: number; host: string; n: number; at: number };
-type Att = { pkey?: string; nick?: string; sid?: string; url: string; tk: number; at: number; st: number; inv: number };
+type Att = { pkey?: string; nick?: string; verified?: boolean; mapAt?: number; sid?: string; url: string; tk: number; at: number; st: number; inv: number };
 const NEW_PER_MIN = 6, INVITE_GAP_MS = 10_000, INVITE_TTL_S = 60, LOBBY_LIST_TTL = 2 * 3600_000;
 
 export class StratIndex extends DurableObject {
@@ -83,8 +84,8 @@ export class StratIndex extends DurableObject {
     if (m?.type === "hello" && !a.pkey) {
       const id = await identify(this.env, a.url, m); if ("err" in id) return this.send(ws, { type: "err", err: id.err });
       const prev = this.online().find(([pk]) => pk === id.pkey);
-      a.pkey = id.pkey; a.nick = id.nick; a.sid = prev ? prev[1].sid : [...crypto.getRandomValues(new Uint8Array(6))].map((x) => x.toString(16).padStart(2, "0")).join("");
-      ws.serializeAttachment(a); this.send(ws, { type: "hello_ok", nick: id.nick, guest: !id.verified, sid: a.sid }); this.pushOnline(); return;
+      a.pkey = id.pkey; a.nick = id.nick; a.verified = id.verified; a.sid = prev ? prev[1].sid : [...crypto.getRandomValues(new Uint8Array(6))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      ws.serializeAttachment(a); this.send(ws, { type: "hello_ok", nick: id.nick, guest: !id.verified, sid: a.sid, admin: await isStratAdmin(this.env, id.pkey, id.verified) }); this.pushOnline(); return;
     }
     if (!a.pkey) return;
     if (m?.type === "invite" && typeof m.to === "string" && CODE_RE.test(m.code)) {
@@ -95,7 +96,26 @@ export class StratIndex extends DurableObject {
       this.send(ws, { type: "invite_sent", ok: n > 0 });
       return;
     }
+    if (typeof m?.type === "string" && m.type.startsWith("map")) return this.mapMsg(ws, a, m);
     if (m?.type === "decline" && typeof m.to === "string") return; // этап 1: отказ просто закрывает плашку у приглашённого
+  }
+  /** Карты игроков и модерация (админ проверяется на сервере по player_roles). */
+  async mapMsg(ws: WebSocket, a: Att, m: any) {
+    const who = { pkey: a.pkey!, nick: a.nick || "", verified: !!a.verified }, rq = m.rq;
+    const reply = (o: any) => this.send(ws, { type: m.type + "_r", rq, ...o });
+    try {
+      if (m.type === "map_list") return reply({ size: m.size, list: await listMaps(this.env, who.pkey, SIZES.includes(m.size) ? m.size : 8) });
+      if (m.type === "map_get") { const r = await getMapRow(this.env, String(m.id || "")); const admin = await isStratAdmin(this.env, who.pkey, who.verified);
+        if (!r || (r.status !== "approved" && r.author !== who.pkey && !admin)) return reply({ err: "not_found" }); return reply({ map: rowToMap(r), status: r.status }); }
+      if (m.type === "map_save") { const now = Date.now(); if (now - (a.mapAt || 0) < 5000) return reply({ err: "rate" }); a.mapAt = now; ws.serializeAttachment(a); return reply(await saveMap(this.env, who, m.map)); }
+      if (m.type === "map_flag") return reply(await flagMap(this.env, who, String(m.id || ""), String(m.why || "")));
+      if (m.type === "map_queue" || m.type === "map_mod") {
+        if (!(await isStratAdmin(this.env, who.pkey, who.verified))) return reply({ err: "not_admin" });
+        if (m.type === "map_queue") return reply({ list: await modQueue(this.env) });
+        return reply(await moderate(this.env, who.pkey, String(m.id || ""), String(m.act || ""), m.reason));
+      }
+    } catch (e: any) { return reply({ err: "db" }); }
+    return reply({ err: "bad_type" });
   }
   async webSocketClose() { this.pushOnline(); }
   async webSocketError() { this.pushOnline(); }
