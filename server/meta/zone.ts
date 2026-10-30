@@ -1565,13 +1565,14 @@ export class Zone {
     for (const e of ev) if (e.k === "proj" && e._b) { e.a = Math.max(0, Math.min(400, now - e._b)); delete e._b; }
     return ev;
   }
-  state(px: number, py: number, ev: any[], aoi = 700, who?: string) {
+  state(px: number, py: number, ev: any[], aoi = 700, who?: string, mobAoi = aoi) {
     const m: number[] = [];
     const now = Date.now();
-    for (const x of (this.gen.camps ? this.near(px, py, aoi * 1.15) : this.mobs)) {
+    const ma = mobAoi; // мобы — по своему радиусу (мини-карта), события/узлы — по aoi
+    for (const x of (this.gen.camps ? this.near(px, py, ma * 1.15) : this.mobs)) {
       if (x.dead) continue;
-      const far = Math.abs(x.x - px) > aoi || Math.abs(x.y - py) > aoi;
-      if (far && !(x.special && Math.abs(x.x - px) < aoi * 1.15 && Math.abs(x.y - py) < aoi * 1.15)) continue; // боссов видно дальше
+      const far = Math.abs(x.x - px) > ma || Math.abs(x.y - py) > ma;
+      if (far && !(x.special && Math.abs(x.x - px) < ma * 1.15 && Math.abs(x.y - py) < ma * 1.15)) continue; // боссов видно дальше
       // статусы — битами (могут быть одновременно) + число стаков каждого (по 3 бита: поджог 13–15, яд 16–18, кровотечение 19–21)
       const st = mobStatusBits(x.dots, now);
       m.push(x.id, MOB_INDEX[x.type] ?? bmxIndex(x.type), Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),

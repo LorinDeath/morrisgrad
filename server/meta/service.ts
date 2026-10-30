@@ -93,7 +93,7 @@ export function regenRate(now: number, hurtAt: number, hitAt: number, maxHp: num
 import { castShape } from "./abilityShapes";
 import { SK_DEFS, SK_PRESET_IDS, CUSTOM_SK, skPublic, skBuffAdd, skBuffSum, skApplyBuffs, type SkMod } from "./skillCraft";
 import { skillElem } from "./blackArt";
-import { worldBounds, OPEN_AOI, ARINAR_LAYOUT_VER } from "../worlds/sizes";
+import { worldBounds, OPEN_AOI, MOB_AOI, ARINAR_LAYOUT_VER } from "../worlds/sizes";
 import { walkable, freeWalk, POS_WORLDS } from "./walkable";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
 import { dlHit, dlDeath, dlList } from "./deathLog";
@@ -2615,7 +2615,7 @@ export class MetaService {
       if (cityCfgSig && cityCfgSig !== (this as any).citySig) { (this as any).citySig = cityCfgSig; this.cityVer++; syncCityNpcs(NPCS as any); }
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
-        const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700, ms.pkey); // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
+        const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700, ms.pkey, zone.gen.camps ? MOB_AOI : 700); // мобы — до края мини-карты (t1054u) // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
         // Библиотека мобов: «встречен», когда моб оказался рядом (≈ на экране)
         const acc = this.store.accounts.get(ms.pkey);
         let met = false;

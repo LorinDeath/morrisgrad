@@ -23,3 +23,6 @@ export const OPEN_AOI = Math.round((VIEW_CELLS.max * CELL_PX) / 2 * 1.1); // 528
 // Игроки (players_state): мини-карта в Аринаре = обзор камеры × MINIMAP_MARGIN (1.3, minimap.js) → ±624 px при
 // самом дальнем зуме. С ±OPEN_AOI (528) игроки в кольце 528–624 px пропадали с мини-карты (hotfix-1029) — шлём с запасом.
 export const PLAYER_AOI = Math.round((VIEW_CELLS.max * CELL_PX) / 2 * 1.35); // 648 px
+// Мобы (zone_state.m): та же мини-карта ±624 px — с ±OPEN_AOI мобы исчезали у края мини-карты (t1054u). Только список мобов;
+// события и узлы остаются по OPEN_AOI (их не рисует мини-карта).
+export const MOB_AOI = PLAYER_AOI; // 648 px
