@@ -35,12 +35,14 @@ const qs = new URLSearchParams(location.search);
 /** P2: одно слово-характер расы (на телефоне вместо списка свойств — макет ui_v2_phone_lobby). */
 const RACE_WORD: Record<string, string> = { fire: "натиск", ice: "оборона", water: "манёвр", stone: "осада", nature: "рост", lightning: "цепь" };
 /** dev: синтетическая раскладка для проверки walls-v2 — A(свой) | B(свой, общая стена) сверху, C(враг) снизу, дорога сквозь A и C. */
-let wallTest: { x: number; y: number; front?: boolean; open?: boolean } | null = null;
+let wallTest: { x: number; y: number; front?: boolean; open?: boolean; shape?: string[] } | null = null;
 function wallTestLayout(G0: any, T0: Int8Array, C0: Int16Array) {
   const n = G0.size, T = Int8Array.from(T0), C = Int16Array.from(C0), t = (G0.map?.t || "").split(""), { x, y } = wallTest!, foe = S.you === 0 ? 1 : 0;
   const blk = (x0: number, y0: number, w: number, h: number, id: number, o: number) => { for (let j = y0; j < y0 + h; j++) for (let i = x0; i < x0 + w; i++) if (i >= 0 && j >= 0 && i < n && j < n) { C[j * n + i] = id; T[j * n + i] = o; if (t[j * n + i] === "w") t[j * n + i] = "."; } };
-  blk(x - 4, y - 4, 4, 4, 9000, S.you); blk(x, y - 4, 4, 4, 9001, S.you); blk(x - 4, y, 5, 4, 9002, foe);
-  for (let j = y - 6; j < y + 6; j++) if (j >= 0 && j < n) t[j * n + x - 2] = "r";
+  const sh = wallTest!.shape; // dev: произвольная форма — "#"/"2" свои города (9000/9001), "e" — враг, "." — пусто
+  if (sh) sh.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === "#" || ch === "2") blk(x + i, y + j, 1, 1, ch === "#" ? 9000 : 9001, S.you); else if (ch === "e") blk(x + i, y + j, 1, 1, 9002, foe); }));
+  else { blk(x - 4, y - 4, 4, 4, 9000, S.you); blk(x, y - 4, 4, 4, 9001, S.you); blk(x - 4, y, 5, 4, 9002, foe);
+  for (let j = y - 6; j < y + 6; j++) if (j >= 0 && j < n) t[j * n + x - 2] = "r"; }
   return { G: { ...G0, map: { ...G0.map, t: t.join("") } }, T, C };
 }
 /** walls-v2: союзники — общая стена; враги — двойная стена (по умолчанию) или частокол+разделённая лента (cfg.ui.wallFront / ?wallFront=1 / localStorage strat.wallFront=1 — выбор Алекса);
@@ -131,7 +133,7 @@ function showInvite(from: string, code: string, ttl: number) {
   d.querySelector("b")!.textContent = from; d.querySelector("code")!.textContent = code;
   const [yes, no] = d.querySelectorAll("button");
   (yes as HTMLButtonElement).onclick = () => { d.remove(); joinCode(code); };
-  (no as HTMLButtonElement).onclick = () => d.remove();
+  (no as HTMLButtonElement).onclick = () => d.remove(); d.addEventListener("click", (e) => { if (!(e.target as HTMLElement).closest("button")) d.remove(); });
   $("#toasts").appendChild(d); setTimeout(() => d.remove(), ttl * 1000);
 }
 
@@ -927,6 +929,7 @@ function bindChiefActs(P: any, box: HTMLElement) {
 function worldT(): Int8Array { const G0 = gs()!, base = territoryCached(G0, cfgOf(S), S.g); return terrFull(G0, base, S.g).T; }
 const terrEff = (t: string) => (t === "f" ? `скольжение останавливается` : t === "g" ? `проход в стене` : t === "w" ? "не пройти (кроме расы Воды); стрелять через воду можно" : t === "m" ? "не пройти (кроме расы Камня); закрывает обстрел" : t === "#" ? "не пройти, закрывает обстрел" : t === "b" ? "переправа через реку" : "");
 const me0 = () => (S?.you ?? -1);
+const hintOff = new Set<number>();
 function renderHint() {
   const h = $("#hint"); if (!h) return;
   if (eui.recruit) { h.hidden = false; h.innerHTML = `${ic("recruit")}<span>Найм: ${KIND_NAME[eui.recruit.kind]} — выберите подсвеченную клетку</span><button class="btn sm ghost" id="hintx">${ic("close")}<span>Отмена</span></button>`;
@@ -934,9 +937,11 @@ function renderHint() {
   if (W.mode) { h.hidden = false; const tc = W.mode.k === "claim" ? S?.terr?.cities?.find((q: any) => q.city === (W.mode as any).city) : null;
     h.innerHTML = `${ic(W.mode.k === "claim" ? "flag" : "tower")}<span>${W.mode.k === "claim" ? `Покупка клетки${tc ? ` за ${tc.cost ?? "?"} золота` : ""} — выберите подсвеченную клетку` : "Сторожевая башня — выберите клетку рядом с Вождём"}</span><button class="btn sm ghost" id="hintx">${ic("close")}<span>Отмена</span></button>`;
     $("#hintx").onclick = () => { W.mode = null; renderHint(); draw(); }; return; }
-  { const cl = me0() >= 0 && S?.phase === "play" ? claimable(S) : []; if (cl.length) { h.hidden = false; const t = cl[0];
-    h.innerHTML = `${ic("flag")}<span>Можно купить клетку для «${esc(cityName(gs()!, t.city))}» · ${t.cost ?? "?"} золота · ${t.left ? `бесплатно через ${t.left} х.` : "бесплатная клетка — в конце хода"}</span><button class="btn sm gold" id="hintclaim">${ic("plus")}<span>Выбрать</span></button>`;
-    $("#hintclaim").onclick = () => { W.mode = { k: "claim", city: t.city }; renderHint(); draw(); }; return; } }
+  // t1198: подсказку «можно купить клетку» можно закрыть (×) — до следующего окна покупки этого города; клетку видно и на доске
+  { const all = me0() >= 0 && S?.phase === "play" ? claimable(S) : []; for (const k of [...hintOff]) if (!all.some((q: any) => q.city === k)) hintOff.delete(k);
+    const cl = all.filter((q: any) => !hintOff.has(q.city)); if (cl.length) { h.hidden = false; const t = cl[0];
+    h.innerHTML = `${ic("flag")}<span>Можно купить клетку для «${esc(cityName(gs()!, t.city))}» · ${t.cost ?? "?"} золота · ${t.left ? `бесплатно через ${t.left} х.` : "бесплатная клетка — в конце хода"}</span><button class="btn sm gold" id="hintclaim">${ic("plus")}<span>Выбрать</span></button><button class="xbtn sm" id="hintoff" aria-label="Скрыть" title="Скрыть">${ic("close")}</button>`;
+    $("#hintclaim").onclick = () => { W.mode = { k: "claim", city: t.city }; renderHint(); draw(); }; $("#hintoff").onclick = () => { hintOff.add(t.city); renderHint(); }; return; } }
   h.hidden = true;
 }
 

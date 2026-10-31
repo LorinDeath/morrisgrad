@@ -62,7 +62,9 @@ export function toast(t: string, kind: "info" | "good" | "bad" | "turn" = "info"
   d.querySelector("span")!.textContent = t; box.appendChild(d);
   while (box.children.length > 4) box.firstElementChild!.remove();
   requestAnimationFrame(() => d.classList.add("in"));
-  setTimeout(() => { d.classList.add("out"); setTimeout(() => d.remove(), 300); }, 3200);
+  // t1198: любой тост закрывается тапом/кликом по нему; иначе — сам через 3,2 с
+  const kill = () => { if (d.classList.contains("out")) return; d.classList.add("out"); d.style.pointerEvents = "none"; setTimeout(() => d.remove(), 300); };
+  d.title = "Скрыть"; d.addEventListener("click", kill); setTimeout(kill, 3200);
 }
 /** Баннер на всю ширину доски: «ВАШ ХОД» и т. п. */
 export function banner(title: string, sub = "", kind: "mine" | "theirs" | "start" = "mine") {
@@ -70,6 +72,7 @@ export function banner(title: string, sub = "", kind: "mine" | "theirs" | "start
   b.className = "turnbanner " + kind; b.innerHTML = `<div class="tb-in"><span class="tb-rule"></span><b></b><small></small><span class="tb-rule"></span></div>`;
   b.querySelector("b")!.textContent = title; b.querySelector("small")!.textContent = sub;
   void b.offsetWidth; b.classList.add("show"); clearTimeout((b as any)._t); (b as any)._t = setTimeout(() => b.classList.remove("show"), 1500);
+  (b as any)._x ||= (b.addEventListener("click", () => { clearTimeout((b as any)._t); b.classList.remove("show"); }), 1);
 }
 
 // ---------- подсказки ----------

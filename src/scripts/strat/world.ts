@@ -8,6 +8,7 @@
 //   S.league { id, apBase, apTech, apBld, onceMax, apMax, raceCap, grow, capture, found, ... }; S.bhp [{city,b:[{b,hp,max}|{b,hs}],ruin[]}]
 //   Действия: build{b,id,x?,y?}, raze{id,city,b}, claim{city,x,y}, found{id}, found_cancel
 //   ДОГАДКИ (нет в сервере): S.apSrc [{label,n}] — готовый разбор ОД; cfg {hiddenHp} в лобби; S.raze[pieceId] — цели по постройкам.
+import { cellWalls } from "./wall-edges";
 import type { GameState, Piece, StratCfg } from "../../../server/strat/rules";
 import { attackTargets } from "../../../server/strat/rules";
 import { BUILD, TECHS, type BuildId } from "../../../server/strat/econ-cfg";
@@ -113,53 +114,42 @@ function drawWallsArt(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array,
   const D: Record<string, [number, number]> = {}; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) D[g2s(dx, dy)] = [dx, dy];
   if (Object.keys(D).length < 4) return false;
   const tt: string = (G as any).map?.t || "", inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n;
-  const noWall = (X: number, Y: number) => inb(X, Y) && tt[Y * n + X] === "w"; // край карты — обычная граница (README walls-v1)
   const road = (X: number, Y: number) => inb(X, Y) && (tt[Y * n + X] === "r" || tt[Y * n + X] === "b");
   // owner города по id (первая клетка)
   const ownC = new Map<number, number>(); for (let i = 0; i < n * n; i++) if (C[i] >= 0 && !ownC.has(C[i])) ownC.set(C[i], T[i]);
-  const joined = (a: number, b: number) => a >= 0 && b >= 0 && a !== b && (front || (v2 ? sideOf(ownC.get(a)!) === sideOf(ownC.get(b)!) : true));
   let missing = false; const jobs: [HTMLCanvasElement, number, number][] = [];
-  const sharedE = new Map<string, { x: number; y: number; d: string; kind: "shared" | "front"; o: number }>(); // "x,y,d" — у хозяина ребра
-  const cellJobs = new Map<number, string[]>(), postJobs: [number, number, string][] = [];
+  const frontE = new Map<string, { x: number; y: number; d: string; o: number }>(); // «частокол» на стыке с врагом (front) — у хозяина ребра
+  const cellJobs = new Map<number, string[]>();
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0) continue;
     const at = (d: string, k = 1) => { const [dx, dy] = D[d]; return [x + dx * k, y + dy * k] as const; };
-    const cAt = (X: number, Y: number) => (inb(X, Y) ? C[Y * n + X] : -1);
-    const region = (X: number, Y: number) => { const c2 = cAt(X, Y); return c2 === cid || (v2 ? joined(cid, c2) : c2 >= 0 && c2 !== cid && c2 < cid); };
-    const same = (d: string) => region(...at(d)), nw = (d: string) => noWall(...at(d));
-    // v1 (без v2): у соседнего города с большим id — Т-стык без стены (одна стена вместо двойной), как раньше
-    const v1shared = (d: string) => !v2 && (() => { const c2 = cAt(...at(d)); return c2 >= 0 && c2 !== cid && c2 < cid; })();
-    const wallE: Record<string, boolean> = {}; for (const d of "nesw") wallE[d] = !same(d) && !nw(d) && !v1shared(d);
+    const cAt = (X: number, Y: number) => (inb(X, Y) ? C[Y * n + X] : -1), sd = sideOf(T[i]);
+    // t1198 (правило Алекса): стена — на каждом ребре, за которым нет СВОЕЙ/союзной клетки (wall-edges.ts); между своими городами стен нет.
+    // front: стык с врагом рисуется частоколом (одним на ребро), а не двумя стенами.
+    const ownAt = (X: number, Y: number) => cAt(X, Y) >= 0 && sideOf(T[Y * n + X]) === sd;
+    const foeAt = (X: number, Y: number) => front && cAt(X, Y) >= 0 && !ownAt(X, Y);
+    const region = (X: number, Y: number) => ownAt(X, Y) || foeAt(X, Y);
+    // экранные смещения (ex, ey) → сетка (учёт разворота доски); куски клетки — из cellWalls (wall-edges.ts, покрыт тестом)
+    const scr = (ex: number, ey: number) => { const a = ex ? D[ex > 0 ? "e" : "w"] : [0, 0], b = ey ? D[ey > 0 ? "s" : "n"] : [0, 0]; return region(x + a[0] + b[0], y + a[1] + b[1]); };
+    const cw = cellWalls(scr, 0, 0), wallE: Record<string, boolean> = cw.wall;
     const pieces: string[] = [], used = new Set<string>();
-    for (const cn of ["ne", "nw", "se", "sw"]) { const [a, b] = cn.split(""); if (wallE[a] && wallE[b]) { pieces.push("outer_" + cn); used.add(a); used.add(b); } }
+    for (const cn of cw.outer) { pieces.push("outer_" + cn); used.add(cn[0]); used.add(cn[1]); }
     const side: Record<string, [string, string]> = { n: ["w", "e"], s: ["w", "e"], e: ["n", "s"], w: ["n", "s"] };
-    const CW: Record<string, string> = { n: "w", e: "n", s: "e", w: "s" }; // «comes_from» для end_<d> (по часовой)
-    for (const d of "nesw") { if (!wallE[d] || used.has(d)) continue; const [l, r] = side[d], nl = nw(l), nr = nw(r);
-      if (nl !== nr) { const broken = nl ? l : r; pieces.push(`end_${d}${broken === CW[d] ? "_rev" : ""}`); continue; }
+    for (const d of "nesw") { if (!wallE[d] || used.has(d)) continue; const [l, r] = side[d];
       // ворота: дорога подходит к краю d (клетка дороги внутри и снаружи), и вдоль стены по обе стороны — та же стена (не у угла)
-      const [X, Y] = at(d), [lx, ly] = at(l), [rx, ry] = at(r);
-      const [ddx, ddy] = D[d], walled = (ax: number, ay: number) => cAt(ax, ay) === cid && !region(ax + ddx, ay + ddy) && !noWall(ax + ddx, ay + ddy);
+      const [lx, ly] = at(l), [rx, ry] = at(r);
+      const [ddx, ddy] = D[d], walled = (ax: number, ay: number) => cAt(ax, ay) === cid && !region(ax + ddx, ay + ddy);
       const cand = (ax: number, ay: number) => road(ax, ay) && road(ax + ddx, ay + ddy);
       // середина стороны ≥3 клеток, не у угла; одни ворота на участок — у соседней дороги-кандидата слева ворот нет (берём первую)
       const gate = v2 && cand(x, y) && walled(lx, ly) && walled(rx, ry) && !(cand(lx, ly) && walled(...at(l, 2)) && walled(x, y));
-      pieces.push(gate ? `gate_${d}${o.gateOpen?.(x, y, X, Y) ? "_open" : ""}` : "straight_" + d); }
-    for (const cn of ["ne", "nw", "se", "sw"]) { const [a, b] = cn.split(""); if (!same(a) || !same(b)) continue; const [ax, ay] = D[a], [bx, by] = D[b], X = x + ax + bx, Y = y + ay + by;
-      if (!region(X, Y) && !noWall(X, Y)) pieces.push("inner_" + cn); }
-    if (v2) for (const d of "nesw") { const c2 = cAt(...at(d)); if (joined(cid, c2) && Math.min(cid, c2) === cid) sharedE.set(`${x},${y},${d}`, { x, y, d, kind: sideOf(ownC.get(cid)!) === sideOf(ownC.get(c2)!) ? "shared" : "front", o: c2 }); }
+      pieces.push(gate ? `gate_${d}${o.gateOpen?.(x, y, ...at(d)) ? "_open" : ""}` : "straight_" + d); }
+    for (const cn of cw.inner) pieces.push("inner_" + cn);
+    if (v2 && front) for (const d of "nesw") { const [X, Y] = at(d), c2 = cAt(X, Y); if (foeAt(X, Y) && Math.min(cid, c2) === cid) frontE.set(`${x},${y},${d}`, { x, y, d, o: c2 }); }
     cellJobs.set(i, pieces); }
-  // столбики общей стены: вершина, где ребро кончается (не продолжается той же линией другим общим ребром)
-  const vk = (x: number, y: number, cn: string) => { const [a, b] = cn.split(""); let X = x, Y = y; for (const d of [a, b]) { const [dx, dy] = D[d]; X += dx > 0 ? 1 : 0; Y += dy > 0 ? 1 : 0; } return `${X},${Y}`; };
-  const doneV = new Set<string>(), CN: Record<string, [string, string]> = { n: ["nw", "ne"], s: ["sw", "se"], w: ["nw", "sw"], e: ["ne", "se"] };
-  const along: Record<string, [string, string]> = { n: ["w", "e"], s: ["w", "e"], w: ["n", "s"], e: ["n", "s"] };
-  for (const e of sharedE.values()) { if (e.kind !== "shared") continue;
-    CN[e.d].forEach((cn, k) => { const [dx, dy] = D[along[e.d][k]], v = vk(e.x, e.y, cn); if (doneV.has(v)) return;
-      if (sharedE.get(`${e.x + dx},${e.y + dy},${e.d}`)?.kind === "shared") return; // продолжается той же линией
-      doneV.add(v); postJobs.push([e.x, e.y, "shared_post_" + cn]); }); }
   const raceOf = (cid: number) => { const r = G.races[ownC.get(cid)!]; return wallMan!.races.has(r) ? r : "stone"; };
   const push = (cv: HTMLCanvasElement | null, x: number, y: number) => { if (!cv) { missing = true; return; } jobs.push([cv, sx(x), sy(y)]); };
   for (const [i, pieces] of cellJobs) { const x = i % n, y = (i / n) | 0; if (!vis(x, y)) continue; const cid = C[i], race = raceOf(cid), pc = col(T[i]);
-    for (const e of "nesw") { const s0 = sharedE.get(`${x},${y},${e}`); if (s0) push(wallPiece(race, (s0.kind === "shared" ? "shared_" : "border_front_") + e, pc, tier, s0.kind === "front" ? col(ownC.get(s0.o)!) : undefined), x, y); }
-    for (const p of pieces) push(wallPiece(race, p, pc, tier), x, y);
-    for (const [px, py, p] of postJobs) if (px === x && py === y) push(wallPiece(race, p, pc, tier), x, y); }
+    for (const e of "nesw") { const s0 = frontE.get(`${x},${y},${e}`); if (s0) push(wallPiece(race, "border_front_" + e, pc, tier, col(ownC.get(s0.o)!)), x, y); }
+    for (const p of pieces) push(wallPiece(race, p, pc, tier), x, y); }
   if (missing && !jobs.length) return false;
   for (const [cv, X, Y] of jobs) ctx.drawImage(cv, X, Y, z, z);
   return true;
@@ -171,13 +161,14 @@ const WALL: Record<string, { base: string; hi: string; mort: string; kind: "bric
 };
 /** Стены по краю земли каждого города (стыки краёв, внешние и внутренние углы); между своими городами — тоньше. */
 export function drawWalls(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string, wo: WallOpts = {}) {
-  const n = G.size; if (z < 7) return; if (drawWallsArt(ctx, G, T, C, z, sx, sy, vis, col, wo)) return; const t = Math.max(2.5, z * 0.15);
+  const n = G.size; if (z < 7) return; if (drawWallsArt(ctx, G, T, C, z, sx, sy, vis, col, wo)) return; const t = Math.max(2.5, z * 0.15), sideOf = wo.side || ((q: number) => q);
   const cx = (x: number) => sx(x) + z / 2, cy = (y: number) => sy(y) + z / 2;
   ctx.save();
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0 || !vis(x, y)) continue;
     const o = T[i], race = G.races[o] || "stone", st = WALL[race] || WALL.stone, art = wallArt[race];
-    const other = (X: number, Y: number) => X < 0 || Y < 0 || X >= n || Y >= n || C[Y * n + X] !== cid;
-    const thin = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n && T[Y * n + X] === o; // граница со своим соседним городом
+    // t1198: стена — только по внешней границе своей/союзной земли (wall-edges.ts), между своими городами стен нет
+    const other = (X: number, Y: number) => X < 0 || Y < 0 || X >= n || Y >= n || C[Y * n + X] < 0 || sideOf(T[Y * n + X]) !== sideOf(o);
+    const thin = (_X: number, _Y: number) => false;
     const N = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const, wall = N.map(([dx, dy]) => other(x + dx, y + dy));
     for (let k = 0; k < 4; k++) { if (!wall[k]) continue; const [dx, dy] = N[k];
       // экранное направление наружу (учёт разворота доски)
