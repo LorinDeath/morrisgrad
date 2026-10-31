@@ -755,3 +755,19 @@ body[data-screen="game"] .gtop { display: none; }
 .tnode.xpart { outline: 2px dashed #e05a3c; outline-offset: 1px; filter: saturate(.6); }
 .tnode.xpart::after { content: "закроется"; position: absolute; top: -8px; right: 4px; padding: 0 4px; font: 700 .58rem var(--f-disp, inherit); color: #fff; background: #a3321f; }
 .tnode { position: relative; }
+/* t1221: карточка постройки */
+.bldcard { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: start; }
+.bldcard .bc-art { width: 120px; height: auto; max-height: 160px; object-fit: contain; } .bldcard .bc-art.ph { display: grid; place-items: center; height: 100px; background: var(--black); }
+.bldcard .bc-eff { margin: 0 0 6px; font-weight: 600; } .bldcard .bc-inc { margin: 0 0 6px; color: var(--gold-hi); }
+.bldcard .bc-dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: .86rem; } .bldcard dt { color: var(--ivory-3); } .bldcard dd { margin: 0; }
+.bldcard dd ul { margin: 0; padding-left: 16px; } .bldcard .bc-st { margin: 8px 0 0; display: flex; align-items: center; gap: 4px; font-weight: 700; }
+.bldcard .ic { width: 16px; height: 16px; vertical-align: -3px; }
+@media (max-width: 520px) { .bldcard { grid-template-columns: 1fr; } .bldcard .bc-art { width: 96px; justify-self: center; } }
+.bslot[data-bc] { cursor: pointer; } .bslot[data-bc]:hover { filter: brightness(1.15); }
+.bchips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.bchip { padding: 1px 7px; font: 600 .72rem var(--f-disp, inherit); color: var(--ivory-2, #eee); background: var(--black, #111); border: 1px solid var(--gold-dk, #7a5a20); cursor: pointer; display: inline-flex; align-items: center; gap: 3px; }
+.bchip:hover { border-color: var(--gold-hi, #ffd77a); } .bchip .ic { width: 12px; height: 12px; }
+.choice-w { position: relative; display: contents; } .choice-w > .choice { position: relative; }
+.choices .choice-w { display: block; position: relative; } .choices .choice-w > .choice { width: 100%; }
+.ch-info { position: absolute; top: 6px; right: 6px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; font: italic 700 .9rem Georgia, serif; color: var(--ink, #222); background: var(--ivory-2, #eee); border: 2px solid var(--gold-dk, #7a5a20); cursor: pointer; }
+.ch-info:hover { background: var(--gold-hi, #ffd77a); }

@@ -23,8 +23,8 @@ import { lobbyLeagueHtml, profileHtml, openLeaderboard, ratingDelta, leagueOf, l
 import { localFell, resetFell, blacklistOf } from "./goals";
 import { favRaces, setFavLocal, lobbyDrawHtml, favPickerHtml, bindFavPicker, drumReveal } from "./racedraw";
 import { wonderPopup } from "./bldart";
-import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, razeTargets, buildChoices, towerCells, claimable, cityName, apTip, HS_NAME, HS_COL, hsByHp, loadWalls, cityBld, towersOf, terrCities } from "./world";
-import { bName } from "./econ-ui";
+import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, razeTargets, buildChoices, towerCells, claimable, cityName, apTip, HS_NAME, HS_COL, hsByHp, loadWalls, cityBld, towersOf, terrCities, chiefSite } from "./world";
+import { bName, openBldCard } from "./econ-ui";
 import { raceNums, raceEffects, describeEffects } from "../../../server/strat/effects";
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
@@ -906,9 +906,11 @@ function cellOwnerInfo(x: number, y: number) {
   const ct: any = G.ec.cities.find((c) => c.x === x && c.y === y);
   if (ct) { const thr: number[] = cfg.econ?.city?.growthThr || [], nx = thr[ct.lvl], C0 = cfg.econ?.city || {};
     const inc = ct.cap ? `+${C0.capGold ?? 0} золота, +${C0.capKnow ?? 0} знаний` : `+${C0.outGold ?? 0} золота`;
-    const bl = (ct.bld || []).map((b: string) => bName(b, g.races[ct.owner] || "")).join(", ");
+    const bl = [...new Set<string>(ct.bld || [])].map((b) => `<button type="button" class="bchip" data-bc="${esc(b)}" data-city="${ct.id}" data-tip="Подробнее о постройке">${esc(bName(b, g.races[ct.owner] || ""))}</button>`).join(""); // t1221: постройки — кликабельные карточки
     h += `<span class="ci-t">${ic("castle")}<b>${esc(cityName(G, ct.id))} · ${ct.cap ? "столица" : "застава"} ${ct.owner === me ? "(ваша)" : "(соперника)"}</b></span>
-      <small>Уровень ${(ct.lvl ?? 0) + 1}${ct.cap && nx != null ? ` · рост ${ct.growth ?? 0}/${nx} до ур. ${(ct.lvl ?? 0) + 2}` : ""} · доход ${esc(inc)} за ход${bl ? ` · постройки: ${esc(bl)}` : " · построек нет"}</small>`; }
+      <small>Уровень ${(ct.lvl ?? 0) + 1}${ct.cap && nx != null ? ` · рост ${ct.growth ?? 0}/${nx} до ур. ${(ct.lvl ?? 0) + 2}` : ""} · доход ${esc(inc)} за ход${bl ? "" : " · построек нет"}</small>${bl ? `<span class="bchips">${bl}</span>` : ""}`; }
+  const tw = towersOf(G).find((t: any) => t.x === x && t.y === y);
+  if (tw) h += `<span class="bchips"><button type="button" class="bchip" data-bc="watchtower" data-tip="Подробнее о постройке">${ic("tower")}${esc(bName("watchtower", g.races[tw.owner] || ""))}${tw.owner === me ? " (ваша)" : ""}</button></span>`;
   const buy = me >= 0 && S.phase === "play" ? (S.terr?.cities || []).find((q: any) => q.ready && q.cells?.some(([a, b]: number[]) => a === x && b === y)) : null;
   if (buy) h += `<small class="ci-buy">${ic("coin")}Можно купить для «${esc(cityName(G, buy.city))}» · ${buy.cost ?? "?"} золота${buy.left ? ` (бесплатно через ${buy.left} х.)` : ""}</small>`;
   else if (o < 0) h += `<small>Не куплена: свои клетки покупают у границы своей земли, когда городу доступна покупка</small>`;
@@ -957,12 +959,17 @@ function chiefActs(P: any): string {
     : `<button class="btn sm" data-ca="found" ${my ? "" : "disabled"} data-tip="${esc(`Вождь остаётся на клетке ${total} ${plural(total, "ход", "хода", "ходов")} и основывает поселение. Уход или гибель — отмена.`)}">${ic("outpost")}<span>Основать поселение</span></button>`;
   return `<div class="uc-acts chiefacts"><button class="btn sm gold" data-ca="build" ${my ? "" : "disabled"}>${ic("build")}<span>Построить</span></button>${found}</div>`;
 }
+/** t1221: карточка постройки из списка стройки / клетки / города */
+const eui_openBld = (b: string, city?: number | null) => { const G = gs(); if (G) openBldCard(G, S, S.you, b, city); };
+const siteId = (P: any, T: Int8Array) => { try { return chiefSite(gs()!, T, S.you, P)?.id ?? null; } catch { return null; } };
+document.addEventListener("click", (e) => { const t = (e.target as HTMLElement)?.closest?.<HTMLElement>("[data-bc]"); if (!t) return; e.stopPropagation(); eui_openBld(t.dataset.bc!, t.dataset.city != null && t.dataset.city !== "" ? +t.dataset.city : null); }, true);
+document.addEventListener("keydown", (e) => { const t = (e.target as HTMLElement)?.closest?.<HTMLElement>("[data-bc]"); if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); t.click(); } });
 function bindChiefActs(P: any, box: HTMLElement) {
   box.querySelectorAll<HTMLButtonElement>("[data-ca]").forEach((b) => (b.onclick = async () => { const k = b.dataset.ca!;
     if (k === "found") return send({ type: "act", act: { a: "found", id: P.id } });
     if (k === "found_cancel") return send({ type: "act", act: { a: "found_cancel", id: P.id } });
     const G = gs()!, T = worldT(), list = buildChoices(ectx(), P, T);
-    const pick = await choiceDlg("Построить", "Вождь строит на своей земле — постройка достаётся ближайшему городу. Башню — рядом с Вождём, в том числе за границей.", list.map((o) => ({ id: o.id, title: o.title, text: o.text, icon: o.icon, img: o.img, foot: o.foot, disabled: o.off, attrs: o.img ? 'data-art="1"' : 'data-ph="1"' })), "builds");
+    const pick = await choiceDlg("Построить", "Вождь строит на своей земле — постройка достаётся ближайшему городу. Башню — рядом с Вождём, в том числе за границей.", list.map((o) => ({ id: o.id, title: o.title, text: o.text, icon: o.icon, img: o.img, foot: o.foot, disabled: o.off, attrs: o.img ? 'data-art="1"' : 'data-ph="1"' })), "builds", (id) => eui_openBld(id, siteId(P, T)));
     if (!pick) return;
     if (pick === "watchtower") { W.mode = { k: "build", b: pick, tower: true }; renderHint(); draw(); return; }
     let kind: string | undefined; if (pick === "forge") { const kk = await choiceDlg("Кузня", "Какому типу фигур дать +1 АТК?", (Object.keys(KIND_NAME) as Kind[]).map((q) => ({ id: q, title: KIND_NAME[q], img: unitArt(G.races[S.you], q), text: "+1 АТК" })), "kinds"); if (!kk) return; kind = kk; }

@@ -39,10 +39,11 @@ export function confirmDlg(title: string, text: string, ok = "Да", opts: { dan
 }
 export type Choice = { id: string; title: string; text?: string; img?: string; icon?: string; foot?: string; disabled?: boolean; attrs?: string };
 /** Выбор из крупных карточек (превращение, Кузня, таланты). */
-export function choiceDlg(title: string, sub: string, items: Choice[], cls = ""): Promise<string | null> {
-  const body = `<div class="choices n${items.length}">${items.map((c) => `<button class="choice" data-choice="${esc(c.id)}" ${c.disabled ? "disabled" : ""} ${c.attrs || ""}>
-    <span class="ch-art">${c.img ? `<img src="${c.img}" alt="">` : c.icon ? ic(c.icon) : ""}</span><b>${esc(c.title)}</b>${c.text ? `<small>${esc(c.text)}</small>` : ""}${c.foot ? `<em>${c.foot}</em>` : ""}</button>`).join("")}</div>`;
+export function choiceDlg(title: string, sub: string, items: Choice[], cls = "", onInfo?: (id: string) => void): Promise<string | null> {
+  const body = `<div class="choices n${items.length}">${items.map((c) => `${onInfo ? `<span class="choice-w">` : ""}<button class="choice" data-choice="${esc(c.id)}" ${c.disabled ? "disabled" : ""} ${c.attrs || ""}>
+    <span class="ch-art">${c.img ? `<img src="${c.img}" alt="">` : c.icon ? ic(c.icon) : ""}</span><b>${esc(c.title)}</b>${c.text ? `<small>${esc(c.text)}</small>` : ""}${c.foot ? `<em>${c.foot}</em>` : ""}</button>${onInfo ? `<button type="button" class="ch-info" data-info="${esc(c.id)}" aria-label="Подробнее: ${esc(c.title)}" data-tip="Подробнее">i</button></span>` : ""}`).join("")}</div>`;
   const m = modal({ title, sub, body, cls: "choose " + cls, icon: "crown" });
+  if (onInfo) m.el.querySelectorAll<HTMLButtonElement>("[data-info]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); onInfo(b.dataset.info!); }));
   m.el.querySelectorAll<HTMLButtonElement>("[data-choice]").forEach((b) => (b.onclick = () => m.close(b.dataset.choice)));
   return m.done;
 }

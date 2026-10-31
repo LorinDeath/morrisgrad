@@ -4,7 +4,7 @@
 // Древо технологий строится по данным: узлы {era, br, req[], excl[], unlocks{b[],k[]}} — форма дерева любая.
 import { STRAT_CFG, type GameState, type Piece, type Kind, type StratCfg } from "../../../server/strat/rules";
 import { TECHS, BUILD, techSibling, UNLOCK, HERO_ERA, type BuildId, type Tech } from "../../../server/strat/econ-cfg";
-import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, eraTechs, canFound, sz, techEra, rCost } from "../../../server/strat/econ";
+import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, eraTechs, canFound, sz, techEra, rCost, bldStat, buildCostAt } from "../../../server/strat/econ";
 import { leagueOf } from "../../../server/strat/rating";
 import { mergeCfg } from "../../../server/strat/cfg";
 import { ic, BUILD_ICON, BRANCH_ICON, iconImg } from "./icons";
@@ -200,9 +200,9 @@ export function renderCity(c: Ctx) {
     return src ? `<img class="bs-art ${isBig(b) ? "big" : ""}" src="${sp || src}" alt="">` : `<span class="bs-ph">${bIcon(b, race)}<small>арт позже</small></span>`; };
   const capAll: number[] = city.cap ? (sizeOf(G, cfg).capSlots || []) : [], maxSlots = city.cap ? Math.max(slots, capAll[capAll.length - 1] ?? slots) : slots;
   const lockLv = (i: number) => { const l = capAll.findIndex((v) => v > i); return l >= 0 ? l + 1 : 0; };
-  const bl = [...new Set(city.bld)].map((b) => `<span class="bslot on ${isBig(b) ? "wonder" : ""}" data-tip="${esc(rv(BUILD[b] as any, race).eff || "")}">${card(b)}<b>${esc(bName(b, race))}${b === "forge" && lv2 ? " II" : ""}</b>${hpTxt(hpOf(b))}</span>`).join("")
+  const bl = [...new Set(city.bld)].map((b) => `<span class="bslot on ${isBig(b) ? "wonder" : ""}" data-bc="${b}" data-city="${city.id}" role="button" tabindex="0" data-tip="${esc(rv(BUILD[b] as any, race).eff || "")}">${card(b)}<b>${esc(bName(b, race))}${b === "forge" && lv2 ? " II" : ""}</b>${hpTxt(hpOf(b))}</span>`).join("")
     + (stg && stg < 4 ? `<span class="bslot on wonder build" data-tip="Великое чудо строится"><img class="bs-art big" src="${bSprite("wonder", race, { stage: stg })}" alt=""><b>${esc(bName("wonder", race))}</b><small>стройка ${stg}/3</small></span>` : "")
-    + hpRows.filter((r) => r.ruin).map((r) => `<span class="bslot ruin" data-tip="Разрушено — можно восстановить">${card(r.b)}<b>${esc(bName(r.b, race))}</b><small>${ic("burn")}руины</small></span>`).join("")
+    + hpRows.filter((r) => r.ruin).map((r) => `<span class="bslot ruin" data-bc="${r.b}" data-city="${city.id}" role="button" tabindex="0" data-tip="Разрушено — можно восстановить">${card(r.b)}<b>${esc(bName(r.b, race))}</b><small>${ic("burn")}руины</small></span>`).join("")
     + Array.from({ length: Math.max(0, slots - used) }, () => `<span class="bslot empty"><img class="bs-slot" src="${SLOT.empty}" alt=""><small>свободно</small></span>`).join("")
     + Array.from({ length: Math.max(0, maxSlots - Math.max(slots, used)) }, (_, i) => `<span class="bslot locked"><img class="bs-slot" src="${SLOT.locked}" alt=""><small>${lockLv(slots + i) ? "откроется на ур. " + lockLv(slots + i) : "закрыто"}</small></span>`).join("");
   box.innerHTML = `<div class="dlg deco city">
@@ -235,6 +235,39 @@ function landRow(S: any, city: any): string {
     ${t.ready && (t.cells || []).length ? `<button class="btn mini gold" data-claim>${ic("plus")}Купить клетку · ${ic("gold")}${t.cost ?? "?"}</button>` : ""}</div>
     ${t.ready ? `<p class="cityhint">${ic("turn")} Не купите — через ${left} х. клетка присоединится бесплатно.</p>` : ""}`;
 }
+
+// ---------- t1221: карточка постройки (как карточка клетки): эффект, цена, условия, состояние ----------
+/** Открыть карточку постройки b. cityId — город, о котором речь (постройка в нём или «где строить»). */
+export function openBldCard(G: GameState, S: any, me: number, b: string, cityId?: number | null) {
+  const cfg = cfgOf(S), ec: any = G.ec; if (!ec) return;
+  const city: any = cityId != null ? ec.cities.find((q: any) => q.id === cityId) : null, owner = city ? city.owner : me, race = G.races[owner] || G.races[me] || "fire";
+  const B: any = rv((cfg.build as any)[b] || (BUILD as any)[b], race), mine = owner === me, st = bldStat(cfg, b), art = bCard(b, race);
+  let cost: number | null = null; try { cost = b === "watchtower" ? ((cfg as any).econ?.tower?.cost ?? B.cost ?? null) : city && mine ? buildCostAt(G, me, city, b as BuildId, cfg) : buildCost(G, me, b as BuildId, cfg); } catch { cost = B.cost ?? null; }
+  const nodes = techNodes(G.races[me], srvTree(G, me), leagueEra(G, cfg)), gate = nodes.filter((n) => n.unB.includes(b));
+  const cond: string[] = [];
+  if (B.race) cond.push(`Только раса ${esc(RACE_RU[B.race] || B.race)}`);
+  if (gate.length) cond.push(`Технология: ${gate.map((n) => `«${esc(n.name)}»${ec.techs?.[me]?.includes(n.id) ? " ✓" : ""}`).join(" или ")}`);
+  if (B.legend) cond.push(`Легендарная: эпоха IV, только в столице, не больше ${(cfg.econ as any).era4?.legendMax ?? 1}`);
+  if (B.once) cond.push("Одна на игрока");
+  if (B.field || b === "watchtower") cond.push(`Ставит Вождь в поле рядом с собой, не больше ${(cfg as any).econ?.tower?.max ?? 3}`);
+  if (b === "wonder") { cond.push("Только в столице; цель «Великое чудо»"); }
+  if (!B.field && b !== "watchtower") cond.push("Строит Вождь на своей земле — постройка достаётся ближайшему городу; занимает слот");
+  const inc = [B.gold ? `+${B.gold} ${ic("gold")} за ход` : "", B.know ? `+${B.know} ${ic("know")} за ход` : "", B.growth ? `+${B.growth} рост за ход` : ""].filter(Boolean).join(" · ");
+  const row = city ? cityBld(S, G, city, cfg).find((r) => r.b === b) : null;
+  let state = "";
+  if (row?.ruin) state = `${ic("burn")}Руины — восстановление ${cost ?? "?"} з`;
+  else if (city?.bld?.includes(b)) state = `${ic("check")}Построено${row?.hp != null ? ` · прочность ${row.hp}/${row.max}` : row?.hs ? ` · ${HS_NAME[row.hs]}` : ""}`;
+  else if (mine && city) { const e = canBuild(G, me, city, b as BuildId, cfg, b === "forge" ? "rook" : undefined); state = e && !/acted/.test(e) ? `${ic("lock")}${esc(ECON_ERR[e] || e)}` : `${ic("build")}Можно построить`; }
+  const body = `<div class="bldcard">${art ? `<img class="bc-art" src="${art}" alt="">` : `<span class="bc-art ph">${bIcon(b, race)}</span>`}
+    <div class="bc-b"><p class="bc-eff">${esc(B.eff || "")}</p>${inc ? `<p class="bc-inc">${inc}</p>` : ""}
+    <dl class="bc-dl"><dt>Цена</dt><dd>${ic("gold")}${cost ?? "?"}${b === "wonder" ? ` + ${ic("know")}${(cfg as any).goals?.sizes?.[G.size]?.wonderKnow ?? "?"}` : ""}</dd>
+      <dt>Прочность</dt><dd>${ic("heart")}${st.hp} · ${ic("shield")}${st.arm}${st.counter ? ` · ответный удар ${st.counter}` : ""}</dd>
+      <dt>Условия</dt><dd><ul>${cond.map((x) => `<li>${x}</li>`).join("")}</ul></dd>
+      ${city ? `<dt>Город</dt><dd>${esc(city.name || (city.cap ? "Столица" : "Застава"))}${mine ? "" : " (соперника)"}</dd>` : ""}</dl>
+    ${state ? `<p class="bc-st">${state}</p>` : ""}</div></div>`;
+  modal({ id: "bldcard", title: bName(b, race), icon: "build", cls: "small bldcard-dlg", body });
+}
+const RACE_RU: Record<string, string> = { fire: "Огня", ice: "Льда", water: "Воды", stone: "Камня", nature: "Природы", lightning: "Молнии", storm: "Бури" };
 
 // ---------- древо технологий ----------
 export function renderTech(c: Ctx) {
