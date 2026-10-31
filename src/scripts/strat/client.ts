@@ -27,6 +27,7 @@ import { bName } from "./econ-ui";
 import { raceNums, raceEffects, describeEffects } from "../../../server/strat/effects";
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
+import { codexGot, openCodex } from "./codex-ui";
 import { hpBarArt, unitHpArt, HS_STEP } from "./ui2art";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
 
@@ -166,6 +167,7 @@ function openMatch() {
     const m = JSON.parse(e.data);
     if (m.type === "chat" || m.type === "chat_err") chatRecv(m);
     if (rpMsg(m)) return;
+    if (m.type === "codex") { codexGot(m.items); return; } // F: Библиотека — новые открытия
     if (m.type === "st") { m.skew = Date.now() - m.now; if (hv?.replay) { hv.back = m; rec.push(m.code, m.g, m.ev || []); return; }
       const viewing = !!hv, prev = liveS || S; S = m; onState(prev); applyIntent(); rec.push(S.code, S.g, S.ev || []); if (Array.isArray(S.hist)) rec.merge(S.code, framesFrom(S.hist));
       if (viewing && hv) { liveS = S; applyView(); } else renderMoves(); if (S.replay?.id && (!srvMv || hv || S.phase === "over")) askMoves(); }
@@ -1576,7 +1578,7 @@ function initMenu() {
   pm.forEach((b) => (b.onclick = () => { playMode = b.dataset.pm as any; localStorage.setItem("strat.playMode", playMode); sync(); })); sync();
   for (const o of Array.from($<HTMLSelectElement>("#size").options)) o.textContent = `${o.value}×${o.value}${+o.value === 5 ? " — дуэль" : ""} · ${leagueName(+o.value)} лига`;
   const on = (id: string, f: () => void) => { const b = document.getElementById(id); if (b) b.onclick = f; };
-  on("libbtn", openLibDlg); on("mapsbtn", openMapsHub); on("setbtn", openSettings); loadCommander();
+  on("libbtn", openLibDlg); on("codexbtn", () => openCodex({ http: HTTP, auth: async () => { const h = await helloMsg(); return h.token ? { token: h.token } : h.userId ? { dev: h.userId } : {}; } })); on("mapsbtn", openMapsHub); on("setbtn", openSettings); loadCommander();
 }
 
 // ---------- запуск ----------

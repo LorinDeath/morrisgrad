@@ -24,6 +24,7 @@ import { cleanChat, chatAllowed, canSee, parseTo, CHAT_CFG, type ChatMsg } from 
 import { addStats, type StatRow } from "./stats";
 import { coinsFor, grantCoins } from "./coins";
 import { pieceLevel } from "./econ";
+import { codexSeen, codexPick } from "./codex";
 import { leagueOf, isAbandon as isAbandonR } from "./rating";
 
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без O/0, I/1
@@ -470,6 +471,22 @@ export class StratMatch extends DurableObject {
       const a = ws.deserializeAttachment() as Att; if (!a?.pkey) continue;
       this.send(ws, this.stateFor(this.seatOf(a.pkey), ev));
     }
+    this.codexTick(ev);
+  }
+  // ---------- Библиотека (F): открытия при первой встрече; в D1 — только проверенные игроки, не боты, user_id — из сессии места ----------
+  cx: [Set<string>, Set<string>] = [new Set(), new Set()];
+  codexTick(ev: Ev[]) {
+    const L = this.L, g = L?.game; if (!L || !g) return;
+    for (const side of [0, 1] as const) { const s = L.seats[side]; if (!s || s.bot) continue;
+      try { const seen = codexSeen(g, side, this.cfg(), ev as any[]), fresh = [...seen].filter((k) => !this.cx[side].has(k)); if (!fresh.length) continue;
+        const items = codexPick(this.cfg(), fresh); let n = 0;
+        for (const ws of this.ctx.getWebSockets()) { const a = ws.deserializeAttachment() as Att; if (a?.pkey === s.pkey) { this.send(ws, { type: "codex", items }); n++; } }
+        const db = (this.env as any).GAME_DB, real = s.verified && !!db && !!s.pkey && !String(s.pkey).startsWith("guest:");
+        if (n || real) fresh.forEach((k) => this.cx[side].add(k)); // гость без сокета — пришлём при возвращении
+        if (real && items.length) { const now = Date.now();
+          const st = db.prepare("INSERT OR IGNORE INTO strat_codex (user_id, kind, item_id, first_at) VALUES (?, ?, ?, ?)");
+          void db.batch(items.map((e) => { const i = e.k.indexOf(":"); return st.bind(s.pkey, e.k.slice(0, i), e.k.slice(i + 1), now); })).catch(() => {}); }
+      } catch {} }
   }
   stateFor(seat: number, ev: Ev[]) {
     const L = this.L!;

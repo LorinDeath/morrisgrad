@@ -1,6 +1,7 @@
 import { GameRoom } from "./room";
 import { StratMatch } from "./strat/match";
 import { StratIndex } from "./strat/hub";
+import { codexHttp } from "./strat/codex-http";
 import type { Env } from "./types";
 import { fetchRoom } from "./meta/doRetry";
 
@@ -17,6 +18,7 @@ export default {
       if (path.startsWith("/strat/")) {
         const e: any = env;
         if (!e.STRAT_MATCH || !e.STRAT_INDEX) return new Response("not found", { status: 404 });
+        if (path === "/strat/codex") return await codexHttp(request, env); // F: Библиотека — без DO, D1 напрямую
         const m = STRAT_MATCH_PATH.exec(path);
         if (m) return await fetchRoom(() => e.STRAT_MATCH.get(e.STRAT_MATCH.idFromName(m[1])), request);
         return await fetchRoom(() => e.STRAT_INDEX.get(e.STRAT_INDEX.idFromName("index")), request);

@@ -804,3 +804,41 @@ body:not(.bigmap) #minimapbox:not([hidden]) { display: block; }
   #stage .log.peek:not(.open) { max-height: none; opacity: .92; }
   #stage .log:not(.open) .lg:nth-child(n+2) { display: none; }
 }
+
+/* ===== лобби на телефоне: «Выйти» не обрезается (t1206) ===== */
+@media (max-width: 520px) {
+  .lobby-h { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .lobby-h .codewrap { min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+  .lobby-h .codebox { font-size: 1.6rem; letter-spacing: .2em; white-space: nowrap; }
+  .lobby-h .lh-btns { gap: 8px; flex-wrap: nowrap; justify-content: stretch; min-width: 0; }
+  .lobby-h .lh-btns .btn { flex: 1 1 0; min-width: 0; padding-inline: 10px; }
+  .lobby-h .status { order: 3; }
+}
+
+/* ===== F: Библиотека ===== */
+.codexdlg .dlg { width: min(980px, 96vw); max-height: 92dvh; display: flex; flex-direction: column; }
+.codexdlg .dlg-b { overflow: hidden; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.cx { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.cx-top { display: flex; gap: 10px; align-items: center; }
+.cx-top input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(241,213,143,.35); background: rgba(0,0,0,.35); color: inherit; font: inherit; }
+.cx-cnt { white-space: nowrap; font-size: .85rem; opacity: .85; } .cx-cnt b { color: #f1d58f; }
+.cx-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.cx-cat { flex: none; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(241,213,143,.3); background: rgba(0,0,0,.25); color: #f3e6c4; font-family: inherit; font-weight: 600; font-size: .8rem; line-height: 1.2; cursor: pointer; white-space: nowrap; }
+.cx-cat.on { background: #c9a24a; color: #1a1208; border-color: #f1d58f; }
+.cx-fl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cx-f { display: flex; gap: 6px; align-items: center; font-size: .8rem; } .cx-f span { opacity: .8; }
+.cx-f select { padding: 4px 6px; border-radius: 6px; background: rgba(0,0,0,.4); color: inherit; border: 1px solid rgba(241,213,143,.3); font: inherit; max-width: 150px; }
+.cx-note { margin: 0; font-size: .78rem; opacity: .8; }
+.cx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; overflow-y: auto; min-height: 120px; padding-right: 2px; align-content: start; }
+.cx-card { display: flex; gap: 8px; align-items: center; text-align: left; padding: 7px 9px; border-radius: 8px; border: 1px solid rgba(241,213,143,.25); background: rgba(20,14,8,.55); color: inherit; font: inherit; cursor: pointer; min-width: 0; }
+.cx-card:hover { border-color: #f1d58f; }
+.cx-ic { flex: none; width: 34px; height: 34px; display: grid; place-items: center; font-size: 1.3rem; border-radius: 50%; background: rgba(241,213,143,.12); }
+.cx-nm { display: flex; flex-direction: column; min-width: 0; } .cx-nm b { font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-nm small { font-size: .7rem; opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-lock { cursor: default; opacity: .55; filter: grayscale(1); } .cx-lock .cx-ic { background: rgba(0,0,0,.6); color: #777; font-weight: 700; } .cx-lock b { letter-spacing: .2em; }
+.cx-empty { grid-column: 1 / -1; text-align: center; opacity: .75; padding: 24px 0; }
+.cx-det { display: flex; flex-direction: column; gap: 6px; } .cx-big { font-size: 2.6rem; text-align: center; }
+.cx-row { display: flex; justify-content: space-between; gap: 12px; font-size: .85rem; border-bottom: 1px dashed rgba(241,213,143,.15); padding-bottom: 3px; } .cx-row span { opacity: .7; } .cx-row b { text-align: right; }
+.cx-eff { margin: 4px 0; line-height: 1.4; }
+@media (max-width: 760px) { .cx-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cx-card { padding: 6px; } .cx-ic { width: 28px; height: 28px; font-size: 1.05rem; } .cx-cnt { font-size: .75rem; } }
+.cx > :not(.cx-grid) { flex: none; } .cx-cat { min-height: 28px; }
