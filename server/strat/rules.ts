@@ -486,6 +486,6 @@ export function botAction(g: GameState, side: 0 | 1, cfg: StratCfg = STRAT_CFG):
 export function view(g: GameState, withMap = true, cfg: StratCfg = STRAT_CFG) {
   return { v: g.v, ...(withMap ? { map: g.map } : {}), size: g.size, turn: g.turn, cur: g.cur, ap: g.ap, apMax: g.apMax, turnLimit: g.turnLimit, races: g.races, winner: g.winner, reason: g.reason, first: g.first,
     pieces: g.pieces.map((p) => ({ id: p.id, o: p.owner, k: p.kind, x: p.x, y: p.y, hp: p.hp, mh: p.maxHp, atk: p.atk, arm: p.arm, a: p.acted ? 1 : 0, b: p.burn, c: p.chill,
-      ...(p.xp ? { xp: p.xp } : {}), ...(p.tal?.length ? { tl: p.tal } : {}), ...(p.mv ? { mv: 1 } : {}), ...(p.cm ? { cm: 1 } : {}), ...((p as any).sh > 0 ? { sh: (p as any).sh } : {}), ...((p as any).root > 0 ? { rt: (p as any).root } : {}), ...((p as any).treant ? { tr: 1 } : {}), ea: effAtk(g, p, null, cfg), er: effArm(g, p, cfg) })),
+      ...(p.xp ? { xp: p.xp } : {}), ...(p.tal?.length ? { tl: p.tal } : {}), ...(p.mv ? { mv: 1 } : {}), ...(p.cm ? { cm: 1 } : {}), ...((p as any).sh > 0 ? { sh: (p as any).sh } : {}), ...((p as any).root > 0 ? { rt: (p as any).root } : {}), ...((p as any).treant ? { tr: 1 } : {}), ...(p.cds && Object.values(p.cds).some((v) => v > 0) ? { cd: { ...p.cds } } : {}), ea: effAtk(g, p, null, cfg), er: effArm(g, p, cfg) })),
     ec: g.ec, glory: cfg.econ.sizes[g.size]?.glory || 0 };
 }

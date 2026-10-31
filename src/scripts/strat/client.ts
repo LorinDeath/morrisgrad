@@ -14,7 +14,7 @@ import { fogView, unveilCls, fogNode } from "./fog";
 import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
-import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius, shake, placeBanner, BAN_MS } from "./ult-fx";
+import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ultAimOk, aimShape, ULT, ultRadius, shake, placeBanner, BAN_MS } from "./ult-fx";
 import { loadFx, fxImg, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
@@ -76,6 +76,9 @@ const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нель
   map_not_approved: "Карта ещё не проверена — играть на ней может только автор", map_hidden: "Карта скрыта модератором", not_admin: "Только для админа",
   reason_required: "Укажите причину отказа", not_found: "Карта не найдена", bad_size: "Такой размер поля сервер пока не поддерживает",
   invite_rate: "Не чаще раза в 10 секунд", spectator: "Вы зритель", rate: "Слишком часто — подождите минуту",
+  // t1225: коды ульт и умений (раньше показывались английскими ключами)
+  no_ult: "Ульта ещё не открыта", bad_target: "Выберите врага в радиусе ульты", out_of_range: "Слишком далеко для ульты", bad_cell: "Сюда бить нельзя",
+  cooldown: "Ещё перезаряжается", use_ult: "Ульта запускается своей кнопкой", no_ability: "Такого умения нет", bad_piece: "Нет такой фигуры",
 };
 Object.assign(ERR, { lib_full: "Библиотека заполнена — уберите старые партии", live: "Партия ещё идёт", no_replay: "Повтор недоступен", bad_id: "Неверная ссылка на повтор", ...(ERR.guest ? {} : { guest: "Нужно войти на сайт" }), need_login: "Нужно войти на сайт" });
 const toast = (t: string, k: "info" | "good" | "bad" | "turn" = "info", i?: string) => uiToast(t, k, i);
@@ -985,15 +988,18 @@ function renderHint() {
 /** Кнопка ульты Вождя: только с 5-го уровня (до этого не существует в интерфейсе), с кольцом перезарядки. */
 function chiefUltBtn(ch: any, me: number): string {
   if ((ch.lv || 0) < 5 || !ch.p) return ""; const d = ULT[S.g.races[me]]; if (!d) return "";
-  const pv = S.g.pieces.find((q: any) => q.id === ch.p.id), cd = +(pv?.ucd ?? pv?.cd?.ult ?? S.g.ec?.ultCd?.[me] ?? 0) || 0, max = +(cfgOf(S) as any).chiefUlt?.cd || 8;
+  const pv = S.g.pieces.find((q: any) => q.id === ch.p.id); if (!(pv?.tl || []).includes("ult")) return ""; // t1225: как ultOf на сервере — ульта только после выбора узла 5-го уровня
+  const sh = aimShape(S.g.races[me]), how = sh?.s === "chain" ? `Выберите врага в радиусе ${sh.rng}.` : sh?.s === "line" ? "Укажите направление — клетку рядом с Вождём." : `Выберите центр области в радиусе ${sh?.rng ?? ""}.`;
+  const cd = +(pv?.ucd ?? pv?.cd?.ult ?? S.g.ec?.ultCd?.[me] ?? 0) || 0, max = +(cfgOf(S) as any).chiefUlt?.cd || 8;
   const my = S.g.cur === me && S.phase === "play" && S.g.ap > 0 && !cd;
-  return `<button class="abil ult chiefult ${cd ? "cd" : ""}" id="chiefult" ${my ? "" : "disabled"} style="--p:${cd ? Math.round((cd / max) * 100) : 0}" data-tip="${esc(`Ульта «${d.title}»: ${d.sub}. ${cd ? `Готово через ${cd} х.` : "Выберите центр круга на доске."}`)}"><span class="ring"></span><span class="ab-ic">${ultIconArt(S.g.races[me])}</span>${cd ? `<b class="ab-cd">${cd}</b>` : ""}</button>`;
+  return `<button class="abil ult chiefult ${cd ? "cd" : ""}" id="chiefult" ${my ? "" : "disabled"} style="--p:${cd ? Math.round((cd / max) * 100) : 0}" data-tip="${esc(`Ульта «${d.title}»: ${d.sub}. ${cd ? `Готово через ${cd} х.` : how}`)}"><span class="ring"></span><span class="ab-ic">${ultIconArt(S.g.races[me])}</span>${cd ? `<b class="ab-cd">${cd}</b>` : ""}</button>`;
 }
 /** Арт иконки ульты (ui2/ult/ult_icon_<вид>.png) по расе. */
 const ULT_ART: Record<string, string> = { fire: "doom", lightning: "blink", stone: "dome", ice: "blizzard", water: "tide", nature: "grove" }; // аудит п.3: серверные ключи
 function ultIconArt(race: string) { const k = ULT_ART[race]; return k ? `<img class="ult-art" src="/strat/ui2/ult/ult_icon_${k}.png" alt="">` : ic("ult"); }
 function startAim(a: NonNullable<typeof ultAim>) { ultAim = a; aimCell = null; const p = S.g.pieces.find((q: any) => q.id === a.pid); if (p) aimCell = [p.x, p.y];
-  const h = $("#hint"); h.hidden = false; h.textContent = matchMedia("(hover: hover)").matches ? "Наведите область и нажмите — Esc отменит" : "Коснитесь клетки — область покажется; второе касание — удар"; draw(); }
+  const h = $("#hint"); h.hidden = false; const sh = a.chief ? aimShape(a.race) : null, hov = matchMedia("(hover: hover)").matches; // t1225: подсказка по форме ульты
+  h.textContent = sh?.s === "chain" ? `Выберите врага в радиусе ${sh.rng}` + (hov ? " — Esc отменит" : "; второе касание — удар") : sh?.s === "line" ? "Укажите направление — клетку рядом с Вождём" + (hov ? "; Esc отменит" : "; второе касание — удар") : hov ? "Наведите область и нажмите — Esc отменит" : "Коснитесь клетки — область покажется; второе касание — удар"; draw(); }
 function stopAim() { ultAim = null; aimCell = null; renderHint(); draw(); }
 
 // ---------- камера: карты до 100×100 ----------
@@ -1176,7 +1182,8 @@ function drawNow() {
   for (const b of bursts) { const frs = hitFx(b.race); if (!frs.length) continue; const i = Math.min(frs.length - 1, Math.floor(((now - b.t) / FX_MS) * frs.length)), s2 = z * 1.3; ctx.drawImage(frs[i], sx(b.x) + z / 2 - s2 / 2, sy(b.y) + z / 2 - s2 / 2, s2, s2); }
   const castBusy = drawCasts(ctx, n, sx, sy, z, now), fx2Busy = drawFx2(ctx, sx, sy, z, now) || marksOn;
   if (ultAim && aimCell) { const cp = ultAim.chief ? g.pieces.find((q: any) => q.id === ultAim!.pid) : null, side = cp ? cp.o : S.you;
-    drawAim(ctx, ultAim.race, aimCell[0], aimCell[1], ultAim.r, n, sx, sy, z, now, true, ultAim.chief ? { from: cp ? [cp.x, cp.y] : aimCell, era: g.ec?.era?.[side] || 1, side, pieces: g.pieces } : undefined); }
+    const A = ultAim.chief ? { from: (cp ? [cp.x, cp.y] : aimCell) as [number, number], era: g.ec?.era?.[side] || 1, side, pieces: g.pieces } : undefined;
+    drawAim(ctx, ultAim.race, aimCell[0], aimCell[1], ultAim.r, n, sx, sy, z, now, A ? ultAimOk(ultAim.race, aimCell[0], aimCell[1], A) : true, A); }
   // числа урона: всплывают, «пружинят», Oswald с чернильной обводкой
   fx = fx.filter((f) => now - f.t < NUM_MS); ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for (const f of fx) { const k = (now - f.t) / NUM_MS, pop = k < 0.15 ? 0.6 + (k / 0.15) * 0.6 : 1.2 - Math.min(0.2, (k - 0.15) * 0.5);

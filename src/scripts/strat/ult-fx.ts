@@ -101,9 +101,18 @@ type SX = (x: number) => number;
 const easeOut = (k: number) => 1 - Math.pow(1 - k, 3);
 /** Телеграф: подсветка круга и клеток под прицелом. */
 /** Форма ульты Вождя по расе — зеркало server/strat/ult.ts ultCells + tree-data ULTS (в публичный бандл ULTS не уходят). */
-const AIM_SHAPE: Record<string, { s: "circle" | "square" | "line" | "chain"; r?: number; size?: number; eraSize?: number; len?: number; hops?: number; hop?: number }> = {
-  fire: { s: "circle", r: 2.5 }, lightning: { s: "chain", hops: 3, hop: 3 }, stone: { s: "square", size: 3, eraSize: 5 }, ice: { s: "square", size: 5 }, water: { s: "line", len: 5 }, nature: { s: "square", size: 5 },
+const AIM_SHAPE: Record<string, { s: "circle" | "square" | "line" | "chain"; r?: number; size?: number; eraSize?: number; len?: number; hops?: number; hop?: number; rng: number }> = {
+  fire: { s: "circle", r: 2.5, rng: 4 }, lightning: { s: "chain", hops: 3, hop: 3, rng: 4 }, stone: { s: "square", size: 3, eraSize: 5, rng: 3 }, ice: { s: "square", size: 5, rng: 4 }, water: { s: "line", len: 5, rng: 1 }, nature: { s: "square", size: 5, rng: 3 },
 };
+/** t1225: форма и дальность ульты расы для подсказки прицела (зеркало ULTS сервера: range) */
+export function aimShape(race: string) { return AIM_SHAPE[race] || null; }
+/** t1225: можно ли бить в (x, y) — как canUlt на сервере (out_of_range / bad_target / bad_cell) */
+export function ultAimOk(race: string, x: number, y: number, A: AimCtx): boolean {
+  const u = AIM_SHAPE[race]; if (!u) return true; const d = Math.max(Math.abs(x - A.from[0]), Math.abs(y - A.from[1]));
+  if (u.s === "line") return d >= 1;
+  if (u.s === "chain") return d <= u.rng && A.pieces.some((q) => q.x === x && q.y === y && q.o !== A.side && q.hp > 0);
+  return d <= u.rng;
+}
 export type AimCtx = { from: [number, number]; era: number; side: number; pieces: { x: number; y: number; o: number; hp: number; id: number }[] };
 /** клетки ульты расы race в цель (x, y) так же, как считает сервер; null — формы нет (способности фигур — круг r) */
 export function ultAimCells(race: string, x: number, y: number, n: number, A: AimCtx): [number, number][] | null {

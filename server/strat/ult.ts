@@ -65,8 +65,8 @@ export function castUlt(g: GameState, side: 0 | 1, p: Piece, id: string, u: UltD
   if (u.shape === "chain") { // перескоки: каждый следующий — ближайший непобитый враг в радиусе hop от предыдущего
     const hops = (u.hops || 3) + (late(g, side) ? u.eraHops || 0 : 0), hit = new Set<number>(); let cur: Piece | undefined = at(g, x, y);
     for (let i = 0; i < hops && cur; i++) { hit.add(cur.id); cells.push([cur.x, cur.y]); const last: Piece = cur; hurt(g, p, cur, dmg, u, ev, H);
-      cur = g.pieces.filter((q) => q.owner !== side && !hit.has(q.id) && q.hp > 0 && cheb(q, last) <= (u.hop || 3)).sort((a, b) => cheb(a, last) - cheb(b, last) || a.hp - b.hp)[0];
-      if (!cur) { // встать рядом с последней целью
+      cur = i + 1 < hops ? g.pieces.filter((q) => q.owner !== side && !hit.has(q.id) && q.hp > 0 && cheb(q, last) <= (u.hop ?? 3)).sort((a, b) => cheb(a, last) - cheb(b, last) || a.hp - b.hp)[0] : undefined; // t1225: hop 0 («Подвиг») — без перескока
+      if (!cur && (u.hop ?? 3) > 0) { // встать рядом с последней целью (t1225: и когда цепь кончилась по числу перескоков, не только по врагам)
         const lx = last.x, ly = last.y; let best: [number, number] | null = null;
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cx = lx + dx, cy = ly + dy; if ((dx || dy) && inb(g, cx, cy) && (!at(g, cx, cy) || at(g, cx, cy) === p) && passable(g.map, cx, cy, g.races[side]) && !best) best = [cx, cy]; }
         if (best) { p.x = best[0]; p.y = best[1]; ev.push({ e: "move", id: p.id, x: p.x, y: p.y, blink: 1 } as any); }
