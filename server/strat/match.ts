@@ -33,7 +33,7 @@ const GRACE_MS = 120_000; // на возврат после обрыва
 const LOBBY_TTL_MS = 2 * 3600_000; // пустое лобби/законченная партия живут 2 часа
 const BOT_STEP_MS = 450;
 
-type SeatS = { pkey: string; nick: string; verified: boolean; race: Race | null; ready: boolean; bot?: boolean; level?: BotLevel; arch?: string; goneAt: number | null };
+type SeatS = { pkey: string; nick: string; verified: boolean; race: Race | null; ready: boolean; bot?: boolean; level?: BotLevel; arch?: string; goneAt: number | null; col?: number }; // col — t1194: цвет игрока 0..7 (лобби)
 type Clock = { turnStart: number; reserve: [number, number] };
 type L = {
   rid?: string; rn?: number; rlast?: number; // t1156: id повтора (код:старт), число кусков лога в storage, время последней записи в D1
@@ -251,6 +251,12 @@ export class StratMatch extends DurableObject {
         if (L.phase !== "lobby") return "bad_phase"; if (!RACES.includes(m.race)) return "bad_race";
         if (this.drawOn()) return "rated_random"; // t1144: в рейтинговой расу назначает сервер при старте
         me.race = m.race; me.ready = false; break;
+      }
+      case "color": { // t1194: выбор цвета в лобби (раньше сервер отвечал bad_type); занятый соперником — нельзя
+        if (L.phase !== "lobby") return "bad_phase"; const c = m.col;
+        if (!Number.isInteger(c) || c < 0 || c > 7) return "bad_color";
+        if (L.seats.some((x, k) => k !== seat && x?.col === c)) return "color_taken";
+        me.col = c; break;
       }
       case "ready": {
         if (L.phase !== "lobby") return "bad_phase"; if (!me.race && !this.drawOn()) return "pick_race";
@@ -470,7 +476,7 @@ export class StratMatch extends DurableObject {
     const hideRace = L.phase === "lobby"; // выбор вслепую: чужую расу не видно до старта
     const seats = L.seats.map((s, i) => s && { nick: s.nick, guest: !s.verified && !s.bot, bot: !!s.bot, ready: s.ready, picked: !!s.race,
       race: hideRace && i !== seat ? null : s.race, online: !s.goneAt, rematch: !!(s as any).rematch,
-      botLv: s.bot ? s.level || "medium" : undefined, away: L.phase === "play" && s.goneAt != null, skips: L.skips?.[i] || 0 });
+      botLv: s.bot ? s.level || "medium" : undefined, away: L.phase === "play" && s.goneAt != null, skips: L.skips?.[i] || 0, col: typeof s.col === "number" ? s.col : undefined });
     const D = L.draw, raceDraw = this.drawOn() && D ? { commit: D.commit, ...(D.rolls && L.phase !== "lobby" ? { seed: D.seed, rolls: rollsFor(D.rolls, seat), order: D.order, w: D.w } : {}) } : null; // seed — только после старта; чужие любимые расы не уходят (t1175)
     const out: any = { type: "st", raceDraw, code: L.code, phase: L.phase, size: L.size, pub: L.pub, rated: !!L.rated, ranked: !!L.rated, hiddenHp: !!L.hiddenHp, mode: "1v1", maxSeats: 2, turnSec: L.turnMin != null ? L.turnMin * 60 : null, rating: this.ratingView(), turnLimit: null, you: seat, seats, ev, now: Date.now(),
       mapInfo: { id: L.mapId || "", name: L.mapName || "", status: L.mapStatus || "official", xp: L.xpMap !== false } };

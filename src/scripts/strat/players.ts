@@ -22,10 +22,18 @@ export const teamOf = (S: any, i: number): number => { const t = S?.seats?.[i]?.
 export const allies = (S: any, a: number, b: number) => a !== b && modeOf(S) !== "ffa" && modeOf(S) !== "1v1" && teamOf(S, a) === teamOf(S, b);
 /** Цвет игрока: сервер может назначить seat.col (индекс 0..7); иначе — по месту. В 1×1 с разными расами — цвет расы. */
 export function playerCol(S: any, i: number, raceCol: (i: number) => string): string {
-  const s = S?.seats?.[i], n = S?.seats?.length || 2, races = S?.g?.races || S?.seats?.map((x: any) => x?.race) || [];
+  const seats = S?.seats || [], s = seats[i], n = seats.length || 2, races = S?.g?.races || seats.map((x: any) => x?.race) || [];
   if (typeof s?.col === "number") return PCOL[s.col % 8].c;
-  if (n <= 2 && races[0] && races[1] && races[0] !== races[1]) return raceCol(i);
-  return PCOL[i % 8].c;
+  // t1194: цвет не должен совпадать (или почти совпадать) с цветом, выбранным соперником
+  const taken = seats.map((x: any, k: number) => (k !== i && typeof x?.col === "number" ? PCOL[x.col % 8].c : "")).filter(Boolean) as string[];
+  const clash = (c: string) => taken.some((t) => colDist(t, c) < 90);
+  const c = n <= 2 && races[0] && races[1] && races[0] !== races[1] ? raceCol(i) : PCOL[i % 8].c;
+  if (!clash(c)) return c;
+  return (PCOL.find((p) => !clash(p.c)) || PCOL[i % 8]).c;
+}
+function colDist(a: string, b: string): number {
+  const h = (x: string) => { const m = /^#?([0-9a-f]{6})/i.exec(x); const v = m ? parseInt(m[1], 16) : 0; return [v >> 16, (v >> 8) & 255, v & 255]; };
+  const [p, q] = [h(a), h(b)]; return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
 }
 /** Боты не подсаживаются сами — хост добавляет их в слот и выбирает сложность. Протокол (догадка): {type:"bot", slot, on, lv:"easy"|"medium"|"hard"}; seat.bot, seat.botLv. */
 export const BOT_LV: [string, string][] = [["easy", "Лёгкий"], ["medium", "Средний"], ["hard", "Сильный"]];
@@ -64,7 +72,7 @@ export function renderSlots(root: HTMLElement, modesEl: HTMLElement, S: any, o: 
       ${s?.bot ? `<span class="botmark">${ic("bot")}${esc(botLvName(s))}</span>${o.host ? `<button class="btn sm ghost" data-bot="${i}" data-off="1">${ic("close")}<span>Убрать</span></button>` : ""}` : ""}</div></div>`;
     if (cnt === 2 && i === 0) h += `<span class="vs">VS</span>`;
   }
-  // цвет игрока (арт swatch_1..8): занятые чужими — недоступны. Протокол (догадка): {type:"color", col:0..7} → seat.col
+  // цвет игрока (арт swatch_1..8): занятые чужими — недоступны. Протокол: {type:"color", col:0..7} → seat.col (t1194: сервер принимает)
   if (o.me >= 0 && S.seats[o.me]) { const mine = S.seats[o.me].col, taken = new Set(S.seats.map((x: any, k: number) => (k !== o.me && typeof x?.col === "number" ? x.col : -1)));
     h += `<div class="colrow"><span class="lbl">Цвет</span>${PCOL.map((c, k) => `<button type="button" class="swb ${mine === k ? "on" : ""}" data-col="${k}" ${taken.has(k) ? "disabled" : ""} aria-label="${c.name}" data-tip="${c.name}${taken.has(k) ? " — занят" : ""}"><img src="/strat/ui2/players/swatch_${k + 1}${k === 3 || k === 6 ? "_dark" : ""}.png" alt=""></button>`).join("")}</div>`; }
   root.innerHTML = h;
