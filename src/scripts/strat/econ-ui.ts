@@ -139,6 +139,12 @@ function gateOf(G: GameState, me: number, kind: "b" | "k", id: string, cfg: Stra
 }
 
 // ---------- полоса ресурсов ----------
+/** Полоса шире места (телефон): справа мягкое затухание — видно, что её можно прокрутить вбок; у правого края затухание убирается. */
+function barFade(bar: HTMLElement) {
+  const f = () => bar.classList.toggle("ovf", bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
+  bar.onscroll = f; requestAnimationFrame(f);
+  if (!bar.dataset.fadeRo) { bar.dataset.fadeRo = "1"; new ResizeObserver(f).observe(bar); }
+}
 /** Верхняя полоса: золото/знания (+доход), эпоха, кнопки «Технологии» и городов. */
 export function renderBar(c: Ctx) {
   const bar = $("#ecbar"); const { G, S, me } = c; const ec = G.ec; if (!bar) return;
@@ -147,8 +153,9 @@ export function renderBar(c: Ctx) {
   const cnt = (icon: string, v: number, inc: number, tip: string, cls: string) => `<div class="ctr ${cls}" data-tip="${esc(tip)}">${ic(icon)}<b>${v}</b><small class="${inc < 0 ? "neg" : ""}">${sg(inc)}</small></div>`;
   const cities = ec.cities.filter((x) => x.owner === side).map((x) => `<button class="hbtn city ${ui.city === x.id ? "on" : ""}" data-city="${x.id}" data-tip="${esc((x.cap ? "Столица " : "Застава ") + x.name)}">${ic(x.cap ? "castle" : "outpost")}<span>${esc(x.name)}</span></button>`).join("");
   bar.innerHTML = `${cnt("gold", R.gold, I.gold, "Золото — доход за ход " + sg(I.gold), "gold")}${cnt("know", R.know, I.know, "Знания — доход за ход " + sg(I.know), "know")}
-    ${eras ? `<div class="era" data-tip="Текущая эпоха">${ic("era")}<span>${ERA_NAME(ec.era[side])}</span></div>` : ""}
+    ${eras ? `<div class="era" data-tip="Текущая эпоха">${ic("era")}<span><i class="era-w">Эпоха </i>${ERA_ROMAN[ec.era[side]] || ec.era[side]}</span></div>` : ""}
     <div class="hsep"></div>${cities}${eras ? `<button class="hbtn tech" id="techbtn" data-tip="Древо технологий">${ic("tech")}<span>Технологии</span></button>` : ""}`;
+  barFade(bar);
   for (const b of bar.querySelectorAll<HTMLButtonElement>("[data-city]")) b.onclick = () => { ui.city = +b.dataset.city!; ui.recruit = null; c.refresh(); };
   const tb = bar.querySelector<HTMLButtonElement>("#techbtn"); if (tb) tb.onclick = () => { ui.tech = true; renderTech(c); };
   renderCity(c); renderTech(c);

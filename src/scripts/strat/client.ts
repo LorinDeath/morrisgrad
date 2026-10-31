@@ -493,7 +493,7 @@ async function loadLib(el: HTMLElement) {
   const local = lsList(); const j = menuDemo ? demoLib() : demo ? { err: "demo" } : await hubReq("lib_list"); const srv = libFrom(j);
   const merge = (a: LibItem[], b: LibItem[]) => [...a, ...b.filter((x) => !a.some((y) => y.id === x.id))].sort((x, y) => y.at - x.at);
   // сервер ответил → только его списки (r3: локальная копия — лишь когда сервера нет: демо/офлайн/гость)
-  const lib = srv ? { saved: srv.saved, recent: srv.recent, keepDays: srv.keepDays, saveMax: srv.saveMax } : { saved: merge([], local.filter((x) => x.saved)), recent: merge([], local.filter((x) => !x.saved)) };
+  const lib = srv ? { saved: srv.saved, recent: srv.recent, keepDays: srv.keepDays, saveMax: srv.saveMax, recentMax: srv.recentMax } : { saved: merge([], local.filter((x) => x.saved)), recent: merge([], local.filter((x) => !x.saved)) };
   el.innerHTML = libHtml(lib, { crest, offline: !srv }); const all = [...lib.saved, ...lib.recent];
   el.querySelectorAll<HTMLElement>(".lib-n").forEach((n) => { const it = all.find((x) => x.id === n.dataset.i); n.textContent = it?.title ? it.title + " — " + it.nicks.join(" · ") : it ? (it.nicks.length ? it.nicks.join(" · ") : "Партия") + (it.winner != null && it.nicks[it.winner] ? ` — победа: ${it.nicks[it.winner]}` : "") : "Партия"; });
   el.querySelectorAll<HTMLButtonElement>("[data-lib]").forEach((b) => (b.onclick = async () => { const id = b.dataset.id!, k = b.dataset.lib;
@@ -1101,6 +1101,9 @@ function initMobileTabs() {
   // телефон-ландшафт: левая колонка (игроки, ходы, чат) сворачивается; на узком экране (≤740px) свёрнута по умолчанию
   const lb = document.querySelector<HTMLElement>("#lcolbtn");
   if (lb) lb.onclick = () => { const on = document.body.classList.toggle("lcol-x"); lb.setAttribute("aria-pressed", String(lcolNarrow.matches ? on : !on)); };
+  // телефон-ландшафт: правая колонка (Вождь, цели, вид) сворачивается в узкую полосу с «Концом хода»; доска забирает место
+  const rb = document.querySelector<HTMLElement>("#rcolbtn");
+  if (rb) rb.onclick = () => { const on = document.body.classList.toggle("rcol-x"); rb.setAttribute("aria-pressed", String(!on)); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.dataset.msheet) setMSheet(""); });
 }
 

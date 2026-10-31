@@ -30,11 +30,11 @@ export function itemFrom(x: any, saved?: boolean): LibItem | null {
   return { id, code: x.code, at: num(x.at ?? x.endedAt ?? x.ended_at ?? x.startedAt, Date.now()), races: Array.isArray(x.races) ? x.races.map(String) : [], nicks,
     winner: x.winner ?? null, turns: x.turns != null ? num(x.turns) : undefined, league: x.league, saved: saved ?? !!x.saved, title: x.title ? String(x.title).slice(0, 60) : undefined, rated: !!x.rated, srv: true };
 }
-export function libFrom(x: any): { saved: LibItem[]; recent: LibItem[]; keepDays?: number; saveMax?: number } | null {
+export function libFrom(x: any): { saved: LibItem[]; recent: LibItem[]; keepDays?: number; saveMax?: number; recentMax?: number } | null {
   if (!x || x.err) return null;
   // §14.I lib: {recent:[ReplayMeta+saved], saved:[ReplayMeta+title]} — «Недавние» остаются недавними, флаг saved лишь отмечает звёздочку
   const L = (a: any, sv?: boolean) => (Array.isArray(a) ? a : []).map((i: any) => itemFrom(i, sv)).filter(Boolean) as LibItem[];
-  const list = L(x.list); return { saved: [...L(x.saved, true), ...list.filter((i) => i.saved)], recent: [...L(x.recent), ...list.filter((i) => !i.saved)], keepDays: num(x.keepDays) || undefined, saveMax: num(x.saveMax) || undefined };
+  const list = L(x.list); return { saved: [...L(x.saved, true), ...list.filter((i) => i.saved)], recent: [...L(x.recent), ...list.filter((i) => !i.saved)], keepDays: num(x.keepDays) || undefined, saveMax: num(x.saveMax) || undefined, recentMax: num(x.recentMax) || undefined };
 }
 
 // ---------- запись кадров (клиент) ----------
@@ -172,7 +172,7 @@ export function viewBarHtml(o: { turn: number; side: string; live: boolean; repl
     ${o.canSave ? `<button class="btn sm ${o.saved ? "" : "gold"}" data-hv="save" ${o.saved ? "disabled" : ""}>${ic("rp_save")}<span>${o.saved ? "Сохранено" : "Сохранить"}</span></button>` : ""}
     ${o.replay ? `<button class="btn sm ghost" data-hv="close">${ic("close")}<span>Закрыть</span></button>` : `<button class="btn sm gold" data-hv="live">${ic("arrow")}<span>К игре</span></button>`}`;
 }
-export function libHtml(lib: { saved: LibItem[]; recent: LibItem[]; keepDays?: number; saveMax?: number } | null, d: { crest: (r: string) => string; loading?: boolean; offline?: boolean }): string {
+export function libHtml(lib: { saved: LibItem[]; recent: LibItem[]; keepDays?: number; saveMax?: number; recentMax?: number } | null, d: { crest: (r: string) => string; loading?: boolean; offline?: boolean }): string {
   if (d.loading) return `<div class="emptyrow">${ic("clock")}<span>Загрузка партий…</span></div>`;
   const row = (it: LibItem) => { const dt = new Date(it.at), when = `${dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })} ${dt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
     return `<div class="lib-row ${it.saved ? "saved" : ""}" data-id="${esc(it.id)}"><span class="lib-cr">${it.races.slice(0, 4).map((r) => d.crest(r)).join("")}</span>
@@ -180,5 +180,5 @@ export function libHtml(lib: { saved: LibItem[]; recent: LibItem[]; keepDays?: n
       <button class="btn sm" data-lib="open" data-id="${esc(it.id)}">${ic("rp_play")}<span>Смотреть</span></button>${it.saved && lib?.saved?.includes(it) ? `<button class="btn sm ghost" data-lib="ren" data-id="${esc(it.id)}" aria-label="Переименовать" data-tip="Переименовать">${ic("pen")}</button>` : ""}${it.saved ? `<button class="btn sm ghost" data-lib="del" data-id="${esc(it.id)}" aria-label="Удалить" data-tip="Убрать из сохранённых">${ic("close")}</button>` : `<button class="btn sm ghost" data-lib="save" data-id="${esc(it.id)}" aria-label="Сохранить" data-tip="Сохранить в библиотеку">${ic("rp_save")}</button>`}</div>`; };
   const sec = (t: string, L: LibItem[], empty: string) => `<div class="lib-h">${esc(t)} <small>${L.length}</small></div>${L.length ? L.map(row).join("") : `<div class="emptyrow">${ic("book")}<span>${esc(empty)}</span></div>`}`;
   return `<div class="lib">${d.offline ? `<p class="lib-note">${ic("warn")}<span>Сервер повторов пока не отвечает — показаны партии, записанные на этом устройстве.</span></p>` : ""}
-    ${sec("Сохранённые" + (lib?.saveMax ? ` · до ${lib.saveMax}` : ""), lib?.saved || [], "Нажмите «Сохранить» в конце партии или в просмотре ходов")}${sec("Недавние" + (lib?.keepDays ? ` · хранятся ${lib.keepDays} дн.` : ""), lib?.recent || [], "Сыгранные партии появятся здесь")}</div>`;
+    ${sec("Сохранённые" + (lib?.saveMax ? ` · до ${lib.saveMax}` : ""), lib?.saved || [], "Нажмите «Сохранить» в конце партии или в просмотре ходов")}${sec("Недавние" + (lib?.recentMax ? ` · последние ${lib.recentMax}` : "") + (lib?.keepDays ? ` · хранятся ${lib.keepDays} дн.` : ""), lib?.recent || [], "Сыгранные партии появятся здесь")}</div>`;
 }
