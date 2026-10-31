@@ -89,5 +89,19 @@ for (const size of [8, 15]) for (let i = 0; i < RACES.length; i++) {
   for (const u of Object.values(C.ults) as any[]) ok(u.cd >= 6 && u.cd <= 8 && u.ap >= 2 && u.chiefMul <= 0.5, `ульта ${u.name}: перезарядка 6–8, ОД ≥2, по Вождю ≤×0,5`);
   ok(C.ults.doom.banner === "DOOM", "у огненной ульты общий баннер DOOM");
 }
+// ---------- 6. t1163: эпоха и цена узла — по лиге (techEra/rCost): «Чаща» в Обычной (15×15) — IV, в Быстрой (8×8) — III; заглушка «?» тоже по лиге
+{
+  const R = C.econ.research.cost;
+  for (const [size, era, mul] of [[15, 4, C.econ.league?.normal?.research ?? 1], [8, 3, C.econ.league?.quick?.research ?? 1]] as const) {
+    const g = newGame(size, ["nature", "fire"], 0, C, 40); const tv = treeView(g, 0, C);
+    const gr: any = tv.techs.find((t: any) => t.id === "grove");
+    ok(gr && gr.era === era && gr.cost === Math.round(R[era] * mul), `${size}: «Чаща» эпоха ${gr?.era} (ждали ${era}), цена ${gr?.cost} (ждали ${Math.round(R[era] * mul)})`);
+    const hv: any = tv.techs.find((t: any) => t.id === "harvest"); ok(hv && hv.cost === Math.round(R[hv.era] * mul), `${size}: цена «Урожая» по лиге`);
+    // взяли соперника по группе → «Чаща» закрыта; заглушка стоит в эпохе лиги
+    g.ec!.techs[0].push("harvest"); const tv2 = treeView(g, 0, C);
+    const ph: any = tv2.techs.find((t: any) => t.state === "closed" && t.br === "elem" && t.era === era);
+    ok(ph && ph.id.startsWith(`?elem.${era}.`) && !tv2.techs.some((t: any) => t.id === "grove"), `${size}: заглушка закрытой «Чащи» в эпохе ${era} (${ph?.id})`);
+  }
+}
 console.log(`проверок утечек: ${leaks}`);
 console.log(`tree-test: ${n - fails} ok, ${fails} fail (партий ${games})`); if (fails) process.exit(1);

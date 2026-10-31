@@ -7,7 +7,7 @@
 import type { GameState, StratCfg, Piece } from "./rules";
 import type { Tech, BuildId, Branch } from "./econ-cfg";
 import type { ChiefNode } from "./content-cfg";
-import { techList, techView, techState, canResearch, sz, buildLocked, chiefDef, pieceLevel, chiefChoices } from "./econ";
+import { techList, techView, techState, canResearch, techEra, rCost, sz, buildLocked, chiefDef, pieceLevel, chiefChoices } from "./econ";
 import { fxToEffects, describeEffects, chiefEffects, unitActEffects, ultEffects, type Effect } from "./effects";
 
 export type TechNodeView =
@@ -26,8 +26,9 @@ export function techTreeView(g: GameState, side: number, cfg: StratCfg): TechNod
   const race = g.races[side], have = g.ec.techs[side], list = techList(cfg).filter((t) => !t.race || t.race === race);
   const slots = new Map<string, number>(), out: TechNodeView[] = [];
   for (const t of list) {
-    const k = t.br + "." + t.era, slot = slots.get(k) || 0; slots.set(k, slot + 1);
-    const ph = (state: "hidden" | "closed"): TechNodeView => ({ id: `?${t.br}.${t.era}.${slot}`, br: t.br, era: t.era, slot, state });
+    // t1163: эпоха и цена — по лиге (techEra/rCost, как в canResearch): «Чаща» в Обычной — эпоха IV, и заглушка «?» тоже в IV
+    const era = techEra(g, t, cfg), k = t.br + "." + era, slot = slots.get(k) || 0; slots.set(k, slot + 1);
+    const ph = (state: "hidden" | "closed"): TechNodeView => ({ id: `?${t.br}.${era}.${slot}`, br: t.br, era, slot, state });
     const st = techState(g, side, t, cfg);
     if (st === "locked") { out.push(ph("closed")); continue; }
     const got = st === "got", reachable = got || t.grp === "root" || !t.req?.length || t.req.some((r) => have.includes(r));
@@ -35,8 +36,8 @@ export function techTreeView(g: GameState, side: number, cfg: StratCfg): TechNod
     const v = techView(cfg, t, race), ef: Effect[] = fxToEffects(v.fx);
     if (t.id === "static") ef.push({ key: "chainDmg", trigger: "onHit", target: "enemy", mag: (cfg.econ.fx as any).staticChain, stack: "add" });
     const err = got ? undefined : canResearch(g, side, t, cfg) || undefined;
-    out.push({ id: t.id, br: t.br, era: t.era, slot, state: got ? "got" : "open", grp: t.grp, ...(t.req ? { req: t.req } : {}), name: v.name, eff: v.eff,
-      tip: describeEffects(ef) || v.eff, ...(t.unlock ? { unlock: t.unlock } : {}), fx: v.fx, cost: cfg.econ.research.cost[t.era], ...(err ? { err } : {}) });
+    out.push({ id: t.id, br: t.br, era, slot, state: got ? "got" : "open", grp: t.grp, ...(t.req ? { req: t.req } : {}), name: v.name, eff: v.eff,
+      tip: describeEffects(ef) || v.eff, ...(t.unlock ? { unlock: t.unlock } : {}), fx: v.fx, cost: rCost(g, cfg, cfg.econ.research.cost[era]), ...(err ? { err } : {}) });
   }
   hideReq(out); // t1144: req видимого узла не выдаёт id скрытого («Боевой клич» ← ambush|drill, когда взят drill)
   return out;
