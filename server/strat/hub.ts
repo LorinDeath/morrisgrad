@@ -28,6 +28,23 @@ export class StratIndex extends DurableObject {
   async lobs() { if (!this.lobbies) this.lobbies = new Map(Object.entries((await this.ctx.storage.get("lobs")) || {})); return this.lobbies; }
   async saveLobs() { const m = await this.lobs(), now = Date.now(); for (const [k, v] of m) if (now - v.at > LOBBY_LIST_TTL) m.delete(k); await this.ctx.storage.put("lobs", Object.fromEntries(m)); }
 
+  /** t1231: «незавершённые» партии игрока — только те, что реально в фазе play. Залипшие записи (отчёт о конце партии потерян/не дошёл)
+   *  чистятся при чтении: фаза из списка лобби, иначе — спросить сам StratMatch (/phase). Без ручных правок D1/хранилища. */
+  async liveAct(uid: string) {
+    const act: Record<string, Record<string, { size: number; at: number }>> = (await this.ctx.storage.get("act")) || {}, o = act[uid]; if (!o) return act;
+    const lobs = await this.lobs(), dead: string[] = [];
+    for (const code of Object.keys(o).slice(0, 8)) {
+      let ph = lobs.get(code)?.phase;
+      if (ph === "play" && this.env.STRAT_MATCH) ph = undefined; // список лобби мог устареть — спросить партию
+      if (ph === undefined && this.env.STRAT_MATCH) { try { const r = await this.env.STRAT_MATCH.get(this.env.STRAT_MATCH.idFromName(code)).fetch("https://internal/phase"); ph = r.ok ? String(((await r.json()) as any).phase || "gone") : r.status === 404 ? "gone" : undefined; } catch {} }
+      if (ph !== undefined && ph !== "play") dead.push(code);
+    }
+    if (!dead.length) return act;
+    const fresh: typeof act = (await this.ctx.storage.get("act")) || {}, f = fresh[uid]; // перечитать: пока ждали партии, мог прийти /report
+    if (f) { for (const c of dead) delete f[c]; if (!Object.keys(f).length) delete fresh[uid]; await this.ctx.storage.put("act", fresh); }
+    return fresh;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.hostname === "internal" && url.pathname === "/report") {
@@ -175,7 +192,7 @@ export class StratIndex extends DurableObject {
       if (m.type === "map_flag") return reply(await flagMap(this.env, who, String(m.id || ""), String(m.why || "")));
       if (m.type === "my_active") { // «Мои партии»: незавершённые, куда можно вернуться (код → /strat/m/CODE)
         if (!who.verified) return reply({ list: [] });
-        const act: any = (await this.ctx.storage.get("act")) || {}; return reply({ list: Object.entries(act[who.pkey] || {}).map(([code, v]: any) => ({ code, size: v.size, at: v.at })) });
+        const act: any = await this.liveAct(who.pkey); return reply({ list: Object.entries(act[who.pkey] || {}).map(([code, v]: any) => ({ code, size: v.size, at: v.at })) });
       }
       // ---- формы, которые ждёт клиент UI-воркера (ветка strategy-ui): лиги fast|normal|tactic, поля r/rd/w/l/d/prov
       if (m.type === "rating_get") return reply({ leagues: uiLeagues(await getRatings(this.env, who.verified ? who.pkey : "")), commander: who.verified ? await getProfile(this.env, who.pkey) : null });
@@ -184,7 +201,7 @@ export class StratIndex extends DurableObject {
         return reply({ league: m.league, list: (await leaderboard(this.env, lg, N)).map((x: any) => ({ place: x.place, nick: x.nick, r: x.rating, rd: x.rd, games: x.games, w: x.wins, l: x.losses, d: x.draws, prov: false, ...(who.verified && x.uid === who.pkey ? { me: true } : {}) })),
           me: me && { place: me.place, r: me.rating, rd: me.rd, games: me.games, w: me.wins, l: me.losses, d: me.draws, prov: me.prov, left: me.left }, total: me?.total ?? null }); }
       if (m.type === "resume_get") { if (!who.verified) return reply({ game: null });
-        const act: any = (await this.ctx.storage.get("act")) || {}; const e = Object.entries(act[who.pkey] || {}).sort((x: any, y: any) => y[1].at - x[1].at)[0] as any;
+        const act: any = await this.liveAct(who.pkey); const e = Object.entries(act[who.pkey] || {}).sort((x: any, y: any) => y[1].at - x[1].at)[0] as any;
         return reply({ game: e ? { code: e[0], size: e[1].size, at: e[1].at } : null }); }
       if (m.type === "profile_get") { // чужой профиль — по нику (только публичная часть); свой — + priv (владелец определяется сервером по сессии)
         let uid = who.verified ? who.pkey : "", own = !!uid;

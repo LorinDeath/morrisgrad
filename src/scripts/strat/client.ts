@@ -68,7 +68,8 @@ type PieceStyle = "figures" | "tokens";
 let pieceStyle: PieceStyle = (localStorage.getItem("strat.pieceStyle") as PieceStyle) === "tokens" ? "tokens" : "figures";
 let glyphBadge = localStorage.getItem("strat.glyphBadge") !== "0";
 const RACE_COL: Record<string, [string, string]> = { fire: ["#ff7a3d", "#7a1d08"], ice: ["#7fd6ff", "#123d66"], water: ["#3fa7d6", "#0d3a5c"], stone: ["#c2a27a", "#4a3a2a"], nature: ["#7ccf5a", "#1f4d1a"], lightning: ["#ffe14d", "#4a3d8f"] };
-const REASON: Record<string, string> = { glory: "Достигнут порог Славы (старые правила)", capital: "Столица взята", king: "Вождь пал", forfeit: "Соперник сдался", disconnect: "Соперник не вернулся", limit: "Лимит ходов: больше целей (поровну — больше прогресс к остальным)", goals: "Выполнены все цели" };
+const REASON: Record<string, string> = { glory: "Достигнут порог Славы (старые правила)", capital: "Столица взята", king: "Вождь пал", forfeit: "Соперник сдался", disconnect: "Соперник не вернулся", limit: "Лимит ходов: больше целей (поровну — больше прогресс к остальным)", goals: "Выполнены все цели",
+  wipe: "Разгром: у соперника не осталось ни фигур, ни городов", claim: "Соперник не вернулся — победа засчитана", draw: "Ничья", timeout: "Время вышло", surrender: "Соперник сдался" }; // t1231: все коды причин по-русски
 const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нельзя", bad_action: "Неверное действие", guest: "Только для вошедших",
   not_your_turn: "Сейчас ход соперника", already_acted: "Эта фигура уже действовала", no_ap: "Очки действий кончились", bad_move: "Туда нельзя",
   bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято", color_taken: "Этот цвет уже у соперника", bad_color: "Нет такого цвета",
@@ -173,10 +174,10 @@ function openMatch() {
     if (rpMsg(m)) return;
     if (m.type === "codex") { codexGot(m.items); return; } // F: Библиотека — новые открытия
     if (m.type === "st") { m.skew = Date.now() - m.now; if (hv?.replay) { hv.back = m; rec.push(m.code, m.g, m.ev || []); return; }
-      const viewing = !!hv, prev = liveS || S; S = m; onState(prev); applyIntent(); rec.push(S.code, S.g, S.ev || []); if (Array.isArray(S.hist)) rec.merge(S.code, framesFrom(S.hist));
+      const viewing = !!hv, prev = liveS || S; S = m; if (S.phase !== "play" && resumeInfo?.code === S.code) resumeInfo = null; /* t1231: завершённая партия — не «незавершённая» */ onState(prev); applyIntent(); rec.push(S.code, S.g, S.ev || []); if (Array.isArray(S.hist)) rec.merge(S.code, framesFrom(S.hist));
       if (viewing && hv) { liveS = S; applyView(); } else renderMoves(); if (S.replay?.id && (!srvMv || hv || S.phase === "over")) askMoves(); }
     if (m.type === "err") toast(ERR[m.err] || m.err, "bad");
-    if (m.type === "left") { left = true; S = null; curCode = ""; resetMatchUi(); const u = new URL(location.href); u.searchParams.delete("join"); history.replaceState(null, "", u); render(); }
+    if (m.type === "left") { left = true; if (resumeInfo?.code && (resumeInfo.code === S?.code || S?.phase !== "play")) resumeInfo = null; S = null; loadResume().catch(() => {}); /* t1231: меню — свежая карточка «Продолжить» */ curCode = ""; resetMatchUi(); const u = new URL(location.href); u.searchParams.delete("join"); history.replaceState(null, "", u); render(); }
   };
   ws.onclose = (e) => {
     if (left || !curCode) return;
@@ -607,7 +608,7 @@ function patchEndRating() {
   const f = document.querySelector("#endscreen .es-foot"), me = S?.you; if (!f || !(me >= 0) || f.querySelector(".rdelta")) return; const h = ratingDelta(myRating(me)); if (!h) return;
   const sc = f.querySelector(".es-score"); if (sc) sc.insertAdjacentHTML("afterend", h); else f.insertAdjacentHTML("afterbegin", h);
 }
-const endReason = (win: boolean, draw_: boolean, me: number) => { const r = S.result?.reason; if (me >= 0 && !win && !draw_ && r === "forfeit") return "Вы сдались"; if (me >= 0 && !win && !draw_ && r === "disconnect") return "Вы не вернулись вовремя"; return REASON[r] || r || ""; };
+const endReason = (win: boolean, draw_: boolean, me: number) => { const r = S.result?.reason; if (me >= 0 && !win && !draw_ && r === "forfeit") return "Вы сдались"; if (me >= 0 && !win && !draw_ && (r === "disconnect" || r === "claim")) return "Вы не вернулись вовремя"; if (me >= 0 && !win && !draw_ && r === "wipe") return "Разгром: у вас не осталось ни фигур, ни городов"; if (me >= 0 && !win && !draw_ && r === "goals") return "Соперник выполнил все цели"; if (me >= 0 && !win && !draw_ && r === "king") return "Ваш Вождь пал"; return REASON[r] || r || ""; };
 function showEnd() {
   if (!S?.g || S.phase !== "over") return; const me = S.you, w = S.result?.winner, g = S.g;
   const win = me >= 0 && w === me, draw_ = w === 2 || w == null, title = draw_ ? "Ничья" : me < 0 ? `Победил ${S.seats[w]?.nick || "?"}` : win ? "Победа" : "Поражение";
@@ -1464,7 +1465,7 @@ function openFavDlg() { const m = modal({ id: "favdlg", title: "Любимые �
 function showProfile(nick?: string) { return openProfile(() => (demo || menuDemo ? Promise.resolve(demoProfile(nick || S?.seats?.[S.you]?.nick || $("#me").textContent || "Гость")) : hubReq("profile_get", nick ? { nick } : {})), { crest, raceName: RACE_NAME, raceCol: (r) => (RACE_COL[r] || [GOLD])[0], lib: libDeps(), fav: { get: favRaces, html: () => favPickerHtml(raceD(), favRaces()), bind: (el: HTMLElement) => bindFavPicker(el, raceD(), favRaces(), saveFav), guest: () => isGuest } }); }
 async function loadResume() {
   const j: any = await hubReq("resume_get");
-  if (j?.game || j?.code) { resumeInfo = j.game || j; renderResume(); }
+  if (!j || j.err) return; resumeInfo = j.game || (j.code ? j : null); renderResume(); // t1231: null с сервера — убрать старую карточку
 }
 async function loadOpen() {
   const r = await fetch(HTTP + "/strat/open").catch(() => null); const j: any = r ? await r.json().catch(() => ({})) : {};

@@ -103,6 +103,8 @@ export class StratMatch extends DurableObject {
       this.setMap(null); await this.ensureDraw();
       await this.save(); return Response.json({ ok: true });
     }
+    if (url.hostname === "internal" && url.pathname === "/phase") { // t1231: только из StratIndex — «незавершённая ли партия» для карточки «Продолжить»
+      const L = await this.load(); if (!L) return new Response("gone", { status: 404 }); return Response.json({ phase: L.phase }); }
     if (request.headers.get("Upgrade") !== "websocket") return new Response("Ожидался WebSocket", { status: 426 });
     if (!originAllowed(this.env, request.headers.get("Origin"), isLocalRequest(request))) return new Response("Подключение с этого сайта запрещено", { status: 403 });
     if (!(await this.load())) return new Response("Лобби не найдено", { status: 404 });
@@ -381,6 +383,7 @@ export class StratMatch extends DurableObject {
     L.phase = "over"; L.result = { winner, reason };
     if (this.R && L.rid === this.R.id) { logEnd(this.R, g.winner, g.reason); (this.R as any)._m = 1; this.rdb("over").catch(() => {}); }
     this.record().catch(() => {}); this.recordRating().catch(() => {});
+    this.lastReport = ""; this.report(); // t1231: сразу снять партию из «Продолжить» (не ждать save)
   }
   /** Итог партии в D1 (strat_matches; миграция 0025). Опыт Полководца — этап 7. */
   async record() {
