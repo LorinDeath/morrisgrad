@@ -30,8 +30,8 @@ export const TECHS: Tech[] = [
   // 🌾 Экспансия
   { id: "farming", br: "expand", era: 1, grp: "root", name: "Земледелие", eff: "открывает Амбар; +1 рост каждому городу", unlock: ["granary"], fx: { growth: 1 } },
   { id: "settlers", br: "expand", era: 2, grp: "expand2", req: ["farming"], name: "Поселенцы", eff: "+1 застава; заставы можно ставить на 1 ближе", fx: { outposts: 1, outDist: 1 } },
-  { id: "roads", br: "expand", era: 2, grp: "expand2", req: ["farming"], name: "Дороги", eff: "+1 радиус застав", fx: { outR: 1 } },
-  { id: "empire", br: "expand", era: 3, grp: "expand3a", req: ["settlers"], name: "Империя", eff: "+1 радиус столицы", fx: { capR: 1 } },
+  { id: "roads", br: "expand", era: 2, grp: "expand2", req: ["farming"], name: "Дороги", eff: "+1 клетка земли каждой заставе", fx: { outR: 1 } },
+  { id: "empire", br: "expand", era: 3, grp: "expand3a", req: ["settlers"], name: "Империя", eff: "+1 клетка земли столице", fx: { capR: 1 } },
   { id: "colonies", br: "expand", era: 3, grp: "expand3b", req: ["roads"], name: "Колонии", eff: "Слава с территории вдвое быстрее", fx: { terrGlory: 2 } },
   // ✦ Тайное знание
   { id: "arcana", br: "arcana", era: 1, grp: "root", name: "Тайное знание", eff: "открывает Библиотеку и Башню магов", unlock: ["library", "magetower"], fx: {} },
@@ -55,7 +55,7 @@ export const TECHS: Tech[] = [
   { id: "undertow", br: "elem", era: 1, grp: "water1", race: "water", name: "Отлив", eff: "лечение на своей территории +1", fx: { heal: 1 } },
   { id: "tide", br: "elem", era: 1, grp: "water1", race: "water", name: "Прилив", eff: "+1 рост каждому городу", fx: { growth: 1 } },
   { id: "pearls", br: "elem", era: 2, grp: "water2", race: "water", name: "Жемчуг", eff: "+1 з с каждого города", fx: { goldCity: 1 } },
-  { id: "currents", br: "elem", era: 2, grp: "water2", race: "water", name: "Стремнина", eff: "+1 радиус застав", fx: { outR: 1 } },
+  { id: "currents", br: "elem", era: 2, grp: "water2", race: "water", name: "Стремнина", eff: "+1 клетка земли каждой заставе", fx: { outR: 1 } },
   { id: "leviathan", br: "elem", era: 3, grp: "water3", race: "water", name: "Левиафан", eff: "Вождь +10 HP", fx: { kingHp: 10 } },
   { id: "delta", br: "elem", era: 3, grp: "water3", race: "water", name: "Дельта", eff: "Слава с территории вдвое быстрее", fx: { terrGlory: 2 } },
   { id: "bedrock", br: "elem", era: 1, grp: "stone1", race: "stone", name: "Скала", eff: "+1 БРН Стражам", fx: { armK: { rook: 1 } } },
@@ -66,7 +66,7 @@ export const TECHS: Tech[] = [
   { id: "monolith", br: "elem", era: 3, grp: "stone3", race: "stone", name: "Монолит", eff: "врагу нужен лишний ход осады", fx: { siege: 1 } },
   { id: "thorns", br: "elem", era: 1, grp: "nature1", race: "nature", name: "Шипы", eff: "+1 БРН Ополченцам", fx: { armK: { pawn: 1 } } },
   { id: "bloom", br: "elem", era: 1, grp: "nature1", race: "nature", name: "Цветение", eff: "+1 знание с каждого города", fx: { knowCity: 1 } },
-  { id: "grove", br: "elem", era: 3, grp: "nature3", race: "nature", name: "Чаща", eff: "+1 радиус столицы (со 2-го уровня столицы)", fx: { capR: 1, capRLvl: 2 } },
+  { id: "grove", br: "elem", era: 3, grp: "nature3", race: "nature", name: "Чаща", eff: "+1 клетка земли столице (со 2-го уровня столицы)", fx: { capR: 1, capRLvl: 2 } },
   { id: "wildhunt", br: "elem", era: 2, grp: "nature2", race: "nature", name: "Дикая охота", eff: "+1 АТК Всадникам и Ополченцам", fx: { atkK: { knight: 1, pawn: 1 } } },
   { id: "worldtree", br: "elem", era: 2, grp: "nature2", race: "nature", name: "Древо", eff: "Вождь +10 HP", fx: { kingHp: 10 } },
   { id: "harvest", br: "elem", era: 3, grp: "nature3", race: "nature", name: "Урожай", eff: "+3 з за ход", fx: { goldTurn: 3 } },

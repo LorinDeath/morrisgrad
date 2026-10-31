@@ -10,7 +10,7 @@ import { raceNums } from "./effects";
 
 export type City = { id: number; owner: 0 | 1; x: number; y: number; cap: boolean; growth: number; lvl: number; bld: BuildId[]; forge: Kind[]; acted: boolean; sg: number; name: string;
   bhp?: Partial<Record<BuildId, number>>; ruin?: BuildId[];
-  tg?: number; grow?: number[]; claims?: number; cw?: number; set?: boolean }; // cw — своих ходов до бесплатного автоприсоединения // claims — готовые права на клетку; set — поселение (t1140: только точка призыва + земля) // t1139: ходов до роста земли и присоединённые клетки (индексы y*size+x) // t1136: текущее HP построек (нет ключа — целая) и руины
+  tg?: number; grow?: number[]; claims?: number; cw?: number; set?: boolean; rg?: number }; // rg — t1194: сколько шагов радиуса уже выдано клетками // cw — своих ходов до бесплатного автоприсоединения // claims — готовые права на клетку; set — поселение (t1140: только точка призыва + земля) // t1139: ходов до роста земли и присоединённые клетки (индексы y*size+x) // t1136: текущее HP построек (нет ключа — целая) и руины
 export type Res = { gold: number; know: number; glory: number };
 export type Econ = {
   res: [Res, Res]; cities: City[]; techs: [string[], string[]]; era: [number, number];
@@ -265,10 +265,11 @@ export function territory(g: GameState, cfg: StratCfg): Int8Array {
   const n = g.size, T = new Int8Array(n * n).fill(-1);
   if (!g.ec) return T;
   for (const c of g.ec.cities) if (c.grow) for (const i of c.grow) if (T[i] === -1) T[i] = c.owner;
+  const noRing = cellGrowth(g, cfg); // t1194: рост радиуса (уровень, технологии) не даёт кольцо — только по 1 клетке (radGrant)
   for (const core of [true, false]) {
     const D = new Int16Array(n * n).fill(999), R = new Int8Array(n * n).fill(-1);
     for (const c of g.ec.cities) {
-      const r = cityRadius(g, c, cfg), lo = core ? 0 : Math.min(r, 1) + 1, hi = core ? Math.min(r, 1) : r; if (hi < lo) continue;
+      const r = cityRadius(g, c, cfg), lo = core ? 0 : Math.min(r, 1) + 1, hi = core ? Math.min(r, 1) : noRing ? 0 : r; if (hi < lo) continue;
       for (let y = Math.max(0, c.y - hi); y <= Math.min(n - 1, c.y + hi); y++) for (let x = Math.max(0, c.x - hi); x <= Math.min(n - 1, c.x + hi); x++) {
         const i = y * n + x, d = cheb(c, { x, y }); if (d < lo || T[i] !== -1) continue;
         if (d < D[i]) { D[i] = d; R[i] = c.owner; } else if (d === D[i] && R[i] !== c.owner) R[i] = -2; // спор
@@ -597,6 +598,16 @@ export function growPick(g: GameState, c: City, cfg: StratCfg, T = territory(g, 
     const sc = (cfg.econ.struct[mapStr(g.map, x, y)] ? 100 : 0) + near * 10 - cheb(c, { x, y }) * 2; if (sc > bs) { bs = sc; best = i; } }
   return best;
 }
+/** t1194: земля растёт только по клетке — радиус сверх ядра (1) не рисует кольцо, а превращается в клетки (по одной за ход) */
+export const cellGrowth = (g: GameState, cfg: StratCfg) => { const G = (cfg.econ as any).terr?.grow; return !!G?.on && !G.sizeOff?.includes(g.size); };
+/** t1194: детерминированная «случайная» соседняя ничья клетка (повтор apply() даёт ту же): хеш карты, хода, города, числа приростов */
+export function growRand(g: GameState, c: City, cfg: StratCfg, T = territory(g, cfg)): number {
+  const L = claimCells(g, c, cfg, T); if (!L.length) return -1;
+  let h = 2166136261; const k = `${g.map?.id ?? ""}|${g.turn}|${c.id}|${c.grow?.length || 0}|${c.rg || 0}`;
+  for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
+  return L[(h >>> 0) % L.length];
+}
 function joinCell(g: GameState, c: City, i: number, ev: Ev[]) { (c.grow ||= []).push(i); if (g.ec.lost) delete g.ec.lost[i]; ev.push({ e: "tgrow", city: c.id, x: i % g.size, y: (i / g.size) | 0, owner: c.owner }); }
 /** t1140: ходов до потери клетки под вражеской фигурой */
 export const captureTurns = (g: GameState, cfg: StratCfg) => lg(g, cfg)?.capture ?? (cfg.econ as any).terr?.capture?.turns ?? 4;
@@ -604,11 +615,15 @@ export const foundTurns = (g: GameState, cfg: StratCfg) => lg(g, cfg)?.found ?? 
 /** t1139/t1140: в начале хода стороны — права на клетки, захват (клетка → нейтральная), канал поселения Вождя */
 function terrTick(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk?: MkPiece) {
   const TC = (cfg.econ as any).terr; if (!g.ec) return; const ec = g.ec, n = g.size;
+  if (cellGrowth(g, cfg)) for (const c of ec.cities) if (c.owner === side && !c.set) { // t1194: +радиус (уровень/технология) → 1 случайная соседняя клетка за ход
+    const due = Math.max(0, cityRadius(g, c, cfg) - 1) - (c.rg || 0); if (due <= 0) continue;
+    const i = growRand(g, c, cfg); if (i < 0) continue; c.rg = (c.rg || 0) + 1; joinCell(g, c, i, ev); Object.assign(ev[ev.length - 1] as any, { auto: true, rad: true });
+  }
   if (TC?.grow?.on) for (const c of ec.cities) if (c.owner === side) {
     const N = growEvery(g, c, cfg); if (!N) continue;
     if ((c.claims || 0) > 0) { // t1140 (итог): право ждёт покупки autoAfter своих ходов, затем клетка присоединяется бесплатно (growPick)
       c.cw = (c.cw ?? TC.grow.autoAfter ?? 4) - 1;
-      if (c.cw <= 0) { const i = growPick(g, c, cfg); if (i < 0) { c.cw = 1; continue; } c.claims = 0; delete c.cw; joinCell(g, c, i, ev); (ev[ev.length - 1] as any).auto = true; } // t1170: нет свободной соседней клетки — право ждёт
+      if (c.cw <= 0) { const i = growRand(g, c, cfg); if (i < 0) { c.cw = 1; continue; } c.claims = 0; delete c.cw; joinCell(g, c, i, ev); (ev[ev.length - 1] as any).auto = true; } // t1170: нет свободной соседней клетки — право ждёт
       else ev.push({ e: "tready", city: c.id, owner: side, gold: claimCost(g, c, cfg), left: c.cw });
       continue;
     }

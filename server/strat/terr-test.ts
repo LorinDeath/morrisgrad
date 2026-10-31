@@ -94,4 +94,21 @@ function claimCellsFree(g: GameState, c: City, held: number[]) { for (const i of
   const r: any = apply(g, 0, { a: "claim", city: c0.id, x, y } as any, C);
   ok(r.ok && territory(g, C)[mine] === 0 && !g.ec.lost?.[mine], "купленная обратно клетка снова своя");
 }
+// 6) t1194: уровень столицы не даёт кольцо земли — по 1 случайной соседней клетке за ход; повтор детерминирован
+{
+  const run = () => {
+    const g = newGame(15, ["fire", "ice"], 0), c0 = cap(g, 0); g.ec.techs[0].push("empire");
+    const cnt = () => { const T = territory(g, C); let k = 0; for (const v of T) if (v === 0) k++; return k; };
+    const base = cnt(); c0.lvl = 2; // радиус 3 + «Империя» = 4: раньше сразу +кольца
+    ok(cnt() === base, "t1194: рост уровня/технологии сам по себе не добавляет кольцо");
+    const got: number[] = []; let maxStep = 0;
+    for (let t = 0; t < 16; t++) { const before = cnt(); const r: any = apply(g, g.cur, { a: "end" } as any, C);
+      for (const e of r.ev || []) if (e.e === "tgrow" && e.rad) got.push(e.y * g.size + e.x); maxStep = Math.max(maxStep, cnt() - before); }
+    ok(maxStep <= 1, `t1194: за ход земля прирастает не больше чем на 1 клетку (макс. ${maxStep})`);
+    ok(got.length === 3 && (c0.rg || 0) === 3, `t1194: 3 шага радиуса → 3 клетки по одной (${got.length})`);
+    return got.join(",");
+  };
+  ok(run() === run(), "t1194: место клетки детерминировано (повтор даёт те же)");
+}
+
 console.log(`terr-test: ${n - fails} ok, ${fails} fail`); process.exit(fails ? 1 : 0);

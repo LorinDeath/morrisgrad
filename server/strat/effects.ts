@@ -64,9 +64,9 @@ export const EFFECT_KEYS: Record<string, Spec> = {
   glacierGold: { trig: "turnStart", tgt: "side", t: (e) => `раз в ${turns(e.cd || 3)} +${pct(e.mag)} к золоту (до +${e.max})` },
   quarryGold: { trig: "turnStart", tgt: "side", t: (e) => `${sg(e.mag)} з с каждой Каменоломни на карте в территории` },
   // территория
-  capR: { trig: "always", tgt: "city", t: (e) => `${sg(e.mag)} к радиусу территории столицы` },
-  capRLvl: { trig: "always", tgt: "city", t: (e) => `бонус к радиусу — только со ${e.mag}-го уровня столицы` }, // t1163: «Чаща»
-  outR: { trig: "always", tgt: "city", t: (e) => `${sg(e.mag)} к радиусу территории застав` },
+  capR: { trig: "always", tgt: "city", t: (e) => `${sg(e.mag)} клетка земли столице` },
+  capRLvl: { trig: "always", tgt: "city", t: (e) => `бонус — только со ${e.mag}-го уровня столицы` }, // t1163: «Чаща»
+  outR: { trig: "always", tgt: "city", t: (e) => `${sg(e.mag)} клетка земли каждой заставе` },
   outposts: { trig: "always", tgt: "side", t: (e) => `${sg(e.mag)} застава сверх лимита` },
   outDist: { trig: "always", tgt: "side", t: (e) => `заставу можно ставить на ${e.mag} ближе к столице` },
   terrGlory: { trig: "turnStart", tgt: "side", t: (e) => `Слава за территорию ×${1 + e.mag / 2}` },

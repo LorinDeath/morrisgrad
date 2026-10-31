@@ -117,7 +117,7 @@ export const BUILD: Record<BuildId, { name: string; cost: number; eff: string; r
   warhall: { name: "Чертог войны", cost: 30, eff: "+1 АТК всем фигурам", icon: "🏛", legend: true, fx: { atk: 1 } },
   stronghold: { name: "Несокрушимая твердыня", cost: 30, eff: "+1 БРН всем фигурам; осада твоих городов на ход дольше", icon: "🗿", legend: true, fx: { arm: 1, siege: 1 } },
   mint: { name: "Монетный двор", cost: 26, eff: "+6 з за ход", icon: "🪙", legend: true, fx: { goldTurn: 6 } },
-  metropolis: { name: "Метрополия", cost: 28, eff: "+1 радиус столицы; земля растёт быстрее", icon: "🏙", legend: true, fx: { capR: 1 } },
+  metropolis: { name: "Метрополия", cost: 28, eff: "+1 клетка земли столице; земля растёт быстрее", icon: "🏙", legend: true, fx: { capR: 1 } },
   observatory: { name: "Обсерватория", cost: 28, eff: "+3 знания за ход; +1 исследование за ход", know: 3, icon: "🔭", legend: true, fx: { research: 1 } },
   warcouncil: { name: "Военный совет", cost: 16, eff: "+ОД за ход (Быстрая +1, Обычная +3, Тактическая +4); однократная: 1 на игрока (в Тактической 2)", icon: "⚑", once: true } as any,
   watchtower: { name: "Сторожевая башня", cost: 8, eff: "полевая постройка: можно вне своей земли (до 2 клеток); +1 БРН своим рядом; бьёт в ответ", icon: "🗼", field: true } as any,
