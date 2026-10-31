@@ -18,9 +18,11 @@ for (const s of [5, 8, 15]) {
   ok(new Set(g.pieces.map((p) => p.x + ":" + p.y)).size === g.pieces.length, `${s}×${s}: клетки не пересекаются`);
   const mirror = g.pieces.filter((p) => p.owner === 0).every((p) => g.pieces.some((q) => q.owner === 1 && q.kind === p.kind && q.x === p.x && q.y === s - 1 - p.y));
   ok(mirror, `${s}×${s}: армии зеркальны (честный старт)`);
-  ok(g.apMax === STRAT_CFG.sizes[s].ap && g.turnLimit === STRAT_CFG.sizes[s].turnLimit, `${s}×${s}: ОД и лимит из конфига`);
+  ok(g.apMax === ({ 5: 1, 8: 1, 15: 2 } as any)[s] && g.turnLimit === 0, `${s}×${s}: ОД по лиге (Быстрая 1, Обычная 2), без лимита ходов`);
 }
-ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 20, "Огонь: −10% HP (Страж 22 → 20)");
+ok(newGame(15, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 20, "Огонь: −10% HP (Страж 22 → 20)");
+ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 22, "t1163: Огонь на 8×8 — лига quick без −10% HP (Страж 22)");
+ok(newGame(15, ["lightning", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 22 && newGame(8, ["lightning", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 20, "t1163: Молния — без −10% HP только в лиге normal (15×15)");
 ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 1 && p.kind === "rook")!.maxHp === 22, "Лёд: HP без штрафа");
 // --- ходы скелета
 {
@@ -70,15 +72,15 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   const p1 = g.pieces.find((p) => p.owner === 1)!;
   ok(!apply(g, 1, { a: "end" }).ok, "чужой ход отклонён");
   const pawn = g.pieces.find((p) => p.owner === 0 && p.kind === "pawn")!;
+  g.ec.res[0].gold = 0; g.ec.res[0].know = 0; // нечего делать в городе → ход передастся сам
   ok(apply(g, 0, { a: "move", id: pawn.id, x: pawn.x, y: pawn.y - 1 }).ok, "ход Ополченцем");
-  ok(!apply(g, 0, { a: "move", id: pawn.id, x: pawn.x, y: pawn.y - 1 }).ok, "фигура не действует дважды за ход");
+  ok(!apply(g, 0, { a: "move", id: pawn.id, x: pawn.x, y: pawn.y - 1 }).ok, "после траты ОД ходить нельзя");
   ok(!apply(g, 0, { a: "move", id: p1.id, x: p1.x, y: p1.y + 1 }).ok, "чужая фигура отклонена");
   ok(!apply(g, 0, { a: "move", id: 999, x: 0, y: 0 }).ok, "несуществующая фигура отклонена");
-  const pawn2 = g.pieces.find((p) => p.owner === 0 && p.kind === "pawn" && !p.acted)!;
-  g.ec.res[0].gold = 0; g.ec.res[0].know = 0; // нечего делать в городе → ход передастся сам
-  const v0 = g.v;
-  ok(apply(g, 0, { a: "move", id: pawn2.id, x: pawn2.x, y: pawn2.y - 1 }).ok && g.cur === 1 && g.ap === g.apMax, "2 ОД на 8×8 кончились → ход сопернику");
-  ok(g.v === v0 + 1, "версия растёт на каждое действие");
+  const v0 = g.v; // t1141: на 8×8 (Быстрая лига) 1 ОД — первый ход Ополченцем уже передал ход
+  ok(g.cur === 1 && g.ap === g.apMax, "1 ОД на 8×8 кончилось → ход сопернику");
+  apply(g, 1, { a: "end" }); ok(g.v === v0 + 1, "версия растёт на каждое действие");
+  g.ec.res[0].gold = 0; g.ec.res[0].know = 0;
   ok(g.pieces.filter((p) => p.owner === 0).every((p) => !p.acted), "в новом ходе флаги сброшены");
   ok(!apply(g, 0, { a: "move", id: 999, x: 1.5 as any, y: 0 }).ok, "мусор в координатах отклонён");
 }
@@ -116,44 +118,30 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   const g = board(8, ["fire", "ice"], [[0, "hero", 5, 1], [1, "king", 6, 0], [0, "king", 0, 7]]);
   ok(inCheck(g, 1) && !inCheck(g, 0), "шах подсвечивается");
   g.pieces[1].hp = 1; apply(g, 0, { a: "attack", id: 1, x: 6, y: 0 });
-  ok(g.winner === 0 && g.reason === "king", "убит Вождь → победа");
+  ok(g.winner === -1 && g.ec.goals[0].includes("chief") && g.ec.chief[1].dead > 0, "убит Вождь → цель «Цареубийство», партия продолжается (8×8)");
+  g.ec.goals[0].push("treasury", "domain"); apply(g, 0, { a: "end" });
+  ok(g.winner === 0 && g.reason === "goals", "3 цели из 5 → победа");
   ok(!apply(g, 1, { a: "end" }).ok, "после конца партии действия отклоняются");
 }
-// --- лимит ходов → очки
+// --- t1135: лимита ходов нет, автоничьи нет
 {
-  const g = board(5, ["fire", "ice"], [[0, "rook", 0, 4], [0, "king", 2, 4], [1, "king", 2, 0]]);
-  g.ec.res[0].glory += 7; // Слава решает на лимите
-  for (let i = 0; i < 100 && g.winner === -1; i++) apply(g, g.cur, { a: "end" });
-  ok(g.winner === 0 && g.reason === "limit", "лимит ходов: побеждает тот, у кого больше Славы");
-  const g2 = board(5, ["fire", "fire"], [[0, "king", 2, 4], [1, "king", 2, 0]]);
-  for (let i = 0; i < 100 && g2.winner === -1; i++) apply(g2, g2.cur, { a: "end" });
-  ok(g2.winner === 2, "равная Слава → ничья");
-  ok(g2.turn === STRAT_CFG.sizes[5].turnLimit + 1, "лимит считает полные круги");
-}
-// --- лимит ходов из лобби
-{
-  ok(validTurnLimit(null) === null && validTurnLimit(0) === 0 && validTurnLimit(5) === 5 && validTurnLimit(200) === 200, "лимит ходов: null/0/5/200 допустимы");
-  ok([4, 201, -1, 2.5, "10", true].every((v) => validTurnLimit(v) === undefined), "лимит ходов: 4, 201, −1, дробь, строка — отклоняются");
-  ok(newGame(8, ["fire", "ice"], 0, STRAT_CFG, 12).turnLimit === 12 && newGame(8, ["fire", "ice"], 0, STRAT_CFG, null).turnLimit === 25, "свой лимит / по умолчанию для размера");
-  const g = newGame(5, ["fire", "fire"], 0, STRAT_CFG, 0); g.pieces = g.pieces.filter((p) => p.kind === "king");
-  for (let i = 0; i < 2 * STRAT_CFG.econ.quiet.draw - 2; i++) apply(g, g.cur, { a: "end" });
-  ok(g.winner === -1, "без лимита: партия не кончается по ходам");
-  for (let i = 0; i < 4; i++) apply(g, g.cur, { a: "end" });
-  ok(g.winner === 2 && g.reason === "quiet", "без лимита: 30 тихих ходов подряд → автоничья (анти-затяжка)");
-  const g3 = newGame(5, ["fire", "ice"], 1, STRAT_CFG, 5); g3.pieces = g3.pieces.filter((p) => p.kind === "king");
-  for (let i = 0; i < 30 && g3.winner === -1; i++) apply(g3, g3.cur, { a: "end" });
-  ok(g3.reason === "limit" && g3.turn === 6, "свой лимит 5 срабатывает после 5 полных кругов");
+  const g = board(5, ["fire", "fire"], [[0, "king", 2, 4], [1, "king", 2, 0]]);
+  for (let i = 0; i < 400 && g.winner === -1; i++) apply(g, g.cur, { a: "end" });
+  ok(g.winner === -1 && g.turnLimit === 0, "200 кругов: партия не кончается по ходам и не уходит в автоничью");
+  ok(newGame(8, ["fire", "ice"], 0, STRAT_CFG, 12).turnLimit === 0, "лимит из лобби игнорируется (no_turn_limit)");
+  ok(validTurnLimit(null) === null && [4, 201, -1, 2.5, "10", true].every((v) => validTurnLimit(v) === undefined), "валидатор лимита (совместимость) — отклоняет мусор");
 }
 // --- самопроверка: бот против бота всегда доигрывает, правила не ломаются
 {
   let fin = 0, bad = 0; const wins = [0, 0, 0];
-  for (let i = 0; i < 300; i++) {
+  const stall: Record<number, number> = {}; const NG = 60; // без лимита ходов партии длиннее — меньше прогонов, полный баланс — в симуляциях
+  for (let i = 0; i < NG; i++) {
     const s = [5, 8, 15][i % 3]; const g = newGame(s, i % 2 ? ["fire", "ice"] : ["ice", "fire"], (i % 4 < 2 ? 0 : 1) as 0 | 1);
-    for (let k = 0; k < 5000 && g.winner === -1; k++) { const r = apply(g, g.cur, botAction(g, g.cur)); if (!r.ok) { bad++; apply(g, g.cur, { a: "end" }); } }
-    if (g.winner !== -1) { fin++; wins[g.winner]++; }
+    for (let k = 0; k < 6000 && g.winner === -1; k++) { const r = apply(g, g.cur, botAction(g, g.cur)); if (!r.ok) { bad++; apply(g, g.cur, { a: "end" }); } }
+    if (g.winner !== -1) { fin++; wins[g.winner]++; } else stall[s] = (stall[s] || 0) + 1;
     if (new Set(g.pieces.map((p) => p.x + ":" + p.y)).size !== g.pieces.length) bad++;
   }
-  ok(fin === 300 && bad === 0, `бот×бот: 300/300 партий доиграны, ${bad} недопустимых действий (П0 ${wins[0]}, П1 ${wins[1]}, ничьи ${wins[2]})`);
+  ok(fin >= NG * 0.7 && bad === 0, `бот×бот: ${fin}/${NG} партий доиграны за 6000 действий (без лимита ходов; не доиграны по размерам ${JSON.stringify(stall)}), ${bad} недопустимых действий (П0 ${wins[0]}, П1 ${wins[1]}, ничьи ${wins[2]})`);
 }
 // --- Ополченец: отступление на 1 по диагонали назад (только ход, без атаки)
 {

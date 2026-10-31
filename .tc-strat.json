@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": [
+      "es2022",
+      "dom",
+      "dom.iterable"
+    ]
+  },
+  "files": [
+    "server/strat/rules.ts",
+    "server/strat/ai.ts",
+    "src/scripts/strat/econ-ui.ts",
+    "server/strat/effects-test.ts",
+    "server/strat/s4-test.ts",
+    "server/strat/tree-view.ts",
+    "server/strat/tree-data.public.ts",
+    "server/strat/tree-test.ts",
+    "server/strat/rating-test.ts",
+    "server/strat/rating-db.ts",
+    "server/strat/account.ts",
+    "server/strat/account-test.ts",
+    "server/strat/stats.ts",
+    "server/strat/stats-test.ts",
+    "server/strat/coins.ts",
+    "server/strat/coins-test.ts",
+    "server/strat/away.ts",
+    "server/strat/away-test.ts",
+    "server/strat/chat.ts",
+    "server/strat/chat-test.ts",
+    "server/strat/hidehp.ts",
+    "server/strat/building-test.ts", "server/strat/era4-test.ts", "server/strat/racedraw-test.ts", "server/strat/racedraw.ts", "server/strat/replay-test.ts", "server/strat/replay.ts", "server/strat/replay-db.ts"
+  ]
+}

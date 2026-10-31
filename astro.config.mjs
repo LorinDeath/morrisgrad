@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 import clerk from '@clerk/astro';
 import mcAssets from './tools/mc-assets/manifest.mjs'; // манифест ресурсов «Проклятых» (кэш у игрока, public/mc-sw.js)
+import { viteTreeAlias } from './tools/strat/tree-alias.mjs'; // «Партия Чёрных королей»: деревья не попадают в клиентскую сборку (ТЗ §14.F)
 import { mcClerkAppearance, mcClerkLocalization } from './src/lib/clerkTheme.ts';
 
 export default defineConfig({
@@ -19,6 +20,8 @@ export default defineConfig({
 
   // Сессии Astro не используются — без KV-привязки SESSION (иначе адаптер требует её создать)
   session: false,
+
+  vite: { plugins: [viteTreeAlias()] },
 
   // Все интеграции в одном массиве
   integrations: [

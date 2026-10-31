@@ -3,7 +3,7 @@
 import { execSync } from "node:child_process";
 const SRV = process.env.SRV || "http://127.0.0.1:8871", WSS = SRV.replace(/^http/, "ws");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? "PASS " : "FAIL ") + m); };
+let pass = 0, fail = 0; const ok = (c, m, d) => { c ? pass++ : fail++; console.log((c ? "PASS " : "FAIL ") + m + (!c && d ? "  :: " + (typeof d === "function" ? d() : d) : "")); };
 function client(path) {
   const ws = new WebSocket(WSS + path); const msgs = [];
   ws.onmessage = (e) => msgs.push(JSON.parse(e.data));
@@ -33,18 +33,19 @@ const open = await (await fetch(SRV + "/strat/open")).json();
 ok(!open.list.some((l) => l.code === code), "заполненное лобби не в списке «Ждут соперника»");
 B.send({ type: "cfg", size: 15 }); ok((await B.wait("err"))?.err === "not_host", "не хост не меняет настройки");
 A.send({ type: "cfg", size: 15 }); ok((await A.wait("st", (m) => m.size === 15)) !== null, "хост меняет размер 8→15");
-A.clear(); A.send({ type: "cfg", turnLimit: 3 }); ok((await A.wait("err"))?.err === "bad_turn_limit", "лимит ходов вне 5..200 — отказ сервера");
-A.clear(); A.send({ type: "cfg", turnLimit: 201 }); ok((await A.wait("err"))?.err === "bad_turn_limit", "лимит 201 — отказ");
-B.clear(); B.send({ type: "cfg", turnLimit: 30 }); ok((await B.wait("err"))?.err === "not_host", "лимит меняет только хост");
-A.send({ type: "cfg", turnLimit: 30 }); ok((await A.wait("st", (m) => m.turnLimit === 30)) !== null, "хост ставит лимит 30 ходов");
+A.clear(); A.send({ type: "cfg", turnLimit: 3 }); ok((await A.wait("err"))?.err === "no_turn_limit", "t1135: лимита ходов нет — отказ сервера");
+A.clear(); A.send({ type: "cfg", turnLimit: 201 }); ok((await A.wait("err"))?.err === "no_turn_limit", "лимит 201 — тот же отказ");
+B.clear(); B.send({ type: "cfg", turnLimit: 30 }); ok(["not_host", "no_turn_limit"].includes((await B.wait("err"))?.err), "не-хост — отказ");
+A.clear(); A.send({ type: "cfg", turnLimit: 0, hiddenHp: false, rated: false }); // свободный выбор рас — нерейтинговая (t1144)
+ ok((await A.wait("st")) !== null, "turnLimit 0 (совместимость) принимается");
 A.send({ type: "race", race: "fire" }); B.send({ type: "race", race: "ice" });
 st = await B.wait("st", (m) => m.seats[0]?.picked && m.seats[1]?.picked);
 ok(st && st.seats[0].race === null && st.seats[1].race === "ice", "выбор вслепую: чужая раса скрыта до старта");
 A.send({ type: "ready", on: true }); B.send({ type: "ready", on: true });
 st = await A.wait("st", (m) => m.phase === "play");
 ok(st && st.g.size === 15 && st.g.races[0] === "fire" && st.g.races[1] === "ice", "оба готовы → старт 15×15, расы открыты");
-ok(st && st.g.turnLimit === 30, "лимит из лобби попал в партию (30)");
-ok(st?.clock && st.clock.reserve[0] === 300000, "таймер: 60 с + запас 5 мин");
+ok(st && st.g.turnLimit === 0 && st.league?.id === "normal" && !!st.terr, "в партии лимита нет; есть league и terr (15×15 — Обычная)");
+ok(st?.clock && st.clock.reserve[0] === 0 && st.clock.turnMs > 0, "таймер: лимит хода без запаса (t1135)");
 const g = st.g, me = g.cur, P = me === 0 ? A : B, O = me === 0 ? B : A;
 const pawn = g.pieces.find((p) => p.o === me && p.k === "pawn"), dy = me === 0 ? -1 : 1;
 O.clear(); P.clear(); O.send({ type: "act", act: { a: "move", id: pawn.id, x: pawn.x, y: pawn.y + dy } }); ok((await O.wait("err"))?.err === "not_your_turn", "чужой ход отклонён сервером");
@@ -52,16 +53,44 @@ P.send({ type: "act", act: { a: "move", id: pawn.id, x: pawn.x, y: pawn.y + 3 * 
 P.clear(); O.clear();
 P.send({ type: "act", act: { a: "move", id: pawn.id, x: pawn.x, y: pawn.y + dy } });
 st = await O.wait("st", (m) => m.g.v === 1);
-ok(st && st.g.pieces.find((p) => p.id === pawn.id).y === pawn.y + dy && st.ev.some((e) => e.e === "move"), "ход виден сопернику (событие + снимок)");
+ok(st && st.g.pieces.find((p) => p.id === pawn.id).y === pawn.y + dy && st.ev.some((e) => e.e === "move"), "ход виден сопернику (событие + снимок)", () => JSON.stringify({ v: st?.g?.v, ev: st?.ev, p: st?.g?.pieces?.find((p) => p.id === pawn.id), pawn }).slice(0, 600));
 // переподключение
 O.close(); await sleep(300);
 st = await P.wait("st", (m) => m.seats[me === 0 ? 1 : 0]?.online === false);
 ok(!!st, "обрыв соперника виден");
 const O2 = await client("/strat/m/" + code); O2.send({ type: "hello", userId: me === 0 ? uB : uA });
 st = await O2.wait("st"); ok(st && st.you === (me === 0 ? 1 : 0) && st.g.v === 1 && st.phase === "play", "переподключение: то же место и полный снимок");
+// t1156: «Предыдущие ходы» в живой партии
+{ O2.send({ type: "moves", rq: 71 }); const mv = await O2.wait("moves", (m) => m.rq === 71);
+  ok(mv && mv.live === true && mv.n === 1 && mv.list[0].a.a === "move" && mv.list[0].n.startsWith("→") && /^[A-HJ-NP-Z2-9]{6}:\d+$/.test(mv.id), "moves: список ходов живой партии");
+  O2.send({ type: "frame", rq: 72, i: 0 }); const f0 = await O2.wait("frame", (m) => m.rq === 72);
+  ok(f0 && f0.i === 0 && f0.live && f0.frame.g.pieces.find((p) => p.id === pawn.id).y === pawn.y && !f0.frame.clock && !f0.frame.trees && f0.frame.you === (me === 0 ? 1 : 0), "frame 0: стартовая позиция, без часов, без чужого дерева");
+  O2.send({ type: "frame", rq: 73, i: 99 }); const f1 = await O2.wait("frame", (m) => m.rq === 73);
+  ok(f1 && f1.i === 1 && f1.frame.g.pieces.find((p) => p.id === pawn.id).y === pawn.y + dy, "frame: i зажат до n, позиция после хода", () => JSON.stringify({ i: f1?.i, err: f1?.err, p: f1?.frame?.g?.pieces?.find((p) => p.id === pawn.id), pawn }).slice(0, 600));
+  const sp = await client("/strat/m/" + code); sp.send({ type: "hello", guest: "s".repeat(12) + T }); await sp.wait("st");
+  sp.send({ type: "frame", rq: 74, i: 1 }); const fs = await sp.wait("frame", (m) => m.rq === 74); ok(fs && !fs.frame.tree && !fs.frame.terr, "зритель: кадр без дерева/территории", () => JSON.stringify(fs ? { ...fs, frame: Object.keys(fs.frame || {}) } : null).slice(0, 600)); sp.close(); }
 // сдача
 P.send({ type: "forfeit" }); st = await O2.wait("st", (m) => m.phase === "over");
 ok(st && st.result.winner === (me === 0 ? 1 : 0) && st.result.reason === "forfeit", "сдача → победа соперника");
+{ O2.send({ type: "frame", rq: 75, i: 1 }); const fo = await O2.wait("frame", (m) => m.rq === 75);
+  ok(fo && fo.live === false && fo.frame.trees?.length === 2 && fo.frame.terrs?.length === 2, "после конца: кадр раскрыт (оба дерева, обе территории)");
+  await sleep(700); const rid = st.replay?.id;
+  const rr = JSON.parse(execSync(`${process.env.WRANGLER || "npx wrangler"} d1 execute morrisgrad_db --local --persist-to ${process.env.PERSIST} --config wrangler.json --json --command "SELECT status, acts, winner, reason FROM strat_replays WHERE id='${rid}'"`, { stdio: "pipe" }).toString())[0].results;
+  ok(rr.length === 1 && rr[0].status === "over" && rr[0].acts === 1 && rr[0].reason === "forfeit", "D1: повтор записан (status over)");
+  const hr = await (await fetch(SRV + "/strat/replay?id=" + encodeURIComponent(rid))).json();
+  ok(hr.meta?.id === rid && hr.moves?.n === 1 && hr.log?.n === 1 && !hr.log.acts && hr.rulesChanged === false, "HTTP /strat/replay: meta + moves");
+  const hf = await (await fetch(SRV + "/strat/replay?id=" + encodeURIComponent(rid) + "&from=0&to=1")).json();
+  ok(hf.frames?.length === 2 && hf.frames[1].frame.g.pieces.find((p) => p.id === pawn.id).y === pawn.y + dy && hf.frames[1].frame.g.winner !== -1, "HTTP кадры: позиция и исход");
+  ok((await fetch(SRV + "/strat/replay?id=bad")).status === 400, "HTTP: неверный id → 400");
+  const hu = await client("/strat/hub"); hu.send({ type: "hello", userId: uA, nick: "Альфа" }); await hu.wait("hello_ok");
+  hu.send({ type: "lib_save", rq: 81, id: rid, title: "<b>Первая</b>" }); const l1 = await hu.wait("lib", (m) => m.rq === 81);
+  ok(l1 && l1.saved.some((x) => x.id === rid && x.title === "bПервая/b") && l1.recent.some((x) => x.id === rid && x.saved) && l1.keepDays === 90, "Библиотека: сохранить, недавние");
+  ok(l1 && !JSON.stringify(l1).includes(uA), "Библиотека: без user_id наружу");
+  hu.send({ type: "lib_unsave", rq: 82, id: rid }); const l2 = await hu.wait("lib", (m) => m.rq === 82); ok(l2 && !l2.saved.some((x) => x.id === rid), "Библиотека: убрать из сохранённых");
+  hu.send({ type: "lib_save", rq: 83, id: "ZZZZZZ:1700000000000" }); ok((await hu.wait("err", (m) => m.rq === 83))?.err === "no_replay", "Библиотека: нет такого повтора");
+  hu.close();
+  const hg2 = await client("/strat/hub"); hg2.send({ type: "hello", guest: "w".repeat(12) + T }); await hg2.wait("hello_ok");
+  hg2.send({ type: "lib_list", rq: 84 }); ok((await hg2.wait("err", (m) => m.rq === 84))?.err === "guest", "Библиотека: гостю — нет"); hg2.close(); }
 await sleep(500);
 const rows = JSON.parse(execSync(`${process.env.WRANGLER || "npx wrangler"} d1 execute morrisgrad_db --local --persist-to ${process.env.PERSIST} --config wrangler.json --json --command "SELECT winner, reason, size FROM strat_matches WHERE code='${code}'"`, { stdio: "pipe" }).toString())[0].results;
 ok(rows.length === 1 && rows[0].reason === "forfeit" && rows[0].size === 15, "итог записан в D1 strat_matches");
@@ -108,7 +137,7 @@ h1.send({ type: "invite", to: bsid, code: code2 }); ok((await h1.wait("err"))?.e
   h1.send({ type: "map_save", rq: 2, map: { name: "Плохая", size: 8, t: "#".repeat(64), s: ".".repeat(64) } }); ok(String((await h1.wait("map_save_r"))?.err).startsWith("invalid:"), "сервер проверяет карту (стены везде — отказ)");
   await sleep(5100);
   h1.send({ type: "map_save", rq: 3, map: { name: "Тест Альфы", size: 8, t: base.t, s: base.s } }); const sv = await h1.wait("map_save_r", (m) => m.rq === 3);
-  const mid = sv?.id; ok(/^u[0-9a-f]{10}$/.test(mid || ""), "карта сохранена, статус pending: " + mid);
+  const mid = sv?.id; ok(/^u[0-9a-f]{10}$/.test(mid || ""), "карта сохранена, статус pending: " + JSON.stringify(sv));
   h2.send({ type: "map_list", rq: 4, size: 8 }); let ls = await h2.wait("map_list_r");
   ok(ls && !ls.list.some((m) => m.id === mid) && ls.list.some((m) => m.kind === "official"), "чужой: неодобренной карты нет в списке");
   h1.send({ type: "map_list", rq: 5, size: 8 }); ls = await h1.wait("map_list_r");
@@ -125,8 +154,9 @@ h1.send({ type: "invite", to: bsid, code: code2 }); ok((await h1.wait("err"))?.e
   const r4 = d1(`SELECT map_id, xp FROM strat_matches WHERE code='${c4}'`);
   ok(r4.length === 1 && r4[0].map_id === mid && r4[0].xp === 0, "D1: партия на неодобренной карте записана с xp=0");
   h2.send({ type: "map_mod", rq: 6, id: mid, act: "approve" }); ok((await h2.wait("map_mod_r"))?.err === "not_admin", "не админ не модерирует");
+  d1("INSERT OR IGNORE INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:dev_strat_admin', 'admin', 'match-test', 0)"); // локальная D1: тестовый админ
   const ha = await client("/strat/hub"); ha.send({ type: "hello", userId: "dev_strat_admin", nick: "Админ" }); const hok = await ha.wait("hello_ok");
-  ok(hok?.admin === true, "админ опознан сервером (player_roles)");
+  ok(hok?.admin === true, "админ опознан сервером (player_roles)", () => JSON.stringify(hok).slice(0, 400) + " roles=" + JSON.stringify(d1("SELECT * FROM player_roles")).slice(0, 300));
   ha.send({ type: "map_queue", rq: 7 }); const q = await ha.wait("map_queue_r");
   ok(q?.list?.some((m) => m.id === mid && m.checks && m.t), "очередь модерации: карта с предпросмотром и автопроверками");
   ha.send({ type: "map_mod", rq: 8, id: mid, act: "reject" }); ok((await ha.wait("map_mod_r", (m) => m.rq === 8))?.err === "reason_required", "отклонение — только с причиной");
@@ -147,8 +177,9 @@ h1.send({ type: "invite", to: bsid, code: code2 }); ok((await h1.wait("err"))?.e
   ha.send({ type: "cfg_set", rq: 24, patch: { econ: { start: { gold: 9 } }, evil: 1 } }); const cs = await ha.wait("cfg_set_r", (m) => m.rq === 24);
   ok(cs && !cs.err, "админ сохраняет правку (лишние ключи отброшены)");
   const c6 = await newLobby(8); const E = await client("/strat/m/" + c6); E.send({ type: "hello", userId: uA, nick: "Альфа" }); await E.wait("st");
-  E.send({ type: "race", race: "stone" }); ok((await E.wait("st", (m) => m.seats[0]?.race === "stone")) !== null, "новая раса (Камень) выбирается в лобби");
-  E.send({ type: "race", race: "mana" }); ok((await E.wait("err"))?.err === "bad_race", "неизвестная раса — отказ");
+  E.send({ type: "cfg", rated: false }); await E.wait("st", (m) => m.rated === false); // свободный выбор рас — только нерейтинговая (t1144)
+  E.send({ type: "race", race: "stone" }); ok((await E.wait("st", (m) => m.seats[0]?.race === "stone")) !== null, "новая раса (Камень) выбирается в лобби", () => JSON.stringify({ err: E.last("err"), seat: E.last("st")?.seats?.[0], races: E.last("st")?.races, draw: E.last("st")?.draw }).slice(0, 700));
+  E.send({ type: "race", race: "mana" }); ok((await E.wait("err"))?.err === "bad_race", "неизвестная раса — отказ", () => JSON.stringify(E.msgs.filter((m) => m.type === "err")).slice(0, 300));
   E.send({ type: "race", race: "fire" }); E.send({ type: "bot", on: true }); E.send({ type: "ready", on: true });
   let s6 = await E.wait("st", (m) => m.phase === "play" && m.g.cur === m.you, 15000);
   ok(s6?.cfgPatch?.econ?.start?.gold === 9 && s6.g.ec, "партия получила админ-правку (cfgPatch) и экономику");
@@ -156,7 +187,7 @@ h1.send({ type: "invite", to: bsid, code: code2 }); ok((await h1.wait("err"))?.e
   E.clear(); E.send({ type: "act", act: { a: "build", city: cap.id, b: "barracks" } });
   s6 = await E.wait("st", (m) => m.g.ec.cities.find((c) => c.id === cap.id)?.bld?.includes("barracks"));
   ok(!!s6 && s6.ev.some((e) => e.e === "build"), "постройка Казармы через сервер");
-  E.clear(); E.send({ type: "act", act: { a: "build", city: cap.id, b: "stable" } }); ok((await E.wait("err"))?.err === "city_acted", "город раз в ход — отказ сервера");
+  E.clear(); E.send({ type: "act", act: { a: "build", city: cap.id, b: "stable" } }); ok((await E.wait("err"))?.err === "already_acted", "стройка — действие Вождя, раз в ход (t1137) — отказ сервера", () => JSON.stringify(E.msgs.filter((m) => m.type === "err")).slice(0, 300) + " cur=" + E.last("st")?.g?.cur);
   E.clear(); E.send({ type: "act", act: { a: "research", t: "<script>" } }); ok(["bad_tech", "bad_action"].includes((await E.wait("err"))?.err), "мусорная технология отклонена");
   E.clear(); E.send({ type: "act", act: { a: "trade", to: 1 - my, give: { gold: 1 }, get: { know: 1 } } }); ok((await E.wait("err"))?.err === "no_ally", "обмен в 1 на 1 — нет союзника");
   E.clear(); E.send({ type: "act", act: { a: "build", city: cap.id, b: "barracks", __proto__: { x: 1 }, extra: "x".repeat(50) } }); ok(!!(await E.wait("err")), "лишние поля действия не ломают сервер");
@@ -171,4 +202,29 @@ h1.send({ type: "invite", to: bsid, code: code2 }); ok((await h1.wait("err"))?.e
   for (const c of [ha, E, hg2, h3]) try { c.close(); } catch {}
 }
 for (const c of [A, B, X, P, O2, H, h1, h2]) try { c.close(); } catch {}
+// --- t1144: рейтинговый жребий рас
+{
+  const { createHash } = await import("node:crypto");
+  const hf = await client("/strat/hub"); hf.send({ type: "hello", userId: uA, nick: "Альфа" }); await hf.wait("hello_ok");
+  hf.send({ type: "fav_races_set", races: ["stone", "stone", "zzz", "nature", "water", "fire"] });
+  const fo = await hf.wait("fav_races_ok"); ok(fo?.favRaces?.join() === "stone,nature,water", "любимые расы: чистка и обрезка до 3");
+  const hf2 = await client("/strat/hub"); hf2.send({ type: "hello", userId: uA, nick: "Альфа" }); ok((await hf2.wait("hello_ok"))?.favRaces?.join() === "stone,nature,water", "hello_ok.favRaces возвращает сохранённое");
+  const hg3 = await client("/strat/hub"); hg3.send({ type: "hello", guest: "r".repeat(12) + T }); await hg3.wait("hello_ok");
+  hg3.send({ type: "fav_races_set", races: ["fire"] }); ok((await hg3.wait("err"))?.err === "guest", "гость: любимые расы не сохраняются");
+  const rc = await newLobby(8, false), RA = await client("/strat/m/" + rc), RB = await client("/strat/m/" + rc);
+  RA.send({ type: "hello", userId: uA, nick: "Альфа" }); await RA.wait("st"); RB.send({ type: "hello", userId: uB, nick: "Бета" }); await RB.wait("st", (m) => m.you === 1);
+  RA.clear(); RA.send({ type: "cfg", rated: true }); let rs = await RA.wait("st", (m) => m.rated && m.raceDraw?.commit);
+  ok(rs && /^[0-9a-f]{64}$/.test(rs.raceDraw.commit) && !rs.raceDraw.seed, "рейтинговая: в лобби commit, seed скрыт");
+  RA.clear(); RA.send({ type: "race", race: "fire" }); ok((await RA.wait("err"))?.err === "rated_random", "рейтинговая: выбор расы — отказ rated_random");
+  RA.send({ type: "ready", on: true }); RB.send({ type: "ready", on: true });
+  rs = await RB.wait("st", (m) => m.phase === "play", 6000);
+  const D = rs?.raceDraw;
+  ok(D && D.seed && createHash("sha256").update("strat-race:" + D.seed).digest("hex") === D.commit, "старт: seed раскрыт, SHA-256 совпадает с commit");
+  ok(rs && rs.g.races[0] !== rs.g.races[1] && D.rolls?.length === 2 && D.w?.[0] === 85, "расы назначены жребием, без повтора, веса 85/15");
+  ok(D?.rolls?.find((r) => r.seat === 0)?.favPool?.length > 0 && D.rolls.find((r) => r.seat === 1)?.favPool?.length === 0, "любимые расы из D1 подтянуты (у Беты нет)");
+  const rows2 = JSON.parse(execSync(`${process.env.WRANGLER || "npx wrangler"} d1 execute morrisgrad_db --local --persist-to ${process.env.PERSIST} --config wrangler.json --json --command "SELECT seed FROM strat_race_draws WHERE commit_hash = '${D?.commit}'"`, { encoding: "utf8" }))[0].results;
+  ok(rows2[0]?.seed === D?.seed, "журнал жребия в D1 strat_race_draws");
+  RA.send({ type: "forfeit" }); await RA.wait("st", (m) => m.phase === "over");
+  for (const c of [hf, hf2, hg3, RA, RB]) try { c.close(); } catch {}
+}
 console.log(`${pass} PASS, ${fail} FAIL`); process.exit(fail ? 1 : 0);

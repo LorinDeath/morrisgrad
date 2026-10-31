@@ -1,7 +1,7 @@
 // Тесты экономики этапа 2 (города, найм, постройки, технологии, таланты, Слава, хук обмена, черновые расы, админ-конфиг):
 //   nice bun server/strat/econ-test.ts
 import { newGame, apply, STRAT_CFG, type GameState, type Piece } from "./rules";
-import { territory, citySlots, canRecruit, canResearch, canEra, canFound, pendingTalent, validateTrade, effArm, effAtk, recruitCells, sz } from "./econ";
+import { cityRadius, raceCfg, territory, citySlots, canRecruit, canResearch, canEra, canFound, pendingTalent, validateTrade, effArm, effAtk, recruitCells, sz } from "./econ";
 import { techById } from "./econ-cfg";
 import { mergeCfg, sanitizePatch } from "./cfg";
 let fails = 0, n = 0; const ok = (c: any, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -13,7 +13,7 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
 {
   const g = newGame(8, ["fire", "ice"], 0);
   ok(g.ec.cities.length === 2 && g.ec.cities.every((c) => c.cap), "8×8: у каждого столица на месте Вождя");
-  ok(g.ec.res[0].gold === C.econ.start.gold + g.ec.inc[0].gold && g.ec.res[1].gold === C.econ.start.gold + C.econ.start.secondGold, "второй игрок получает +золото на старте (компенсация первого хода)");
+  ok(g.ec.res[0].gold === C.econ.start.gold + g.ec.inc[0].gold && g.ec.res[1].gold === C.econ.start.gold + ((C.econ.league as any)[g.size <= 9 ? "quick" : g.size <= 35 ? "normal" : "tactical"]?.secondGold ?? C.econ.start.secondGold), "второй игрок получает +золото на старте (компенсация первого хода)");
   ok(g.ec.era[0] === 1 && sz(g, C).eras === 2, "8×8: эпоха I, всего 2 эпохи");
   const g5 = newGame(5, ["fire", "ice"], 0); ok(g5.ec.era[0] === 0 && canResearch(g5, 0, techById("formation"), C) === "no_tech", "5×5: без технологий");
 }
@@ -30,12 +30,13 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
   const g = newGame(8, ["fire", "ice"], 0), c = cap(g, 0); g.ec.res[0].gold = 100;
   ok(canRecruit(g, 0, c, "rook", C) === "locked", "Страж без Казармы — закрыт");
   ok(apply(g, 0, { a: "build", city: c.id, b: "barracks" } as any).ok && c.bld.includes("barracks") && g.ec.res[0].gold === 100 - C.build.barracks.cost, "Казарма построена, золото списано");
-  ok(!apply(g, 0, { a: "build", city: c.id, b: "stable" } as any).ok, "город действует раз в ход");
+  ok(!apply(g, 0, { a: "build", city: c.id, b: "stable" } as any).ok, "Вождь строит раз в ход (действие Вождя)");
   endTwice(g); g.pieces = g.pieces.filter((p) => p.kind === "king" || Math.max(Math.abs(p.x - c.x), Math.abs(p.y - c.y)) > 1); // освободить клетки найма
   const cell = recruitCells(g, c, "rook", C)[0];
   ok(canRecruit(g, 0, c, "rook", C) === null && cell, "после Казармы Страж доступен");
   const r = apply(g, 0, { a: "recruit", city: c.id, kind: "rook", x: cell[0], y: cell[1] } as any);
   ok(r.ok && g.pieces.some((p) => p.owner === 0 && p.kind === "rook" && p.x === cell[0] && p.y === cell[1] && p.acted), "найм: фигура на клетке рядом с городом, ходит со следующего хода");
+  g.ec.techs[0].push("arcana", "trade"); // Библиотека открывается технологией «Тайное знание»
   endTwice(g); apply(g, 0, { a: "build", city: c.id, b: "library" } as any);
   ok(c.bld.length === citySlots(g, c, C) && citySlots(g, c, C) === 2, "8×8: в столице ур.1 — 2 места");
   endTwice(g); const e = apply(g, 0, { a: "build", city: c.id, b: "market" } as any);
@@ -46,12 +47,15 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
 // --- технологии
 {
   const g = newGame(8, ["fire", "ice"], 0); g.ec.res[0].know = 100;
-  ok(apply(g, 0, { a: "research", t: "formation" } as any).ok && g.ec.res[0].glory === C.econ.glory.tech, "исследование: +Слава");
+  ok(apply(g, 0, { a: "research", t: "masonry" } as any).ok && g.ec.res[0].glory === C.econ.glory.tech, "исследование: +Слава");
   ok(canResearch(g, 0, techById("steel"), C) === "need_era", "технология II эпохи закрыта в эпохе I");
-  ok(canResearch(g, 0, techById("trade") ?? techById("scribes"), C) === "research_done", "одно исследование за ход");
+  ok(canResearch(g, 0, techById("trade"), C) === "research_done", "одно исследование за ход");
+  endTwice(g); ok(apply(g, 0, { a: "research", t: "trade" } as any).ok, "второй путь (корень тактики)");
   endTwice(g);
-  ok(canResearch(g, 0, techById("ambush"), C) === "locked", "пара «или-или»: вторая закрыта навсегда");
-  ok(canEra(g, 0, C) === "need_techs", "эпоха: нужно 2 технологии текущей эпохи");
+  ok(canResearch(g, 0, techById("horse"), C) === "locked", "третий путь закрыт навсегда (maxPaths 2)");
+  g.ec.era[0] = 2; g.ec.techs[0].push("formation");
+  ok(canResearch(g, 0, techById("bastion"), C) === "locked", "пара «или-или»: вторая закрыта навсегда");
+  { const ge = newGame(8, ["fire", "ice"], 0); ge.ec.res[0].know = 100; ok(canEra(ge, 0, C) === "need_techs", "эпоха: нужно 2 технологии текущей эпохи"); }
   ok(canResearch(g, 0, techById("frostarmor") ?? undefined, C) !== null, "стихийная ветвь чужой расы недоступна");
 }
 // --- таланты
@@ -63,23 +67,25 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
   ok(!apply(g, 0, { a: "talent", id: p.id, t: "shield" } as any).ok, "второй талант того же уровня нельзя");
   p.xp = C.econ.xp.lv[3]; ok(pendingTalent(p, C) === 3, "ур.3 — второй выбор");
 }
-// --- застава
+// --- застава (старое правило «Ополченец основывает сразу» — конфиг found.by = "pawn"; по умолчанию теперь канал Вождя, см. era4-test)
 {
+  const C0 = C; { const C = { ...C0, econ: { ...C0.econ, found: { ...(C0.econ as any).found, by: "pawn" } } } as any;
   const g = newGame(8, ["fire", "ice"], 0), p = g.pieces.find((q) => q.owner === 0 && q.kind === "pawn")!;
   ok(canFound(g, 0, p, C) === "too_close", "застава: не вплотную к столице");
   p.x = 7; p.y = 4;
   const e = canFound(g, 0, p, C);
-  if (e === null) { ok(apply(g, 0, { a: "found", id: p.id } as any).ok && g.ec.cities.length === 3, "застава основана, Ополченец ушёл"); ok(canFound(g, 0, { ...p, id: 999 } as Piece, C) !== null, "8×8: вторая застава нельзя / слишком близко"); }
+  if (e === null) { ok(apply(g, 0, { a: "found", id: p.id } as any, C).ok && g.ec.cities.length === 3, "застава основана, Ополченец ушёл"); ok(canFound(g, 0, { ...p, id: 999 } as Piece, C) !== null, "8×8: вторая застава нельзя / слишком близко"); }
   else ok(false, "застава: клетка (7,4) должна подходить, а ошибка " + e);
+  }
 }
 // --- победы
 {
   const g = newGame(8, ["fire", "ice"], 0); g.ec.res[0].glory = sz(g, C).glory; apply(g, 0, { a: "end" }); apply(g, 1, { a: "end" });
-  ok(g.winner === 0 && g.reason === "glory", "победа Славой на пороге");
+  ok(g.winner === -1, "Слава больше не даёт мгновенной победы (только счёт и тай-брейк)");
   const g2 = newGame(8, ["fire", "ice"], 0), c1 = cap(g2, 1), k1 = g2.pieces.find((q) => q.owner === 1 && q.kind === "king")!;
   k1.x = 7 - k1.x || 3; k1.y = 1; const k0 = g2.pieces.find((q) => q.owner === 0 && q.kind === "knight")!; k0.x = c1.x; k0.y = c1.y;
   for (let i = 0; i < 6 && g2.winner === -1; i++) apply(g2, g2.cur, { a: "end" });
-  ok(g2.winner === 0 && g2.reason === "capital", "осада столицы (враг простоял до своего хода) → победа");
+  ok(g2.winner === -1 && c1.owner === 0 && !c1.cap && g2.ec.hold[0] >= 0, "осада столицы: город переходит (без мгновенной победы), идёт в счёт Твердыни");
 }
 // --- хук обмена 2 на 2
 {
@@ -107,4 +113,14 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
   ok(sanitizePatch({ a: { b: { c: { d: { e: { f: { g: { h: 1 } } } } } } } }) !== undefined, "глубокая правка обрезается, не падает");
   ok(STRAT_CFG.econ.start.gold === C.econ.start.gold && mergeCfg({}).econ.start.gold === C.econ.start.gold, "база не меняется");
 }
+
+// t1163 (набор H): «Чаща» +1 радиус столицы только со 2-го уровня; лиговые числа рас
+{
+  const g = newGame(15, ["nature", "ice"], 0), c = g.ec.cities.find((x) => x.owner === 0 && x.cap)!; g.ec.techs[0].push("grove");
+  c.lvl = 1; const r1 = cityRadius(g, c, STRAT_CFG); c.lvl = 2; const r2 = cityRadius(g, c, STRAT_CFG);
+  ok(r1 === 2 && r2 === 4, "t1163: «Чаща» не действует на ур. 1 столицы, +1 с ур. 2");
+  const w8 = newGame(8, ["water", "ice"], 0), w15 = newGame(15, ["water", "ice"], 0);
+  ok((raceCfg(w8, 0, STRAT_CFG).healOwnT || 0) === 0 && raceCfg(w15, 0, STRAT_CFG).healOwnT === 1, "t1163: пассивное лечение Воды выключено только в лиге quick");
+}
+
 console.log(fails ? `FAILED ${fails}/${n}` : `ALL OK ${n}`); if (fails) process.exit(1);
