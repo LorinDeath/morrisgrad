@@ -90,7 +90,7 @@ function tryGen(o: GenOpts, seed: number): MapData {
     let y = Math.floor(mid);
     for (let x = 0; x < Math.ceil(n / 2); x++) {
       if (x > 0 && R() < 0.45) y += R() < 0.5 ? -1 : 1;
-      y = Math.max(Math.floor(mid) - (n >= 15 ? 2 : 0), Math.min(Math.ceil(mid) + (n >= 15 ? 1 : 0) - (n % 2 ? 0 : 1), y));
+      y = Math.max(Math.floor(mid) - (n >= 30 ? 4 : n >= 15 ? 2 : 0), Math.min(Math.ceil(mid) + (n >= 30 ? 3 : n >= 15 ? 1 : 0) - (n % 2 ? 0 : 1), y));
       if (n % 2 && x === Math.floor(mid)) y = mid; // центральная клетка нечётной доски — на оси
       ys.push(y);
     }
@@ -101,7 +101,7 @@ function tryGen(o: GenOpts, seed: number): MapData {
     if (n % 2 === 0) { const L = ys.length - 1, my = n - 1 - ys[L]; for (let y2 = Math.min(ys[L], my); y2 <= Math.max(ys[L], my); y2++) set(T, L + 1, y2, "w"); } // шов в центре
     // мосты: колонки, где русло одной клеткой по вертикали
     let cand = [...Array(ys.length).keys()].filter((x) => x > 0 && x < n - 1 && get(T, x, ys[x] - 1) !== "w" && get(T, x, ys[x] + 1) !== "w");
-    const nb = n >= 15 ? 2 : 1;
+    const nb = n >= 30 ? 3 : n >= 15 ? 2 : 1; // t1201: 35×35 (Тактическая) — 3 моста на половину
     for (let k = 0; k < nb && cand.length; k++) { const x = cand[Math.floor(R() * cand.length)]; set(T, x, ys[x], "b"); cand = cand.filter((c) => Math.abs(c - x) > 2); }
     // причал у воды (15+)
     if (n >= 15) for (let t = 0; t < 30; t++) { const x = ri(0, n - 1), yy = ys[Math.min(x, ys.length - 1)] + 1; if (free(x, yy) && get(T, x, yy - 1) === "w") { set(S, x, yy, "D"); break; } }
@@ -118,7 +118,8 @@ function tryGen(o: GenOpts, seed: number): MapData {
   };
   if (n === 5) { blob("f", 1, 1); }
   else if (n === 8) { blob("m", 1, 2); blob("f", 2, 3); }
-  else { blob("m", 2, 4); blob("f", 3, 5); }
+  else if (n < 30) { blob("m", 2, 4); blob("f", 3, 5); }
+  else { blob("m", 7, 6); blob("f", 9, 7); blob(",", 6, 6); } // t1201: 35×35 — больше рельефа (масштаб по площади)
   if (n >= 15) { // стена с воротами (крепостной вал на фланге)
     for (let t = 0; t < 40; t++) {
       const y = n - 1 - o.armyRows - ri(2, 3), len = ri(4, 5), x0 = R() < 0.5 ? ri(0, 2) : n - len - ri(0, 2);
@@ -126,6 +127,12 @@ function tryGen(o: GenOpts, seed: number): MapData {
       for (let i = 0; i < len; i++) set(T, x0 + i, y, i === Math.floor(len / 2) ? "g" : "#");
       break;
     }
+  }
+  if (n >= 30) for (let t = 0; t < 60; t++) { // t1201: второй вал на 35×35 — ближе к центру
+    const y = Math.ceil(mid) + ri(5, 8), len = ri(5, 7), x0 = ri(2, n - len - 2);
+    if (![...Array(len).keys()].every((i) => free(x0 + i, y) || get(T, x0 + i, y) === "f")) continue;
+    for (let i = 0; i < len; i++) set(T, x0 + i, y, i === Math.floor(len / 2) ? "g" : "#");
+    break;
   }
   // постройки (по одной на каждую сторону — симметрия даёт пару)
   const place = (c: string, near?: (x: number, y: number) => boolean) => {
@@ -141,6 +148,7 @@ function tryGen(o: GenOpts, seed: number): MapData {
   if (n === 5) { const c = Math.floor(mid); S[idx(n, c, c)] = "W"; }
   if (n >= 8) { place("M"); place("T", nearT("w")); place("R"); }
   if (n >= 15) { place("M"); place("A"); place("S"); place("V"); place("W"); place("Q", nearT("m")); place("X"); place("O"); }
+  if (n >= 30) { place("M"); place("M"); place("T", nearT("w")); place("R"); place("R"); place("A"); place("S"); place("V"); place("V"); place("W"); place("Q", nearT("m")); place("X"); place("O"); place("O"); } // t1201: 35×35
   if (n === 8) place("A");
   // точки спавна (клетка Вождя) и дорога от Вождя к ближайшему мосту
   const ky0 = n - 1;
@@ -164,7 +172,7 @@ function tryGen(o: GenOpts, seed: number): MapData {
 /** Проверка карты (официальной или игрока): ошибки блокируют публикацию, предупреждения дают «неравная». */
 export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [number, number][] }): { errors: string[]; warnings: string[] } {
   const errors: string[] = [], warnings: string[] = [], n = m.size;
-  if (!Number.isInteger(n) || n < 5 || n > 30) return { errors: ["size"], warnings };
+  if (!Number.isInteger(n) || n < 5 || n > 40) return { errors: ["size"], warnings };
   if (typeof m.t !== "string" || typeof m.s !== "string" || m.t.length !== n * n || m.s.length !== n * n) return { errors: ["shape"], warnings };
   for (const c of m.t) if (!(c in TERRAIN)) return { errors: ["bad_terrain"], warnings };
   for (const c of m.s) if (c !== "." && !(c in STRUCT)) return { errors: ["bad_struct"], warnings };

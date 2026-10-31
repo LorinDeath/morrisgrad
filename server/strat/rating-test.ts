@@ -5,7 +5,7 @@ const near = (a: number, b: number, e: number) => Math.abs(a - b) <= e;
 // пример Глickman (2013): 1500/200/0.06 против 1400/30 (победа), 1550/100, 1700/300 (поражения) → 1464,06 / 151,52 / 0,05999
 const r = glicko2({ rating: 1500, rd: 200, vol: 0.06, games: 0 }, [{ opp: { rating: 1400, rd: 30 }, score: 1 }, { opp: { rating: 1550, rd: 100 }, score: 0 }, { opp: { rating: 1700, rd: 300 }, score: 0 }]);
 ok(near(r.rating, 1464.06, 0.1) && near(r.rd, 151.52, 0.1) && near(r.vol, 0.05999, 0.0001), `эталон Glicko-2: ${r.rating.toFixed(2)}/${r.rd.toFixed(2)}/${r.vol.toFixed(5)}`);
-ok(leagueOf(4) === "quick" && leagueOf(9) === "quick" && leagueOf(10) === "normal" && leagueOf(35) === "normal" && leagueOf(36) === "tactical" && leagueOf(100) === "tactical" && leagueOf(8, 40) === "tactical" && leagueOf(101) === null, "лиги: ≤9 / 10–35 / 36–100 по большей стороне");
+ok(leagueOf(4) === "quick" && leagueOf(9) === "quick" && leagueOf(10) === "normal" && leagueOf(29) === "normal" && leagueOf(30) === "tactical" && leagueOf(35) === "tactical" && leagueOf(100) === "tactical" && leagueOf(8, 40) === "tactical" && leagueOf(101) === null, "лиги: ≤9 / 10–35 / 36–100 по большей стороне");
 const base: RatedCtx = { rated: true, standard: true, mapInPool: true, humans: 2, guests: 0, bots: 0, turns: 20, reason: "goals", pairToday: 0 };
 ok(unratedReason(base) === null, "обычная партия — рейтинговая");
 ok(unratedReason({ ...base, guests: 1 }) === "guests", "гости — без рейтинга");

@@ -11,7 +11,7 @@ export const LEAGUES: { id: LeagueId; name: string; sizes: string; icon: string 
   { id: "tactic", name: "Тактическая", sizes: "крупные поля", icon: "scales" },
 ];
 // как на сервере (rating.ts leagueOf: quickMax 9, normalMax 35, tacticalMax 100). ⚠ ТЗ §16 относит 30×30 к Тактической — расхождение, см. отчёт.
-export const leagueOf = (n: number): LeagueId => (n <= 9 ? "fast" : n <= 35 ? "normal" : "tactic");
+export const leagueOf = (n: number): LeagueId => (n <= 9 ? "fast" : n <= 29 ? "normal" : "tactic"); // t1201: 35×35 — Тактическая (как server rating.ts normalMax 29)
 export const leagueName = (n: number) => LEAGUES.find((l) => l.id === leagueOf(n))!.name;
 export type LStat = { r: number; rd?: number; games: number; w: number; l: number; d: number; peak?: number; prov?: boolean };
 const fmtR = (r: number) => String(Math.round(r));

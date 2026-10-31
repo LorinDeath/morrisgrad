@@ -226,9 +226,18 @@ function askChiefName(reborn: boolean) {
 
 // ---------- журнал (только textContent) ----------
 function logAdd(t: string, cls = "") {
-  const box = $("#log"); if (!box) return; const d = document.createElement("div"); d.className = "lg " + cls; d.textContent = t; box.prepend(d);
+  const box = $("#log"); if (!box) return;
+  // t1201: одинаковая строка подряд — не дублируем, а считаем «×N»
+  const top = box.firstElementChild as HTMLElement | null;
+  if (top && top.dataset.t === t) { const k = +(top.dataset.n || 1) + 1; top.dataset.n = String(k); top.textContent = `${t} ×${k}`; }
+  else { const d = document.createElement("div"); d.className = "lg " + cls; d.dataset.t = t; d.textContent = t; box.prepend(d); }
   while (box.children.length > 30) box.lastElementChild!.remove();
+  logPeek(box);
 }
+/** t1201: свёрнутый журнал на доске — всплывает на ~4 с при новой записи и прячется сам (или по тапу); весь журнал — кнопкой «журнал». */
+let logT = 0;
+function logPeek(box: HTMLElement) { box.classList.add("peek"); clearTimeout(logT); logT = window.setTimeout(() => box.classList.remove("peek"), 4000);
+  if (!box.dataset.tap) { box.dataset.tap = "1"; box.addEventListener("click", () => { if (!box.classList.contains("open")) { clearTimeout(logT); box.classList.remove("peek"); } }); } }
 
 // ---------- события снимка ----------
 let fx: { x: number; y: number; t: number; txt: string; col: string; big?: boolean }[] = [];
@@ -669,7 +678,7 @@ function raceTraits(r: string): string[] {
   if (r === "water") t.push("Проходит по воде"); if (r === "stone") t.push("Проходит через горы");
   return t.length ? t.slice(0, 3) : ["Без особых свойств"];
 }
-const sizeLabel = (n: number) => (n <= 5 ? "дуэль" : n <= 8 ? "быстрая" : n <= 15 ? "большая" : n <= 50 ? "кампания" : "эпос");
+const sizeLabel = (n: number) => (n <= 5 ? "дуэль" : n <= 8 ? "быстрая" : n <= 15 ? "большая" : n <= 40 ? "тактическая" : "эпос");
 function renderLobby() {
   const me = S.you, host = me === 0, seats = S.seats;
   renderSlots($("#slots"), $("#modes"), S, { me, host, seatHtml, send, raceCol: raceBase });
@@ -874,6 +883,26 @@ function openChiefTree(auto: boolean) {
     send({ type: "act", act: (cfg as any).chiefs || (cfg as any).chiefTypes ? { a: "skill", id: ch.p!.id, s: id } : { a: "talent", id: ch.p!.id, t: id } }); m.close(true); }));
 }
 
+/** t1202: доход постройки карты — из правил (econ.struct / ruins / obelisk), не из текста. */
+function structInc(st: string) { const E: any = (cfgOf(S) as any).econ || {}, r = E.struct?.[st], parts: string[] = [];
+  const add = (o: any, tail = "") => { if (!o) return; if (o.gold) parts.push(`+${o.gold} золота`); if (o.know) parts.push(`+${o.know} знаний`); if (o.glory) parts.push(`+${o.glory} Славы`); if (o.growth) parts.push(`+${o.growth} роста`); if (parts.length && tail) parts[parts.length - 1] += tail; };
+  if (r) add(r, " за ход на своей земле"); else if (st === "R" && E.ruins) add(E.ruins, " разово первому вошедшему"); else if (st === "X" && E.obelisk) add(E.obelisk, " за ход, пока стоит своя фигура");
+  return parts.length ? ` · ${esc(parts.join(", "))}` : ""; }
+/** t1202: чья клетка, город на ней (уровень, постройки, рост) и можно ли её купить — из состояния партии. */
+function cellOwnerInfo(x: number, y: number) {
+  const g = S?.g, G = gs(); if (!g || !G?.ec) return ""; const n = g.size, T = worldT(), o = T[y * n + x], me = S.you, cfg: any = cfgOf(S);
+  const who = (sd: number) => (sd === me ? "ваша" : `соперника (${RACE_NAME[g.races[sd]] || "?"})`);
+  let h = `<span class="ci-t">${ic("flag")}<b>${o >= 0 ? "Земля: " + who(o) : "Нейтральная земля"}</b></span>`;
+  const ct: any = G.ec.cities.find((c) => c.x === x && c.y === y);
+  if (ct) { const thr: number[] = cfg.econ?.city?.growthThr || [], nx = thr[ct.lvl], C0 = cfg.econ?.city || {};
+    const inc = ct.cap ? `+${C0.capGold ?? 0} золота, +${C0.capKnow ?? 0} знаний` : `+${C0.outGold ?? 0} золота`;
+    const bl = (ct.bld || []).map((b: string) => bName(b, g.races[ct.owner] || "")).join(", ");
+    h += `<span class="ci-t">${ic("castle")}<b>${esc(cityName(G, ct.id))} · ${ct.cap ? "столица" : "застава"} ${ct.owner === me ? "(ваша)" : "(соперника)"}</b></span>
+      <small>Уровень ${(ct.lvl ?? 0) + 1}${ct.cap && nx != null ? ` · рост ${ct.growth ?? 0}/${nx} до ур. ${(ct.lvl ?? 0) + 2}` : ""} · доход ${esc(inc)} за ход${bl ? ` · постройки: ${esc(bl)}` : " · построек нет"}</small>`; }
+  const buy = me >= 0 && S.phase === "play" ? (S.terr?.cities || []).find((q: any) => q.ready && q.cells?.some(([a, b]: number[]) => a === x && b === y)) : null;
+  if (buy) h += `<small class="ci-buy">${ic("coin")}Можно купить для «${esc(cityName(G, buy.city))}» · ${buy.cost ?? "?"} золота${buy.left ? ` (бесплатно через ${buy.left} х.)` : ""}</small>`;
+  else if (o < 0) h += `<small>Не куплена: свои клетки покупают у границы своей земли, когда городу доступна покупка</small>`;
+  return h; }
 // ---------- карточка выбранного ----------
 function renderInfo() {
   const box = $("#info"); const g = S?.g; const p = g && sel != null ? g.pieces.find((q: any) => q.id === sel) : null;
@@ -896,10 +925,13 @@ function renderInfo() {
   if (m && at) { const [x, y] = at, t = m.t[y * m.size + x], st = m.s[y * m.size + x], tn = (TERRAIN as any)[t]?.name || t;
     const tp = terrainPassive(t, tn), sp = st !== "." ? structPassive(st, (STRUCT as any)[st]) : null;
     h += `<div class="cellinfo"><span class="ci-t">${ic(t === "f" ? "leaf" : t === "w" ? "wave" : t === "m" ? "mountain" : t === "#" ? "wall" : "map")}<b>${esc(tn)}</b>${pasIcon(tp)}</span>${terrEff(t) ? `<small>${terrEff(t)}</small>` : ""}
-      ${sp ? `<span class="ci-t">${ic("castle")}<b>${esc(sp.name)}</b>${pasIcon(sp)}</span><small>${esc((STRUCT as any)[st]?.eff || "")}</small>` : ""}</div>`; }
+      ${sp ? `<span class="ci-t">${ic("castle")}<b>${esc(sp.name)}</b>${pasIcon(sp)}</span><small>${structInc(st) ? structInc(st).slice(3) : esc(String((STRUCT as any)[st]?.eff || "").replace(/\s*\(этап \d+\)/g, ""))}</small>` : ""}${cellOwnerInfo(x, y)}</div>`; }
   h = `<button type="button" class="info-x" data-infox aria-label="Снять выбор">${ic("close")}</button><button type="button" class="info-min" data-infomin aria-label="Свернуть карточку" aria-pressed="${document.body.classList.contains("infomin")}">${ic("chevron")}</button>` + h;
   box.className = "info" + (p && S.phase === "play" && p.o === S.you ? " mine" : ""); box.innerHTML = h;
   box.querySelector<HTMLElement>("[data-infox]")!.onclick = () => { sel = null; selCell = null; renderInfo(); draw(); };
+  if (!box.dataset.swipe) { box.dataset.swipe = "1"; let y0 = -1; // t1202: смахнуть шторку вниз — закрыть
+    box.addEventListener("touchstart", (e) => { y0 = box.scrollTop <= 0 ? e.touches[0].clientY : -1; }, { passive: true });
+    box.addEventListener("touchend", (e) => { if (y0 >= 0 && e.changedTouches[0].clientY - y0 > 60 && sheetMode()) { sel = null; selCell = null; renderInfo(); draw(); } y0 = -1; }, { passive: true }); }
   box.querySelector<HTMLElement>("[data-infomin]")!.onclick = (e) => { const on = document.body.classList.toggle("infomin"); localStorage.setItem("strat.infomin", on ? "1" : ""); (e.currentTarget as HTMLElement).setAttribute("aria-pressed", String(on)); requestAnimationFrame(liftForSheet); };
   requestAnimationFrame(liftForSheet);
   if (p) { const sub = box.querySelector(".uc-sub"); if (sub) sub.textContent = (p.o === S.you ? "Ваш" : "Враг") + (p.k === "king" ? " · " + chiefName(p.o) : " · " + (RACE_NAME[g.races[p.o]] || ""));
@@ -997,14 +1029,15 @@ const scrX = (x: number) => cam.W / 2 + (vx(x) - cam.cx) * cam.z, scrY = (y: num
 function fitCam(force: boolean) {
   const st = $("#stage"); if (!st || !S?.g) return; const W = st.clientWidth, H = st.clientHeight; if (!W || !H) return;
   const n = S.g.size, pad = big() ? 0 : 18, fit = Math.max(4, Math.min((W - pad * 2) / n, (H - pad * 2) / n));
-  const sizeChanged = W !== cam.W || H !== cam.H, newMap = cam.n !== n;
+  const sizeChanged = W !== cam.W || H !== cam.H, newMap = cam.n !== n, wasFit = cam.z <= cam.fit * 1.001;
   cam.W = W; cam.H = H; cam.fit = fit;
-  if (newMap || force || !big()) { cam.n = n; cam.z = fit; cam.cx = n / 2; cam.cy = n / 2 + (newMap ? (camLift = 0) : camLift);
+  // t1204: зум на любой карте — малую карту подгоняем заново, только если её не приближали
+  if (newMap || force || (!big() && wasFit)) { cam.n = n; cam.z = fit; cam.cx = n / 2; cam.cy = n / 2 + (newMap ? (camLift = 0) : camLift);
     if (big() && newMap) { cam.z = Math.max(fit, 44); const a = myAnchor(); if (a) centerOn(a[0], a[1]); } }
   else if (sizeChanged) clampCam();
   const c = cv(), dpr = devicePixelRatio || 1; c.style.width = W + "px"; c.style.height = H + "px";
   if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
-  $("#minimapbox").hidden = !big(); $("#camctl").hidden = !big(); document.body.classList.toggle("bigmap", big());
+  $("#camctl").hidden = false; syncMinimap(); document.body.classList.toggle("bigmap", big());
 }
 function clampCam() {
   const n = cam.n; cam.z = Math.max(cam.fit, Math.min(ZMAX, cam.z));
@@ -1021,8 +1054,10 @@ function myAnchor(): [number, number] | null {
   const c = g.ec?.cities?.find((q: any) => q.owner === me && q.cap) || g.ec?.cities?.find((q: any) => q.owner === me); return c ? [c.x, c.y] : null;
 }
 function centerOn(x: number, y: number) { cam.cx = vx(x) + 0.5; cam.cy = vy(y) + 0.5; clampCam(); draw(); }
-function zoomAt(k: number, px = cam.W / 2, py = cam.H / 2) {
-  if (!big()) return; const bx = cam.cx + (px - cam.W / 2) / cam.z, by = cam.cy + (py - cam.H / 2) / cam.z;
+/** t1204: карта не помещается целиком (приближена) — мини-карта с рамкой видимой области; вся карта видна — мини-карту прячем. */
+const zoomed = () => cam.n > 0 && (cam.W / cam.z < cam.n - 0.05 || cam.H / cam.z < cam.n - 0.05);
+function syncMinimap() { const b = document.getElementById("minimapbox"); if (b) { const on = zoomed(); if (b.hidden === on) { b.hidden = !on; document.body.classList.toggle("zoomed", on); } } }
+function zoomAt(k: number, px = cam.W / 2, py = cam.H / 2) { const bx = cam.cx + (px - cam.W / 2) / cam.z, by = cam.cy + (py - cam.H / 2) / cam.z;
   cam.z *= k; clampCam(); cam.cx = bx - (px - cam.W / 2) / cam.z; cam.cy = by - (py - cam.H / 2) / cam.z; clampCam(); draw();
 }
 function cellAt(px: number, py: number): [number, number] | null {
@@ -1144,7 +1179,7 @@ function drawNow() {
     ctx.font = `700 ${fs}px Oswald, sans-serif`; ctx.lineWidth = Math.max(3, fs * 0.18); ctx.strokeStyle = INK; ctx.lineJoin = "round";
     const X = sx(f.x) + z / 2, Y = sy(f.y) + z * (0.25 - k * 0.55); ctx.strokeText(f.txt, X, Y); ctx.fillStyle = f.col; ctx.fillText(f.txt, X, Y); }
   ctx.globalAlpha = 1;
-  if (big()) drawMinimap();
+  syncMinimap(); if (zoomed()) drawMinimap();
   const busy = castBusy || fx2Busy || W.mode || rubble.length || ultAim || fx.length || bursts.length || ghosts.length || tweens.size || flipping || eui.recruit || [...poses.values()].some((q) => q.until > now);
   if (busy) draw(); else if (zs.length && !zoneT) zoneT = setTimeout(() => { zoneT = 0; draw(); }, 110) as any;
 }
@@ -1261,35 +1296,50 @@ function bindBoard() {
     swallow = stopInertia() || performance.now() < guardTill; vel.length = 0;
     clearTimeout(lpT); lpFired = false;
     if (e.pointerType !== "mouse" && pts.size === 1) { const p0 = local(e); lpT = window.setTimeout(() => { if (moved || pts.size !== 1) return; lpFired = true; hoverTip(p0.x, p0.y, 0, 0, true); }, 450); }
-    if (pts.size >= 2) { clearTimeout(lpT); moved = true; swallow = true; if (big()) pinchStart(); } });
+    if (pts.size >= 2) { clearTimeout(lpT); moved = true; swallow = true; pinchStart(); } });
   c.addEventListener("pointermove", (e) => {
     const p = local(e);
     if (!pts.has(e.pointerId)) { if (ultAim) { const at = cellAt(p.x, p.y); if (at && (at[0] !== aimCell?.[0] || at[1] !== aimCell?.[1])) { aimCell = at; draw(); } return; } hoverTip(p.x, p.y, e.clientX, e.clientY); return; }
     const prev = pts.get(e.pointerId)!; pts.set(e.pointerId, p);
-    if (pts.size >= 2) { if (big() && pz) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    if (pts.size >= 2) { if (pz) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
         cam.z = pz.z * d / pz.d; clampCam(); cam.cx = pz.wx - (mx - cam.W / 2) / cam.z; cam.cy = pz.wy - (my - cam.H / 2) / cam.z; clampCam(); draw(); hideTip(); } return; }
     if (start && Math.hypot(p.x - start.x, p.y - start.y) > TAP_SLOP) { moved = true; clearTimeout(lpT); }
-    if (moved && big()) { cam.cx -= (p.x - prev.x) / cam.z; cam.cy -= (p.y - prev.y) / cam.z; clampCam(); draw(); hideTip();
+    if (moved && (big() || zoomed())) { cam.cx -= (p.x - prev.x) / cam.z; cam.cy -= (p.y - prev.y) / cam.z; clampCam(); draw(); hideTip();
       vel.push({ t: e.timeStamp, x: p.x, y: p.y }); while (vel.length > 2 && e.timeStamp - vel[0].t > 90) vel.shift(); }
   });
   const up = (e: PointerEvent) => { clearTimeout(lpT); const was = pts.has(e.pointerId), n0 = pts.size; pts.delete(e.pointerId);
     if (n0 >= 2) { guardTill = performance.now() + PINCH_GUARD; pz = null; if (pts.size >= 2) pinchStart(); vel.length = 0; return; } // щипок кончился: оставшийся палец только двигает карту
     if (pts.size) return;
     if (lpFired) { lpFired = false; start = null; return; }
-    if (was && moved && big() && e.pointerType !== "mouse" && vel.length >= 2 && e.timeStamp - vel[vel.length - 1].t < 60) { const a = vel[0], b = vel[vel.length - 1], dt = Math.max(1, b.t - a.t); startInertia((b.x - a.x) / dt, (b.y - a.y) / dt); }
+    if (was && moved && (big() || zoomed()) && e.pointerType !== "mouse" && vel.length >= 2 && e.timeStamp - vel[vel.length - 1].t < 60) { const a = vel[0], b = vel[vel.length - 1], dt = Math.max(1, b.t - a.t); startInertia((b.x - a.x) / dt, (b.y - a.y) / dt); }
     if (was && !moved && !swallow && btn === 0 && performance.now() >= guardTill) { const p = local(e); onBoard(p.x, p.y); }
     start = null; swallow = false; };
   c.addEventListener("pointerup", up); c.addEventListener("pointercancel", (e) => { pts.delete(e.pointerId); if (pts.size < 2) pz = null; start = null; });
   c.addEventListener("pointerleave", () => hideTip());
   // колесо/тачпад: плавный зум к точке курсора (deltaY в пикселях или строках)
-  c.addEventListener("wheel", (e) => { if (!big()) return; e.preventDefault(); stopInertia(); const p = local(e), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  c.addEventListener("wheel", (e) => { e.preventDefault(); stopInertia(); const p = local(e), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
     zoomAt(Math.exp(-Math.max(-240, Math.min(240, dy)) * (e.ctrlKey ? 0.01 : 0.0016)), p.x, p.y); }, { passive: false });
   { const lb = $("#logbtn"); if (lb) lb.onclick = () => { const lg = $("#log"), o = !lg.classList.contains("open"); lg.classList.toggle("open", o); lb.setAttribute("aria-expanded", String(o)); lb.setAttribute("aria-label", o ? "Свернуть журнал" : "Развернуть журнал"); if (!o) lg.scrollTop = 0; }; }
+  bindFullscreen();
   $("#zin").onclick = () => zoomAt(1.3); $("#zout").onclick = () => zoomAt(1 / 1.3); $("#zfit").onclick = () => { cam.z = cam.fit; clampCam(); draw(); };
   $("#cenking").onclick = () => { const k = S?.g?.pieces.find((p: any) => p.o === Math.max(0, S.you) && p.k === "king"); if (k) { if (cam.z < 40) cam.z = Math.max(cam.fit, 48); centerOn(k.x, k.y); } else toast("Вождя сейчас нет", "bad", "skull"); };
   $("#cencity").onclick = () => { const cs = (S?.g?.ec?.cities || []).filter((q: any) => q.owner === Math.max(0, S.you)); if (!cs.length) return toast("Городов нет", "bad", "castle");
     cityIdx = (cityIdx + 1) % cs.length; if (cam.z < 40) cam.z = Math.max(cam.fit, 48); centerOn(cs[cityIdx].x, cs[cityIdx].y); };
   bindMinimap();
+}
+/** t1204: «Во весь экран» — Fullscreen API (с webkit-вариантом) для страницы игры; где API нет (iOS Safari) — псевдо-режим:
+ *  #play фиксирован на 100dvh поверх сайта (body.strat-fs). Выход — та же кнопка или Esc; значок меняется. */
+function bindFullscreen() {
+  const b = document.getElementById("fsbtn"); if (!b) return; const de: any = document.documentElement, d: any = document;
+  const native = () => !!(d.fullscreenElement || d.webkitFullscreenElement);
+  const sync = () => { const on = native() || document.body.classList.contains("strat-fs-pseudo"); document.body.classList.toggle("strat-fs", on); b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", on ? "Выйти из полноэкранного режима" : "Во весь экран"); requestAnimationFrame(() => { fitCam(false); draw(); }); };
+  const exit = () => { if (native()) (d.exitFullscreen || d.webkitExitFullscreen)?.call(d); document.body.classList.remove("strat-fs-pseudo"); sync(); };
+  b.onclick = async () => { if (document.body.classList.contains("strat-fs")) return exit();
+    const req = de.requestFullscreen || de.webkitRequestFullscreen;
+    try { if (req) { await req.call(de, { navigationUI: "hide" }); } else throw 0; } catch { document.body.classList.add("strat-fs-pseudo"); scrollTo(0, 0); }
+    sync(); };
+  document.addEventListener("fullscreenchange", sync); document.addEventListener("webkitfullscreenchange", sync);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("strat-fs-pseudo")) exit(); });
 }
 let cityIdx = -1, hoverKey = "", hoverCell: [number, number] | null = null;
 /** Наведение на доску (мышь): короткая подсказка о фигуре или клетке. */
@@ -1338,6 +1388,7 @@ function onBoard(px: number, py: number) {
         Promise.resolve(pick).then((b) => { if (b) { faceAt(P0.id, x, y); send({ type: "act", act: { a: "raze", id: P0.id, city: rt.city, b } }); } }); return; } } }
   if (S.phase !== "play") { selCell = here ? null : [x, y]; sel = here ? here.id : null; renderInfo(); return draw(); }
   if (G.ec && !demo && boardClick(ectx(), x, y, !here)) { selCell = null; sel = null; renderInfo(); renderHint(); return draw(); }
+  if (!here && sel == null && selCell && selCell[0] === x && selCell[1] === y) { selCell = null; renderInfo(); return draw(); } // t1202: повторный тап — закрыть карточку клетки
   selCell = here ? null : [x, y];
   if (here && here.owner === S.you) { sel = here.id === sel ? null : here.id; renderInfo(); return draw(); }
   const P = sel != null ? G.pieces.find((q) => q.id === sel) : null;

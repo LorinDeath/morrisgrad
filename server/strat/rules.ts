@@ -48,6 +48,7 @@ export const STRAT_CFG = {
     5: { size: 5, turnLimit: 0, turnSec: 20, reserveSec: 60, ap: 1, army: [["knight", "king", "rook"]] },
     8: { size: 8, turnLimit: 0, turnSec: 40, reserveSec: 180, ap: 2, army: [["rook", "knight", "king", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn"]] },
     15: { size: 15, turnLimit: 0, turnSec: 60, reserveSec: 300, ap: 3, army: [["rook", "mage", "knight", "king", "hero", "knight", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] },
+    35: { size: 35, turnLimit: 0, turnSec: 90, reserveSec: 600, ap: 4, army: [["rook", "knight", "mage", "knight", "hero", "king", "hero", "knight", "mage", "knight", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] }, // t1201: Тактическая
   } as Record<number, SizeCfg>,
   econ: ECON, build: BUILD, talents: TALENTS, // этап 2 (econ-cfg.ts)
   techs: TECHS, // этап 3: дерево тактик (econ-cfg.ts)
@@ -56,7 +57,7 @@ export const STRAT_CFG = {
   techRace: { order: TECH_NODE_ORDER, names: TECH_RACE_NAMES, fx: TECH_RACE_FX },
 };
 export type StratCfg = typeof STRAT_CFG;
-export const SIZES = [5, 8, 15];
+export const SIZES = [5, 8, 15, 35]; // t1201: 35×35 — Тактическая лига
 /** Лимит ходов задаёт хост в лобби: по умолчанию — из размера поля; 0 = без лимита (партия до гибели Вождя / сдачи / таймаута). */
 export const TURN_LIMIT = { min: 5, max: 200, none: 0 };
 /** null — «по умолчанию»; число — допустимый лимит; undefined — неверное значение (сервер отвечает bad_turn_limit). */
@@ -123,6 +124,7 @@ const OFFICIAL: Record<number, { id: string; name: string; seed: number }[]> = {
   5: [{ id: "o5a", name: "Колодец", seed: 51 }, { id: "o5b", name: "Опушка", seed: 77 }],
   8: [{ id: "o8a", name: "Две переправы", seed: 801 }, { id: "o8b", name: "Горный брод", seed: 813 }],
   15: [{ id: "o15a", name: "Река Чёрных королей", seed: 1501 }, { id: "o15b", name: "Стена и рудники", seed: 1544 }],
+  35: [{ id: "o35a", name: "Великая равнина", seed: 3501 }, { id: "o35b", name: "Три переправы", seed: 3533 }],
 };
 const mapCache = new Map<string, MapData>();
 export function officialMaps(size: number) { return (OFFICIAL[size] || []).map((o) => ({ id: o.id, name: o.name })); }

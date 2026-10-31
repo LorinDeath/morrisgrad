@@ -7,7 +7,7 @@ export const RATING_CFG = {
   start: { rating: 1500, rd: 350, vol: 0.06 },
   tau: 0.5, minRd: 45, maxRd: 350,
   provisional: 10,                       // первые 10 партий — «?» у рейтинга
-  leagues: { quickMax: 9, normalMax: 35, tacticalMax: 100 } as Record<string, number>, // по большей стороне карты
+  leagues: { quickMax: 9, normalMax: 29, tacticalMax: 100 } as Record<string, number>, // по большей стороне карты
   margin: { win: { 2: 1.25, 1: 1.0, 0: 0.85 } as Record<number, number>, lose: { 2: 0.85, 1: 1.0, 0: 1.25 } as Record<number, number> }, // по очкам целей проигравшего (3–2 / 3–1 / 3–0)
   early: { none: 5, quarter: 10, mul: 0.25 }, // конец (сдача/неявка) до 5-го хода — без рейтинга и опыта; 5–9 — ×0,25
   idleLoserMul: 0.25,                    // проигравший не сделал ни одного действия — победителю ×0,25

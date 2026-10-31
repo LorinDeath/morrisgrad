@@ -158,6 +158,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
           <div id="hint" class="hint" hidden></div>
           <div id="checkwarn" class="checkwarn" hidden><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span>Вождь под ударом!</span></div>
           <div id="camctl" class="camctl" hidden>
+            <button class="btn sq" id="fsbtn" aria-label="Во весь экран" aria-pressed="false" data-tip="Во весь экран (Esc — выйти)"><svg class="ic fs-on" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><svg class="ic fs-off" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
             <button class="btn sq" id="zin" aria-label="Приблизить" data-tip="Приблизить"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
             <button class="btn sq" id="zout" aria-label="Отдалить" data-tip="Отдалить"><span class="minus">−</span></button>
             <button class="btn sq" id="zfit" aria-label="Вся карта" data-tip="Вся карта"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg></button>
@@ -234,7 +235,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
       <h4 class="deco-h"><span>Время</span></h4>
       <ul><li>На ход — таймер и общий запас времени. Не успели — ход передаётся сам.</li></ul>
       <h4 class="deco-h" id="rules-leagues"><span>Правила лиг</span></h4>
-      <p>Лига определяется размером поля: <b>Быстрая</b> — 5×5 и 8×8, <b>Обычная</b> — 15×15, <b>Тактическая</b> — 30×30 и больше. У каждой лиги свой рейтинг (Glicko-2); за рейтинговую победу дают монеты. Числа может поправить администратор.</p>
+      <p>Лига определяется размером поля: <b>Быстрая</b> — 5×5 и 8×8, <b>Обычная</b> — 15×15, <b>Тактическая</b> — 35×35. У каждой лиги свой рейтинг (Glicko-2); за рейтинговую победу дают монеты. Числа может поправить администратор.</p>
       <div class="lrules"><table>
         <thead><tr><th></th><th><img src="/strat/ui2/leagues/league_fast_64.png" alt="" />Быстрая</th><th><img src="/strat/ui2/leagues/league_normal_64.png" alt="" />Обычная</th><th><img src="/strat/ui2/leagues/league_tactic_64.png" alt="" />Тактическая</th></tr></thead>
         <tbody>

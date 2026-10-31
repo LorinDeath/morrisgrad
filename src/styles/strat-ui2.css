@@ -779,3 +779,22 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
 @media (max-width: 380px) and (orientation: portrait) {
   .mtabs button { flex-direction: column; gap: 0; font-size: .54rem; } .mtabs button .ic { width: 16px; height: 16px; }
 }
+
+/* t1201: свёрнутый журнал не висит на доске — только всплывает на ~4 с (класс .peek), максимум 2 строки; тап — скрыть; полный — по кнопке */
+#stage .log:not(.open) { opacity: 0; visibility: hidden; transition: opacity .3s, visibility 0s .3s; }
+#stage .log.peek:not(.open) { opacity: 1; visibility: visible; pointer-events: auto; cursor: pointer; transition: opacity .2s; }
+#stage .log:not(.open) .lg:nth-child(n+3) { display: none; }
+
+/* t1204: полноэкранный режим — значок по состоянию; псевдо-режим (iOS): игра поверх сайта на всю высоту */
+#fsbtn .fs-off { display: none; } body.strat-fs #fsbtn .fs-on { display: none; } body.strat-fs #fsbtn .fs-off { display: block; }
+#fsbtn svg { width: 20px; height: 20px; }
+body.strat-fs-pseudo { overflow: hidden; }
+body.strat-fs-pseudo #play.game { position: fixed; inset: 0; z-index: 40; height: 100dvh; overflow: hidden; background: var(--ink, #120d16); }
+body.strat-fs .site-header, body.strat-fs header.site, body.strat-fs footer, body.strat-fs .site-footer { display: none !important; }
+/* t1204: мини-карта на малых картах — только когда приближено (body.zoomed) */
+body:not(.bigmap) #minimapbox:not([hidden]) { display: block; }
+/* t1202: карточка клетки — по строке на пункт, шторка не выше 30% экрана */
+#info .cellinfo{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+#info .cellinfo>small{display:block;line-height:1.25;opacity:.9}
+#info .cellinfo .ci-buy{color:#f3d27a}
+@media (max-width:760px){body.selinfo #info{max-height:30vh;max-height:30dvh;overflow-y:auto}}

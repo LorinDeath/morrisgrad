@@ -13,7 +13,7 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
 {
   const g = newGame(8, ["fire", "ice"], 0);
   ok(g.ec.cities.length === 2 && g.ec.cities.every((c) => c.cap), "8×8: у каждого столица на месте Вождя");
-  ok(g.ec.res[0].gold === C.econ.start.gold + g.ec.inc[0].gold && g.ec.res[1].gold === C.econ.start.gold + ((C.econ.league as any)[g.size <= 9 ? "quick" : g.size <= 35 ? "normal" : "tactical"]?.secondGold ?? C.econ.start.secondGold), "второй игрок получает +золото на старте (компенсация первого хода)");
+  ok(g.ec.res[0].gold === C.econ.start.gold + g.ec.inc[0].gold && g.ec.res[1].gold === C.econ.start.gold + ((C.econ.league as any)[g.size <= 9 ? "quick" : g.size <= 29 ? "normal" : "tactical"]?.secondGold ?? C.econ.start.secondGold), "второй игрок получает +золото на старте (компенсация первого хода)");
   ok(g.ec.era[0] === 1 && sz(g, C).eras === 2, "8×8: эпоха I, всего 2 эпохи");
   const g5 = newGame(5, ["fire", "ice"], 0); ok(g5.ec.era[0] === 0 && canResearch(g5, 0, techById("formation"), C) === "no_tech", "5×5: без технологий");
 }

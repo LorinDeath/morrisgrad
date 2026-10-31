@@ -11,6 +11,7 @@ export const ECON = {
     5: { eras: 0, outposts: 0, capSlots: [1, 1, 1], glory: 0, pop: 8 },
     8: { eras: 2, outposts: 1, capSlots: [2, 3, 4], glory: 150, pop: 14 },
     15: { eras: 4, outposts: 2, capSlots: [2, 3, 4], glory: 300, pop: 22 },
+    35: { eras: 4, outposts: 4, capSlots: [2, 3, 4], glory: 600, pop: 34 }, // t1201: Тактическая (35×35)
   } as Record<number, { eras: number; outposts: number; capSlots: number[]; glory: number; pop: number }>,
   city: {
     capGold: 2, capKnow: 1, outGold: 1, outKnow: 0, // базовый доход города
