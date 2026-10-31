@@ -3,15 +3,30 @@
 import { type MapData, passable, unreachableCells } from "./terrain";
 
 export const SHOWCASE_AUTHOR = "system", SHOWCASE_NICK = "Лорендес";
-type P = { id: string; name: string; size: number; descr: string; paint: (c: Canvas) => void };
+/** симметрия холста: c2 — центральная (1×1), c4 — поворот на 90° (2×2, «Все ×4»), d4 — поворот+зеркало (8 точек), c3/c6 — поворот на 120°/60° (с округлением до клетки) */
+type Sym = "c2" | "c4" | "d4" | "c3" | "c6";
+type P = { id: string; name: string; size: number; descr: string; mode?: string; sym?: Sym; paint: (c: Canvas) => void };
 
 class Canvas {
   t: string[]; s: string[]; r: () => number;
-  constructor(public n: number, seed: number, base = ".") { this.t = Array(n * n).fill(base); this.s = Array(n * n).fill("."); let a = seed >>> 0 || 1; this.r = () => { a ^= a << 13; a ^= a >>> 17; a ^= a << 5; return (a >>> 0) / 4294967296; }; }
+  constructor(public n: number, seed: number, base = ".", public sym: Sym = "c2") { this.t = Array(n * n).fill(base); this.s = Array(n * n).fill("."); let a = seed >>> 0 || 1; this.r = () => { a ^= a << 13; a ^= a >>> 17; a ^= a << 5; return (a >>> 0) / 4294967296; }; }
   in(x: number, y: number) { return x >= 0 && y >= 0 && x < this.n && y < this.n; }
-  /** клетка и её центрально-симметричная пара */
-  T(x: number, y: number, c: string) { x = Math.round(x); y = Math.round(y); if (!this.in(x, y)) return; const n = this.n; this.t[y * n + x] = c; this.t[(n - 1 - y) * n + (n - 1 - x)] = c; }
-  S(x: number, y: number, c: string) { x = Math.round(x); y = Math.round(y); if (!this.in(x, y)) return; const n = this.n; this.s[y * n + x] = c; this.s[(n - 1 - y) * n + (n - 1 - x)] = c; }
+  /** орбита клетки по симметрии холста (c2 — сама клетка и центрально-симметричная пара) */
+  orb(x: number, y: number): [number, number][] {
+    const n = this.n, m = n - 1, out: [number, number][] = [];
+    if (this.sym === "c2") out.push([x, y], [m - x, m - y]);
+    else if (this.sym === "c4" || this.sym === "d4") { let a = x, b = y; for (let k = 0; k < 4; k++) { out.push([a, b]); if (this.sym === "d4") out.push([m - a, b]); [a, b] = [m - b, a]; } }
+    else { const k = this.sym === "c3" ? 3 : 6, c = m / 2; for (let j = 0; j < k; j++) { const t = (2 * Math.PI * j) / k, dx = x - c, dy = y - c; out.push([Math.round(c + dx * Math.cos(t) - dy * Math.sin(t)), Math.round(c + dx * Math.sin(t) + dy * Math.cos(t))]); } }
+    return out;
+  }
+  /** клетка и её симметричные пары */
+  T(x: number, y: number, c: string) { x = Math.round(x); y = Math.round(y); if (!this.in(x, y)) return; const n = this.n; for (const [a, b] of this.orb(x, y)) if (this.in(a, b)) this.t[b * n + a] = c; }
+  S(x: number, y: number, c: string) { x = Math.round(x); y = Math.round(y); if (!this.in(x, y)) return; const n = this.n; for (const [a, b] of this.orb(x, y)) if (this.in(a, b)) this.s[b * n + a] = c; }
+  /** t1219: рельеф по полярному полю — f(r, угол от луча на свой старт [0, π/k], w — расстояние в клетках до межи с соседом) — точная симметрия без «дыр» от поворота клеток */
+  field(k: number, f: (r: number, a: number, w: number) => string | null) { const n = this.n, c = (n - 1) / 2, sec = (2 * Math.PI) / k;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const r = Math.hypot(x - c, y - c); let a = Math.atan2(y - c, x - c) - Math.PI / 2; a = ((a % sec) + sec) % sec; if (a > sec / 2) a = sec - a; const v = f(r, a, r * (sec / 2 - a)); if (v) this.t[y * n + x] = v; } }
+  /** t1219: точка спавна 2×2/FFA — чистый круг радиуса r (армия встаёт к центру) */
+  spawnR(x: number, y: number, r = 3) { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r + 1 && this.in(x + dx, y + dy)) { const ch = this.get(x + dx, y + dy); this.T(x + dx, y + dy, "mw#f".includes(ch) ? "," : ch); this.S(x + dx, y + dy, "."); } this.S(x, y, "P"); }
   get(x: number, y: number) { return this.t[y * this.n + x]; }
   disc(cx: number, cy: number, r: number, c: string, keep?: string) { for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r && this.in(x, y) && (!keep || !keep.includes(this.get(x, y)))) this.T(x, y, c); }
   /** «клякса» — неровное пятно */
@@ -26,8 +41,8 @@ class Canvas {
   put(x: number, y: number, c: string) { x = Math.round(x); y = Math.round(y); for (let d = 0; d < 6; d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) { const a = x + dx, b = y + dy; if (this.free(a, b) && this.s[b * this.n + a] === "." && this.s[(this.n - 1 - b) * this.n + (this.n - 1 - a)] === ".") { if (this.get(a, b) === "g" || this.get(a, b) === "b") continue; this.S(a, b, c); return; } } }
   /** поле у точки спавна чистое (армия встаёт рядами к центру) */
   spawn(x: number, y: number, clear = 3) { for (let dy = -clear; dy <= 1; dy++) for (let dx = -clear - 2; dx <= clear + 2; dx++) if (this.in(x + dx, y + dy)) { this.T(x + dx, y + dy, "mw#".includes(this.get(x + dx, y + dy)) || this.get(x + dx, y + dy) === "f" ? "," : this.get(x + dx, y + dy)); this.S(x + dx, y + dy, "."); } this.S(x, y, "P"); }
-  map(id: string, name: string): MapData {
-    const m: MapData = { id, name, size: this.n, t: this.t.join(""), s: this.s.join("") };
+  map(id: string, name: string, mode?: string): MapData {
+    const m: MapData = { id, name, size: this.n, t: this.t.join(""), s: this.s.join(""), ...(mode ? { mode } : {}) };
     // карманы, отрезанные от основной области: мелкие — заливаем горой, крупные — пробиваем проход к центру
     for (let pass = 0; pass < 8; pass++) {
       const un = unreachableCells({ ...m, t: this.t.join(""), s: this.s.join("") }); if (!un.length) break;
@@ -80,7 +95,7 @@ const DEFS: P[] = [
     c.path([[37, 74], [30, 60], [37, 44]], "r", 1, 6); c.path([[0, 50], [20, 52], [37, 44]], "r", 1, 6);
     for (const [x, y, k] of [[12, 60, "M"], [60, 62, "M"], [25, 66, "Q"], [50, 54, "V"], [8, 45, "X"], [66, 45, "X"], [30, 50, "R"], [45, 64, "S"], [20, 40, "V"], [62, 70, "R"]] as [number, number, string][]) c.put(x, y, k);
     c.spawn(37, 73, 3); } },
-  { id: "s08", name: "Озёрный край", size: 75, descr: "Цепь озёр, луга и рыбацкие причалы; в центре — остров с местом чуда.", paint: (c) => {
+  { id: "s08", name: "Озёрный край", size: 75, mode: "1v1", descr: "Цепь озёр, луга и рыбацкие причалы; в центре — остров с местом чуда.", paint: (c) => {
     c.sprinkle(60, ",", 6); c.sprinkle(50, "f", 3.5);
     for (const [x, y, r] of [[15, 15, 6], [37, 37, 7], [60, 18, 5], [12, 45, 4], [40, 14, 4], [58, 45, 3]] as [number, number, number][]) c.blob(x, y, r, "w");
     c.disc(37, 37, 2.5, ","); c.line(37, 40, 37, 46, "b"); c.S(37, 37, "O");
@@ -96,7 +111,7 @@ const DEFS: P[] = [
     for (let i = 0; i < 75 * 75; i++) if (c.t[i] === "r") { const x = i % 75, y = Math.floor(i / 75); void x; void y; }
     for (const [x, y, k] of [[22, 66, "M"], [52, 68, "M"], [30, 48, "Q"], [45, 46, "A"], [5, 40, "S"], [68, 42, "T"], [37, 70, "W"], [25, 25, "R"], [50, 25, "X"]] as [number, number, string][]) c.put(x, y, k);
     c.spawn(37, 73, 3); } },
-  { id: "s10", name: "Мир Лорендеса", size: 100, descr: "Большой мир: река, хребты, леса, крепость в центре, восемь точек старта (1×1 — нижняя и верхняя).", paint: (c) => {
+  { id: "s10", name: "Мир Лорендеса", size: 100, mode: "1v1", descr: "Большой мир: река, хребты, леса, крепость в центре, восемь точек старта (1×1 — нижняя и верхняя).", paint: (c) => {
     c.sprinkle(120, ",", 7); c.sprinkle(110, "f", 4.5);
     c.path([[0, 38], [20, 42], [40, 36], [60, 41], [80, 37], [99, 40]], "w", 3, 6);
     for (const x of [10, 33, 50, 67, 90]) for (let y = 28; y <= 50; y++) if (c.get(x, y) === "w") c.T(x, y, "b");
@@ -107,13 +122,72 @@ const DEFS: P[] = [
     c.line(50, 99, 50, 57, "r"); c.path([[0, 60], [30, 58], [43, 50]], "r", 1, 4);
     for (const [x, y, k] of [[20, 80, "M"], [78, 85, "M"], [35, 90, "Q"], [65, 92, "V"], [10, 60, "V"], [88, 62, "A"], [30, 60, "S"], [70, 66, "X"], [50, 75, "W"], [40, 82, "R"], [12, 48, "D"], [62, 48, "D"], [85, 55, "T"], [25, 55, "W"]] as [number, number, string][]) c.put(x, y, k);
     c.spawn(50, 98, 3); c.spawn(15, 95, 2); c.spawn(85, 95, 2); c.spawn(6, 75, 2); } },
+  // ---------- t1219: карты под 2×2 и «Все» (симметрия по числу мест — честный старт у каждого)
+  { id: "m01", name: "Четыре брода", size: 15, mode: "2v2", sym: "c4", descr: "2×2 на малом поле: четыре протоки от краёв к центру, броды и башня посередине. Союзники — по соседству.", paint: (c) => {
+    c.sprinkle(4, "f", 1.6); c.sprinkle(4, ",", 2);
+    for (let y = 0; y <= 4; y++) c.T(7, y, "w"); c.T(7, 2, "b"); c.disc(7, 7, 1.5, ","); c.S(7, 7, "T");
+    c.put(4, 7, "M"); c.put(10, 5, "V"); c.put(5, 4, "W"); c.spawnR(3, 11, 2); } },
+  { id: "m02", name: "Союзные крепости", size: 35, mode: "2v2", sym: "c4", descr: "2×2: у каждого угла — крепость с воротами, между союзниками тракт, к центру — место чуда за кольцом леса.", paint: (c) => {
+    c.sprinkle(16, ",", 3.5); c.sprinkle(14, "f", 2.5);
+    c.line(6, 28, 28, 28, "r"); c.line(6, 28, 17, 17, "r");
+    for (let a = 0; a < 360; a += 3) { const t = (a * Math.PI) / 180; c.T(17 + Math.cos(t) * 5, 17 + Math.sin(t) * 5, "f"); }
+    c.disc(17, 17, 3, ","); c.S(17, 17, "O");
+    for (let k = -2; k <= 2; k++) { c.T(10 + k, 21, "#"); } c.T(10, 21, "g"); c.blob(17, 9, 2, "m");
+    for (const [x, y, k] of [[11, 25, "M"], [14, 31, "V"], [4, 20, "A"], [8, 14, "Q"], [17, 24, "W"], [13, 19, "R"], [22, 22, "X"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(6, 28, 3); } },
+  { id: "m03", name: "Равнина четырёх", size: 50, mode: "2v2", sym: "c4", descr: "2×2 и «Все ×4»: широкие луга, четыре озера и мосты, деревни на перекрёстках. В центре — обелиск.", paint: (c) => {
+    c.sprinkle(30, ",", 5); c.sprinkle(26, "f", 3.5); c.sprinkle(4, "m", 2.5);
+    c.blob(24, 12, 3.5, "w"); for (let y = 8; y <= 16; y++) if (c.get(24, y) === "w") c.T(24, y, "b");
+    c.line(8, 41, 24, 24, "r"); c.line(8, 41, 41, 41, "r"); c.disc(24.5, 24.5, 2.5, ","); c.S(24, 24, "X");
+    for (const [x, y, k] of [[14, 36, "M"], [20, 44, "V"], [5, 30, "A"], [12, 25, "Q"], [18, 31, "W"], [29, 35, "R"], [9, 18, "S"], [16, 14, "D"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(8, 41, 3); } },
+  { id: "m04", name: "Трёхречье", size: 35, mode: "ffa3", sym: "c3", descr: "«Все ×3»: три реки от краёв делят поле на уделы, на каждой — мост; в центре — поляна с местом чуда. Поворот на 120°.", paint: (c) => {
+    c.field(3, (r, a, w) => r > 17.5 ? "f" : (w < 0.8 && r > 4 && r < 15) ? "w" : null);
+    c.field(3, (r, a, w) => (w < 1.1 && r > 9 && r < 10.5) ? "b" : null);
+    c.disc(17, 17, 2.2, ","); c.S(17, 17, "O"); c.sprinkle(8, ",", 3); c.sprinkle(6, "f", 2);
+    c.field(3, (r, a, w) => (w < 0.8 && r > 4 && r < 15 && !(r > 9 && r < 10.5)) ? "w" : null); c.field(3, (r, a, w) => (w < 1.1 && r > 9 && r < 10.5) ? "b" : null);
+    for (const [x, y, k] of [[17, 26, "M"], [13, 23, "W"], [21, 22, "V"], [17, 21, "R"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(17, 31, 3); } },
+  { id: "m05", name: "Четыре стороны света", size: 35, mode: "ffa4", sym: "c4", descr: "«Все ×4»: старты у середины каждой стороны, углы — горные крепости с рудниками, центр открыт.", paint: (c) => {
+    c.sprinkle(14, ",", 3.5); c.sprinkle(12, "f", 2.5);
+    c.blob(4, 30, 3, "m"); c.disc(17, 17, 3, ","); c.S(17, 17, "T"); c.line(17, 31, 17, 20, "r");
+    for (const [x, y, k] of [[11, 28, "M"], [24, 28, "V"], [17, 25, "W"], [14, 24, "A"], [21, 24, "R"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(17, 31, 3); } },
+  { id: "m06", name: "Шесть княжеств", size: 75, mode: "ffa6", sym: "c6", descr: "«Все ×6»: шесть уделов по кругу, лесные межи между соседями, кольцевой тракт и святилище в центре. Поворот на 60°.", paint: (c) => {
+    c.field(6, (r, a, w) => r > 37 ? "f" : (w < 0.9 && r > 12 && r < 33) ? "f" : (r > 20 && r < 21.5) ? "r" : null);
+    c.field(6, (r, a, w) => (w < 1.6 && r > 24 && r < 30) ? "m" : null);
+    c.sprinkle(30, ",", 4); c.disc(37, 37, 4, ","); c.S(37, 37, "S");
+    c.field(6, (r, a, w) => (w < 0.9 && r > 12 && r < 33 && !(r > 20 && r < 21.5)) ? "f" : (w < 1.6 && r > 24 && r < 30) ? "m" : null);
+    for (const [x, y, k] of [[37, 58, "M"], [31, 52, "V"], [43, 51, "W"], [37, 47, "R"], [30, 64, "Q"], [45, 64, "A"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(37, 68, 3); } },
+  { id: "m07", name: "Восемь ветров", size: 75, mode: "ffa8", sym: "d4", descr: "«Все ×8»: восемь станов вдоль краёв, озеро-роза ветров в центре с четырьмя мостами, обелиски на подступах.", paint: (c) => {
+    c.sprinkle(40, ",", 5); c.sprinkle(34, "f", 3.5); c.sprinkle(6, "m", 2.5);
+    c.disc(37, 37, 7, "w"); for (let y = 30; y <= 44; y++) c.T(37, y, "b"); c.disc(37, 37, 2, ","); c.S(37, 37, "O");
+    c.line(25, 68, 37, 45, "r"); c.blob(37, 62, 2.5, "m");
+    for (const [x, y, k] of [[22, 58, "M"], [16, 64, "V"], [28, 54, "W"], [31, 60, "X"], [12, 52, "R"], [20, 48, "A"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(25, 68, 3); } },
+  { id: "m08", name: "Великий собор", size: 100, mode: "ffa8", sym: "d4", descr: "«Все ×8» на огромном поле: стены собора в центре с воротами, реки к углам, по деревне и руднику у каждого стана.", paint: (c) => {
+    c.sprinkle(70, ",", 6); c.sprinkle(60, "f", 4.5); c.sprinkle(10, "m", 3);
+    for (let k = 0; k <= 30; k++) c.T(8 + k, 8 + k, "w"); c.T(20, 20, "b"); c.T(30, 30, "b");
+    for (let k = -8; k <= 8; k++) c.T(49.5 + k, 41, "#"); c.T(49, 41, "g"); c.disc(49.5, 49.5, 5, ","); c.S(49, 49, "O");
+    c.line(33, 92, 49, 60, "r");
+    for (const [x, y, k] of [[30, 80, "M"], [22, 88, "V"], [40, 76, "W"], [44, 84, "X"], [16, 72, "R"], [27, 66, "A"], [38, 66, "Q"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(33, 92, 3); } },
+  { id: "m09", name: "Гексагон", size: 100, mode: "ffa6", sym: "c6", descr: "«Все ×6» на огромном поле: шестиугольная крепость в центре, реки-лучи между уделами, мосты на кольцевом тракте.", paint: (c) => {
+    c.field(6, (r, a, w) => r > 49 ? "f" : (w < 0.9 && r > 16 && r < 46) ? "w" : null);
+    c.sprinkle(60, ",", 5); c.sprinkle(50, "f", 4);
+    c.field(6, (r, a, w) => r > 49 ? "f" : (w < 0.9 && r > 16 && r < 46) ? (r > 30 && r < 32 ? "b" : "w") : (r > 30 && r < 31.5) ? "r" : null);
+    c.field(6, (r, a, w) => (r > 10 && r < 11.2 && a > 0.12) ? "#" : (r > 10 && r < 11.2) ? "g" : null);
+    c.disc(49.5, 49.5, 3, ","); c.S(49, 49, "O");
+    for (const [x, y, k] of [[49, 78, "M"], [41, 72, "V"], [57, 71, "W"], [49, 64, "X"], [38, 85, "R"], [61, 85, "A"], [49, 70, "Q"]] as [number, number, string][]) c.put(x, y, k);
+    c.spawnR(49, 91, 3); } },
 ];
 
 const cache = new Map<string, MapData & { descr: string }>();
 export function showcaseMap(id: string): (MapData & { descr: string }) | null {
   if (cache.has(id)) return cache.get(id)!; const d = DEFS.find((x) => x.id === id); if (!d) return null;
-  const c = new Canvas(d.size, parseInt(d.id.slice(1), 10) * 7919 + d.size); d.paint(c);
-  const m = { ...c.map(d.id, d.name), descr: d.descr }; cache.set(id, m); return m;
+  const c = new Canvas(d.size, parseInt(d.id.slice(1), 10) * 7919 + d.size + (d.id[0] === "m" ? 104729 : 0), ".", d.sym || "c2"); d.paint(c);
+  const m = { ...c.map(d.id, d.name, d.mode), descr: d.descr }; cache.set(id, m); return m;
 }
 export const SHOWCASE_IDS = DEFS.map((d) => d.id);
 export const showcaseAll = () => SHOWCASE_IDS.map((id) => showcaseMap(id)!);

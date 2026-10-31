@@ -51,11 +51,12 @@ export async function libUnsave(db: any, uid: string, id: string) { await db.pre
 export const REPLAY_ID_RE = /^[A-HJ-NP-Z2-9]{6}:\d{10,15}$/;
 
 /** Кадр законченной партии: всё раскрыто (оба дерева, территории, точные HP, полный разбор ударов). */
-export function revealFrame(g: GameState, ev: Ev[], cfg: StratCfg, terr?: (g: GameState, s: 0 | 1, C: StratCfg) => any) {
-  const out: any = { g: view(g, true, cfg), ev, check: [inCheck(g, 0), inCheck(g, 1)], trees: [treeView(g, 0, cfg), treeView(g, 1, cfg)] };
-  if (g.ec) { out.goals = [goalDetails(g, 0, cfg), goalDetails(g, 1, cfg)]; out.towers = (g.ec.towers || []).map((t: any) => ({ ...t }));
+export function revealFrame(g: GameState, ev: Ev[], cfg: StratCfg, terr?: (g: GameState, s: number, C: StratCfg) => any) {
+  const S = Array.from({ length: g.np || 2 }, (_, i) => i); // t1219: N мест
+  const out: any = { g: view(g, true, cfg), ev, check: S.map((i) => inCheck(g, i)), trees: S.map((i) => treeView(g, i, cfg)) };
+  if (g.ec) { out.goals = S.map((i) => goalDetails(g, i, cfg)); out.towers = (g.ec.towers || []).map((t: any) => ({ ...t }));
     out.bhp = g.ec.cities.map((c) => ({ city: c.id, b: c.bld.map((b) => ({ b, hp: c.bhp?.[b] ?? bldMaxHp(g, c, b, cfg), max: bldMaxHp(g, c, b, cfg) })), ruin: c.ruin || [] }));
-    if (terr) out.terrs = [terr(g, 0, cfg), terr(g, 1, cfg)]; }
+    if (terr) out.terrs = S.map((i) => terr(g, i, cfg)); }
   return out;
 }
 
@@ -64,7 +65,7 @@ export function revealFrame(g: GameState, ev: Ev[], cfg: StratCfg, terr?: (g: Ga
  *                                              GET /strat/replay?id=…&from=A&to=B → { frames: [{ i, frame }] } (≤ 40, для автопроигрывания) */
 export class ReplayServer {
   cache = new Map<string, { fc: FrameCache; log: RLog; meta: ReplayMeta; changed: boolean; at: number }>();
-  constructor(public terr?: (g: GameState, s: 0 | 1, C: StratCfg) => any) {}
+  constructor(public terr?: (g: GameState, s: number, C: StratCfg) => any) {}
   async get(db: any, id: string) {
     const c = this.cache.get(id); if (c) { c.at = Date.now(); return c; }
     const r: any = await db.prepare(`SELECT ${META_COLS}, status, log FROM strat_replays WHERE id = ?`).bind(id).first(); if (!r || r.status !== "over") return null;

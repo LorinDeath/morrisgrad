@@ -5,6 +5,7 @@ import { type GameState, type Action, type Piece, type Kind, type StratCfg, appl
 import { canUlt } from "./ult";
 import { type BuildId, type Branch } from "./econ-cfg";
 import { territory, canRecruit, recruitCells, canBuild, canResearch, canEra, canFound, pendingTalent, unitChoices, unitAct, sz, cityRadius, techList, chiefChoices, chiefNode, goalProgress, goalCfg, chiefBuildSite, bldHp, bldStat } from "./econ";
+import { NP, foe, seatList, teamOf, teamList, isOut, mainFoe, drawCode } from "./seats";
 
 export type W = {
   mat: number; kingHp: number; kingDanger: number; hang: number; bank: number; know: number; bld: number; tech: number; era: number;
@@ -41,15 +42,18 @@ export function clone(g: GameState): GameState {
 }
 
 /** Оценка с точки зрения side: f(side) − f(соперник). Победа/поражение — ±1e5. */
-export function evaluate(g: GameState, side: 0 | 1, cfg: StratCfg, w: W = W_BAL): number {
-  if (g.winner !== -1) return g.winner === 2 ? 0 : g.winner === side ? 1e5 - g.turn : -1e5 + g.turn;
-  const n = g.size, T = territory(g, cfg);
-  const att = [new Uint8Array(n * n), new Uint8Array(n * n)];
+export function evaluate(g: GameState, side: number, cfg: StratCfg, w: W = W_BAL): number {
+  if (g.winner !== -1) return g.winner === drawCode(g) ? 0 : g.winner === teamOf(g, side) ? 1e5 - g.turn : -1e5 + g.turn;
+  const n = g.size, T = territory(g, cfg), S = seatList(g);
+  const att = S.map(() => new Uint8Array(n * n));
   for (const p of g.pieces) for (const [x, y] of attackTargets(g, p, cfg)) att[p.owner][y * n + x]++;
-  const f = [0, 0];
+  // t1219: угрозы от всех врагов места (в 1×1 — att[1 - s])
+  const fa = S.map((s) => { if (NP(g) === 2) return att[1 - s]; const a = new Uint8Array(n * n); for (const q of S) if (foe(g, q, s)) for (let i = 0; i < a.length; i++) a[i] += att[q][i]; return a; });
+  const f = S.map(() => 0);
   const thr = sz(g, cfg).glory, lim = g.turnLimit || 60, phase = 1 + 2 * Math.min(1, g.turn / lim);
-  for (const s of [0, 1] as const) {
-    const o = 1 - s, ec = g.ec;
+  for (const s of S) {
+    if (isOut(g, s)) continue;
+    const o = mainFoe(g, s), ec = g.ec, eA = fa[s], isF = (v: number) => v >= 0 && foe(g, v, s);
     const ecap = ec?.cities.find((c) => c.owner === o && c.cap) || g.pieces.find((p) => p.owner === o && p.kind === "king");
     const mcap = ec?.cities.find((c) => c.owner === s && c.cap) || g.pieces.find((p) => p.owner === s && p.kind === "king");
     let v = 0, pawnN = 0; const ramp = 1 + Math.min(1, g.turn / lim);
@@ -60,24 +64,24 @@ export function evaluate(g: GameState, side: 0 | 1, cfg: StratCfg, w: W = W_BAL)
       if ((p as any).sh) v += 0.5 * (p as any).sh; // щит купола
       if ((p as any).root) v -= 2 * (p as any).root; // корни
       if (p.kind === "king") {
-        v += w.kingHp * hpf - w.kingDanger * att[o][i] * (1.5 - hpf);
+        v += w.kingHp * hpf - w.kingDanger * eA[i] * (1.5 - hpf);
         if (ec && T[i] === s) v += 1.5; // t1137: Вождь на своей земле может строить
-        for (const q of g.pieces) if (q.owner === o && q.kind !== "pawn" && cheb(q, p) <= 2) v -= w.kingDanger * 0.35;
+        for (const q of g.pieces) if (isF(q.owner) && q.kind !== "pawn" && cheb(q, p) <= 2) v -= w.kingDanger * 0.35;
         continue;
       }
       const pv = val(p, cfg) * (w.unit?.[p.kind] ?? 1) * (p.kind === "pawn" && pawnN > (w.pawnCap ?? 4) ? 0.3 : 1); // лишние Ополченцы почти ничего не стоят
       v += w.mat * pv * (0.45 + 0.55 * hpf) + w.tal * (p.tal?.length || 0);
-      if (att[o][i]) v -= w.hang * pv * (att[s][i] ? 0.45 : 1) * (g.cur === o ? 1 : 0.6);
+      if (eA[i]) v -= w.hang * pv * (att[s][i] ? 0.45 : 1) * (isF(g.cur) ? 1 : 0.6);
       const vs = Math.min(2, pv / 4); // ценность фигуры масштабирует позиционные бонусы (иначе бот плодит Ополченцев)
       if (ecap) v += w.adv * ramp * vs * (1 - cheb(p, ecap) / n);
       if (mcap && cheb(p, mcap) <= 2) v += w.home * vs;
-      if (T[i] === o) v += w.raid * vs;
+      if (isF(T[i])) v += w.raid * vs;
     }
     if (ec) {
       for (const c of ec.cities) {
         if (c.owner === s) { if (!c.cap) v += w.city; for (const b of c.bld) v += w.bld * (cfg.build[b]?.cost || 0) * (w.pref?.[b] ?? 1) * (0.4 + 0.6 * bldHp(g, c, b, cfg) / Math.max(1, (cfg as any).bldHp?.type ? bldStat(cfg, b).hp : 1)); v += c.lvl * 4; }
         const occ = g.pieces.find((p) => p.x === c.x && p.y === c.y);
-        if (occ && occ.owner === s && c.owner === o) v += w.siege * (c.cap ? 2.5 : 1);
+        if (occ && occ.owner === s && isF(c.owner)) v += w.siege * (c.cap ? 2.5 : 1);
       }
       const r = ec.res[s];
       v += w.bank * (Math.min(r.gold, 40) + 0.3 * Math.max(0, r.gold - 40)) + w.know * Math.min(r.know, 40) + w.era * ec.era[s];
@@ -98,17 +102,19 @@ export function evaluate(g: GameState, side: 0 | 1, cfg: StratCfg, w: W = W_BAL)
     }
     f[s] = v;
   }
-  return f[side] - f[1 - side];
+  if (NP(g) === 2) return f[side] - f[1 - side];
+  const tv = (t: number) => S.reduce((a, s) => a + (teamOf(g, s) === t ? f[s] : 0), 0), me = teamOf(g, side); // команда — сумма мест; соперник — сильнейшая команда
+  return tv(me) - Math.max(...teamList(g).filter((t) => t !== me).map(tv));
 }
 
 /** Кандидаты: бесплатные действия (таланты, эпоха, технологии, город) и/или боевые (ход/удар/застава). */
-export function candidates(g: GameState, side: 0 | 1, cfg: StratCfg, econ = true, mil = true): Action[] {
+export function candidates(g: GameState, side: number, cfg: StratCfg, econ = true, mil = true): Action[] {
   const out: Action[] = [], ec = g.ec;
   if (econ && ec) {
     for (const p of g.pieces) if (p.owner === side) { const lv = pendingTalent(p, cfg, g); if (lv) for (const t of (p.kind === "king" ? chiefChoices(g, p, cfg) : unitChoices(p, lv, cfg))) out.push({ a: "talent", id: p.id, t: t.id } as any); }
     if (!canEra(g, side, cfg)) out.push({ a: "era" } as any);
     for (const t of techList(cfg)) if (!canResearch(g, side, t, cfg)) out.push({ a: "research", t: t.id } as any);
-    const ecap = ec.cities.find((c) => c.owner !== side && c.cap);
+    const ecap = ec.cities.find((c) => foe(g, c.owner, side) && c.cap);
     const mine = g.pieces.filter((p) => p.owner === side && p.kind !== "king");
     const fk = (["rook", "knight", "mage", "pawn", "hero"] as Kind[]).sort((a, b) => mine.filter((p) => p.kind === b).length - mine.filter((p) => p.kind === a).length)[0];
     for (const c of ec.cities) if (c.owner === side && !c.acted) {
@@ -131,28 +137,28 @@ export function candidates(g: GameState, side: 0 | 1, cfg: StratCfg, econ = true
     if (ec && p.kind === "king") for (const id of p.tal || []) { const nd = chiefNode(cfg, g, side, id); if (nd?.kind === "active" && !nd.ult && !((p.cds?.[id] ?? 0) > 0)) out.push({ a: "ability", id: p.id, ab: id } as any); }
     const ua = ec && p.kind !== "king" ? unitAct(p, cfg) : null;
     if (ua && !((p.cds?.[ua.id] ?? 0) > 0) && g.ap >= ua.ap) {
-      if (ua.type === "volley") { for (const q of g.pieces) if (q.owner !== side && Math.max(Math.abs(q.x - p.x), Math.abs(q.y - p.y)) <= (ua.r || 3)) out.push({ a: "ability", id: p.id, ab: ua.id, x: q.x, y: q.y } as any); }
+      if (ua.type === "volley") { for (const q of g.pieces) if (foe(g, q.owner, side) && Math.max(Math.abs(q.x - p.x), Math.abs(q.y - p.y)) <= (ua.r || 3)) out.push({ a: "ability", id: p.id, ab: ua.id, x: q.x, y: q.y } as any); }
       else if (ua.type !== "mend" || p.hp < p.maxHp) out.push({ a: "ability", id: p.id, ab: ua.id } as any);
     }
     // ультимейт: цели — клетки врагов в дальности (купол — свои; волна — 8 соседних клеток-направлений)
     const ul = ec ? ultOf(g, p, cfg) : null;
     if (ul && !((p.cds?.[ul.key] ?? 0) > 0) && g.ap >= ul.u.ap) {
       const cells: [number, number][] = ul.u.shape === "line" ? [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].map(([dx, dy]) => [p.x + dx, p.y + dy] as [number, number])
-        : g.pieces.filter((q) => (ul.u.shield ? q.owner === side : q.owner !== side)).map((q) => [q.x, q.y] as [number, number]);
+        : g.pieces.filter((q) => (ul.u.shield ? q.owner === side : foe(g, q.owner, side))).map((q) => [q.x, q.y] as [number, number]);
       for (const [x, y] of cells) if (!canUlt(g, side, p, ul.u, x, y)) out.push({ a: "ult", id: p.id, x, y } as any);
     }
   }
   return out;
 }
 
-function tryApply(g: GameState, side: 0 | 1, a: Action, cfg: StratCfg): GameState | null {
+function tryApply(g: GameState, side: number, a: Action, cfg: StratCfg): GameState | null {
   const c = clone(g); const r = apply(c, side, a, cfg); return r.ok ? c : null;
 }
 
 export type BotOpts = { arch?: string; depth?: number; beam?: number; noise?: number; rnd?: () => number; stats?: { turns: number; legal: number; good: number } };
 
 /** 1 шаг политики. depth 1 — жадный по оценке; depth ≥ 2 — альфа-бета по боевым действиям (бесплатные — жадно). */
-export function aiAction(g: GameState, side: 0 | 1, cfg: StratCfg, o: BotOpts = {}): Action {
+export function aiAction(g: GameState, side: number, cfg: StratCfg, o: BotOpts = {}): Action {
   const w = weights(o.arch), rnd = o.rnd || Math.random, noise = o.noise ?? 0.25;
   const base = evaluate(g, side, cfg, w);
   // 1) бесплатные действия — жадно, если улучшают оценку
@@ -172,7 +178,7 @@ export function aiAction(g: GameState, side: 0 | 1, cfg: StratCfg, o: BotOpts = 
   }
   if (o.stats) { o.stats.turns++; o.stats.legal += kids.length; const top = kids.reduce((m, k) => Math.max(m, k.s), -1e9); o.stats.good += kids.filter((k) => k.s >= top - 1.5 && k.s > base).length; }
   if (!kids.length) return { a: "end" };
-  const depth = o.depth ?? 1;
+  const depth = g.mode?.startsWith("ffa") ? 1 : o.depth ?? 1; // t1219: FFA — жадный (без перебора по N соперникам)
   if (depth <= 1) { kids.sort((a, b) => b.s - a.s); return kids[0].s > base + 0.05 ? kids[0].a : { a: "end" }; }
   // перебор: «закончить ход» — тоже вариант
   const ce = tryApply(g, side, { a: "end" }, cfg); if (ce) kids.push({ s: evaluate(ce, side, cfg, w), a: { a: "end" }, c: ce });
@@ -186,9 +192,9 @@ export function aiAction(g: GameState, side: 0 | 1, cfg: StratCfg, o: BotOpts = 
   return best.a;
 }
 
-function ab(g: GameState, root: 0 | 1, depth: number, alpha: number, beta: number, cfg: StratCfg, w: W, beam: number): number {
+function ab(g: GameState, root: number, depth: number, alpha: number, beta: number, cfg: StratCfg, w: W, beam: number): number {
   if (g.winner !== -1 || depth <= 0) return evaluate(g, root, cfg, w);
-  const me = g.cur, max = me === root;
+  const me = g.cur, max = teamOf(g, me) === teamOf(g, root); // 2×2: ход союзника — тоже max
   if (g.ap < 1) { const c = tryApply(g, me, { a: "end" }, cfg); return c ? ab(c, root, depth, alpha, beta, cfg, w, beam) : evaluate(g, root, cfg, w); }
   const kids: { s: number; c: GameState }[] = [];
   for (const a of [...candidates(g, me, cfg, false, true), { a: "end" } as Action]) {
@@ -215,7 +221,7 @@ export const BOT_LEVELS: Record<BotLevel, { depth: number; noise: number; beam?:
   medium: { depth: 1, noise: 0.25, blunder: 0, name: "Средний" },   // жадный по полной оценке
   hard: { depth: 2, noise: 0.1, beam: 5, blunder: 0, name: "Сильный" }, // поиск альфа-бета
 };
-export function matchBot(g: GameState, side: 0 | 1, cfg: StratCfg, level: BotLevel = "medium", arch = "bal", rnd: () => number = Math.random): Action {
+export function matchBot(g: GameState, side: number, cfg: StratCfg, level: BotLevel = "medium", arch = "bal", rnd: () => number = Math.random): Action {
   const L = BOT_LEVELS[level] || BOT_LEVELS.medium;
   if (L.blunder && rnd() < L.blunder && g.ap >= 1) {
     const c = candidates(g, side, cfg, true, true).filter((a) => tryApply(g, side, a, cfg)); if (c.length) return c[Math.floor(rnd() * c.length)];

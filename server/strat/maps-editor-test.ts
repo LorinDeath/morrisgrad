@@ -37,7 +37,7 @@ const setT = (m: MapData, x: number, y: number, c: string) => { const a = m.t.sp
   const m3 = blank(30); for (let i = 0; i < 9; i++) { setS(m3, i * 3, 29, "P"); } setS(m3, 1, 0, "P"); ok(checkSave(m3).errors.includes("spawns_many"), "больше 8 точек — spawns_many"); }
 
 // ---- витрина
-const sc = showcaseAll(); const bySize = (s: number) => sc.filter((m) => m.size === s).length;
+const sc = showcaseAll().filter((m) => m.id[0] === "s"); const bySize = (s: number) => sc.filter((m) => m.size === s).length;
 ok(sc.length === 10 && bySize(4) === 1 && bySize(50) === 2 && bySize(75) === 3 && bySize(100) === 1 && bySize(8) && bySize(15) && bySize(35), "витрина: 10 карт (4, 2×50, 3×75, 100, 8/15/35)");
 for (const m of sc) { const v = checkSave(m); ok(!v.errors.length, `витрина ${m.id} ${m.size}×${m.size} проходит проверки ${v.errors.join(",")}`);
   const g = newGame(m.size, ["human" as any, "elf" as any], 0, cfg(), null, m); ok(g.pieces.length > 4, `витрина ${m.id}: партия стартует`); }
@@ -51,7 +51,7 @@ ok(Array.from(cleanComment("я".repeat(900))!).length === 500, "≤500 симв�
 
 // ---- D1 (bun:sqlite)
 const db = new Database(":memory:");
-for (const f of ["0025_strategy.sql", "0026_strat_rating.sql", "0028_strat_player_stats.sql", "0034_strat_map_hub.sql"]) db.exec(readFileSync(new URL("../migrations/" + f, import.meta.url), "utf8"));
+for (const f of ["0025_strategy.sql", "0026_strat_rating.sql", "0028_strat_player_stats.sql", "0034_strat_map_hub.sql", "0035_strat_modes.sql"]) db.exec(readFileSync(new URL("../migrations/" + f, import.meta.url), "utf8"));
 const env = { GAME_DB: { prepare: (q: string) => { const st = db.query(q); const b = (...a: any[]) => ({ first: async () => st.get(...a) ?? null, all: async () => ({ results: st.all(...a) }), run: async () => { const r = st.run(...a); return { meta: { changes: r.changes } }; } }); return { bind: b, ...b() }; } } };
 const A = { pkey: "author1", nick: "Автор", verified: true }, B = { pkey: "friend", nick: "Друг", verified: true }, G = { pkey: "guest:x", nick: "Гость", verified: false };
 const um = blank(24, "u"); setS(um, 12, 23, "P"); setS(um, 11, 0, "P"); setS(um, 5, 12, "M"); setS(um, 18, 11, "M");
@@ -90,7 +90,7 @@ ok((await hubList(env, B.pkey, { tab: "fav" })).length === 1, "вкладка «
 ok((await hubList(env, B.pkey, { league: "normal" })).every((x) => x.size >= 10 && x.size <= 35) && (await hubList(env, B.pkey, { league: "tactic" })).every((x) => x.size >= 36), "фильтр по лиге");
 ok((await hubList(env, B.pkey, { q: "моя" })).some((x) => x.id === id) && !(await hubList(env, B.pkey, { q: "моя" })).some((x) => x.showcase), "поиск");
 { const l = await hubList(env, null, { sort: "likes" }); ok(l[0].id === id, "сортировка по лайкам"); const p = await hubList(env, null, { sort: "plays" }); ok(p[0].id === id, "сортировка по партиям"); }
-ok((await hubList(env, null, {})).filter((x) => x.showcase).length === 10, "витрина в хабе");
+ok((await hubList(env, null, {})).filter((x) => x.showcase).length === 19, "витрина в хабе (10 дуэльных + 9 под 2×2/«Все»)");
 await likeMap(env, B, id, false); h = (await hubList(env, B.pkey, {})).find((x) => x.id === id)!; ok(h.likes === 0 && !h.liked, "лайк снимается");
 const cm = (await listComments(env, id))[0]; await reportComment(env, A, cm.id); ok(((await modQueue(env)) as any).comments.length === 1, "жалоба на комментарий — в очередь");
 await modComment(env, "admin", cm.id, "ban"); ok((await listComments(env, id)).length === 0 && (await addComment(env, B, id, "снова")).err === "banned", "админ: удалить и запретить комментарии");

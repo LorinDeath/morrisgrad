@@ -32,7 +32,7 @@ export const STRUCT = {
 } as const;
 export type StructCh = keyof typeof STRUCT;
 
-export type MapData = { id: string; name: string; size: number; t: string; s: string };
+export type MapData = { id: string; name: string; size: number; t: string; s: string; mode?: string }; // mode — t1219: режим карты (1v1, 2v2, ffa3…ffa8); нет — по числу точек спавна
 /** Карты игроков (редактор, t1217): сторона 4…100. Лига — по стороне (rating.leagueOf). */
 export const MAP_MIN = 4, MAP_MAX = 100, SPAWN_MAX = 8;
 export const isMapSize = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= MAP_MIN && n <= MAP_MAX;
@@ -47,9 +47,32 @@ export function duelSpawns(m: MapData): [[number, number], [number, number]] | n
   const lo = sp.filter((p) => p[1] > mid).sort(by)[0], hi = sp.filter((p) => p[1] < mid).sort(by)[0];
   return lo && hi ? [lo, hi] : null;
 }
+/** t1219: мест в режиме и режимы по числу точек (карта на 4 точки годится и для 2×2, и для «Все ×4») */
+export const MODE_SEATS: Record<string, number> = { "1v1": 2, "2v2": 4, ffa3: 3, ffa4: 4, ffa6: 6, ffa8: 8 };
+export const mapModes = (m: MapData): string[] => { const n = spawnsOf(m).length; if (m.mode && MODE_SEATS[m.mode]) return m.mode === "2v2" || m.mode === "ffa4" ? ["2v2", "ffa4"] : [m.mode]; return n === 2 ? ["1v1"] : Object.keys(MODE_SEATS).filter((k) => MODE_SEATS[k] === n && k !== "1v1"); };
+/** Подходит ли карта режиму: официальные/случайные (без точек) — только 1×1; иначе — по объявленному режиму / числу точек. */
+export const mapFits = (m: MapData, mode: string) => { const n = spawnsOf(m).length; if (mode === "1v1") return n === 0 || mapModes(m).includes("1v1") || (!m.mode && n === 2); return n === MODE_SEATS[mode] && mapModes(m).includes(mode); };
+/** t1219: точки спавна по местам режима. 2×2: места [A1,B1,A2,B2] — команда A внизу (A1 левее), B1 — напротив A1 (центральная пара), ход A1→B1→A2→B2.
+ *  FFA: по кругу (по часовой от нижней точки) — соседние места соседствуют и на карте. null — число точек не совпадает. */
+export function seatSpawns(m: MapData, mode: string): [number, number][] | null {
+  const sp = spawnsOf(m), need = MODE_SEATS[mode]; if (!need || sp.length !== need) return null;
+  if (mode === "1v1") return duelSpawns(m);
+  const c = (m.size - 1) / 2, ang = (p: [number, number]) => { let a = Math.atan2(p[1] - c, p[0] - c) - Math.PI / 2; while (a < -1e-9) a += 2 * Math.PI; return a; };
+  if (mode === "2v2") {
+    const by = [...sp].sort((a, b) => b[1] - a[1] || a[0] - b[0]), A = by.slice(0, 2).sort((a, b) => a[0] - b[0]), B = by.slice(2);
+    const far = (p: [number, number]) => [...B].sort((a, b) => Math.hypot(b[0] - p[0], b[1] - p[1]) - Math.hypot(a[0] - p[0], a[1] - p[1]))[0];
+    const b1 = far(A[0]), b2 = B.find((q) => q !== b1)!; return [A[0], b1, A[1], b2];
+  }
+  return [...sp].sort((a, b) => ang(a) - ang(b) || a[0] - b[0]);
+}
 /** Расстановка армии вокруг точки спавна (Вождь — на самой точке). army — ряды из cfg.sizes[n].army (ряд 0 — с Вождём).
  *  Клетка занята/непроходима — ближайшая свободная проходимая (до 4 клеток). null — не хватило места. */
-export function placeArmy(m: MapData, army: string[][], sp: [number, number], dir: -1 | 1, taken = new Set<number>()): { k: string; x: number; y: number }[] | null {
+/** t1219: куда смотрит армия у точки (2×2/FFA): к центру по большей оси — точка у левого/правого края строит ряды столбцами */
+export function armyDir(m: MapData, sp: [number, number]): { dir: -1 | 1; axis: "x" | "y" } {
+  const c = (m.size - 1) / 2, dx = sp[0] - c, dy = sp[1] - c;
+  return Math.abs(dx) > Math.abs(dy) + 0.5 ? { dir: dx > 0 ? -1 : 1, axis: "x" } : { dir: dy > 0 ? -1 : 1, axis: "y" };
+}
+export function placeArmy(m: MapData, army: string[][], sp: [number, number], dir: -1 | 1, taken = new Set<number>(), axis: "x" | "y" = "y"): { k: string; x: number; y: number }[] | null {
   const n = m.size, out: { k: string; x: number; y: number }[] = [], free = (x: number, y: number) => x >= 0 && y >= 0 && x < n && y < n && passable(m, x, y);
   if (!free(sp[0], sp[1]) || taken.has(sp[1] * n + sp[0])) return null;
   // клетки, достижимые от точки по проходимым (не через реку/стену), в радиусе рядов армии + 4
@@ -58,12 +81,12 @@ export function placeArmy(m: MapData, army: string[][], sp: [number, number], di
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy, j = b * n + a; if (free(a, b) && !near.has(j)) { near.set(j, d + 1); q.push(j); } } }
   const ki = Math.max(0, army[0].indexOf("king")), x00 = Math.floor((n - army[0].length) / 2) + ki; // ряды центрированы относительно ряда Вождя, как в штатной расстановке
   const want: { k: string; x: number; y: number }[] = [];
-  army.forEach((row, r) => { const x0 = Math.floor((n - row.length) / 2); row.forEach((k, i) => want.push({ k, x: sp[0] + x0 + i - x00, y: sp[1] + dir * r })); });
+  army.forEach((row, r) => { const x0 = Math.floor((n - row.length) / 2); row.forEach((k, i) => want.push(axis === "y" ? { k, x: sp[0] + x0 + i - x00, y: sp[1] + dir * r } : { k, x: sp[0] + dir * r, y: sp[1] + x0 + i - x00 })); });
   want.sort((a, b) => (a.k === "king" ? -1 : b.k === "king" ? 1 : 0));
   for (const w of want) {
     let best = -1, bd = Infinity;
     if (w.k === "king") best = sp[1] * n + sp[0];
-    else for (const [j] of near) { if (taken.has(j)) continue; const x = j % n, y = Math.floor(j / n); const d = Math.max(Math.abs(x - w.x), Math.abs(y - w.y)) * 4 + Math.abs(x - w.x) + Math.abs(y - w.y) + ((y - sp[1]) * dir < 0 ? 6 : 0); if (d < bd) { bd = d; best = j; } }
+    else for (const [j] of near) { if (taken.has(j)) continue; const x = j % n, y = Math.floor(j / n); const d = Math.max(Math.abs(x - w.x), Math.abs(y - w.y)) * 4 + Math.abs(x - w.x) + Math.abs(y - w.y) + (((axis === "y" ? y - sp[1] : x - sp[0]) * dir) < 0 ? 6 : 0); if (d < bd) { bd = d; best = j; } }
     if (best < 0) return null; taken.add(best); out.push({ k: w.k, x: best % n, y: Math.floor(best / n) });
   }
   return out;
@@ -231,11 +254,19 @@ export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [numbe
   if (Math.abs(res0 - res1) > 1) warnings.push("resources_unequal");
   const sp = spawnsOf(m);
   if (sp.length > SPAWN_MAX) errors.push("spawns_many");
-  if (sp.length >= 2) { // карта игрока со своими точками старта: армии встают у точек (placeArmy)
+  if (sp.length > 2 && m.mode !== "1v1") { // t1219: 2×2/«Все»: число точек = мест режима, армии всех мест помещаются
+    const md = mapModes(m)[0], seats = md ? seatSpawns(m, md) : null;
+    if (!md || !seats) errors.push("spawns_count");
+    else if (o?.army) { const taken = new Set<number>(); if (seats.some((p) => { const a = armyDir(m, p); return !placeArmy(m, o.army!, p, a.dir, taken, a.axis); })) errors.push("spawn_space"); }
+    if (seats) { // ресурсы у каждой точки (ближайшей по Чебышёву) — не больше ±1 от среднего
+      const cnt = seats.map(() => 0); for (let i = 0; i < n * n; i++) { const ch = m.s[i]; if (ch === "." || !(STRUCT as any)[ch]?.res) continue; const x = i % n, y = Math.floor(i / n); let bi = 0, bd = 1e9; seats.forEach((p, k) => { const d = Math.max(Math.abs(p[0] - x), Math.abs(p[1] - y)); if (d < bd) { bd = d; bi = k; } }); cnt[bi]++; }
+      if (Math.max(...cnt) - Math.min(...cnt) > 1) warnings.push("resources_unequal_seats");
+      const wi = warnings.indexOf("resources_unequal"); if (wi >= 0) warnings.splice(wi, 1); // верх/низ для FFA не мерило
+    }
+  } else if (sp.length >= 2) { // карта игрока со своими точками старта: армии встают у точек (placeArmy)
     const d = duelSpawns(m);
     if (!d) errors.push("spawn_half");
     else if (o?.army) { const taken = new Set<number>(); if (!placeArmy(m, o.army, d[0], -1, taken) || !placeArmy(m, o.army, d[1], 1, taken)) errors.push("spawn_space"); }
-    if (sp.length > 2) warnings.push("spawns_extra"); // 2×2 и FFA — позже: пока партия 1×1 на нижней и верхней точке
   } else if (o) for (const [x, y] of o.armyCols) {
     if (!passable(m, x, y) || !passable(m, n - 1 - x, n - 1 - y)) errors.push("army_blocked");
   }
@@ -248,7 +279,8 @@ export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [numbe
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (a < 0 || b < 0 || a >= n || b >= n) continue; const j = idx(n, a, b); if (!seen[j] && passable(m, a, b)) { seen[j] = 1; c++; q.push(j); } } }
     if (c !== total) errors.push("unreachable");
   }
-  let sym = true; for (let i = 0; i < n * n; i++) if (m.t[i] !== m.t[n * n - 1 - i] || m.s[i] !== m.s[n * n - 1 - i]) { sym = false; break; }
+  // t1219: у карт 2×2/«Все» своя симметрия (поворот на 360°/мест) — честность меряем ресурсами у каждой точки и местом под армии
+  let sym = true; if (!(sp.length > 2 && m.mode !== "1v1")) for (let i = 0; i < n * n; i++) if (m.t[i] !== m.t[n * n - 1 - i] || m.s[i] !== m.s[n * n - 1 - i]) { sym = false; break; }
   if (!sym) warnings.push("not_symmetric");
   return { errors: [...new Set(errors)], warnings };
 }

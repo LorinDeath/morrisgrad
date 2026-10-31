@@ -4,13 +4,13 @@
 // Контроль: hash снимка в конце каждого хода (h[]) — при смене правил после партии повтор помечается diverged и обрывается на первом расхождении.
 import { newGame, apply, type GameState, type Action, type Ev, type StratCfg, type Race } from "./rules";
 
-export type LAct = [side: 0 | 1, act: Action, auto: 0 | 1, dt: number]; // dt — мс от старта (для автопроигрывания «как было»)
+export type LAct = [side: number, act: Action, auto: 0 | 1, dt: number]; // dt — мс от старта (для автопроигрывания «как было»)
 export type RLog = {
-  v: 1; id: string; size: number; races: [Race, Race]; first: 0 | 1; map: any | null; patch?: any; rv: string; t0: number; hiddenHp?: boolean;
+  v: 1; id: string; size: number; races: Race[]; first: number; mode?: string; map: any | null; patch?: any; rv: string; t0: number; hiddenHp?: boolean;
   acts: LAct[]; h: string[]; // h[k] — хэш состояния после k-го хода (смены cur)
   end?: { w: number; r: string; n: number };
 };
-export type TurnMark = { turn: number; side: 0 | 1; from: number; to: number }; // действия [from, to) — один ход стороны
+export type TurnMark = { turn: number; side: number; from: number; to: number }; // действия [from, to) — один ход стороны
 
 /** FNV-1a 32 → hex. Не криптография: только сверка «повтор = живая партия». */
 export function fnv(s: string): string { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, "0"); }
@@ -18,17 +18,17 @@ export const rulesVer = (cfg: StratCfg) => fnv(JSON.stringify(cfg));
 export const hashG = (g: GameState) => fnv(JSON.stringify(g));
 
 export function startLog(id: string, g: GameState, cfg: StratCfg, map: any, patch?: any, hiddenHp = false): RLog {
-  return { v: 1, id, size: g.size, races: [...g.races] as [Race, Race], first: g.first, map: map || null, ...(patch ? { patch } : {}), rv: rulesVer(cfg), t0: Date.now(), ...(hiddenHp ? { hiddenHp } : {}), acts: [], h: [] };
+  return { v: 1, id, size: g.size, races: [...g.races], first: g.first, ...(g.mode && g.mode !== "1v1" ? { mode: g.mode } : {}), map: map || null, ...(patch ? { patch } : {}), rv: rulesVer(cfg), t0: Date.now(), ...(hiddenHp ? { hiddenHp } : {}), acts: [], h: [] };
 }
 /** Записать принятое действие; turned — после него сменился ход (тогда же запоминаем хэш). */
-export function logAct(log: RLog, side: 0 | 1, act: Action, auto: boolean, g: GameState, turned: boolean) {
+export function logAct(log: RLog, side: number, act: Action, auto: boolean, g: GameState, turned: boolean) {
   log.acts.push([side, act, auto ? 1 : 0, Date.now() - log.t0]); if (turned || g.winner !== -1) log.h.push(hashG(g));
 }
 export function logEnd(log: RLog, w: number, r: string) { if (!log.end) log.end = { w, r, n: log.acts.length }; }
 
 /** Восстановить партию до действия upto (не включая). keep — сохранить события каждого действия. */
 export function rebuild(log: RLog, cfg: StratCfg, upto = log.acts.length, from?: { g: GameState; i: number }) {
-  const g: GameState = from ? structuredClone(from.g) : newGame(log.size, log.races, log.first, cfg, 0, log.map || undefined);
+  const g: GameState = from ? structuredClone(from.g) : newGame(log.size, log.races, log.first, cfg, 0, log.map || undefined, log.mode ? { mode: log.mode as any } : undefined);
   const evs: Ev[][] = []; let diverged = -1, k = 0;
   for (let i = from ? from.i : 0; i < Math.min(upto, log.acts.length); i++) {
     const [side, act] = log.acts[i], cur = g.cur, r = apply(g, side, structuredClone(act), cfg);
@@ -41,13 +41,17 @@ export function rebuild(log: RLog, cfg: StratCfg, upto = log.acts.length, from?:
 }
 /** Разметка ходов: какие действия относятся к какому ходу. */
 export function turnMarks(log: RLog): TurnMark[] {
-  const out: TurnMark[] = []; let turn = 1, from = 0, side = log.first;
+  // t1219: N мест; ход (номер) растёт, когда очередь по кругу вернулась к первому; действия вне очереди (сдача, ответ на обмен) — в текущую группу
+  const out: TurnMark[] = [], n = log.races.length || 2, pos = (s: number) => (s - log.first + n) % n; let turn = 1, from = 0, side = log.first, open = true;
+  const close = (to: number, next: number) => { out.push({ turn, side, from, to } as TurnMark); if (pos(next) <= pos(side)) turn++; side = next; from = to; };
   for (let i = 0; i < log.acts.length; i++) {
-    const a = log.acts[i];
-    if (a[0] !== side) { out.push({ turn, side, from, to: i }); if (side !== log.first) turn++; side = a[0]; from = i; }
-    if (a[1].a === "end") { out.push({ turn, side, from, to: i + 1 }); if (side !== log.first) turn++; side = (1 - side) as 0 | 1; from = i + 1; }
+    const a = log.acts[i], off = a[1].a === "surrender" || a[1].a === "trade_reply";
+    if (off) continue;
+    if (!open) { if (a[0] !== side) { if (pos(a[0]) <= pos(side)) turn++; side = a[0]; } open = true; }
+    else if (a[0] !== side) close(i, a[0]);
+    if (a[1].a === "end") { out.push({ turn, side, from, to: i + 1 } as TurnMark); open = false; from = i + 1; }
   }
-  if (from < log.acts.length) out.push({ turn, side, from, to: log.acts.length });
+  if (from < log.acts.length) out.push({ turn, side, from, to: log.acts.length } as TurnMark);
   return out;
 }
 /** Публичные поля действия: свои и после конца — всё; чужие в живой партии — только то, что и так видно на доске

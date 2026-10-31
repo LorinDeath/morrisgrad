@@ -105,7 +105,7 @@ export function codexGroups(cfg: StratCfg) {
 export const codexPick = (cfg: StratCfg, keys: Iterable<string>) => { const M = codexIndex(cfg).map, o: CodexEntry[] = []; for (const k of keys) { const e = M.get(k); if (e) o.push(e); } return o; };
 
 /** что сторона side «встретила» в партии: видимое всем на доске + своё (технологии, навыки). Чужие скрытые бонусы — нет. */
-export function codexSeen(g: GameState, side: 0 | 1, cfg: StratCfg, ev: any[] = []): Set<string> {
+export function codexSeen(g: GameState, side: number, cfg: StratCfg, ev: any[] = []): Set<string> {
   const s = new Set<string>(), C: any = cfg, ec: any = (g as any).ec;
   for (const r of g.races || []) if (r) s.add("race:" + r);
   const lid = leagueOf(g.size); if (lid) s.add("league:" + lid);

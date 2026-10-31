@@ -1,5 +1,6 @@
 // StratIndex — маленький общий DO (один экземпляр): реестр кодов лобби, публичные лобби, кто онлайн на странице игры,
 // пересылка приглашений. Партий здесь нет — только справочные данные, нагрузка мала.
+import { isMode } from "./seats";
 import { cleanFav } from "./racedraw";
 import { ReplayServer, libList, libSave, libUnsave, libRename, REPLAY_ID_RE } from "./replay-db";
 import { terrView } from "./match";
@@ -186,13 +187,13 @@ export class StratIndex extends DurableObject {
     const who = { pkey: a.pkey!, nick: a.nick || "", verified: !!a.verified }, rq = m.rq;
     const reply = (o: any) => this.send(ws, { type: m.type + "_r", rq, ...o });
     try {
-      if (m.type === "map_list") return reply({ size: m.size, list: await listMaps(this.env, who.pkey, isMapSize(m.size) ? m.size : 8) });
+      if (m.type === "map_list") return reply({ size: m.size, list: await listMaps(this.env, who.pkey, isMapSize(m.size) ? m.size : 8, isMode(m.mode) ? m.mode : "1v1"), mode: isMode(m.mode) ? m.mode : "1v1" });
       if (m.type === "map_get") { const r = await getMapRow(this.env, String(m.id || "")); const admin = await isStratAdmin(this.env, who.pkey, who.verified);
         if (!r || (r.status !== "approved" && r.author !== who.pkey && !admin)) return reply({ err: "not_found" }); return reply({ map: rowToMap(r), status: r.status, descr: r.descr || "", author: r.author_nick, mine: r.author === who.pkey, reason: r.author === who.pkey || admin ? r.reject_reason || undefined : undefined }); }
       if (m.type === "map_save") { const now = Date.now(); if (now - (a.mapAt || 0) < 5000) return reply({ err: "rate" }); a.mapAt = now; ws.serializeAttachment(a); return reply(await saveMap(this.env, who, m.map)); }
       if (m.type === "map_flag") return reply(await flagMap(this.env, who, String(m.id || ""), String(m.why || "")));
       // ---- хаб карт (t1217): чужим — только одобренные; лайк/избранное/комментарии — только вход
-      if (m.type === "map_hub") return reply({ list: await hubList(this.env, who.verified ? who.pkey : null, { sort: String(m.sort || ""), league: String(m.league || ""), size: +m.size || undefined, q: String(m.q || ""), tab: String(m.tab || "") }), admin: await isStratAdmin(this.env, who.pkey, who.verified), me: who.verified });
+      if (m.type === "map_hub") return reply({ list: await hubList(this.env, who.verified ? who.pkey : null, { sort: String(m.sort || ""), league: String(m.league || ""), size: +m.size || undefined, q: String(m.q || ""), tab: String(m.tab || ""), mode: isMode(m.mode) ? m.mode : undefined }), admin: await isStratAdmin(this.env, who.pkey, who.verified), me: who.verified });
       if (m.type === "map_like" || m.type === "map_fav") { const now = Date.now(); if (now - (a.likeAt || 0) < 700) return reply({ err: "rate" }); a.likeAt = now; ws.serializeAttachment(a);
         return reply(await (m.type === "map_like" ? likeMap : favMap)(this.env, who, String(m.id || ""), !!m.on)); }
       if (m.type === "map_comments") { const admin = await isStratAdmin(this.env, who.pkey, who.verified); const r = await getMapRow(this.env, String(m.id || ""));

@@ -10,6 +10,6 @@ ok(validTurnMin(null) === null && validTurnMin(7) === 7 && validTurnMin(0) === u
 ok(!canClaim(true, 4) && canClaim(true, 5) && !canClaim(false, 9), "«Забрать победу»: только не за столом и 5 пропусков подряд");
 const m = readFileSync(new URL("./match.ts", import.meta.url), "utf8");
 ok(!/"disconnect"\)/.test(m), "обрыв связи не заканчивает партию");
-ok(/reserve: \[0, 0\]/.test(m), "запаса времени нет");
+ok(/reserve: \[0, 0\]/.test(m) || /reserve: z\(\)/.test(m), "запаса времени нет (нули на каждое место)");
 ok(/case "claim"/.test(m) && /\{ a: "end" \}, true\)/.test(m), "авто-пропуск по будильнику + claim");
 console.log(`away: ${pass} ok, ${fail} fail`); if (fail) process.exit(1);

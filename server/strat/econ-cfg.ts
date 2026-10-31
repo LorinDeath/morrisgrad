@@ -91,6 +91,14 @@ export const ECON = {
   tower: { on: true, cost: 8, outDist: 2, arm: 1, max: 3, hp: 16, armor: 2, counter: 2 },
   /** 2 на 2 (этап 5): обмен между союзниками, только по согласию обеих сторон; передачи без встречной оплаты нет */
   trade: { minRatio: 0.5, maxRatio: 2, perTurn: 1, maxShare: 0.3 },
+  /** t1219: 2×2 и «Все ×3…×8» — нерешённые вопросы ТЗ вынесены в настройки (значения по умолчанию — рекомендация, правятся в админке).
+   *  goals: "team" — общий прогресс команды (сумма, порог ×размер команды; Держава — без множителя), "solo" — порог 1×1 набирает один из команды, цель засчитывается всей команде.
+   *  ffaDomainScale — в FFA доля Державы ×2/число команд. chiefAnyKiller — для «Цареубийства» неважно, кто убил первого Вождя соперника.
+   *  surrender2v2/surrenderFfa — что с фигурами сдавшегося: "ally" — союзнику (ТЗ 3.9, Вождь уходит), "remove" — снимаются.
+   *  awayGraceSec — ушёл из-за стола дольше (2×2: фигуры союзнику), awayOutSkips — FFA: после N пропущенных ходов место выбывает (0 — никогда).
+   *  ffaRating — "places" (попарно по местам) | "winner" (победитель против всех). */
+  team: { goals: { hold: "team", treasury: "team", domain: "team", glory: "team", wonder: "solo" }, ffaDomainScale: true, chiefAnyKiller: true,
+    surrender2v2: "ally", surrenderFfa: "remove", awayGraceSec: 120, awayOutSkips: 5, ffaRating: "places" },
   market: { rate: 1, max: 6 }, // Рынок: N знаний → N×rate золота за действие города
   glacier: { every: 3, share: 0.1, max: 5 },
   forgeMax: 2,

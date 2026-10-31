@@ -89,13 +89,13 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
 }
 // --- хук обмена 2 на 2
 {
-  const g = newGame(8, ["fire", "ice"], 0); g.ec.res[0].gold = 20; g.ec.res[0].know = 10;
+  const g = newGame(8, ["fire", "ice"], 0); g.ec.res[0].gold = 20; g.ec.res[0].know = 10; g.ec.res[1].know = 10;
   ok(validateTrade(g, 0, { to: 1, give: { gold: 2 }, get: { know: 2 } }, C) === "no_ally", "1 на 1: союзника нет");
   const al = () => true;
-  ok(validateTrade(g, 0, { to: 2, give: { gold: 3 }, get: {} }, C, al) === "no_gift", "передачи «просто так» нет");
-  ok(validateTrade(g, 0, { to: 2, give: { gold: 5 }, get: { know: 1 } }, C, al) === "bad_ratio", "курс вне 1:2…2:1");
-  ok(validateTrade(g, 0, { to: 2, give: { gold: 10 }, get: { know: 6 } }, C, al) === "too_much", "больше 30% запаса нельзя");
-  ok(validateTrade(g, 0, { to: 2, give: { gold: 4 }, get: { know: 3 } }, C, al) === null, "честная сделка допустима (ждёт согласия)");
+  ok(validateTrade(g, 0, { to: 1, give: { gold: 3 }, get: {} }, C, al) === "no_gift", "передачи «просто так» нет");
+  ok(validateTrade(g, 0, { to: 1, give: { gold: 5 }, get: { know: 1 } }, C, al) === "bad_ratio", "курс вне 1:2…2:1");
+  ok(validateTrade(g, 0, { to: 1, give: { gold: 10 }, get: { know: 6 } }, C, al) === "too_much", "больше 30% запаса нельзя");
+  ok(validateTrade(g, 0, { to: 1, give: { gold: 4 }, get: { know: 3 } }, C, al) === null, "честная сделка допустима (ждёт согласия)");
   ok(!apply(g, 0, { a: "trade", to: 1, give: { gold: 1 }, get: { know: 1 } } as any).ok, "в 1 на 1 сервер отклоняет обмен");
 }
 // --- черновые расы

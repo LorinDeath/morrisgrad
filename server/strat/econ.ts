@@ -7,26 +7,29 @@ import type { ChiefDef, ChiefNode } from "./content-cfg";
 import { checkChiefName } from "./names";
 import { leagueOf } from "./rating";
 import { raceNums } from "./effects";
+import { NP, foe, seatList, teamOf, teamSeats, teamList, isOut, alliesOf, ally } from "./seats";
 
-export type City = { id: number; owner: 0 | 1; x: number; y: number; cap: boolean; growth: number; lvl: number; bld: BuildId[]; forge: Kind[]; acted: boolean; sg: number; name: string;
+export type City = { id: number; owner: number; x: number; y: number; cap: boolean; growth: number; lvl: number; bld: BuildId[]; forge: Kind[]; acted: boolean; sg: number; name: string;
   bhp?: Partial<Record<BuildId, number>>; ruin?: BuildId[];
   tg?: number; grow?: number[]; claims?: number; cw?: number; set?: boolean; rg?: number }; // rg — t1194: сколько шагов радиуса уже выдано клетками // cw — своих ходов до бесплатного автоприсоединения // claims — готовые права на клетку; set — поселение (t1140: только точка призыва + земля) // t1139: ходов до роста земли и присоединённые клетки (индексы y*size+x) // t1136: текущее HP построек (нет ключа — целая) и руины
 export type Res = { gold: number; know: number; glory: number };
 export type Econ = {
-  res: [Res, Res]; cities: City[]; techs: [string[], string[]]; era: [number, number];
-  rs: [number, number]; // исследований в этот ход
+  res: Res[]; cities: City[]; techs: string[][]; era: number[];
+  rs: number[]; // исследований в этот ход
   ruins: number[]; quiet: number; nextCity: number;
-  lost?: Record<number, 1>; ct?: Record<number, { o: 0 | 1; n: number }>; // t1140: клетки, ставшие нейтральными после захвата
+  lost?: Record<number, 1>; ct?: Record<number, { o: number; n: number }>; // t1140: клетки, ставшие нейтральными после захвата
   fnd?: ({ id: number; x: number; y: number; left: number; gold: number } | null)[]; // t1140: канал поселения Вождя по сторонам
-  towers?: { id: number; owner: 0 | 1; x: number; y: number }[]; tbhp?: Record<number, number>; // t1140: Сторожевые башни (поле) и их HP // t1139: захваченные клетки земли и таймеры захвата
-  inc: [Res, Res]; // последний доход (для панели «+N»)
-  kills: [number, number];
-  trades: [number, number]; // хук 2 на 2: сделок за ход
+  towers?: { id: number; owner: number; x: number; y: number }[]; tbhp?: Record<number, number>; // t1140: Сторожевые башни (поле) и их HP // t1139: захваченные клетки земли и таймеры захвата
+  inc: Res[]; // последний доход (для панели «+N»)
+  kills: number[];
+  trades: number[]; // хук 2 на 2: сделок за ход
   // этап 4: цели и Вожди
-  goals: [string[], string[]]; gt: [Record<string, number>, Record<string, number>]; // выполненные цели и ход выполнения
-  earned: [number, number]; hold: [number, number]; // заработано золота за партию; ходов подряд с Твердыней
-  chief: [ChiefState, ChiefState];
+  goals: string[][]; gt: Record<string, number>[]; // выполненные цели и ход выполнения
+  earned: number[]; hold: number[]; // заработано золота за партию; ходов подряд с Твердыней
+  chief: ChiefState[];
+  offers?: TradeOffer[]; tp?: Record<string, { t: number; n: number }>; tseq?: number; // t1219: 2×2 — предложения обмена и сделки пары за ход
 };
+export type TradeOffer = { id: number; from: number; to: number; give: { gold: number; know: number }; get: { gold: number; know: number }; turn: number };
 /** Вождь стороны: тип (реестр cfg.chiefs), имя от игрока, поколение, таймер возрождения, история */
 export type ChiefState = { type: string; name: string; gen: number; dead: number; renames: number; nameUntil: number; surv: number;
   hist: { gen: number; name: string; born: number; died?: number; by?: number; lvl?: number }[] };
@@ -51,7 +54,9 @@ const cheb = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.
 const pieceAt = (g: GameState, x: number, y: number) => g.pieces.find((p) => p.x === x && p.y === y);
 export const sz = (g: GameState, cfg: StratCfg) => cfg.econ.sizes[g.size] || cfg.econ.sizes[8];
 export const hasTech = (g: GameState, side: number, id: string) => !!g.ec?.techs[side]?.includes(id);
-const other = (s: number) => (1 - s) as 0 | 1;
+const other = (s: number) => (1 - s) as number; // только 1×1 (NP=2)
+/** t1219: клетка территории T[i] — вражеская для side (в 1×1 — то же, что T[i] === 1 - side) */
+const foeT = (g: GameState, v: number, side: number) => v >= 0 && foe(g, v, side);
 export const techList = (cfg: StratCfg): Tech[] => (cfg as any).techs;
 export const techOf = (cfg: StratCfg, id: string) => techList(cfg).find((t) => t.id === id);
 /** сумма эффекта key по изученным технологиям стороны (shot — максимум) */
@@ -84,7 +89,7 @@ export function raceAp(g: GameState, side: number, cfg: StratCfg): { n: number; 
   const ec = g.ec as any, n = g.size; let h = 0;
   if (R.kind === "kills") h = ec.rap?.[side]?.kills || 0;
   else if (R.kind === "fullAp") h = ec.rap?.[side]?.full ? 1 : 0;
-  else if (R.kind === "chilled") h = g.pieces.filter((p) => p.owner !== side && (p as any).chill > 0).length;
+  else if (R.kind === "chilled") h = g.pieces.filter((p) => foe(g, p.owner, side) && (p as any).chill > 0).length;
   else if (R.kind === "walls") h = ec.cities.filter((c: City) => c.owner === side && c.bld.includes("wall")).length + (ec.towers || []).filter((t: any) => t.owner === side).length;
   else if (R.kind === "grown") h = ec.cities.filter((c: City) => c.owner === side).reduce((s: number, c: City) => s + (c.grow?.length || 0), 0);
   else if (R.kind === "shore") { const T = territory(g, cfg); for (const p of g.pieces) if (p.owner === side && T[p.y * n + p.x] === side) {
@@ -133,15 +138,16 @@ export const maxOutposts = (g: GameState, side: number, cfg: StratCfg) => sz(g, 
 export function initEcon(g: GameState, cfg: StratCfg) {
   const E = cfg.econ;
   const g2 = (sd: number) => E.start.gold + (sd !== g.first ? (lg(g, cfg)?.secondGold ?? (E.start as any).secondGold) || 0 : 0);
-  g.ec = { res: [{ gold: g2(0), know: E.start.know, glory: 0 }, { gold: g2(1), know: E.start.know, glory: 0 }], cities: [], techs: [[], []], era: [sz(g, cfg).eras > 0 ? 1 : 0, sz(g, cfg).eras > 0 ? 1 : 0],
-    rs: [0, 0], ruins: [], quiet: 0, nextCity: 1, inc: [{ gold: 0, know: 0, glory: 0 }, { gold: 0, know: 0, glory: 0 }], kills: [0, 0], trades: [0, 0],
-    goals: [[], []], gt: [{}, {}], earned: [0, 0], hold: [0, 0], chief: [newChiefState(g, 0, cfg), newChiefState(g, 1, cfg)] };
-  for (const s of [0, 1] as const) {
+  const S = seatList(g), z = () => S.map(() => 0), e0 = E.sizes[g.size] ? sz(g, cfg).eras > 0 ? 1 : 0 : sz(g, cfg).eras > 0 ? 1 : 0; // t1219: массивы по местам (2…8)
+  g.ec = { res: S.map((s) => ({ gold: g2(s), know: E.start.know, glory: 0 })), cities: [], techs: S.map(() => []), era: S.map(() => e0),
+    rs: z(), ruins: [], quiet: 0, nextCity: 1, inc: S.map(() => ({ gold: 0, know: 0, glory: 0 })), kills: z(), trades: z(),
+    goals: S.map(() => []), gt: S.map(() => ({})), earned: z(), hold: z(), chief: S.map((s) => newChiefState(g, s, cfg)) };
+  for (const s of S) {
     const k = g.pieces.find((p) => p.owner === s && p.kind === "king");
     if (k) g.ec.cities.push(mkCity(g, s, k.x, k.y, true));
   }
 }
-function mkCity(g: GameState, owner: 0 | 1, x: number, y: number, cap: boolean): City {
+function mkCity(g: GameState, owner: number, x: number, y: number, cap: boolean): City {
   const n = g.ec.cities.filter((c) => c.owner === owner && !c.cap).length;
   return { id: g.ec.nextCity++, owner, x, y, cap, growth: 0, lvl: 0, bld: [], forge: [], acted: false, sg: 0, name: cap ? CAP_NAMES[0] : OUT_NAMES[n % OUT_NAMES.length] };
 }
@@ -153,7 +159,7 @@ export const chiefDef = (cfg: StratCfg, id: string) => chiefDefs(cfg).find((d) =
 export function autoChiefName(g: GameState, side: number, gen: number, cfg: StratCfg): string {
   const L = (cfg as any).chiefNames?.[g.races[side]] || ["Вождь"]; return L[(gen - 1 + side * 3) % L.length];
 }
-function newChiefState(g: GameState, side: 0 | 1, cfg: StratCfg): ChiefState {
+function newChiefState(g: GameState, side: number, cfg: StratCfg): ChiefState {
   const want = (g as any).chiefPick?.[side], ok = want && chiefTypesFor(cfg, g.races[side]).some((d) => d.id === want);
   const type = ok ? want : chiefTypesFor(cfg, g.races[side])[0]?.id || "";
   const name = autoChiefName(g, side, 1, cfg);
@@ -180,12 +186,14 @@ export function chiefChoices(g: GameState, p: Piece, cfg: StratCfg): ChiefNode[]
   return d.tree.filter((n) => n.lvl <= lv && !have.includes(n.id) && !taken.has(n.grp) && (!n.req?.length || n.req.some((r) => have.includes(r))));
 }
 export function chiefDown(g: GameState, t: Piece, by: Piece | undefined, ev: Ev[], cfg: StratCfg) {
-  if (!g.ec) return; const C = (cfg as any).chief, ch = g.ec.chief[t.owner], k = other(t.owner);
-  ch.dead = lg(g, cfg)?.respawn ?? C.respawn; const h = ch.hist[ch.hist.length - 1]; if (h) { h.died = g.turn; h.by = k; h.lvl = pieceLevel(t, cfg); }
+  if (!g.ec) return; const C = (cfg as any).chief, ch = g.ec.chief[t.owner], k = NP(g) === 2 ? other(t.owner) : by && foe(g, by.owner, t.owner) ? by.owner : -1; // t1219: в 2×2/FFA Слава — убившему (если враг)
+  ch.dead = lg(g, cfg)?.respawn ?? C.respawn; const h = ch.hist[ch.hist.length - 1]; if (h) { h.died = g.turn; h.by = NP(g) === 2 ? k : by ? by.owner : -1; h.lvl = pieceLevel(t, cfg); }
   ev.push({ e: "chief_down", side: t.owner, name: ch.name, gen: ch.gen, turn: g.turn, by: by?.id || 0 });
-  if (ch.gen === 1) { addGlory(g, k, C.killGlory, "chief", ev); setGoal(g, k, "chief", ev, cfg); } else addGlory(g, k, C.lateKillGlory, "chief", ev);
+  if (NP(g) === 2) { if (ch.gen === 1) { addGlory(g, k, C.killGlory, "chief", ev); setGoal(g, k, "chief", ev, cfg); } else addGlory(g, k, C.lateKillGlory, "chief", ev); return; }
+  if (k >= 0) addGlory(g, k, ch.gen === 1 ? C.killGlory : C.lateKillGlory, "chief", ev);
+  chiefGoalCheck(g, ev, cfg);
 }
-function respawnChief(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk: MkPiece) {
+function respawnChief(g: GameState, side: number, ev: Ev[], cfg: StratCfg, mk: MkPiece) {
   const ch = g.ec.chief[side]; if (ch.dead > 1) { ch.dead--; return; }
   const cs = g.ec.cities.filter((c) => c.owner === side).sort((a, b) => (b.cap ? 1 : 0) - (a.cap ? 1 : 0) || b.lvl - a.lvl);
   for (const c of cs) {
@@ -197,6 +205,12 @@ function respawnChief(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk: Mk
     ev.push({ e: "chief_up", side, id: p.id, name: ch.name, gen: ch.gen, city: c.id }); return;
   }
   // городов нет (или все заняты): Вождь приходит «из изгнания» на свою заднюю линию — ближайшая к центру свободная клетка
+  const hm = g.home?.[side]; if (hm) { // t1219: карта с точками спавна — ближайшая к своей точке свободная клетка
+    let best: [number, number] | null = null, bd = 1e9; for (let y = 0; y < g.size; y++) for (let x = 0; x < g.size; x++) { const d = Math.max(Math.abs(x - hm[0]), Math.abs(y - hm[1])); if (d < bd && !pieceAt(g, x, y) && passable(g.map, x, y, g.races[side])) { bd = d; best = [x, y]; } }
+    if (best) { ch.dead = 0; ch.gen++; ch.renames = 0; ch.nameUntil = g.turn + (cfg as any).chief.name.window; ch.surv = 0; ch.name = autoChiefName(g, side, ch.gen, cfg);
+      const p = mk(side, "king", best[0], best[1]); g.pieces.push(p); ch.hist.push({ gen: ch.gen, name: ch.name, born: g.turn });
+      ev.push({ e: "chief_up", side, id: p.id, name: ch.name, gen: ch.gen, city: 0 }); return; }
+  }
   const y0 = side === 0 ? g.size - 1 : 0, mid = (g.size - 1) / 2;
   for (const dy of [0, 1, 2]) {
     const y = side === 0 ? y0 - dy : y0 + dy;
@@ -209,24 +223,63 @@ function respawnChief(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk: Mk
   }
   ch.dead = 1; // места нет — ждём следующего хода
 }
-export type MkPiece = (o: 0 | 1, k: Kind, x: number, y: number) => Piece;
+export type MkPiece = (o: number, k: Kind, x: number, y: number) => Piece;
 // ---------- цели
 export const goalCfg = (g: GameState, cfg: StratCfg) => { const S = (cfg as any).goals.sizes; if (!S[g.size] && S[tplSize(g.size)]) return S[tplSize(g.size)]; const k = Object.keys(S).map(Number).filter((n) => n <= g.size).sort((a, b) => b - a)[0] ?? 8; return S[k]; };
 export const goalOn = (g: GameState, id: string, cfg: StratCfg) => goalCfg(g, cfg).list.includes(id);
 export function setGoal(g: GameState, side: number, id: string, ev: Ev[], cfg: StratCfg) {
   if (!g.ec || !goalOn(g, id, cfg) || g.ec.goals[side].includes(id)) return;
-  g.ec.goals[side].push(id); g.ec.gt[side][id] = g.turn; ev.push({ e: "goal", side, goal: id, n: g.ec.goals[side].length, turn: g.turn });
+  for (const s of teamSeats(g, teamOf(g, side))) if (!g.ec.goals[s].includes(id)) { g.ec.goals[s].push(id); g.ec.gt[s][id] = g.turn; } // t1219: цель — общая на команду
+  ev.push({ e: "goal", side, goal: id, n: g.ec.goals[side].length, turn: g.turn, team: teamOf(g, side) } as any);
+}
+// ---------- t1219: цели в 2×2/«Все» (настройки cfg.econ.team — в админке)
+export const TEAM_DEF = { goals: { hold: "team", treasury: "team", domain: "team", glory: "team", wonder: "solo" } as Record<string, "team" | "solo">,
+  ffaDomainScale: true, chiefAnyKiller: true, surrender2v2: "ally", surrenderFfa: "remove", awayOutSkips: 5, ffaRating: "places" };
+export const teamCfg = (cfg: StratCfg) => ({ ...TEAM_DEF, ...((cfg.econ as any).team || {}), goals: { ...TEAM_DEF.goals, ...((cfg.econ as any).team?.goals || {}) } });
+const tsize = (g: GameState, side: number) => teamSeats(g, teamOf(g, side)).filter((s) => !isOut(g, s)).length || 1;
+/** режим цели для side: "team" — общий прогресс команды (сумма, порог ×размер команды), "solo" — кто-то один из команды набирает порог 1×1 */
+export const goalMode = (g: GameState, side: number, id: string, cfg: StratCfg) => tsize(g, side) > 1 ? teamCfg(cfg).goals[id] || "team" : "solo";
+/** доля Державы: 1×1 и 2×2 — как в лиге; FFA — ×2/число команд (×8: 40% → 10%) */
+export function domainShare(g: GameState, cfg: StratCfg) { const G = goalCfg(g, cfg), nt = teamList(g).length; return nt > 2 && teamCfg(cfg).ffaDomainScale ? G.share * 2 / nt : G.share; }
+/** значение и порог цели для side с учётом команды: treasury (заработано), domain (клетки), glory, holdK (очки опоры) */
+export function goalVal(g: GameState, side: number, id: "treasury" | "domain" | "glory" | "holdK", cfg: StratCfg, T?: Int8Array): { cur: number; max: number } {
+  const G = goalCfg(g, cfg), ec = g.ec, ts = teamSeats(g, teamOf(g, side)).filter((s) => !isOut(g, s) || s === side), mode = goalMode(g, side, id === "holdK" ? "hold" : id, cfg), k = mode === "team" ? ts.length : 1;
+  const one = (s: number) => id === "treasury" ? Math.max(0, ec.res[s].gold) /* t1221: Казна — текущий запас */ : id === "glory" ? ec.res[s].glory : id === "holdK" ? holdScore(g, s, cfg) : (() => { const TT = T || territory(g, cfg); let c = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === s) c++; return c; })();
+  const vals = ts.map(one), cur = mode === "team" ? vals.reduce((a, b) => a + b, 0) : Math.max(0, ...vals);
+  const max = id === "treasury" ? G.gold * k : id === "glory" ? sz(g, cfg).glory * k : id === "holdK" ? G.holdK * k : Math.ceil(passableCells(g) * domainShare(g, cfg));
+  return { cur, max };
+}
+/** «Цареубийство» в 2×2/FFA: убиты ПЕРВЫЕ Вожди всех соперников команды (выбывшие соперники не в счёт; кто убил — неважно при chiefAnyKiller) */
+export function chiefGoalCheck(g: GameState, ev: Ev[], cfg: StratCfg) {
+  if (!g.ec || NP(g) === 2) return; const any = teamCfg(cfg).chiefAnyKiller;
+  for (const t of teamList(g)) {
+    const mine = seatList(g).filter((s) => teamOf(g, s) === t), targets = seatList(g).filter((s) => teamOf(g, s) !== t && !isOut(g, s));
+    if (!mine.length || !targets.length || mine.every((s) => isOut(g, s))) continue;
+    const ok = targets.every((s) => { const h = g.ec.chief[s]?.hist?.[0]; return h?.died && (any || (h.by !== undefined && h.by >= 0 && teamOf(g, h.by) === t)); });
+    if (ok) setGoal(g, mine.find((s) => !isOut(g, s))!, "chief", ev, cfg);
+  }
+}
+/** выполненные цели команды t */
+export const teamGoals = (g: GameState, t: number): string[] => { const out = new Set<string>(); for (const s of seatList(g)) if (teamOf(g, s) === t) for (const id of g.ec?.goals[s] || []) out.add(id); return [...out]; };
+/** прогресс команды t: лучший по месту (прогресс мест уже командный) */
+export function teamProgress(g: GameState, t: number, cfg: StratCfg, T?: Int8Array): Record<string, number> {
+  const out: Record<string, number> = {}; for (const s of seatList(g)) if (teamOf(g, s) === t && !isOut(g, s)) { const P = goalProgress(g, s, cfg, T); for (const k in P) out[k] = Math.max(out[k] || 0, P[k]); } return out;
 }
 /** «Чёрный список» цели «Цареубийство»: ПЕРВЫЕ Вожди всех соперников (возрождённые не в счёт; прогресс навсегда).
  *  Только имя/тип/статус — без координат (туман войны). В 1×1 — одна запись; в командах/FFA — по записи на соперника (ТЗ §14.G). */
 export function chiefBlacklist(g: GameState, side: number) {
   if (!g.ec?.chief) return [];
-  return [0, 1].filter((s) => s !== side).map((s) => { const ch = (g.ec as any).chief[s], h = ch?.hist?.[0];
-    return { owner: s, name: h?.name || ch?.name || "", type: ch?.type || "", alive: !h?.died, killedBy: h?.died ? (h.by ?? null) : null, turn: h?.died ?? null }; });
+  return seatList(g).filter((s) => foe(g, s, side)).map((s) => { const ch = (g.ec as any).chief[s], h = ch?.hist?.[0];
+    return { owner: s, team: teamOf(g, s), name: h?.name || ch?.name || "", type: ch?.type || "", race: g.races[s], alive: !h?.died, killedBy: h?.died ? (h.by ?? null) : null, turn: h?.died ?? null, out: isOut(g, s) }; });
 }
 /** победитель по целям (-1 — пока нет) */
-export function goalWinner(g: GameState, cfg: StratCfg): -1 | 0 | 1 {
-  if (!g.ec) return -1; const need = goalCfg(g, cfg).need, a = g.ec.goals[0].length, b = g.ec.goals[1].length;
+export function goalWinner(g: GameState, cfg: StratCfg): -1 | number {
+  if (!g.ec) return -1; const need = goalCfg(g, cfg).need;
+  if (NP(g) !== 2) { // t1219: по командам; одновременно — больше целей, затем больше Славы команды
+    const ts = teamList(g).filter((t) => seatList(g).some((s) => teamOf(g, s) === t && !isOut(g, s))).map((t) => ({ t, n: teamGoals(g, t).length, gl: seatList(g).filter((s) => teamOf(g, s) === t).reduce((a, s) => a + g.ec.res[s].glory, 0) })).filter((x) => x.n >= need);
+    if (!ts.length) return -1; ts.sort((a, b) => b.n - a.n || b.gl - a.gl); return ts[0].t;
+  }
+  const a = g.ec.goals[0].length, b = g.ec.goals[1].length;
   if (a >= need && b >= need) return a !== b ? (a > b ? 0 : 1) : g.ec.res[0].glory >= g.ec.res[1].glory ? 0 : 1;
   return a >= need ? 0 : b >= need ? 1 : -1;
 }
@@ -243,15 +296,16 @@ export function goalProgress(g: GameState, side: number, cfg: StratCfg, T?: Int8
   const G = goalCfg(g, cfg), ec = g.ec, out: Record<string, number> = {};
   const has = (id: string) => ec.goals[side].includes(id);
   out.chief = has("chief") ? 1 : 0;
-  out.hold = has("hold") ? 1 : Math.min(0.99, (Math.min(1, holdScore(g, side, cfg) / G.holdK) * 0.6 + 0.4 * ec.hold[side] / G.holdTurns));
-  out.treasury = has("treasury") ? 1 : G.gold ? Math.min(0.99, Math.max(0, ec.res[side].gold) / G.gold) : 0;
-  if (G.share) { const TT = T || territory(g, cfg); let c = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === side) c++; out.domain = has("domain") ? 1 : Math.min(0.99, c / passableCells(g) / G.share); } else out.domain = 0;
+  const tv = (id: "treasury" | "domain" | "glory" | "holdK") => { const v = goalVal(g, side, id, cfg, T); return v.max > 0 ? v.cur / v.max : 0; };
+  out.hold = has("hold") ? 1 : Math.min(0.99, (Math.min(1, tv("holdK")) * 0.6 + 0.4 * ec.hold[holdSeat(g, side, cfg)] / G.holdTurns));
+  out.treasury = has("treasury") ? 1 : G.gold ? Math.min(0.99, tv("treasury")) : 0;
+  if (G.share) out.domain = has("domain") ? 1 : Math.min(0.99, tv("domain")); else out.domain = 0;
   if (G.list.includes("wonder") && !has("wonder")) {
     const E = wonderEra(g, cfg), era = ec.era[side];
     const cap = G.wonderCap === false || ec.techs[side].some((id) => { const t = techOf(cfg, id); return t && t.era === E && t.br !== "elem"; });
     out.wonder = Math.min(0.95, 0.45 * Math.min(1, (era - 1) / Math.max(1, E - 1)) + (cap ? 0.3 + 0.1 * Math.min(1, ec.res[side].know / Math.max(1, G.wonderKnow)) + 0.1 * Math.min(1, ec.res[side].gold / Math.max(1, G.wonderGold)) : 0)); // знания копятся под Чудо только после «вершины»
   } else out.wonder = has("wonder") ? 1 : 0;
-  { const thr = sz(g, cfg).glory; out.glory = has("glory") ? 1 : G.list.includes("glory") && thr > 0 ? Math.min(0.99, ec.res[side].glory / thr) : 0; }
+  { const thr = sz(g, cfg).glory; out.glory = has("glory") ? 1 : G.list.includes("glory") && thr > 0 ? Math.min(0.99, tv("glory")) : 0; }
   return out;
 }
 export const cityRadius = (g: GameState, c: City, cfg: StratCfg) => (c.cap ? cfg.econ.city.capRadius[Math.min(c.lvl, cfg.econ.city.capRadius.length - 1)] + capRBonus(g, c, cfg) : cfg.econ.city.outRadius + tfx(g, c.owner, "outR", cfg));
@@ -300,7 +354,7 @@ export function effAtk(g: GameState, p: Piece, t: Piece | null, cfg: StratCfg, T
   const R = rAdj(g, p, cfg), ra = (R.atk || 0) + (p.kind === "rook" ? R.rookAtk || 0 : 0);
   if (!g.ec) return p.atk + ra;
   const s = p.owner; let a = p.atk + ra + forgeBonus(g, s, p.kind) + tfx(g, s, "atk", cfg) + tfxK(g, s, "atkK", p.kind, cfg);
-  const et = tfx(g, s, "atkEnemyT", cfg); if (et) { const TT = T || territory(g, cfg); if (TT[p.y * g.size + p.x] === other(s)) a += et; }
+  const et = tfx(g, s, "atkEnemyT", cfg); if (et) { const TT = T || territory(g, cfg); if (foeT(g, TT[p.y * g.size + p.x], s)) a += et; }
   a += chiefAura(g, p, "auraAtk", cfg);
   if (t) {
     if (p.kind === "king" && (t.kind === "king" || t.kind === "hero")) a += chiefFx(g, p, "slayer", cfg);
@@ -318,7 +372,7 @@ export function explainAtk(g: GameState, p: Piece, t: Piece | null, cfg: StratCf
   add("base", p.atk, "base"); add("race", (R.atk || 0) + (p.kind === "rook" ? R.rookAtk || 0 : 0), "race");
   if (!g.ec) return P;
   add("forge", forgeBonus(g, s, p.kind), "bld"); add("atk", tfx(g, s, "atk", cfg), "tech"); add("atkK", tfxK(g, s, "atkK", p.kind, cfg), "tech");
-  const et = tfx(g, s, "atkEnemyT", cfg); if (et) { const TT = T || territory(g, cfg); if (TT[p.y * g.size + p.x] === other(s)) add("atkEnemyT", et, "tech"); }
+  const et = tfx(g, s, "atkEnemyT", cfg); if (et) { const TT = T || territory(g, cfg); if (foeT(g, TT[p.y * g.size + p.x], s)) add("atkEnemyT", et, "tech"); }
   add("auraAtk", chiefAura(g, p, "auraAtk", cfg), "chief");
   if (t) {
     if (p.kind === "king" && (t.kind === "king" || t.kind === "hero")) add("slayer", chiefFx(g, p, "slayer", cfg), "chief");
@@ -387,7 +441,7 @@ export function apFor(g: GameState, side: number, cfg: StratCfg): number {
   return Math.max(1, ap);
 }
 export function burnTurns(g: GameState, burner: number, cfg: StratCfg) { return cfg.race.fire.burnTurns + tfx(g, burner, "burnT", cfg); }
-export function burnDmg(g: GameState, victim: number, cfg: StratCfg) { return cfg.race.fire.burnDmg + tfx(g, other(victim), "burnD", cfg); }
+export function burnDmg(g: GameState, victim: number, cfg: StratCfg) { return cfg.race.fire.burnDmg + Math.max(0, ...seatList(g).filter((s) => foe(g, s, victim)).map((s) => tfx(g, s, "burnD", cfg))); }
 export function chillTurns(g: GameState, chiller: number, cfg: StratCfg) { return ((cfg.race as any).ice.chillTurns ?? 1) + tfx(g, chiller, "chillT", cfg); }
 
 // ---------- опыт, Слава
@@ -424,7 +478,7 @@ export function unitAbility(g: GameState, side: number, p: Piece, act: { ab: str
   const a = unitAct(p, cfg); if (!a || a.id !== act.ab) return "no_ability";
   if ((p.cds?.[a.id] || 0) > 0) return "cooldown"; if (g.ap < a.ap) return "no_ap"; if (p.acted) return "already_acted";
   let t: Piece | undefined;
-  if (a.type === "volley") { t = g.pieces.find((q) => q.x === act.x && q.y === act.y && q.owner !== side); if (!t || cheb(t, p) > (a.r || 3)) return "bad_target"; }
+  if (a.type === "volley") { t = g.pieces.find((q) => q.x === act.x && q.y === act.y && foe(g, q.owner, side)); if (!t || cheb(t, p) > (a.r || 3)) return "bad_target"; }
   if (a.type === "mend" && p.hp >= p.maxHp) return "nothing_to_heal";
   if (check) return null;
   if (a.type === "strike") (p as any).pow = a.mag;
@@ -463,12 +517,12 @@ export function addGlory(g: GameState, side: number, n: number, why: string, ev:
 /** t1211: Слава — 6-я цель (не отдельная победа): порог econ.sizes[…].glory набран → цель «glory» засчитана навсегда. 5×5 — цели нет. */
 export function gloryGoals(g: GameState, ev: Ev[], cfg: StratCfg) {
   const thr = sz(g, cfg).glory; if (!g.ec || thr <= 0 || !goalOn(g, "glory", cfg)) return;
-  for (const s of [0, 1]) if (g.ec.res[s].glory >= thr) setGoal(g, s, "glory", ev, cfg);
+  for (const s of seatList(g)) if (!isOut(g, s)) { const v = goalVal(g, s, "glory", cfg); if (v.cur >= v.max) setGoal(g, s, "glory", ev, cfg); }
 }
 /** t1221: Казна — запас золота (а не сумма дохода); проверка после каждого действия (добыча, обмен, руины) */
 export function treasuryGoals(g: GameState, ev: Ev[], cfg: StratCfg) {
   if (!g.ec) return; const gold = goalCfg(g, cfg).gold; if (!gold) return;
-  g.ec.res.forEach((r, s) => { if (r.gold >= gold) setGoal(g, s, "treasury", ev, cfg); });
+  for (const s of seatList(g)) if (!isOut(g, s)) { const v = goalVal(g, s, "treasury", cfg); if (v.cur >= v.max) setGoal(g, s, "treasury", ev, cfg); }
 }
 
 /** Переход фигуры на клетку: руины (разовая награда), захват города. */
@@ -480,21 +534,23 @@ export function onEnter(g: GameState, p: Piece, ev: Ev[], cfg: StratCfg) {
     g.ec.ruins.push(i); const R = cfg.econ.ruins, r = g.ec.res[p.owner];
     r.gold += R.gold; r.know += R.know; ev.push({ e: "ruin", id: p.id, gold: R.gold, know: R.know }); addGlory(g, p.owner, R.glory, "ruin", ev);
   }
-  const c = g.ec.cities.find((c) => c.x === p.x && c.y === p.y && c.owner !== p.owner);
+  const c = g.ec.cities.find((c) => c.x === p.x && c.y === p.y && foe(g, c.owner, p.owner));
   if (c) ev.push({ e: "siege", city: c.id, by: p.id });
 }
 
 /** Начало хода стороны side: осада, доход, рост, Слава за территорию и обелиски, сброс действий городов. */
-export function startTurn(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk?: MkPiece): -1 | 0 | 1 {
+/** счётчик ходов Твердыни: 1×1/FFA — своё место; 2×2 «team» — первое живое место команды (считает круги) */
+export const holdSeat = (g: GameState, side: number, cfg: StratCfg) => goalMode(g, side, "hold", cfg) === "team" ? teamSeats(g, teamOf(g, side)).find((s) => !isOut(g, s)) ?? side : side;
+export function startTurn(g: GameState, side: number, ev: Ev[], cfg: StratCfg, mk?: MkPiece): -1 | number {
   if (!g.ec) return -1;
-  let capWin: -1 | 0 | 1 = -1; const inc0: Res = { gold: 0, know: 0, glory: 0 };
+  let capWin: -1 | number = -1; const inc0: Res = { gold: 0, know: 0, glory: 0 };
   const E = cfg.econ, ec = g.ec, F = E.fx;
   for (const p of g.pieces) if (p.owner === side) { p.mv = false; if (p.cds) for (const k in p.cds) if (p.cds[k] > 0) p.cds[k]--; }
-  ec.rs[side] = 0; ec.trades[side] = 0;
+  ec.rs[side] = 0; ec.trades[side] = 0; if (ec.offers?.length) ec.offers = ec.offers.filter((o) => o.from !== side); // предложение живёт до следующего хода предложившего
   // осада: враг простоял на клетке города до начала своего следующего хода
   for (const c of [...ec.cities]) {
     const o = pieceAt(g, c.x, c.y);
-    if (!o || o.owner === c.owner) { c.sg = 0; continue; }
+    if (!o || !foe(g, o.owner, c.owner)) { c.sg = 0; continue; } // t1219: союзник на клетке города не осаждает
     if (o.owner !== side) continue;
     c.sg++;
     if (c.sg >= E.city.siegeTurns + tfx(g, c.owner, "siege", cfg)) {
@@ -507,7 +563,7 @@ export function startTurn(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk
     }
   }
   // у стороны есть города, но нет столицы (взяли единственную, потом заложила/отбила) — старший город становится столицей
-  for (const s2 of [0, 1]) if (!ec.cities.some((x) => x.owner === s2 && x.cap)) {
+  for (const s2 of seatList(g)) if (!ec.cities.some((x) => x.owner === s2 && x.cap)) {
     const nc = ec.cities.filter((x) => x.owner === s2 && ((x as any).oc === undefined || (x as any).oc === s2)).sort((a, b) => b.lvl - a.lvl)[0];
     if (nc) { nc.cap = true; delete (nc as any).oc; } // взятые чужие столицы (oc = прежний хозяин) остаются трофеями «Твердыни»
   }
@@ -533,7 +589,7 @@ export function startTurn(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk
     if (T[y * g.size + x] !== side) continue; cells++;
     const tc = g.map ? g.map.t[y * g.size + x] : "."; if (tc === "w") water++; else if (tc === "f") forest++;
     const s = mapStr(g.map, x, y), S = E.struct[s]; if (!S) continue;
-    const o = pieceAt(g, x, y); if (o && o.owner !== side) continue; // набег: вражеская фигура на клетке
+    const o = pieceAt(g, x, y); if (o && foe(g, o.owner, side)) continue; // набег: вражеская фигура на клетке
     inc.gold += (S.gold || 0) + (s === "M" || s === "V" ? goldMV : 0) + (s === "Q" && hasQuarry ? F.quarryGold : 0);
     inc.know += S.know || 0; inc.glory += S.glory || 0; growthAdd += S.growth || 0;
   }
@@ -548,11 +604,11 @@ export function startTurn(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk
   r.gold += inc.gold; r.know = Math.max(0, r.know + inc.know); r.glory += inc.glory;
   // цели: Казна, Держава, Твердыня
   const GC = goalCfg(g, cfg);
-  ec.earned[side] += Math.max(0, inc.gold); // статистика: весь доход за партию
-  if (GC.gold && r.gold >= GC.gold) setGoal(g, side, "treasury", ev, cfg); // t1221: Казна — текущий запас золота в казне
-  if (GC.share && cells / passableCells(g) >= GC.share) setGoal(g, side, "domain", ev, cfg);
+  ec.earned[side] += Math.max(0, inc.gold);
+  { const v = goalVal(g, side, "treasury", cfg); if (GC.gold && v.cur >= v.max) setGoal(g, side, "treasury", ev, cfg); }
+  { const v = goalVal(g, side, "domain", cfg, T); if (GC.share && v.cur >= v.max) setGoal(g, side, "domain", ev, cfg); }
   gloryGoals(g, ev, cfg);
-  if (holdScore(g, side, cfg) >= GC.holdK) { ec.hold[side]++; if (ec.hold[side] >= GC.holdTurns) setGoal(g, side, "hold", ev, cfg); } else ec.hold[side] = 0;
+  { const hs = holdSeat(g, side, cfg), v = goalVal(g, side, "holdK", cfg); if (hs === side) { if (v.cur >= v.max) { ec.hold[hs]++; if (ec.hold[hs] >= GC.holdTurns) setGoal(g, side, "hold", ev, cfg); } else ec.hold[hs] = 0; } }
   ec.inc[side] = inc;
   ev.push({ e: "inc", side, gold: inc.gold, know: inc.know, glory: inc.glory });
   // рост столицы
@@ -624,7 +680,7 @@ function joinCell(g: GameState, c: City, i: number, ev: Ev[]) { (c.grow ||= []).
 export const captureTurns = (g: GameState, cfg: StratCfg) => lg(g, cfg)?.capture ?? (cfg.econ as any).terr?.capture?.turns ?? 4;
 export const foundTurns = (g: GameState, cfg: StratCfg) => lg(g, cfg)?.found ?? (cfg.econ as any).found?.turns ?? 10;
 /** t1139/t1140: в начале хода стороны — права на клетки, захват (клетка → нейтральная), канал поселения Вождя */
-function terrTick(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk?: MkPiece) {
+function terrTick(g: GameState, side: number, ev: Ev[], cfg: StratCfg, mk?: MkPiece) {
   const TC = (cfg.econ as any).terr; if (!g.ec) return; const ec = g.ec, n = g.size;
   if (cellGrowth(g, cfg)) for (const c of ec.cities) if (c.owner === side && !c.set) { // t1194: +радиус (уровень/технология) → 1 случайная соседняя клетка за ход
     const due = Math.max(0, cityRadius(g, c, cfg) - 1) - (c.rg || 0); if (due <= 0) continue;
@@ -645,10 +701,10 @@ function terrTick(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk?: MkPie
   if (TC?.capture?.on) {
     const T = territory(g, cfg), ct = (ec.ct ||= {}), seen = new Set<number>(), need = captureTurns(g, cfg);
     for (const p of g.pieces) if (p.owner === side) {
-      const i = p.y * n + p.x; if (T[i] !== (1 - side) || ec.cities.some((c) => c.x === p.x && c.y === p.y)) continue;
+      const i = p.y * n + p.x; if (!foeT(g, T[i], side) || ec.cities.some((c) => c.x === p.x && c.y === p.y)) continue;
       seen.add(i); const cur = ct[i]?.o === side ? ct[i].n + 1 : 1; ct[i] = { o: side, n: cur };
       if (cur >= need) { (ec.lost ||= {})[i] = 1; delete ct[i]; for (const c of ec.cities) if (c.grow) c.grow = c.grow.filter((q) => q !== i);
-        ev.push({ e: "tcap", x: p.x, y: p.y, by: side, owner: 1 - side, id: p.id }); } // клиент: хозяину «Территория потеряна», захватчику «Отбито»
+        ev.push({ e: "tcap", x: p.x, y: p.y, by: side, owner: T[i], id: p.id }); } // клиент: хозяину «Территория потеряна», захватчику «Отбито»
     }
     for (const k in ct) if (ct[k].o === side && !seen.has(+k)) delete ct[k];
   }
@@ -673,7 +729,7 @@ export function canTower(g: GameState, side: number, k: Piece, x: number, y: num
   if ((g.ec.towers || []).filter((t) => t.owner === side).length >= (TW.max ?? 3)) return "tower_max";
   const T = territory(g, cfg), n = g.size, R = TW.outDist ?? 2; let d = 99;
   for (let yy = Math.max(0, y - R); yy <= Math.min(n - 1, y + R); yy++) for (let xx = Math.max(0, x - R); xx <= Math.min(n - 1, x + R); xx++) if (T[yy * n + xx] === side) d = Math.min(d, cheb({ x, y }, { x: xx, y: yy }));
-  if (d > R) return "too_far"; if (T[y * n + x] === 1 - side) return "enemy_land";
+  if (d > R) return "too_far"; if (foeT(g, T[y * n + x], side)) return "enemy_land";
   if (g.ec.res[side].gold < (TW.cost ?? 8)) return "no_gold";
   return null;
 }
@@ -809,12 +865,12 @@ export function canFound(g: GameState, side: number, p: Piece, cfg: StratCfg): s
   if (g.ec.cities.filter((c) => c.owner === side && !c.cap).length + (g.ec.fnd?.[side] ? 1 : 0) >= maxOutposts(g, side, cfg)) return "outpost_max";
   if (g.ec.cities.some((c) => cheb(c, p) < cfg.econ.city.outMinDist - tfx(g, side, "outDist", cfg))) return "too_close";
   const T = territory(g, cfg), R = cfg.econ.city.outRadius + tfx(g, side, "outR", cfg); // t1170: ни клетка, ни земля нового поселения (радиус) не заходят на чужую
-  for (let y = Math.max(0, p.y - R); y <= Math.min(g.size - 1, p.y + R); y++) for (let x = Math.max(0, p.x - R); x <= Math.min(g.size - 1, p.x + R); x++) if (T[y * g.size + x] === other(side)) return "enemy_land";
+  for (let y = Math.max(0, p.y - R); y <= Math.min(g.size - 1, p.y + R); y++) for (let x = Math.max(0, p.x - R); x <= Math.min(g.size - 1, p.x + R); x++) if (foeT(g, T[y * g.size + x], side)) return "enemy_land";
   if (mapStr(g.map, p.x, p.y) !== "." && mapStr(g.map, p.x, p.y) !== "P") return "on_structure";
   return null;
 }
 
-export function applyEcon(g: GameState, side: 0 | 1, act: EconAction, cfg: StratCfg, mk: (o: 0 | 1, k: Kind, x: number, y: number) => Piece): { ok: true; ev: Ev[] } | { ok: false; err: string } {
+export function applyEcon(g: GameState, side: number, act: EconAction, cfg: StratCfg, mk: (o: number, k: Kind, x: number, y: number) => Piece): { ok: true; ev: Ev[] } | { ok: false; err: string } {
   if (!g.ec) return no("bad_action");
   const ec = g.ec, r = ec.res[side], ev: Ev[] = [];
   const city = (id: any) => ec.cities.find((c) => c.id === id && c.owner === side);
@@ -861,7 +917,7 @@ export function applyEcon(g: GameState, side: 0 | 1, act: EconAction, cfg: Strat
     }
     case "repair": { // ремонт постройки (действие города): repairCost золота → полное HP
       const c = city(act.city); if (!c) return no("bad_city"); if (c.acted) return no("city_acted");
-      if (!c.bld.includes(act.b)) return no("bad_building"); const o = pieceAt(g, c.x, c.y); if (o && o.owner !== side) return no("under_siege");
+      if (!c.bld.includes(act.b)) return no("bad_building"); const o = pieceAt(g, c.x, c.y); if (o && foe(g, o.owner, side)) return no("under_siege");
       const cost = repairCost(g, c, act.b, cfg); if (cost <= 0) return no("full_hp"); if (r.gold < cost) return no("no_gold");
       r.gold -= cost; delete c.bhp![act.b]; c.acted = true; ev.push({ e: "repair", city: c.id, b: act.b, gold: cost }); return ok(ev);
     }
@@ -915,7 +971,13 @@ export function applyEcon(g: GameState, side: 0 | 1, act: EconAction, cfg: Strat
       r.know -= n; r.gold += n * (bp(g, side, "market", "rate", cfg) || cfg.econ.market.rate); c.acted = true;
       ev.push({ e: "swap", city: c.id, n }); return ok(ev);
     }
-    case "trade": { const e = validateTrade(g, side, act, cfg); return no(e || "no_ally"); }
+    case "trade": { // t1219: предложение союзнику; ресурсы переходят только после «Принять» (tradeReply)
+      const e = validateTrade(g, side, act, cfg, (a, b) => ally(g, a, b)); if (e) return no(e);
+      const cl = (o: any) => ({ gold: Math.max(0, (o?.gold | 0)), know: Math.max(0, (o?.know | 0)) });
+      const o: TradeOffer = { id: (ec.tseq = (ec.tseq || 0) + 1), from: side, to: act.to, give: cl(act.give), get: cl(act.get), turn: g.turn };
+      ec.offers = (ec.offers || []).filter((x) => x.from !== side); ec.offers.push(o);
+      ev.push({ e: "trade_offer", ...o } as any); return ok(ev);
+    }
     case "ability": {
       const p = g.pieces.find((q) => q.id === act.id && q.owner === side); if (!p) return no("bad_piece");
       if (p.kind !== "king") return unitAbility(g, side, p, act as any, ev, cfg) ? no(unitAbility(g, side, p, act as any, ev, cfg, true)!) : ok(ev);
@@ -955,8 +1017,10 @@ export function applyEcon(g: GameState, side: 0 | 1, act: EconAction, cfg: Strat
  * Ограничения из cfg.econ.trade: курс 1:2…2:1, 1 сделка за ход на пару, ≤30% запаса предлагающего, с соперником нельзя.
  * В 1 на 1 союзника нет → всегда отказ «no_ally». Возвращает ошибку или null (сделка допустима, ждёт согласия).
  */
+const pairKey = (a: number, b: number) => a < b ? `${a}-${b}` : `${b}-${a}`;
 export function validateTrade(g: GameState, side: number, act: { to: number; give: Partial<Res>; get: Partial<Res> }, cfg: StratCfg, allies?: (a: number, b: number) => boolean): string | null {
-  if (!allies || !allies(side, act.to)) return "no_ally";
+  if (!allies || !allies(side, act.to) || isOut(g, act.to) || isOut(g, side)) return "no_ally";
+  { const P = g.ec.tp?.[pairKey(side, act.to)]; if (P && P.t === g.turn && P.n >= cfg.econ.trade.perTurn) return "trade_done"; }
   const T = cfg.econ.trade, sum = (o: Partial<Res>) => (o.gold || 0) + (o.know || 0);
   const give = sum(act.give || {}), get = sum(act.get || {});
   if (give <= 0 || get <= 0) return "no_gift"; // без встречной оплаты нельзя
@@ -964,11 +1028,25 @@ export function validateTrade(g: GameState, side: number, act: { to: number; giv
   const r = g.ec.res[side] as any;
   for (const k of ["gold", "know"] as const) { const v = (act.give as any)[k] || 0; if (v < 0 || v > Math.floor(r[k] * T.maxShare)) return "too_much"; }
   if (g.ec.trades[side] >= T.perTurn) return "trade_done";
+  { const r2 = g.ec.res[act.to] as any; for (const k of ["gold", "know"] as const) { const v = (act.get as any)[k] || 0; if (v < 0 || v > (r2?.[k] || 0)) return "ally_short"; } }
   return null;
+}
+/** t1219: ответ союзника на предложение обмена (вне своего хода тоже). Принять — проверка ещё раз (запасы могли измениться), обмен, +1 сделка пары за ход. */
+export function tradeReply(g: GameState, side: number, id: number, accept: boolean, cfg: StratCfg): { ok: true; ev: Ev[] } | { ok: false; err: string } {
+  if (!g.ec || g.winner !== -1) return { ok: false, err: "game_over" };
+  const o = (g.ec.offers || []).find((x) => x.id === id); if (!o) return { ok: false, err: "no_offer" };
+  if (accept ? o.to !== side : o.to !== side && o.from !== side) return { ok: false, err: "not_yours" };
+  g.ec.offers = g.ec.offers!.filter((x) => x !== o);
+  if (!accept) return { ok: true, ev: [{ e: "trade_done", id, ok: false, from: o.from, to: o.to, by: side } as any] };
+  const e = validateTrade(g, o.from, o, cfg, (a, b) => ally(g, a, b)); if (e) return { ok: false, err: e };
+  const A = g.ec.res[o.from], B = g.ec.res[o.to];
+  A.gold += o.get.gold - o.give.gold; A.know += o.get.know - o.give.know; B.gold += o.give.gold - o.get.gold; B.know += o.give.know - o.get.know;
+  g.ec.trades[o.from]++; const k = pairKey(o.from, o.to), P = (g.ec.tp ||= {})[k]; g.ec.tp[k] = P && P.t === g.turn ? { t: g.turn, n: P.n + 1 } : { t: g.turn, n: 1 };
+  return { ok: true, ev: [{ e: "trade_done", id, ok: true, from: o.from, to: o.to, give: o.give, get: o.get, by: side } as any] };
 }
 
 /** Есть ли у стороны «бесплатные» действия (город/исследование/эпоха/талант) — тогда ход сам не передаётся при 0 ОД. */
-export function hasFree(g: GameState, side: 0 | 1, cfg: StratCfg): boolean {
+export function hasFree(g: GameState, side: number, cfg: StratCfg): boolean {
   if (!g.ec) return false;
   if (g.pieces.some((p) => p.owner === side && pendingTalent(p, cfg, g))) return true; // t1221: с g — иначе ждущий навык Вождя не считался
   if (!canEra(g, side, cfg)) return true;
@@ -986,7 +1064,7 @@ export function limitScore(g: GameState, side: number) { return g.ec ? g.ec.res[
 // ---------- бот: экономика (вызывается до боевых действий)
 const BOT_BUILD: BuildId[] = ["barracks", "library", "market", "granary", "stable", "crucible", "glacier", "forge", "magetower", "wall"];
 const BOT_UNIT: Kind[] = ["hero", "rook", "knight", "mage", "pawn"];
-export function botEcon(g: GameState, side: 0 | 1, cfg: StratCfg, rnd = Math.random): Action | null {
+export function botEcon(g: GameState, side: number, cfg: StratCfg, rnd = Math.random): Action | null {
   if (!g.ec) return null;
   const ec = g.ec, r = ec.res[side];
   for (const p of g.pieces) if (p.owner === side) { const lv = pendingTalent(p, cfg, g); if (lv) { const pair: { id: string }[] = p.kind === "king" ? chiefChoices(g, p, cfg) : unitChoices(p, lv, cfg); if (!pair.length) continue; return { a: "talent", id: p.id, t: pair[Math.floor(rnd() * pair.length)].id } as any; } }
@@ -995,13 +1073,13 @@ export function botEcon(g: GameState, side: 0 | 1, cfg: StratCfg, rnd = Math.ran
   // копим на переход эпохи, если две технологии эпохи уже есть
   const curN = ec.techs[side].filter((id) => techOf(cfg, id)?.era === ec.era[side]).length;
   if (techs.length && !(curN >= cfg.econ.research.need && ec.era[side] < sz(g, cfg).eras)) return { a: "research", t: techs[Math.floor(rnd() * techs.length)].id } as any;
-  const ek = g.pieces.find((p) => p.owner !== side && p.kind === "king");
-  const enemyCap = ec.cities.find((c) => c.owner !== side && c.cap) || ek;
+  const ek = g.pieces.find((p) => foe(g, p.owner, side) && p.kind === "king");
+  const enemyCap = ec.cities.find((c) => foe(g, c.owner, side) && c.cap) || ek;
   const mine = g.pieces.filter((p) => p.owner === side);
   { const site = chiefBuildSite(g, side, cfg); // t1137: строит Вождь на земле своего города
     // анти-застой: Чудо — цель партии; доступно (эпоха/вершина/знания/золото) — строим сразу, без оглядки на угрозу
     if (site && !canBuild(g, side, site.c, "wonder", cfg)) return { a: "build", id: site.k.id, city: site.c.id, b: "wonder" } as any;
-    if (site) { const c = site.c, threat = g.pieces.some((p) => p.owner !== side && cheb(p, c) <= 3);
+    if (site) { const c = site.c, threat = g.pieces.some((p) => foe(g, p.owner, side) && cheb(p, c) <= 3);
       const units = BOT_UNIT.filter((k) => !canRecruit(g, side, c, k, cfg) && recruitCells(g, c, k, cfg).length);
       const builds = BOT_BUILD.filter((b) => !canBuild(g, side, c, b, cfg, "rook") && !(b === "wall" && !threat));
       if (builds.length && !threat && (rnd() < 0.55 || !units.length) && !units.includes("hero")) { const b = builds[0]; return { a: "build", id: site.k.id, city: c.id, b, ...(b === "forge" ? { kind: mine.some((p) => p.kind === "rook") ? "rook" : "knight" } : {}) } as any; } } }
@@ -1021,7 +1099,7 @@ export function botEcon(g: GameState, side: 0 | 1, cfg: StratCfg, rnd = Math.ran
     const i = growPick(g, c, cfg); if (i >= 0) return { a: "claim", city: c.id, x: i % g.size, y: (i / g.size) | 0 } as any;
   }
   if (g.ap >= 1) for (const p of mine) if (!p.acted && !canFound(g, side, p, cfg)) {
-    if (p.kind === "king" && g.pieces.some((q) => q.owner !== side && cheb(q, p) <= 5)) continue; // закладывать поселение под ударом — нет
+    if (p.kind === "king" && g.pieces.some((q) => foe(g, q.owner, side) && cheb(q, p) <= 5)) continue; // закладывать поселение под ударом — нет
     let resN = 0; for (let y = p.y - 1; y <= p.y + 1; y++) for (let x = p.x - 1; x <= p.x + 1; x++) if (cfg.econ.struct[mapStr(g.map, x, y)]) resN++;
     if (resN > 0 || rnd() < 0.3) return { a: "found", id: p.id } as any;
   }
@@ -1075,25 +1153,26 @@ export function goalDetails(g: GameState, side: number, cfg: StratCfg): { need: 
   if (!g.ec) return { need: 0, done: 0, list: [] };
   const G = goalCfg(g, cfg), ec = g.ec, info = (cfg as any).goals.info, P = goalProgress(g, side, cfg), out: GoalDetail[] = [];
   const has = (id: string) => ec.goals[side].includes(id), tn = (id: string) => ec.gt[side][id] ?? null;
+  const tm = (id: string) => goalMode(g, side, id, cfg) === "team" ? " — вместе с союзником (сумма)" : tsize(g, side) > 1 ? " — любому из команды" : ""; // t1219
   for (const id of G.list) {
     const I = info[id] || { name: id, icon: "", eff: "" }, d: GoalDetail = { id, name: I.name, icon: I.icon, desc: "", done: has(id), turn: tn(id), p: P[id] ?? 0, cur: 0, max: 1, unit: "", text: "" };
     if (id === "chief") { const bl = chiefBlacklist(g, side), dead = bl.filter((r) => !r.alive).length;
       d.desc = "Сразить ПЕРВОГО Вождя каждого соперника (возрождённые Вожди не в счёт)"; d.cur = has(id) ? bl.length || 1 : dead; d.max = Math.max(1, bl.length); d.unit = "Вождей"; }
-    else if (id === "hold") { const hs = holdScore(g, side, cfg), H = (cfg as any).goals.hold;
+    else if (id === "hold") { const hv = goalVal(g, side, "holdK", cfg), hs = hv.cur, hsd = holdSeat(g, side, cfg), H = (cfg as any).goals.hold;
       d.desc = `Набрать ${G.holdK} очк. опоры и держать ${G.holdTurns} ход(а) подряд. Опора: свой город +${H.city}, со Стеной ещё +${H.walled}, взятая столица соперника +${H.enemyCap}, своя фигура на Обелиске/Башне/Месте чуда +${H.point}`;
-      d.parts = [{ label: "очки опоры", cur: hs, max: G.holdK }, { label: "ходов подряд", cur: has(id) ? G.holdTurns : ec.hold[side], max: G.holdTurns }];
-      d.cur = has(id) ? G.holdTurns : ec.hold[side]; d.max = G.holdTurns; d.unit = "ходов"; }
-    else if (id === "treasury") { d.desc = `Накопить в казне ${G.gold} золота одновременно (считается текущий запас: траты его уменьшают)`; d.cur = has(id) ? G.gold : Math.min(G.gold, Math.max(0, ec.res[side].gold)); d.max = G.gold; d.unit = "золота"; }
-    else if (id === "domain") { const T = territory(g, cfg); let c = 0; for (let i = 0; i < T.length; i++) if (T[i] === side) c++; const all = passableCells(g), need = Math.ceil(all * G.share);
-      d.desc = `Владеть ${Math.round(G.share * 100)}% проходимых клеток карты (${need} из ${all})`; d.cur = has(id) ? need : Math.min(need, c); d.max = need; d.unit = "клеток"; }
+      d.parts = [{ label: "очки опоры", cur: hs, max: hv.max }, { label: "ходов подряд", cur: has(id) ? G.holdTurns : ec.hold[hsd], max: G.holdTurns }];
+      d.cur = has(id) ? G.holdTurns : ec.hold[hsd]; d.max = G.holdTurns; d.unit = "ходов"; }
+    else if (id === "treasury") { const v = goalVal(g, side, "treasury", cfg); d.desc = `Накопить в казне ${v.max} золота одновременно${tm("treasury")} (считается текущий запас: траты его уменьшают)`; d.cur = has(id) ? v.max : Math.min(v.max, v.cur); d.max = v.max; d.unit = "золота"; }
+    else if (id === "domain") { const v = goalVal(g, side, "domain", cfg), all = passableCells(g), need = v.max, sh = domainShare(g, cfg);
+      d.desc = `Владеть ${Math.round(sh * 100)}% проходимых клеток карты${tm("domain")} (${need} из ${all})`; d.cur = has(id) ? need : Math.min(need, v.cur); d.max = need; d.unit = "клеток"; }
     else if (id === "wonder") { const E = wonderEra(g, cfg), era = ec.era[side];
       const cap = G.wonderCap === false || ec.techs[side].some((t) => { const x = techOf(cfg, t); return x && x.era === E && x.br !== "elem"; });
       d.desc = `Возвести Чудо своей расы в столице: эпоха ${E}${G.wonderCap === false ? "" : ", вершина ветки последней эпохи"}, ${G.wonderGold} золота и ${G.wonderKnow} знаний. Чудо даёт +${(cfg as any).goals.wonderGlory} Славы за ход`;
       d.parts = [{ label: "эпоха", cur: Math.min(era, E), max: E }, ...(G.wonderCap === false ? [] : [{ label: "вершина ветки", cur: cap ? 1 : 0, max: 1 }]),
         { label: "золото", cur: Math.min(G.wonderGold, ec.res[side].gold), max: G.wonderGold }, { label: "знания", cur: Math.min(G.wonderKnow, ec.res[side].know), max: G.wonderKnow }];
       d.cur = has(id) ? 1 : 0; d.max = 1; d.unit = "Чудо"; }
-    else if (id === "glory") { const thr = sz(g, cfg).glory; d.desc = `Набрать за партию ${thr} Славы: убийства, технологии, эпохи, новые города, территория, Обелиск, Чудо (траты Славу не уменьшают)`;
-      d.cur = Math.min(thr, ec.res[side].glory); d.max = thr; d.unit = "Славы"; }
+    else if (id === "glory") { const v = goalVal(g, side, "glory", cfg), thr = v.max; d.desc = `Набрать за партию ${thr} Славы${tm("glory")}: убийства, технологии, эпохи, новые города, территория, Обелиск, Чудо (траты Славу не уменьшают)`;
+      d.cur = Math.min(thr, v.cur); d.max = thr; d.unit = "Славы"; }
     if (d.done) d.p = 1;
     d.text = d.done ? `выполнено на ходу ${d.turn}` : d.parts ? d.parts.map((x) => `${x.label} ${x.cur}/${x.max}`).join(" · ") : `${d.cur}/${d.max} ${d.unit}`;
     out.push(d);

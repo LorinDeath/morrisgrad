@@ -3,8 +3,9 @@
 import type { GameState, Piece, StratCfg, Ev, Kind } from "./rules";
 import type { UltDef } from "./content-cfg";
 import { passable } from "./terrain";
+import { foe } from "./seats";
 
-export type UltHooks = { kill: (t: Piece, by: Piece) => void; onHit: (a: Piece, t: Piece, killed: boolean) => void; mk?: (o: 0 | 1, k: Kind, x: number, y: number) => Piece; pop: number };
+export type UltHooks = { kill: (t: Piece, by: Piece) => void; onHit: (a: Piece, t: Piece, killed: boolean) => void; mk?: (o: number, k: Kind, x: number, y: number) => Piece; pop: number };
 const cheb = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 const at = (g: GameState, x: number, y: number) => g.pieces.find((p) => p.x === x && p.y === y);
 const inb = (g: GameState, x: number, y: number) => x >= 0 && y >= 0 && x < g.size && y < g.size;
@@ -54,18 +55,18 @@ export function canUlt(g: GameState, side: number, p: Piece, u: UltDef, x: numbe
   if (!inb(g, x, y)) return "bad_cell";
   if (u.shape !== "line" && u.shape !== "chain" && cheb(p, { x, y }) > u.range) return "out_of_range";
   if (u.shape === "line" && (cheb(p, { x, y }) < 1)) return "bad_cell";
-  if (u.shape === "chain") { const t = at(g, x, y); if (!t || t.owner === side || cheb(p, t) > u.range) return "bad_target"; }
+  if (u.shape === "chain") { const t = at(g, x, y); if (!t || !foe(g, t.owner, side) || cheb(p, t) > u.range) return "bad_target"; }
   return null;
 }
 
 /** применить ультимейт u фигурой p в клетку (x, y). Проверки canUlt — до вызова. */
-export function castUlt(g: GameState, side: 0 | 1, p: Piece, id: string, u: UltDef, x: number, y: number, ev: Ev[], H: UltHooks) {
+export function castUlt(g: GameState, side: number, p: Piece, id: string, u: UltDef, x: number, y: number, ev: Ev[], H: UltHooks) {
   const dmg = ultDmg(g, side, u); let cells: [number, number][] = [];
-  const foesIn = (cs: [number, number][]) => g.pieces.filter((q) => q.owner !== side && cs.some(([a, b]) => a === q.x && b === q.y));
+  const foesIn = (cs: [number, number][]) => g.pieces.filter((q) => foe(g, q.owner, side) && cs.some(([a, b]) => a === q.x && b === q.y));
   if (u.shape === "chain") { // перескоки: каждый следующий — ближайший непобитый враг в радиусе hop от предыдущего
     const hops = (u.hops || 3) + (late(g, side) ? u.eraHops || 0 : 0), hit = new Set<number>(); let cur: Piece | undefined = at(g, x, y);
     for (let i = 0; i < hops && cur; i++) { hit.add(cur.id); cells.push([cur.x, cur.y]); const last: Piece = cur; hurt(g, p, cur, dmg, u, ev, H);
-      cur = i + 1 < hops ? g.pieces.filter((q) => q.owner !== side && !hit.has(q.id) && q.hp > 0 && cheb(q, last) <= (u.hop ?? 3)).sort((a, b) => cheb(a, last) - cheb(b, last) || a.hp - b.hp)[0] : undefined; // t1225: hop 0 («Подвиг») — без перескока
+      cur = i + 1 < hops ? g.pieces.filter((q) => foe(g, q.owner, side) && !hit.has(q.id) && q.hp > 0 && cheb(q, last) <= (u.hop ?? 3)).sort((a, b) => cheb(a, last) - cheb(b, last) || a.hp - b.hp)[0] : undefined; // t1225: hop 0 («Подвиг») — без перескока
       if (!cur && (u.hop ?? 3) > 0) { // встать рядом с последней целью (t1225: и когда цепь кончилась по числу перескоков, не только по врагам)
         const lx = last.x, ly = last.y; let best: [number, number] | null = null;
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cx = lx + dx, cy = ly + dy; if ((dx || dy) && inb(g, cx, cy) && (!at(g, cx, cy) || at(g, cx, cy) === p) && passable(g.map, cx, cy, g.races[side]) && !best) best = [cx, cy]; }
@@ -93,12 +94,12 @@ export function castUlt(g: GameState, side: 0 | 1, p: Piece, id: string, u: UltD
 export function ultTurnStart(g: GameState, side: number, ev: Ev[]) {
   const F = (g.ec as any)?.fire as { x: number; y: number; t: number; s: number }[] | undefined;
   if (F?.length) {
-    for (const p of g.pieces) if (p.owner === side && F.some((f) => f.s !== side && f.x === p.x && f.y === p.y)) p.burn = Math.max(p.burn, 1);
+    for (const p of g.pieces) if (p.owner === side && F.some((f) => foe(g, f.s, side) && f.x === p.x && f.y === p.y)) p.burn = Math.max(p.burn, 1);
     for (const f of F) if (f.s === side) f.t--; (g.ec as any).fire = F.filter((f) => f.t > 0);
   }
   for (const p of g.pieces) if (p.owner === side) {
     if ((p as any).sht > 0 && --(p as any).sht <= 0) { delete (p as any).sh; delete (p as any).sht; }
     if ((p as any).grdt > 0 && --(p as any).grdt <= 0) { delete (p as any).grd; delete (p as any).grdt; } // «Стойка»/«Барьер»
   }
-  for (const p of g.pieces) if (p.owner !== side && (p as any).root > 0) (p as any).root--; // корни: тикают на ходу наложившего → root = числу ходов жертвы
+  for (const p of g.pieces) if (foe(g, p.owner, side) && (p as any).root > 0) (p as any).root--; // корни: тикают на ходу наложившего → root = числу ходов жертвы
 }

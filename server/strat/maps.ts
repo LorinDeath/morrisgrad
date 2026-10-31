@@ -1,6 +1,6 @@
 // Карты игроков «Партии Чёрных королей»: D1 strat_maps (миграция 0025). Публичный список — ТОЛЬКО одобренные админом
 // (ручная модерация, без автопубликации). До одобрения автор может играть на карте по коду/ссылке — без опыта.
-import { validateMap, isMapSize, spawnsOf, SPAWN_MAX, type MapData } from "./terrain";
+import { validateMap, isMapSize, spawnsOf, SPAWN_MAX, mapFits, mapModes, MODE_SEATS, type MapData } from "./terrain";
 import { armyCells, ensureSize, makeMap, officialMaps, STRAT_CFG, SIZES, type StratCfg } from "./rules";
 import { Roles } from "../meta/roles";
 import { showcaseMap, showcaseAll, SHOWCASE_AUTHOR, SHOWCASE_NICK } from "./showcase";
@@ -8,16 +8,18 @@ import { leagueOf } from "./rating";
 import { cleanChat, CHAT_CFG } from "./chat";
 
 export type MapStatus = "pending" | "approved" | "rejected" | "hidden";
-export type MapRow = { id: string; author: string; author_nick: string; name: string; size: number; t: string; s: string; status: MapStatus; flagged: number; reject_reason: string | null; created_at: number; reviewed_by: string | null; reviewed_at: number | null; descr?: string };
-export const MAP_ID_RE = /^u[0-9a-f]{10}$/, SHOW_ID_RE = /^s\d{2}$/;
+export type MapRow = { id: string; author: string; author_nick: string; name: string; size: number; t: string; s: string; status: MapStatus; flagged: number; reject_reason: string | null; created_at: number; reviewed_by: string | null; reviewed_at: number | null; descr?: string; mode?: string };
+export const MAP_ID_RE = /^u[0-9a-f]{10}$/, SHOW_ID_RE = /^[sm]\d{2}$/; // s — витрина 1×1, m — витрина 2×2/«Все» (t1219)
 /** Проверки карты игрока: армия встаёт у точек спавна (правила размера — от шаблона лиги). */
 export function checkMap(m: MapData, cfg: StratCfg = STRAT_CFG) {
   const sc = ensureSize(cfg, m.size), a = armyCells(m.size, cfg); const v = validateMap(m, { armyRows: a.rows, armyCols: a.cells, army: sc.army });
   return v;
 }
 /** Строгие проверки при сохранении: ≥2 точек спавна (одна снизу, одна сверху), не больше 8. */
-export function checkSave(m: MapData) { const v = checkMap(m), n = spawnsOf(m).length; if (n < 2) v.errors.push("spawns_few"); if (n > SPAWN_MAX && !v.errors.includes("spawns_many")) v.errors.push("spawns_many"); return v; }
-const showRow = (id: string): MapRow | null => { const m = showcaseMap(id); return m ? { id: m.id, author: SHOWCASE_AUTHOR, author_nick: SHOWCASE_NICK, name: m.name, size: m.size, t: m.t, s: m.s, status: "approved", flagged: 0, reject_reason: null, created_at: 0, reviewed_by: SHOWCASE_AUTHOR, reviewed_at: 0, descr: m.descr } : null; };
+export function checkSave(m: MapData) { const v = checkMap(m), n = spawnsOf(m).length; if (n < 2) v.errors.push("spawns_few");
+  if (m.mode && m.mode !== "1v1" && n !== MODE_SEATS[m.mode]) v.errors.push("spawns_count"); // t1219: объявленный режим = число точек
+  if (n > SPAWN_MAX && !v.errors.includes("spawns_many")) v.errors.push("spawns_many"); return v; }
+const showRow = (id: string): MapRow | null => { const m = showcaseMap(id); return m ? { id: m.id, author: SHOWCASE_AUTHOR, author_nick: SHOWCASE_NICK, name: m.name, size: m.size, t: m.t, s: m.s, status: "approved", flagged: 0, reject_reason: null, created_at: 0, reviewed_by: SHOWCASE_AUTHOR, reviewed_at: 0, descr: m.descr, mode: m.mode } : null; };
 const NAME_RE = /^[\p{L}\p{N} _\-«»".,!?]{2,32}$/u;
 export const MAX_MAPS_PER_AUTHOR = 20;
 
@@ -34,7 +36,9 @@ export async function getMapRow(env: any, id: string): Promise<MapRow | null> {
   if (!MAP_ID_RE.test(id) || !env.GAME_DB) return null;
   try { return (await env.GAME_DB.prepare("SELECT * FROM strat_maps WHERE id = ?").bind(id).first()) || null; } catch { return null; }
 }
-export const rowToMap = (r: MapRow): MapData => ({ id: r.id, name: r.name, size: r.size, t: r.t, s: r.s });
+export const rowToMap = (r: MapRow): MapData => ({ id: r.id, name: r.name, size: r.size, t: r.t, s: r.s, ...(r.mode && MODE_SEATS[r.mode] ? { mode: r.mode } : {}) });
+/** режим карты из формы редактора: "" — по числу точек; иначе один из режимов */
+const cleanMode = (x: unknown) => (typeof x === "string" && MODE_SEATS[x] ? x : "");
 
 /** Сохранить новую карту (или правку своей): статус всегда pending — даже правка одобренной уходит на модерацию. */
 export async function saveMap(env: any, who: { pkey: string; nick: string; verified: boolean }, b: any): Promise<{ id?: string; err?: string; warnings?: string[] }> {
@@ -44,7 +48,8 @@ export async function saveMap(env: any, who: { pkey: string; nick: string; verif
   if (!isMapSize(size)) return { err: "bad_size" };
   if (!NAME_RE.test(name)) return { err: "bad_name" };
   const descr = typeof b?.descr === "string" ? cleanChat(b.descr, { ...CHAT_CFG, max: 300 }) || "" : "";
-  const m: MapData = { id: "u", name, size, t: String(b.t || ""), s: String(b.s || "") };
+  const mode = cleanMode(b?.mode);
+  const m: MapData = { id: "u", name, size, t: String(b.t || ""), s: String(b.s || ""), ...(mode ? { mode } : {}) };
   const v = checkSave(m);
   if (v.errors.length) return { err: "invalid:" + v.errors.join(",") };
   const now = Date.now();
@@ -52,6 +57,7 @@ export async function saveMap(env: any, who: { pkey: string; nick: string; verif
     const r = await getMapRow(env, String(b.id)); if (!r || r.author !== who.pkey) return { err: "not_found" };
     if (r.status !== "approved") { // черновик/отклонённая/на рассмотрении — правится на месте и снова ждёт проверки
       await env.GAME_DB.prepare("UPDATE strat_maps SET name=?, size=?, t=?, s=?, descr=?, status='pending', reject_reason=NULL, updated_at=? WHERE id=?").bind(name, size, m.t, m.s, descr, now, r.id).run();
+      await setMode(env, r.id, mode);
       return { id: r.id, warnings: v.warnings };
     } // ТЗ §15: правка одобренной — новая версия на модерацию, старая остаётся в хабе
   }
@@ -60,25 +66,37 @@ export async function saveMap(env: any, who: { pkey: string; nick: string; verif
   const id = "u" + [...crypto.getRandomValues(new Uint8Array(5))].map((x) => x.toString(16).padStart(2, "0")).join("");
   await env.GAME_DB.prepare("INSERT INTO strat_maps (id, author, author_nick, name, size, t, s, descr, status, flagged, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,'pending',0,?,?)")
     .bind(id, who.pkey, who.nick.slice(0, 16), name, size, m.t, m.s, descr, now, now).run();
+  await setMode(env, id, mode);
   return { id, warnings: v.warnings };
 }
+/** колонка mode — миграция 0035; до неё режим выводится из числа точек (тихо пропускаем) */
+async function setMode(env: any, id: string, mode: string) { try { await env.GAME_DB.prepare("UPDATE strat_maps SET mode=? WHERE id=?").bind(mode, id).run(); } catch {} }
 
 /** Список для лобби: официальные + одобренные (публично) + свои (с бейджем статуса). */
-export async function listMaps(env: any, pkey: string | null, size: number) {
-  const off = [...officialMaps(size).map((o) => ({ ...o, kind: "official", status: "official" })), ...showcaseAll().filter((m) => m.size === size).map((m) => ({ id: m.id, name: m.name, author: SHOWCASE_NICK, kind: "user", status: "approved" }))];
+export async function listMaps(env: any, pkey: string | null, size: number, mode = "1v1") {
+  // t1219: лобби предлагает только карты, подходящие режиму (официальные и «Случайная» — без точек старта — только 1×1)
+  const fit = (r: any) => mapFits({ id: r.id, name: r.name, size: r.size, t: "", s: r.s, ...(r.mode && MODE_SEATS[r.mode] ? { mode: r.mode } : {}) } as MapData, mode);
+  const duel = mode === "1v1";
+  const off = [...(duel ? officialMaps(size).map((o) => ({ ...o, kind: "official", status: "official" })) : []), ...showcaseAll().filter((m) => m.size === size && mapFits(m, mode)).map((m) => ({ id: m.id, name: m.name, author: SHOWCASE_NICK, kind: "user", status: "approved" }))];
   let pub: any[] = [], mine: any[] = [];
   if (env.GAME_DB) try {
-    pub = ((await env.GAME_DB.prepare("SELECT id, name, author_nick FROM strat_maps WHERE status='approved' AND size=? ORDER BY reviewed_at DESC LIMIT 50").bind(size).all()).results || []).map((r: any) => ({ id: r.id, name: r.name, author: r.author_nick, kind: "user", status: "approved" }));
-    if (pkey && !pkey.startsWith("guest:")) mine = ((await env.GAME_DB.prepare("SELECT id, name, status, reject_reason FROM strat_maps WHERE author=? AND size=? AND status!='hidden' ORDER BY updated_at DESC").bind(pkey, size).all()).results || []).map((r: any) => ({ id: r.id, name: r.name, kind: "mine", status: r.status, reason: r.reject_reason || undefined }));
+    const sel = async (q: string, ...a: any[]) => { try { return ((await env.GAME_DB.prepare(q.replace("{M}", ", mode")).bind(...a).all()).results || []) as any[]; } catch { return ((await env.GAME_DB.prepare(q.replace("{M}", "")).bind(...a).all()).results || []) as any[]; } };
+    pub = (await sel("SELECT id, name, author_nick, size, s{M} FROM strat_maps WHERE status='approved' AND size=? ORDER BY reviewed_at DESC LIMIT 50", size)).filter(fit).map((r: any) => ({ id: r.id, name: r.name, author: r.author_nick, kind: "user", status: "approved" }));
+    if (pkey && !pkey.startsWith("guest:")) mine = (await sel("SELECT id, name, status, reject_reason, size, s{M} FROM strat_maps WHERE author=? AND size=? AND status!='hidden' ORDER BY updated_at DESC", pkey, size)).filter(fit).map((r: any) => ({ id: r.id, name: r.name, kind: "mine", status: r.status, reason: r.reject_reason || undefined }));
   } catch {}
-  return [...off, { id: "rnd", name: "Случайная", kind: "random", status: "official" }, ...pub, ...mine.filter((m) => !pub.some((p) => p.id === m.id))];
+  return [...off, ...(duel ? [{ id: "rnd", name: "Случайная", kind: "random", status: "official" }] : []), ...pub, ...mine.filter((m) => !pub.some((p) => p.id === m.id))];
 }
 
 /**
  * Карта для лобби. Официальные/случайная/одобренные — все, опыт есть. Неодобренная (pending/rejected) — только если
  * хост лобби — её автор (или игра по его коду/ссылке): опыт выключен на сервере. Скрытая — никому.
  */
-export async function resolveLobbyMap(env: any, id: string, size: number, hostPkey: string, hostAdmin = false): Promise<{ map?: MapData; xp: boolean; status: string; err?: string }> {
+export async function resolveLobbyMap(env: any, id: string, size: number, hostPkey: string, hostAdmin = false, mode = "1v1"): Promise<{ map?: MapData; xp: boolean; status: string; err?: string }> {
+  const r0 = await resolveLobbyMap0(env, id, size, hostPkey, hostAdmin);
+  if (r0.map && !mapFits(r0.map, mode)) return { xp: false, status: "", err: "map_mode" }; // t1219: карта не под этот режим
+  return r0;
+}
+async function resolveLobbyMap0(env: any, id: string, size: number, hostPkey: string, hostAdmin: boolean): Promise<{ map?: MapData; xp: boolean; status: string; err?: string }> {
   if (id === "rnd") { const seed = 1 + (crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000); return { map: makeMap(size, "rnd:" + seed), xp: true, status: "official" }; }
   if (officialMaps(size).some((o) => o.id === id) || id === "open") return { map: makeMap(size, id), xp: true, status: "official" };
   const r = await getMapRow(env, id);
@@ -129,25 +147,27 @@ export function thumb(m: { size: number; t: string; s: string }, max = 48) {
   return { pn: max, pt: t, ps: s };
 }
 const LG: Record<string, [number, number]> = { quick: [4, 9], normal: [10, 35], tactic: [36, 100] }; // фильтр хаба — как просил Алекс (t1217); лига рейтинга — rating.leagueOf
-export type HubQ = { sort?: string; league?: string; size?: number; q?: string; tab?: string };
+export type HubQ = { sort?: string; league?: string; size?: number; q?: string; tab?: string; mode?: string };
 export async function hubList(env: any, pkey: string | null, o: HubQ) {
   const me = pkey && !pkey.startsWith("guest:") ? pkey : null;
   let rows: any[] = [];
-  try { rows = ((await env.GAME_DB.prepare("SELECT id, author, author_nick, name, size, t, s, descr, reviewed_at, created_at, status FROM strat_maps WHERE status='approved' OR (author=? AND status!='hidden') ORDER BY reviewed_at DESC LIMIT 300").bind(me || "-").all()).results || []) as any[]; }
-  catch { try { rows = ((await env.GAME_DB.prepare("SELECT id, author, author_nick, name, size, t, s, reviewed_at, created_at, status FROM strat_maps WHERE status='approved' OR (author=? AND status!='hidden') ORDER BY reviewed_at DESC LIMIT 300").bind(me || "-").all()).results || []) as any[]; } catch {} }
-  const all = [...showcaseAll().map((m) => ({ id: m.id, author: SHOWCASE_AUTHOR, author_nick: SHOWCASE_NICK, name: m.name, size: m.size, t: m.t, s: m.s, descr: m.descr, reviewed_at: 0, created_at: 0, status: "approved", showcase: true })), ...rows];
+  try { rows = ((await env.GAME_DB.prepare("SELECT id, author, author_nick, name, size, t, s, descr, mode, reviewed_at, created_at, status FROM strat_maps WHERE status='approved' OR (author=? AND status!='hidden') ORDER BY reviewed_at DESC LIMIT 300").bind(me || "-").all()).results || []) as any[]; }
+  catch { try { rows = ((await env.GAME_DB.prepare("SELECT id, author, author_nick, name, size, t, s, descr, reviewed_at, created_at, status FROM strat_maps WHERE status='approved' OR (author=? AND status!='hidden') ORDER BY reviewed_at DESC LIMIT 300").bind(me || "-").all()).results || []) as any[]; } catch {} }
+  if (!rows.length) try { rows = ((await env.GAME_DB.prepare("SELECT id, author, author_nick, name, size, t, s, reviewed_at, created_at, status FROM strat_maps WHERE status='approved' OR (author=? AND status!='hidden') ORDER BY reviewed_at DESC LIMIT 300").bind(me || "-").all()).results || []) as any[]; } catch {}
+  const all = [...showcaseAll().map((m) => ({ id: m.id, author: SHOWCASE_AUTHOR, author_nick: SHOWCASE_NICK, name: m.name, size: m.size, t: m.t, s: m.s, descr: m.descr, mode: m.mode, reviewed_at: 0, created_at: 0, status: "approved", showcase: true })), ...rows];
   const st = new Map<string, any>(), liked = new Set<string>(), faved = new Set<string>(), rated = new Set<string>();
   try { for (const x of ((await env.GAME_DB.prepare("SELECT * FROM strat_map_stats").all()).results || []) as any[]) st.set(x.map_id, x); } catch {}
   try { for (const x of ((await env.GAME_DB.prepare("SELECT map_id FROM strat_rated_maps").all()).results || []) as any[]) rated.add(x.map_id); } catch {}
   if (me) { try { for (const x of ((await env.GAME_DB.prepare("SELECT map_id FROM strat_map_likes WHERE pkey=?").bind(me).all()).results || []) as any[]) liked.add(x.map_id); } catch {}
     try { for (const x of ((await env.GAME_DB.prepare("SELECT map_id FROM strat_map_favs WHERE pkey=?").bind(me).all()).results || []) as any[]) faved.add(x.map_id); } catch {} }
   let list = all.map((r) => { const z = st.get(r.id) || {}; return { id: r.id, name: r.name, author: r.author_nick, size: r.size, descr: r.descr || "", status: r.status, mine: !!me && r.author === me, showcase: !!r.showcase,
-    plays: z.plays || 0, likes: z.likes || 0, favs: z.favs || 0, comments: z.comments || 0, liked: liked.has(r.id), faved: faved.has(r.id), rated: rated.has(r.id), league: leagueOf(r.size), at: r.reviewed_at || r.created_at || 0, ...thumb(r) }; });
+    plays: z.plays || 0, likes: z.likes || 0, favs: z.favs || 0, comments: z.comments || 0, liked: liked.has(r.id), faved: faved.has(r.id), rated: rated.has(r.id), league: leagueOf(r.size), modes: mapModes({ ...r, t: r.t || "", ...(r.mode && MODE_SEATS[r.mode] ? { mode: r.mode } : { mode: undefined }) } as MapData), at: r.reviewed_at || r.created_at || 0, ...thumb(r) }; });
   const tab = o.tab || "all";
   if (tab === "mine") list = list.filter((x) => x.mine); else list = list.filter((x) => x.status === "approved"); // чужие — только одобренные Алексом
   if (tab === "fav") list = list.filter((x) => x.faved);
   if (o.league && LG[o.league]) { const [a, b] = LG[o.league]; list = list.filter((x) => x.size >= a && x.size <= b); }
   if (isMapSize(o.size)) list = list.filter((x) => x.size === o.size);
+  if (o.mode && MODE_SEATS[o.mode]) list = list.filter((x) => x.modes.includes(o.mode!) || (o.mode === "1v1" && !x.modes.length));
   const q = String(o.q || "").trim().toLowerCase().slice(0, 40); if (q) list = list.filter((x) => x.name.toLowerCase().includes(q) || String(x.author || "").toLowerCase().includes(q));
   const sort = o.sort || "plays";
   list.sort(sort === "likes" ? (a, b) => b.likes - a.likes || b.plays - a.plays : sort === "new" ? (a, b) => b.at - a.at : (a, b) => b.plays - a.plays || b.likes - a.likes);
