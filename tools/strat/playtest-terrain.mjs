@@ -1,7 +1,7 @@
 // Плейтест рельефа и вида фигур (локально: astro 4391 + wrangler 8871). Скриншоты → /workspace/minigame-tz/shots/s2-*.png
 import { createRequire } from "module"; const require = createRequire("/workspace/mc-ui-tools/");
 const { chromium } = require("playwright-core");
-const SITE = "http://127.0.0.1:4391/games/strategy", OUT = "/workspace/minigame-tz/shots/", WS = "ws://127.0.0.1:8871";
+const SITE = "http://127.0.0.1:4391/games/" + (process.env.STRAT_SLUG || "mq2wvtb8t07") + "", OUT = "/workspace/minigame-tz/shots/", WS = "ws://127.0.0.1:8871";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const T = Date.now(), errs = [];
 const br = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox"] });
