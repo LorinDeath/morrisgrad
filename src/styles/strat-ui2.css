@@ -798,3 +798,9 @@ body:not(.bigmap) #minimapbox:not([hidden]) { display: block; }
 #info .cellinfo>small{display:block;line-height:1.25;opacity:.9}
 #info .cellinfo .ci-buy{color:#f3d27a}
 @media (max-width:760px){body.selinfo #info{max-height:30vh;max-height:30dvh;overflow-y:auto}}
+/* t1201 smoke: на телефоне мини-карта — в верхний левый угол (не закрывает кнопку журнала), подсказка журнала — одна строка */
+@media (max-width: 760px) {
+  .minimapbox { top: 4px; bottom: auto; left: 4px; right: auto; }
+  #stage .log.peek:not(.open) { max-height: 30px; overflow: hidden; opacity: .92; }
+  #stage .log:not(.open) .lg:nth-child(n+2) { display: none; }
+}
