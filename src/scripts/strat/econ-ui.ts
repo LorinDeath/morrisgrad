@@ -4,7 +4,7 @@
 // Древо технологий строится по данным: узлы {era, br, req[], excl[], unlocks{b[],k[]}} — форма дерева любая.
 import { STRAT_CFG, type GameState, type Piece, type Kind, type StratCfg } from "../../../server/strat/rules";
 import { TECHS, BUILD, techSibling, UNLOCK, HERO_ERA, type BuildId, type Tech } from "../../../server/strat/econ-cfg";
-import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, canFound, sz, techEra, rCost } from "../../../server/strat/econ";
+import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, eraTechs, canFound, sz, techEra, rCost } from "../../../server/strat/econ";
 import { leagueOf } from "../../../server/strat/rating";
 import { mergeCfg } from "../../../server/strat/cfg";
 import { ic, BUILD_ICON, BRANCH_ICON, iconImg } from "./icons";
@@ -23,7 +23,7 @@ export const ECON_ERR: Record<string, string> = {
   no_gold: "Не хватает золота", no_know: "Не хватает знаний", no_slot: "Нет свободного места под постройку", built: "Уже построено", wrong_race: "Постройка другой расы",
   need_building: "Сначала нужна постройка", need_era: "Нужна следующая эпоха", hero_one: "Герой может быть только один", cell_busy: "Клетка занята", bad_cell: "Сюда не нанять",
   city_acted: "Город уже действовал в этот ход", no_tech: "На этом размере нет технологий", already: "Уже изучено", locked: "Закрыто: выбрана парная технология",
-  research_done: "В этот ход уже было исследование", need_techs: "Нужно 2 технологии текущей эпохи", max_era: "Последняя эпоха", pawn_only: "Заставу основывает только Ополченец",
+  research_done: "В этот ход уже было исследование", need_techs: "Нужно 2 технологии, изученные в текущей эпохе", max_era: "Последняя эпоха", pawn_only: "Заставу основывает только Ополченец",
   outpost_max: "Застав больше нельзя", too_close: "Слишком близко к другому городу", enemy_land: "Чужая территория", on_structure: "Здесь постройка", no_talent: "Талант пока недоступен",
   bad_talent: "Такого таланта нет", no_ally: "Обмен — только с союзником в режиме 2 на 2", forge_max: "Кузня — не больше 2", bad_city: "Город не найден", capital_only: "Только в столице",
   not_capital: "Только в столице", bad_tech: "Нет такой технологии", one_hero: "Герой может быть только один", pop_cap: "Достигнут предел армии",
@@ -101,8 +101,11 @@ export function techTip(G: GameState, cfg: StratCfg, n: TNode): string {
   const lid = leagueOf(G.size) || "tactical", shifted = (cfg.econ as any).league?.[lid]?.techEra?.[n.id] != null, base = (n.raw as any)?.state ? 0 : +(n.raw as any)?.era || 0;
   const era = `Эпоха ${ERA_ROMAN[n.era] || n.era}` + (shifted ? ` — в лиге «${LG_NAME[lid] || lid}»` + (base && base !== n.era ? ` (обычно эпоха ${ERA_ROMAN[base] || base})` : "") : "");
   const t = String((n.raw as any)?.tip || n.eff || ""); // подсказка вставляется как HTML (ui-kit tipOf) — текст экранируем
-  return (t ? esc(t) + "<br>" : "") + `<b>${esc(era)}</b> · ${nodeCost(G, cfg, n)} знаний`;
+  const xs = (n.excl || []).map((id) => xName(id)).filter(Boolean);
+  return (t ? esc(t) + "<br>" : "") + `<b>${esc(era)}</b> · ${nodeCost(G, cfg, n)} знаний` + (xs.length ? `<br>⚔ Взаимоисключается с «${xs.map(esc).join("», «")}»: изучите одну — другая закроется навсегда` : "");
 }
+/** t1221: имена узлов для подсказок «или» (заполняется при отрисовке древа) */
+const XN = new Map<string, string>(); const xName = (id: string) => XN.get(id) || "";
 /** Видимость узла древа технологий для игрока (туман знаний). */
 export function techFog(G: GameState, me: number, n: TNode, st: TState): FogView {
   const have: string[] = (G.ec?.techs?.[me] || []) as any;
@@ -241,12 +244,13 @@ export function renderTech(c: Ctx) {
   const eras = sizeOf(G, cfg).eras || 3, my = G.cur === me, race = G.races[me], nodes = techNodes(race, srvTree(G, me), leagueEra(G, cfg));
   const brs = [...new Set(["war", "econ", "elem", ...nodes.map((n) => n.br)])].filter((b) => nodes.some((n) => n.br === b) || b === "elem");
   const maxEra = Math.max(4, eras, ...nodes.map((n) => n.era)); // эпоха IV видна всегда: её узлы скрыты «?», пока сервер их не раскроет
+  for (const n of nodes) XN.set(n.id, n.name);
   const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
     return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" data-tip="${esc(techTip(G, cfg, n))}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
       <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
-      <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>
+      <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>${n.excl?.length ? `<span class="xor" data-xor="${esc(n.excl.join(" "))}">${ic("close")}${st === "closed" ? "закрыто выбором" : st === "got" ? "закрыло" : "закроет"} «${esc(n.excl.map(xName).filter(Boolean).join("», «"))}»</span>` : ""}
       <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + nodeCost(G, cfg, n)}</em></button>`; };
   const cell = (br: string, era: number) => {
     const ns = nodes.filter((n) => n.br === br && n.era === era);
@@ -268,11 +272,16 @@ export function renderTech(c: Ctx) {
       <div class="dlg-res"><span data-tip="Знания">${ic("know")}<b>${ec.res[me].know}</b></span><span>${ic("era")}<b>${ERA_NAME(ec.era[me])}</b></span></div>
       <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
     <div class="tscroll">${body}</div>
-    <div class="dlg-f">${legend}${nextEra <= eras ? `<button class="btn gold big" id="erabtn" ${!my || eraErr ? "disabled" : ""}>${ic("era")}<span>Новая эпоха: ${ERA_ROMAN[nextEra]} · ${ic("know")}${eraCost ?? "?"}</span></button><span class="muted">${eraErr ? esc(ECON_ERR[eraErr] || eraErr) : "+" + cfg.econ.glory.era + " Славы"}</span>` : ""}</div></div>`;
+    <div class="dlg-f">${legend}${nextEra <= eras ? `<button class="btn gold big" id="erabtn" ${!my || eraErr ? "disabled" : ""}>${ic("era")}<span>Новая эпоха: ${ERA_ROMAN[nextEra]} · ${ic("know")}${eraCost ?? "?"}</span></button><span class="muted">${eraErr === "need_techs" ? `Технологий эпохи ${ERA_ROMAN[ec.era[me]] || ec.era[me]}: ${eraTechs(G, me, cfg)} из ${cfg.econ.research.need}` : eraErr ? esc(ECON_ERR[eraErr] || eraErr) : `Технологий эпохи: ${eraTechs(G, me, cfg)} из ${cfg.econ.research.need} ✓ · +` + cfg.econ.glory.era + " Славы"}</span>` : ""}</div></div>`;
   const sc = dlg.querySelector<HTMLElement>(".tscroll")!; sc.scrollTop = keepScroll;
   const close = () => { ui.tech = false; persist("techdlg", false, ""); };
   dlg.querySelector<HTMLElement>("[data-x]")!.onclick = close; dlg.onclick = (e) => { if (e.target === dlg) close(); };
   for (const b of dlg.querySelectorAll<HTMLButtonElement>("[data-t]")) b.onclick = () => { if (!b.getAttribute("aria-disabled")) c.send({ type: "act", act: { a: "research", t: b.dataset.t } }); };
+  // t1221: наведение/касание узла «или» подсвечивает, какой узел он закроет (и наоборот)
+  const xHi = (b: HTMLElement | null) => { dlg.querySelectorAll(".xpart,.xsel").forEach((x) => x.classList.remove("xpart", "xsel")); if (!b) return;
+    const ids = (b.querySelector<HTMLElement>("[data-xor]")?.dataset.xor || "").split(" ").filter(Boolean); if (!ids.length) return;
+    b.classList.add("xsel"); for (const id of ids) dlg.querySelector(`[data-node="${CSS.escape(id)}"]`)?.classList.add("xpart"); };
+  for (const b of dlg.querySelectorAll<HTMLElement>(".tnode[data-node]")) { b.addEventListener("mouseenter", () => xHi(b)); b.addEventListener("mouseleave", () => xHi(null)); b.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") xHi(b); }); b.addEventListener("focus", () => xHi(b)); }
   const eb = dlg.querySelector<HTMLButtonElement>("#erabtn"); if (eb) eb.onclick = () => c.send({ type: "act", act: { a: "era" } });
   requestAnimationFrame(() => { techFit(dlg); techLinks(dlg, nodes); });
 }

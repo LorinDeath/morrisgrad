@@ -748,3 +748,10 @@ body[data-screen="game"] .gtop { display: none; }
 .ag-lg label.ov span { color: #ffd76a; } .ag-lg input { width: 84px; }
 .ag-err:empty { display: none; } .ag-log { font-size: .8em; max-height: 220px; overflow: auto; }
 .plaque .pcnt { white-space: nowrap; } .score.many .plaque .pcnt { font-size: .68rem; }
+/* t1221: взаимоисключающие технологии — «закроет «X»» и подсветка пары при наведении/касании */
+.tnode .xor { display: flex; align-items: center; gap: 3px; margin-top: 2px; font: 600 .62rem/1.15 var(--f-disp, inherit); color: #e6a08a; }
+.tnode .xor .ic { width: 11px; height: 11px; flex: none; }
+.tnode.xsel { outline: 2px solid var(--gold-hi, #ffd77a); outline-offset: 1px; }
+.tnode.xpart { outline: 2px dashed #e05a3c; outline-offset: 1px; filter: saturate(.6); }
+.tnode.xpart::after { content: "закроется"; position: absolute; top: -8px; right: 4px; padding: 0 4px; font: 700 .58rem var(--f-disp, inherit); color: #fff; background: #a3321f; }
+.tnode { position: relative; }

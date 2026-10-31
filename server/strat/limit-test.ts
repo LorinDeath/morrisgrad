@@ -11,9 +11,9 @@ ok([8, 15, 35].map((n) => newGame(n, ["fire", "ice"], 0).turnLimit).join() === "
 { const g = newGame(15, ["fire", "fire"], 0); const ec: any = g.ec;
   ec.goals[0] = ["treasury"]; ec.goals[1] = []; ok(limitWinner(g, C) === 0, "больше целей — победа");
   ec.goals[1] = ["domain"]; ec.earned[1] = 900; ok(limitWinner(g, C) === 0 || limitWinner(g, C) === 1, "");
-  ec.goals[0] = []; ec.goals[1] = []; ec.earned[0] = 0; ec.earned[1] = 0; const w0 = limitWinner(g, C);
-  ec.earned[0] = 600; ok(limitWinner(g, C) === 0, "равные цели — решает прогресс (Казна 600/1000)");
-  ec.earned[0] = 0; ok(limitWinner(g, C) === w0, "детерминировано");
+  ec.goals[0] = []; ec.goals[1] = []; ec.earned[0] = 0; ec.earned[1] = 0; const g0 = [ec.res[0].gold, ec.res[1].gold], w0 = limitWinner(g, C);
+  ec.res[0].gold = 600; ec.res[1].gold = 0; ok(limitWinner(g, C) === 0, "равные цели — решает прогресс (Казна: запас 600/1000, t1221)");
+  ec.res[0].gold = g0[0]; ec.res[1].gold = g0[1]; ok(limitWinner(g, C) === w0, "детерминировано");
   const m = newGame(15, ["fire", "fire"], 0); ok(limitWinner(m, C) === 2 || true, ""); }
 { const g = newGame(8, ["fire", "ice"], 0); const ec: any = g.ec; ec.goals[0] = ["chief", "hold", "treasury", "domain"]; ok(goalWinner(g, C) === -1, "4 из 6 — ещё не победа");
   ec.goals[0].push("wonder"); ok(goalWinner(g, C) === -1, "t1211: 5 из 6 — ещё не победа");

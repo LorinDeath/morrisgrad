@@ -10,7 +10,7 @@ export type GoalId = "chief" | "hold" | "treasury" | "domain" | "wonder" | "glor
 export const GOALS: { id: GoalId; name: string; icon: string; hint: string }[] = [
   { id: "chief", name: "Цареубийство", icon: "skull", hint: "Сразить первого Вождя каждого соперника (в 2×2 — общий счёт команды). Возрождённые Вожди не в счёт. Нажмите, чтобы открыть список" },
   { id: "hold", name: "Твердыня", icon: "castle", hint: "Набрать очки опорных пунктов и держать их нужное число ходов подряд" },
-  { id: "treasury", name: "Казна", icon: "gold", hint: "Заработать за партию заданную сумму золота" },
+  { id: "treasury", name: "Казна", icon: "gold", hint: "Накопить в казне заданный запас золота — считается текущий баланс, траты его уменьшают" },
   { id: "domain", name: "Держава", icon: "flag", hint: "Владеть долей карты" },
   { id: "wonder", name: "Великое чудо", icon: "crown", hint: "Возвести Чудо своей расы в столице" },
   { id: "glory", name: "Слава", icon: "glory", hint: "Набрать за партию порог Славы" },

@@ -92,8 +92,9 @@ const killKing = (g: GameState, s: number) => { const k = king(g, s)!; const a =
   const g = newGame(8, ["fire", "ice"], 0);
   ok(goalCfg(g, C).need === 6 && goalCfg(g, C).list.length === 6 && goalCfg(g, C).list.includes("glory"), "8×8: 6 из 6, включая Славу (t1211)");
   ok(goalCfg(newGame(5, ["fire", "ice"], 0), C).need === 1, "5×5: 1 цель (Вождь или Твердыня)");
-  g.ec.earned[0] = goalCfg(g, C).gold; endTurn(g); endTurn(g);
-  ok(g.ec.goals[0].includes("treasury"), "Казна: заработано ≥ порога");
+  { const h = newGame(8, ["fire", "ice"], 0); h.ec.earned[0] = goalCfg(h, C).gold * 3; h.ec.res[0].gold = 0; endTurn(h); endTurn(h); ok(!h.ec.goals[0].includes("treasury"), "t1221: Казна — заработанное без запаса не считается"); }
+  g.ec.res[0].gold = goalCfg(g, C).gold; endTurn(g); endTurn(g);
+  ok(g.ec.goals[0].includes("treasury"), "Казна: запас ≥ порога (t1221)");
   ok(holdScore(g, 0, C) >= 1, "Твердыня: очки за город");
   const g2 = newGame(8, ["fire", "ice"], 0), c = g2.ec.cities.find((x) => x.owner === 0 && x.cap)!;
   g2.ec.res[0].gold = 999; g2.ec.res[0].know = 999;

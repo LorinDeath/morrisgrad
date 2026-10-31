@@ -14,7 +14,7 @@ export const OV_FIELDS: Record<string, F> = {
   turnLimit: { name: "Лимит ходов", min: 10, max: 1000, int: true, get: (c, n) => c.sizes[n].turnLimit, put: (p, n, v) => { ((p.sizes ??= {})[n] ??= {}).turnLimit = v; } },
   holdK: { name: "Твердыня: очков", min: 1, max: 100, int: true, get: (c, n) => c.goals.sizes[n].holdK, put: (p, n, v) => { G(n, "")(p).holdK = v; } },
   holdTurns: { name: "Твердыня: ходов подряд", min: 1, max: 1000, int: true, get: (c, n) => c.goals.sizes[n].holdTurns, put: (p, n, v) => { G(n, "")(p).holdTurns = v; } },
-  gold: { name: "Казна: золото", min: 1, max: 100000, int: true, get: (c, n) => c.goals.sizes[n].gold, put: (p, n, v) => { G(n, "")(p).gold = v; } },
+  gold: { name: "Казна: запас золота", min: 1, max: 100000, int: true, get: (c, n) => c.goals.sizes[n].gold, put: (p, n, v) => { G(n, "")(p).gold = v; } },
   share: { name: "Держава: доля земли", min: 0.05, max: 0.9, get: (c, n) => c.goals.sizes[n].share, put: (p, n, v) => { G(n, "")(p).share = v; } },
   wonderGold: { name: "Чудо: золото", min: 1, max: 100000, int: true, get: (c, n) => c.goals.sizes[n].wonderGold, put: (p, n, v) => { G(n, "")(p).wonderGold = v; } },
   wonderKnow: { name: "Чудо: знания", min: 1, max: 100000, int: true, get: (c, n) => c.goals.sizes[n].wonderKnow, put: (p, n, v) => { G(n, "")(p).wonderKnow = v; } },

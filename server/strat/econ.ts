@@ -244,7 +244,7 @@ export function goalProgress(g: GameState, side: number, cfg: StratCfg, T?: Int8
   const has = (id: string) => ec.goals[side].includes(id);
   out.chief = has("chief") ? 1 : 0;
   out.hold = has("hold") ? 1 : Math.min(0.99, (Math.min(1, holdScore(g, side, cfg) / G.holdK) * 0.6 + 0.4 * ec.hold[side] / G.holdTurns));
-  out.treasury = has("treasury") ? 1 : G.gold ? Math.min(0.99, ec.earned[side] / G.gold) : 0;
+  out.treasury = has("treasury") ? 1 : G.gold ? Math.min(0.99, Math.max(0, ec.res[side].gold) / G.gold) : 0;
   if (G.share) { const TT = T || territory(g, cfg); let c = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === side) c++; out.domain = has("domain") ? 1 : Math.min(0.99, c / passableCells(g) / G.share); } else out.domain = 0;
   if (G.list.includes("wonder") && !has("wonder")) {
     const E = wonderEra(g, cfg), era = ec.era[side];
@@ -465,6 +465,11 @@ export function gloryGoals(g: GameState, ev: Ev[], cfg: StratCfg) {
   const thr = sz(g, cfg).glory; if (!g.ec || thr <= 0 || !goalOn(g, "glory", cfg)) return;
   for (const s of [0, 1]) if (g.ec.res[s].glory >= thr) setGoal(g, s, "glory", ev, cfg);
 }
+/** t1221: Казна — запас золота (а не сумма дохода); проверка после каждого действия (добыча, обмен, руины) */
+export function treasuryGoals(g: GameState, ev: Ev[], cfg: StratCfg) {
+  if (!g.ec) return; const gold = goalCfg(g, cfg).gold; if (!gold) return;
+  g.ec.res.forEach((r, s) => { if (r.gold >= gold) setGoal(g, s, "treasury", ev, cfg); });
+}
 
 /** Переход фигуры на клетку: руины (разовая награда), захват города. */
 export function onEnter(g: GameState, p: Piece, ev: Ev[], cfg: StratCfg) {
@@ -543,8 +548,8 @@ export function startTurn(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk
   r.gold += inc.gold; r.know = Math.max(0, r.know + inc.know); r.glory += inc.glory;
   // цели: Казна, Держава, Твердыня
   const GC = goalCfg(g, cfg);
-  ec.earned[side] += Math.max(0, inc.gold);
-  if (GC.gold && ec.earned[side] >= GC.gold) setGoal(g, side, "treasury", ev, cfg);
+  ec.earned[side] += Math.max(0, inc.gold); // статистика: весь доход за партию
+  if (GC.gold && r.gold >= GC.gold) setGoal(g, side, "treasury", ev, cfg); // t1221: Казна — текущий запас золота в казне
   if (GC.share && cells / passableCells(g) >= GC.share) setGoal(g, side, "domain", ev, cfg);
   gloryGoals(g, ev, cfg);
   if (holdScore(g, side, cfg) >= GC.holdK) { ec.hold[side]++; if (ec.hold[side] >= GC.holdTurns) setGoal(g, side, "hold", ev, cfg); } else ec.hold[side] = 0;
@@ -783,11 +788,15 @@ export function canResearch(g: GameState, side: number, t: Tech | undefined, cfg
   if (ec.res[side].know < rCost(g, cfg, cfg.econ.research.cost[te])) return "no_know";
   return null;
 }
+/** t1221: сколько технологий засчитано в текущую эпоху: эпоха технологии с поправкой лиги (techEra) ИЛИ изучена, пока игрок был в этой эпохе (ec.tre). */
+export function eraTechs(g: GameState, side: number, cfg: StratCfg): number {
+  const ec = g.ec, e = ec.era[side], at = (ec as any).tre?.[side] || {};
+  return ec.techs[side].filter((id) => { const t = techOf(cfg, id); return !!t && (techEra(g, t, cfg) === e || at[id] === e); }).length;
+}
 export function canEra(g: GameState, side: number, cfg: StratCfg): string | null {
   const ec = g.ec, e = ec.era[side];
   if (e >= sz(g, cfg).eras) return "max_era";
-  const n = ec.techs[side].filter((id) => techOf(cfg, id)?.era === e).length;
-  if (n < cfg.econ.research.need) return "need_techs";
+  if (eraTechs(g, side, cfg) < cfg.econ.research.need) return "need_techs";
   if (ec.res[side].know < rCost(g, cfg, cfg.econ.research.eraCost[e + 1])) return "no_know";
   return null;
 }
@@ -859,7 +868,7 @@ export function applyEcon(g: GameState, side: 0 | 1, act: EconAction, cfg: Strat
     case "research": {
       const t = techOf(cfg, String(act.t)); const e = canResearch(g, side, t, cfg); if (e) return no(e);
       const extraGlory = tfx(g, side, "research", cfg) > 0 ? (cfg.econ.research as any).techGlory || 0 : 0;
-      r.know -= rCost(g, cfg, cfg.econ.research.cost[techEra(g, t!, cfg)]); ec.techs[side].push(t!.id); ec.rs[side]++;
+      r.know -= rCost(g, cfg, cfg.econ.research.cost[techEra(g, t!, cfg)]); ec.techs[side].push(t!.id); ec.rs[side]++; (((ec as any).tre ||= {})[side] ||= {})[t!.id] = ec.era[side]; // t1221: эпоха, в которой изучена
       const kh = t!.fx?.kingHp || 0; if (kh) for (const p of g.pieces) if (p.owner === side && p.kind === "king") { p.maxHp += kh; p.hp += kh; }
       ev.push({ e: "tech", side, t: t!.id }); addGlory(g, side, cfg.econ.glory.tech + extraGlory, "tech", ev); return ok(ev);
     }
@@ -1074,7 +1083,7 @@ export function goalDetails(g: GameState, side: number, cfg: StratCfg): { need: 
       d.desc = `Набрать ${G.holdK} очк. опоры и держать ${G.holdTurns} ход(а) подряд. Опора: свой город +${H.city}, со Стеной ещё +${H.walled}, взятая столица соперника +${H.enemyCap}, своя фигура на Обелиске/Башне/Месте чуда +${H.point}`;
       d.parts = [{ label: "очки опоры", cur: hs, max: G.holdK }, { label: "ходов подряд", cur: has(id) ? G.holdTurns : ec.hold[side], max: G.holdTurns }];
       d.cur = has(id) ? G.holdTurns : ec.hold[side]; d.max = G.holdTurns; d.unit = "ходов"; }
-    else if (id === "treasury") { d.desc = `Заработать за партию ${G.gold} золота (считается весь доход, траты не уменьшают)`; d.cur = Math.min(G.gold, ec.earned[side]); d.max = G.gold; d.unit = "золота"; }
+    else if (id === "treasury") { d.desc = `Накопить в казне ${G.gold} золота одновременно (считается текущий запас: траты его уменьшают)`; d.cur = has(id) ? G.gold : Math.min(G.gold, Math.max(0, ec.res[side].gold)); d.max = G.gold; d.unit = "золота"; }
     else if (id === "domain") { const T = territory(g, cfg); let c = 0; for (let i = 0; i < T.length; i++) if (T[i] === side) c++; const all = passableCells(g), need = Math.ceil(all * G.share);
       d.desc = `Владеть ${Math.round(G.share * 100)}% проходимых клеток карты (${need} из ${all})`; d.cur = has(id) ? need : Math.min(need, c); d.max = need; d.unit = "клеток"; }
     else if (id === "wonder") { const E = wonderEra(g, cfg), era = ec.era[side];
