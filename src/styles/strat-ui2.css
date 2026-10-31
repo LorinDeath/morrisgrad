@@ -801,6 +801,6 @@ body:not(.bigmap) #minimapbox:not([hidden]) { display: block; }
 /* t1201 smoke: на телефоне мини-карта — в верхний левый угол (не закрывает кнопку журнала), подсказка журнала — одна строка */
 @media (max-width: 760px) {
   .minimapbox { top: 4px; bottom: auto; left: 4px; right: auto; }
-  #stage .log.peek:not(.open) { max-height: 30px; overflow: hidden; opacity: .92; }
+  #stage .log.peek:not(.open) { max-height: none; opacity: .92; }
   #stage .log:not(.open) .lg:nth-child(n+2) { display: none; }
 }
