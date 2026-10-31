@@ -740,3 +740,10 @@ body[data-screen="game"] .gtop { display: none; }
   .prace { grid-template-columns: 28px 1fr 48px 48px 44px; } .prace .pr-bar { display: none; } .plvrow { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+/* G (t1209): админка «Цели и лиги» */
+.ag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 8px 0; }
+.ag-lg { border: 1px solid rgba(255, 215, 106, .25); border-radius: 8px; padding: 8px 10px; }
+.ag-lg h4 { margin: 0 0 6px; } .ag-mod { font-size: .75em; color: #ffd76a; }
+.ag-lg label { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: .85em; margin: 3px 0; }
+.ag-lg label.ov span { color: #ffd76a; } .ag-lg input { width: 84px; }
+.ag-err:empty { display: none; } .ag-log { font-size: .8em; max-height: 220px; overflow: auto; }

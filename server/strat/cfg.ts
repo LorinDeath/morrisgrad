@@ -2,6 +2,7 @@
 // Партия берёт снимок конфига в момент старта (L.cfg) — правка админа не меняет правила посреди идущей партии.
 import { STRAT_CFG, type StratCfg } from "./rules";
 import { deepMerge } from "./econ-cfg";
+import { overridePatch, mergePatch } from "./cfg-override";
 
 const KIND = "strat_rules", ID = "main", TTL = 30_000;
 let cache: { at: number; cfg: StratCfg; patch: any } | null = null;
@@ -27,8 +28,19 @@ export async function loadStratCfg(env: any, fresh = false): Promise<{ cfg: Stra
     const r: any = await env.GAME_DB?.prepare("SELECT data FROM game_overrides WHERE kind = ? AND id = ?").bind(KIND, ID).first();
     if (r?.data) patch = JSON.parse(r.data);
   } catch { patch = {}; }
+  patch = mergePatch(sanitizePatch(patch) || {}, overridePatch(await loadOverrides(env))); // G (t1209): «Цели и лиги» поверх
   cache = { at: Date.now(), cfg: mergeCfg(patch), patch };
   return cache;
+}
+/** G (t1209): правки лиг из strat_cfg_override; кэш в изоляте DO с коротким TTL (новая партия видит правку не позже чем через OV_TTL). */
+const OV_TTL = 15_000; let ovCache: { at: number; rows: Record<string, Record<string, number>> } | null = null;
+export function dropOverrideCache() { ovCache = null; cache = null; }
+export async function loadOverrides(env: any, fresh = false): Promise<Record<string, Record<string, number>>> {
+  if (!fresh && ovCache && Date.now() - ovCache.at < OV_TTL) return ovCache.rows;
+  const rows: Record<string, Record<string, number>> = {};
+  try { const rs: any = await env.GAME_DB?.prepare("SELECT key, json FROM strat_cfg_override").all();
+    for (const r of rs?.results || []) try { const o = JSON.parse(r.json); if (o && typeof o === "object") rows[r.key] = o; } catch {} } catch {}
+  ovCache = { at: Date.now(), rows }; return rows;
 }
 export async function saveStratPatch(env: any, by: string, patch: any): Promise<{ ok?: true; err?: string }> {
   const clean = sanitizePatch(patch); if (!clean) return { err: "bad_patch" };

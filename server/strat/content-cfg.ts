@@ -18,10 +18,10 @@ export const GOALS = {
   sizes: {
     4: { need: 1, list: ["chief", "hold"], holdK: 3, holdTurns: 1, gold: 0, share: 0, wonderGold: 0, wonderKnow: 0 },
     5: { need: 1, list: ["chief", "hold"], holdK: 3, holdTurns: 1, gold: 0, share: 0, wonderGold: 0, wonderKnow: 0 },
-    8: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 4, holdTurns: 5, gold: 150, share: 0.56, wonderGold: 18, wonderKnow: 6, wonderCap: false }, // t1207: Казна 80 → 150,
-    15: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 8, holdTurns: 10, gold: 1000, share: 0.33, wonderGold: 40, wonderKnow: 15, wonderCap: true }, // t1207: Казна 190 → 1000
-    35: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 14, holdTurns: 20, gold: 5000, share: 0.33, wonderGold: 90, wonderKnow: 35, wonderCap: true }, // t1207: Тактическая (раньше брала значения 15×15)
-  } as Record<number, { need: number; list: string[]; holdK: number; holdTurns: number; gold: number; share: number; wonderGold: number; wonderKnow: number; wonderCap?: boolean }>,
+    8: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 4, holdTurns: 5, gold: 150, share: 0.56, wonderGold: 18, wonderKnow: 6, wonderCap: false, rate: { winA: 1.4, winB: 0.2, loseA: 0.4, loseB: 0.25 } }, // t1207: Казна 80 → 150,
+    15: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 8, holdTurns: 10, gold: 1000, share: 0.33, wonderGold: 40, wonderKnow: 15, wonderCap: true, rate: { winA: 1.4, winB: 0.2, loseA: 0.4, loseB: 0.25 } }, // t1207: Казна 190 → 1000
+    35: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 14, holdTurns: 20, gold: 5000, share: 0.33, wonderGold: 90, wonderKnow: 35, wonderCap: true, rate: { winA: 1.4, winB: 0.2, loseA: 0.4, loseB: 0.25 } }, // t1207: Тактическая (раньше брала значения 15×15)
+  } as Record<number, { need: number; list: string[]; holdK: number; holdTurns: number; gold: number; share: number; wonderGold: number; wonderKnow: number; wonderCap?: boolean; rate?: { winA: number; winB: number; loseA: number; loseB: number } }>,
   /** очки опорных пунктов (Твердыня): свой город; город со Стеной; взятая столица соперника (сверху); своя фигура на Обелиске/Башне/Месте чуда */
   hold: { city: 1, walled: 1, enemyCap: 2, point: 1, points: "XTO" },
   wonderGlory: 2, // Слава за ход владельцу Чуда

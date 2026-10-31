@@ -47,14 +47,19 @@ export async function pairToday(env: any, a: string, b: string): Promise<number>
   return r?.n || 0;
 }
 /** Итог партии → рейтинги. players: uid, команда, место, счёт целей, число действий. Возвращает {reason} или изменения. */
-export async function rateFinished(env: any, matchId: string, size: number, ctx: RatedCtx, players: Omit<RPlayer, "r">[]) {
+/** G (t1209): коэффициенты по d из снимка партии (goals.sizes[n].rate; правятся в админке «Цели и лиги»). */
+export function ratingCfgFor(rate?: { winA?: number; winB?: number; loseA?: number; loseB?: number } | null) {
+  if (!rate) return RATING_CFG; const M = RATING_CFG.margin;
+  return { ...RATING_CFG, margin: { ...M, win: { a: rate.winA ?? M.win.a, b: rate.winB ?? M.win.b }, lose: { a: rate.loseA ?? M.lose.a, b: rate.loseB ?? M.lose.b } } };
+}
+export async function rateFinished(env: any, matchId: string, size: number, ctx: RatedCtx, players: Omit<RPlayer, "r">[], rate?: any) {
   const league = leagueOf(size); if (!league) return { unrated: "size" };
   if (players.length === 2) ctx = { ...ctx, pairToday: await pairToday(env, players[0].uid, players[1].uid) };
   const why = unratedReason(ctx); if (why) return { unrated: why };
   const S = RATING_CFG.start, ps: RPlayer[] = [];
   for (const p of players) { const x: any = await env.GAME_DB.prepare("SELECT rating, rd, vol, games FROM strat_ratings WHERE user_id = ? AND league = ?").bind(p.uid, league).first();
     ps.push({ ...p, r: x ? { rating: x.rating, rd: x.rd, vol: x.vol, games: x.games } : { ...S, games: 0 } }); }
-  const res = rateMatch(ps, ctx.turns, ctx.reason); if (!Object.keys(res).length) return { unrated: "too_early" };
+  const res = rateMatch(ps, ctx.turns, ctx.reason, ratingCfgFor(rate)); if (!Object.keys(res).length) return { unrated: "too_early" };
   const now = Date.now(), st: any[] = [];
   for (const p of ps) { const n = res[p.uid]; if (!n) continue;
     const best = Math.min(...ps.map((q) => q.place)), worst = Math.max(...ps.map((q) => q.place));

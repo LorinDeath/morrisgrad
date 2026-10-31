@@ -1,6 +1,7 @@
 // «Партия Чёрных королей» — клиент (/games/strategy). Сервер авторитетен: клиент рисует снимок и подсвечивает ходы
 // тем же движком (server/strat/rules.ts). Экран игры: доска с камерой (панорама/масштаб/мини-карта) для карт до 100×100,
 // HUD вокруг, игровые окна вместо prompt/confirm, баннер хода, тосты, анимации.
+import { mountAdminGoals } from "./admin-goals";
 import { loadArt, unitSprite, hitFx, spriteBox, type Pose } from "./art";
 import { terrainLayer, drawStructIcon, GOLD, INK } from "./terrain-draw";
 import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick, drawEcon, econFx, econToast, cfgOf, ui as eui, KIND_NAME, ECON_ERR, territoryCached, pieceLv, talName, unitArt, type Ctx } from "./econ-ui";
@@ -788,6 +789,7 @@ function mountAdmin() {
   if (cur || !slot) return;
   const tpl = document.getElementById("admintpl") as HTMLTemplateElement | null; if (!tpl) return;
   slot.appendChild(tpl.content.cloneNode(true)); const r = document.getElementById("modrefresh"); if (r) r.onclick = loadQueue; loadQueue();
+  { const ag = document.getElementById("admgoals"); if (ag) mountAdminGoals(ag, { http: HTTP, auth: async () => { const h = await helloMsg(); return h.token ? { token: h.token } : h.userId ? { dev: h.userId } : {}; }, toast: (t, k) => toast(t, k as any) }); } // G (t1209)
 }
 
 // ---------- HUD ----------

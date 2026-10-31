@@ -16,7 +16,7 @@ import { drawRaces, newSeed, commitOf, cleanFav, rollsFor } from "./racedraw";
 import { treeView, publicPatch, hiddenTarget } from "./tree-view";
 import { RATING_CFG, xpMul } from "./rating";
 import { matchBot, BOT_LEVELS, TACTIC_IDS, type BotLevel } from "./ai";
-import { chiefBlacklist } from "./econ";
+import { chiefBlacklist, goalCfg } from "./econ";
 import { rateFinished, mapInPool, addXp, botXpToday } from "./rating-db";
 import { matchXp } from "./account";
 import { turnMinutes, validTurnMin, canClaim } from "./away";
@@ -396,7 +396,7 @@ export class StratMatch extends DurableObject {
       humans: seats.filter((s) => s && !s.bot).length, guests, bots, turns: g.turn, reason: g.reason };
     const goals = g.ec?.goals ? [g.ec.goals[0].length, g.ec.goals[1].length] : [undefined, undefined];
     const players = [0, 1].map((i) => ({ uid: seats[i].pkey, team: i, place: g.winner === 2 ? 1 : g.winner === i ? 1 : 2, goals: goals[i], actions: L.acts?.[i] || 0 }));
-    L.rating = await rateFinished(env, this.matchId(), L.size, ctx, players);
+    L.rating = await rateFinished(env, this.matchId(), L.size, ctx, players, (goalCfg(g, this.cfg()) as any).rate);
     // опыт Полководца (косметика): активные минуты × итог × xpMul; гостям — никогда; карта не офиц./одобренная — 0
     const xp: (number | null)[] = [null, null];
     for (const i of [0, 1] as const) { const s = seats[i]; if (!s || s.bot || !s.verified || !this.xpAllowed()) continue;
