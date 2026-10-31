@@ -33,6 +33,21 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
+            <div class="game-card strat-card"
+                 data-title="Партия Чёрных королей"
+                 data-desc="Пошаговая стратегия на доске 8×8 или 15×15. Огонь поджигает, Лёд обмораживает; цель — сразить вражеского Вождя. Играйте с другом по ссылке или коду, либо с ботом. Ранний тест: арт пока заглушки."
+                 data-game-url="/games/strategy"
+                 data-changelog-url="/games/strategy">
+                <span class="cherta-badge">тест</span>
+                <img src="/strat-cover.svg" alt="Партия Чёрных королей" class="game-icon" style="object-fit: cover;" />
+                <span class="game-title" style="color: #ffd76a;">Партия Чёрных королей</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(179, 122, 214, 0.2); color: #c084fc; border: 1px solid rgba(179,122,214,0.4);">♚ Стратегия · PvP</span>
+                    <span class="platform-tag" title="PC">🖥️ PC</span>
+                    <span class="platform-tag" title="Mobile">📱 Mobile</span>
+                </div>
+            </div>
+
             <div class="game-card cherta-card"
                  data-title="Черта купола"
                  data-desc="Карточный рогалик за барьером Альказака. Семь колодок, три акта — Пустоши, Замок и Корона — и лестница черты. Атаку веди на врага, щит — на себя. Броня ложится голубой полосой поверх здоровья."
@@ -198,6 +213,8 @@ import geometriaImg from '../assets/geometria.png';
     }
 
 
+    .strat-card { border-color: #b37ad6; position: relative; }
+    .strat-card:hover { box-shadow: 0 0 20px rgba(179, 122, 214, 0.45); }
     .cherta-card {
         border-color: #e0b15a;
         box-shadow: 0 0 22px rgba(224, 177, 90, 0.45), 0 0 8px rgba(226, 75, 59, 0.35);

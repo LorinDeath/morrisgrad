@@ -1,5 +1,5 @@
 ---
-// «Партия Чёрных королей» — пошаговая стратегия на доске. Скрытый адрес (t1192u): ссылок с сайта нет, в карте сайта нет, noindex,nofollow. Логика — server/strat (StratMatch DO + StratIndex),
+// «Партия Чёрных королей» — пошаговая стратегия на доске. Логика — server/strat (StratMatch DO + StratIndex),
 // клиент — src/scripts/strat/client.ts. Оформление — арт-деко «комикс C» по UI-набору Художника (public/strat/ui, ui-v1).
 import SeoHead from '../../components/seo/SeoHead.astro';
 import '../../styles/strat-ui.css';
@@ -12,7 +12,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>{title}</title>
-  <SeoHead title={title} robots="noindex,nofollow" description="Пошаговая стратегия на доске: шесть рас, Вождь, города и технологии. Играйте с другом по ссылке или с ботом." />
+  <SeoHead title={title} description="Пошаговая стратегия на доске: шесть рас, Вождь, города и технологии. Играйте с другом по ссылке или с ботом." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preload" href="/strat/fonts/oswald-cyrillic-700-normal.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/strat/fonts/playfair-display-cyrillic-900-normal.woff2" as="font" type="font/woff2" crossorigin />

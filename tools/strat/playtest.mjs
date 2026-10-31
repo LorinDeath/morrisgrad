@@ -1,6 +1,6 @@
 import { createRequire } from "module"; const require = createRequire("/workspace/mc-ui-tools/");
 const { chromium } = require("playwright-core");
-const SITE = "http://127.0.0.1:4391/games/" + (process.env.STRAT_SLUG || "mq2wvtb8t07") + "", OUT = "/workspace/minigame-tz/shots/";
+const SITE = "http://127.0.0.1:4391/games/strategy", OUT = "/workspace/minigame-tz/shots/";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const T = Date.now();
 const br = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox"] });
