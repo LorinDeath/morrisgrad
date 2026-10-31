@@ -530,6 +530,7 @@ function parseAct(a: any): Action | null {
     if (a.a === "move" && ["knight", "mage", "rook"].includes(a.promo)) o.promo = a.promo as Kind;
     return o;
   }
+  if (a.a === "ult") return Number.isInteger(a.id) && int(a.x) && int(a.y) ? { a: "ult", id: a.id, x: a.x, y: a.y } as any : null; // t1223: ульты Вождя и фигур — раньше не проходили разбор → bad_action
   if (a.a === "raze") return Number.isInteger(a.id) && Number.isInteger(a.city) && a.city >= 0 && typeof a.b === "string" && /^[a-z0-9_]{1,16}$/.test(a.b) ? { a: "raze", id: a.id, city: a.city, b: a.b } as any : null; // t1136
   return parseEcon(a);
 }
