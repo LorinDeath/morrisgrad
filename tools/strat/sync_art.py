@@ -63,3 +63,7 @@ else: print("нет источника:", TER)
 (OUT / "manifest.json").write_text(json.dumps(man, ensure_ascii=False, indent=1))
 u = sum(len(p) for r in man["units"].values() for p in r.values())
 print(f"готово: позы {u}, тайлы {len(man['tiles'])}, fx {sum(len(v) for v in man['fx'].values())}, местность {len(man['terrain'])} → {OUT}")
+
+# эффекты fx-v1 живут в art/fx рядом с hit_* — rmtree выше их стёр, собрать заново
+import subprocess, sys as _sys
+subprocess.run([_sys.executable, str(Path(__file__).with_name("sync_fx.py"))], check=False)

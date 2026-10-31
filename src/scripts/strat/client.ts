@@ -13,7 +13,8 @@ import { fogView, unveilCls, fogNode } from "./fog";
 import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
-import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius } from "./ult-fx";
+import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius, shake } from "./ult-fx";
+import { loadFx, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
 import { openProfile, demoProfile } from "./profile";
@@ -231,6 +232,7 @@ function logAdd(t: string, cls = "") {
 let fx: { x: number; y: number; t: number; txt: string; col: string; big?: boolean }[] = [];
 const poses = new Map<number, { pose: Pose; until: number }>();
 const tweens = new Map<number, { fx: number; fy: number; t: number }>();
+let lastHitAt: [number, number] | null = null;
 let ghosts: { p: any; race: string; t: number }[] = [], bursts: { x: number; y: number; race: string; t: number }[] = [];
 const POSE_MS = 420, DEATH_MS = 750, FX_MS = 480, MOVE_MS = 280, NUM_MS = 1200;
 const sticky: Set<string>[] = Array.from({ length: 8 }, () => new Set<string>()); const lastHit = new Map<number, number>(); // цели, отмеченные навсегда («Пал Вождь врага» — только первый)
@@ -239,7 +241,32 @@ const crest = (r: string) => `<img class="crestimg" src="/strat/ui/crests/crest_
 function showWonder(c: any) { const g = S.g, race = g.races[c.owner] || "fire", cfg: any = cfgOf(S);
   wonderPopup({ race, title: bName("wonder", race), city: c.name || (c.cap ? "Столица" : "Город"), who: S.seats[c.owner]?.nick || "Игрок", mine: c.owner === S.you,
     eff: cfg.build?.wonder?.eff || "+2 Славы за ход; ультимейт Вождя сильнее (+3 силы, перезарядка −2)" }); }
-function resetMatchUi() { resetUlt(); chatReset(); ultAim = null; aimCell = null; sticky.forEach((x) => x.clear()); lastHit.clear(); resetFell(); prevGoals = null; prevChief = null; endShown = false; introShown = false; cam.n = 0; document.getElementById("endscreen")?.remove(); const lg = $("#log"); if (lg) lg.innerHTML = ""; }
+function resetMatchUi() { resetUlt(); resetFx2(); chatReset(); ultAim = null; aimCell = null; sticky.forEach((x) => x.clear()); lastHit.clear(); resetFell(); prevGoals = null; prevChief = null; endShown = false; introShown = false; cam.n = 0; document.getElementById("endscreen")?.remove(); const lg = $("#log"); if (lg) lg.innerHTML = ""; }
+/** «Вождь <имя> пал» — баннер всем игрокам. Есть арт fx-v1 (banner_chief_fallen_blank: «ВОЖДЬ … ПАЛ» нарисовано) —
+ *  имя пишем кодом в его name_field (сжатие по ширине до scale_x_min, потом кегль до min_size); нет — стиль баннера ульты. */
+function chiefBanner(name: string, mine: boolean, who: string) {
+  const el = document.createElement("div"), m = fxMeta("chiefBanner"), sub = mine ? "Ваш Вождь повержен" : who ? `${who}: Вождь повержен` : "Вождь повержен";
+  el.setAttribute("role", "status"); el.setAttribute("aria-label", `Вождь ${name} пал. ${sub}`);
+  if (m) {
+    const nf = m.nameField || {}, c = document.createElement("canvas"); c.width = m.w; c.height = m.h; c.className = "chief-art";
+    const x = c.getContext("2d")!, img = new Image(); img.src = m.src; x.drawImage(img, 0, 0);
+    const txt = nf.case === "upper" ? name.toUpperCase() : name, maxW = nf.max_w || nf.w || 276; let fs = nf.size || 60, sc = 1;
+    const font = () => `${nf.weight || 700} ${fs}px ${nf.font || "Oswald"}, Impact, sans-serif`; x.font = font();
+    let w = x.measureText(txt).width; if (w > maxW) { sc = Math.max(nf.scale_x_min || 0.72, maxW / w); while (w * sc > maxW && fs > (nf.min_size || 38)) { fs -= 2; x.font = font(); w = x.measureText(txt).width; } }
+    x.save(); x.translate((nf.x ?? 555) + (nf.w ?? 320) / 2, nf.baseline_y ?? 126); x.scale(sc, 1); x.textAlign = "center"; x.lineJoin = "round";
+    if (nf.shadow) { x.fillStyle = nf.shadow; x.fillText(txt, (nf.shadow_offset?.[0] || 0) / sc, nf.shadow_offset?.[1] || 0); }
+    if (nf.outline) { x.strokeStyle = nf.outline; x.lineWidth = (nf.outline_px || 6) * 2 / sc; x.strokeText(txt, 0, 0); }
+    x.fillStyle = nf.color || "#f4ead2"; x.fillText(txt, 0, 0); x.restore();
+    const sp = m.subPlate; if (sp) { x.font = `600 ${Math.round(sp.h * 0.62)}px Oswald, sans-serif`; x.fillStyle = "#f4ead2"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(sub.toUpperCase(), sp.x + sp.w / 2, sp.y + sp.h / 2 + 1, sp.w - 16); }
+    el.className = "chiefban"; el.append(c);
+  } else {
+    el.className = "ultban k-chief";
+    const t = document.createElement("div"), title = `Вождь ${name} пал`.toUpperCase(); t.className = "ult-title"; t.textContent = title; t.dataset.text = title;
+    const s2 = document.createElement("div"); s2.className = "ult-sub"; s2.textContent = sub;
+    el.append(Object.assign(document.createElement("i"), { className: "ult-rays" }), t, s2);
+  }
+  document.body.appendChild(el); setTimeout(() => el.classList.add("out"), 2300); setTimeout(() => el.remove(), 2900);
+}
 function onState(prev: any) {
   if (S.code !== prev?.code) resetMatchUi();
   if (S.phase !== "play") sel = null;
@@ -248,18 +275,29 @@ function onState(prev: any) {
   if (g && prev?.g) for (const p of g.pieces) { const q = prev.g.pieces.find((z: any) => z.id === p.id); if (q && (q.x !== p.x || q.y !== p.y)) tweens.set(p.id, { fx: q.x, fy: q.y, t: now }); }
   if (g?.ec && prev?.g?.ec && !hv && S.code === prev.code) for (const c of g.ec.cities as any[]) { const pc = prev.g.ec.cities.find((q: any) => q.id === c.id);
     if ((c.bld || []).includes("wonder") && pc && !(pc.bld || []).includes("wonder")) showWonder(c); }
+  lastHitAt = null; const hasChiefDown = (S.ev || []).some((e: any) => e.e === "chief_down");
   for (const e of S.ev || []) {
     if (!g) break;
-    { const u = parseUlt(e, g, now); if (u) { addCast(u, g.turn); ultBanner(u, u.side === me, S.seats[u.side]?.nick || ""); draw(); } }
+    { const u = parseUlt(e, g, now, prev?.g); if (u) { addCast(u, g.turn); ultBanner(u, u.side === me, S.seats[u.side]?.nick || ""); draw(); } }
     if (e.e === "timeout" || e.e === "skip") toast(e.side === me ? "Ход пропущен — время вышло" : `${S.seats[e.side]?.nick || "Соперник"}: ход пропущен — время вышло`, e.side === me ? "bad" : "info", "clock");
     if (e.e === "hit") {
       poses.set(e.id, { pose: "attack", until: now + POSE_MS });
       const t = g.pieces.find((q: any) => q.id === e.t) || prev?.g?.pieces.find((q: any) => q.id === e.t);
-      if (t) { poses.set(e.t, { pose: "hit", until: now + POSE_MS }); const a = g.pieces.find((q: any) => q.id === e.id) || prev?.g?.pieces.find((q: any) => q.id === e.id); bursts.push({ x: t.x, y: t.y, race: a ? g.races[a.o] : "", t: now }); if (a) lastHit.set(e.t, a.o); if (a) { faceAt(e.id, t.x, t.y); faceAt(e.t, a.x, a.y); }
+      if (t) { poses.set(e.t, { pose: "hit", until: now + POSE_MS }); const a = g.pieces.find((q: any) => q.id === e.id) || prev?.g?.pieces.find((q: any) => q.id === e.id); lastHitAt = [t.x, t.y];
+        // залп (способность) — снаряд от стрелка; обычный удар — выпад + хит-стоп 60 мс (не для ульты: у неё своя анимация)
+        if (a && e.why?.via === "volley") addShot([a.x, a.y], [t.x, t.y], now, g.races?.[a.o]); else if (a && !e.ult) { addLunge(e.id, [a.x, a.y], [t.x, t.y], now); hitStop(now); }
+        bursts.push({ x: t.x, y: t.y, race: a ? g.races[a.o] : "", t: now }); if (a) lastHit.set(e.t, a.o); if (a) { faceAt(e.id, t.x, t.y); faceAt(e.t, a.x, a.y); }
         fx.push({ x: t.x, y: t.y, t: now, txt: "−" + e.dmg, col: e.burn ? "#ff9d3d" : e.chill ? "#9fe0ff" : "#ff5040", big: true }); }
     }
-    if (e.e === "kill") { const d = prev?.g?.pieces.find((q: any) => q.id === e.id); if (d) { ghosts.push({ p: d, race: g.races[d.o], t: now });
-      if (d.k === "king") { if (!localFell[d.o]) localFell[d.o] = { turn: g.turn, by: typeof e.by === "number" ? e.by : lastHit.get(e.id), name: chiefName(d.o) }; logAdd((d.o === me ? "Пал ваш Вождь " : "Пал вражеский Вождь ") + chiefName(d.o), d.o === me ? "bad" : "good"); }
+    if (e.e === "zap") { const t = g.pieces.find((q: any) => q.id === e.t) || prev?.g?.pieces.find((q: any) => q.id === e.t), a = g.pieces.find((q: any) => q.id === e.id) || prev?.g?.pieces.find((q: any) => q.id === e.id);
+      if (t) { addArc(lastHitAt || (a ? [a.x, a.y] : [t.x, t.y]), [t.x, t.y], now); poses.set(e.t, { pose: "hit", until: now + POSE_MS }); fx.push({ x: t.x, y: t.y, t: now, txt: "−" + e.dmg, col: "#c9b8ff", big: true }); } }
+    if (e.e === "heal") { const t = g.pieces.find((q: any) => q.id === e.id); if (t && e.n > 0) { fx.push({ x: t.x, y: t.y, t: now, txt: "+" + e.n, col: "#7fe07a", big: true }); addAnim("heal", t.x, t.y, now); } }
+    if (e.e === "shield") { const t = g.pieces.find((q: any) => q.id === e.id) || prev?.g?.pieces.find((q: any) => q.id === e.id);
+      if (t) { if (e.n > 0) fx.push({ x: t.x, y: t.y, t: now, txt: "щит −" + e.n, col: "#cfe0ff" }); else fx.push({ x: t.x, y: t.y, t: now, txt: "Щит " + (e.left || ""), col: "#cfe0ff" }); } }
+    if (e.e === "recruit" && e.treant) { const t = g.pieces.find((q: any) => q.id === e.id); if (t) addAnim("spawn", t.x, t.y, now); }
+    if (e.e === "chief_down") { chiefBanner(String(e.name || chiefName(e.side)), e.side === me, S.seats[e.side]?.nick || ""); shake(3); logAdd(`Вождь ${e.name || chiefName(e.side)} пал`, e.side === me ? "bad" : "good"); }
+    if (e.e === "kill") { const d = prev?.g?.pieces.find((q: any) => q.id === e.id); if (d) { ghosts.push({ p: d, race: g.races[d.o], t: now }); if (d.k !== "king") shake(1);
+      if (d.k === "king") { if (!localFell[d.o]) localFell[d.o] = { turn: g.turn, by: typeof e.by === "number" ? e.by : lastHit.get(e.id), name: chiefName(d.o) }; if (!hasChiefDown) logAdd((d.o === me ? "Пал ваш Вождь " : "Пал вражеский Вождь ") + chiefName(d.o), d.o === me ? "bad" : "good"); }
       else logAdd((d.o === me ? "Потеря: " : "Сражён: ") + KIND_NAME[d.k as Kind], d.o === me ? "bad" : ""); } }
     const p = g.pieces.find((q: any) => q.id === (e.t ?? e.id));
     if (e.e === "burn" && p) fx.push({ x: p.x, y: p.y, t: now, txt: "−" + e.dmg, col: "#ff9d3d", big: true });
@@ -956,6 +994,7 @@ let flipping = false;
 let raf = 0;
 function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawNow(); }); }
 function drawNow() {
+  if (inHitStop(performance.now())) { setTimeout(draw, hitStopLeft(performance.now())); return; } // хит-стоп: кадр удара держится 60 мс
   const c = cv(); if (!S?.g || !c || c.offsetParent === null) return; if (!cam.W || cam.n !== S.g.size) fitCam(false); if (!cam.W) return;
   const dpr = devicePixelRatio || 1, ctx = c.getContext("2d")!, g = S.g, n = g.size, z = cam.z;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cam.W, cam.H); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
@@ -987,9 +1026,10 @@ function drawNow() {
   const now = performance.now(); flipping = false;
   ghosts = ghosts.filter((d) => now - d.t < DEATH_MS);
   for (const d of ghosts) if (vis(d.p.x, d.p.y)) { ctx.globalAlpha = 1 - (now - d.t) / DEATH_MS; drawUnit(ctx, d.p, d.race, "death", sx(d.p.x), sy(d.p.y), z, false, faceState(d.p).cur); ctx.globalAlpha = 1; }
+  const liveMarks = new Set<string>(); let marksOn = false;
   const dots = z < 16, ps = [...g.pieces].sort((a: any, b: any) => vy(a.y) - vy(b.y));
   for (const p of ps) {
-    const tw = tweens.get(p.id); let X = sx(p.x), Y = sy(p.y), hop = 0;
+    const tw = tweens.get(p.id), lo = lungeOf(p.id, now); let X = sx(p.x + lo[0]), Y = sy(p.y + lo[1]), hop = 0;
     if (tw) { const k = Math.min(1, (now - tw.t) / MOVE_MS), e = 1 - Math.pow(1 - k, 3); X = sx(tw.fx) + (X - sx(tw.fx)) * e; Y = sy(tw.fy) + (Y - sy(tw.fy)) * e; hop = Math.sin(k * Math.PI) * z * 0.12; if (k >= 1) tweens.delete(p.id); }
     if (X < -z || Y < -z || X > cam.W + z || Y > cam.H + z) continue;
     if (dots) { ctx.fillStyle = raceCol(p.o); ctx.strokeStyle = p.o === S.you ? "#f4ead2" : INK; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(X + z / 2, Y + z / 2, Math.max(2.5, z * (p.k === "king" ? 0.45 : 0.32)), 0, 7); ctx.fill(); ctx.stroke(); continue; }
@@ -1009,9 +1049,12 @@ function drawNow() {
     const badge = (name: string, i: number) => { const im = iconImg(name, draw); if (im) { const s = z * 0.24; ctx.drawImage(im, X + z * 0.74, Y + z * 0.04 + i * s, s, s); } };
     { const Q = GP.get(p.id); if (Q) drawLvBadge(ctx, X, Y - hop, z, pieceLevel(Q, cfg), p.o === S.you && !!pendingTalent(Q, cfg)); }
     let bi = 0; if (p.b) badge("burn", bi++); if (p.c) badge("chill", bi++);
+    { const st: string[] = []; if (p.b) st.push("burn"); if (p.c) st.push("chill"); if (p.sh > 0) st.push("shield"); if (p.rt > 0) st.push("roots"); if (p.tr) marksOn = true; // энт idle — анимация // метки статусов — арт fx-v1, пока статус висит
+      for (const k of st) liveMarks.add(p.id + ":" + k); if (drawStatusMarks(ctx, p.id, st, X, Y - hop, z, now)) marksOn = true; }
     const st = map.s[p.y * n + p.x]; if (st && st !== ".") drawStructIcon(ctx, st, X + z * 0.14, Y + z * 0.72, z * 0.26);
     ctx.globalAlpha = 1;
   }
+  pruneMarks(liveMarks);
   rubble = rubble.filter((r) => now - r.t < 1200);
   for (const r of rubble) { const k = (now - r.t) / 1200, X = sx(r.x) + z / 2, Y = sy(r.y) + z / 2; ctx.globalAlpha = 1 - k;
     for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + i, d = z * (0.15 + k * 0.55) * (0.6 + (i % 3) * 0.2); ctx.fillStyle = i % 3 ? "#6b5a48" : "#a89070";
@@ -1020,7 +1063,7 @@ function drawNow() {
   ctx.globalAlpha = 1;
   bursts = bursts.filter((b) => now - b.t < FX_MS);
   for (const b of bursts) { const frs = hitFx(b.race); if (!frs.length) continue; const i = Math.min(frs.length - 1, Math.floor(((now - b.t) / FX_MS) * frs.length)), s2 = z * 1.3; ctx.drawImage(frs[i], sx(b.x) + z / 2 - s2 / 2, sy(b.y) + z / 2 - s2 / 2, s2, s2); }
-  const castBusy = drawCasts(ctx, n, sx, sy, z, now);
+  const castBusy = drawCasts(ctx, n, sx, sy, z, now), fx2Busy = drawFx2(ctx, sx, sy, z, now) || marksOn;
   if (ultAim && aimCell) drawAim(ctx, ultAim.race, aimCell[0], aimCell[1], ultAim.r, n, sx, sy, z, now);
   // числа урона: всплывают, «пружинят», Oswald с чернильной обводкой
   fx = fx.filter((f) => now - f.t < NUM_MS); ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -1030,7 +1073,7 @@ function drawNow() {
     const X = sx(f.x) + z / 2, Y = sy(f.y) + z * (0.25 - k * 0.55); ctx.strokeText(f.txt, X, Y); ctx.fillStyle = f.col; ctx.fillText(f.txt, X, Y); }
   ctx.globalAlpha = 1;
   if (big()) drawMinimap();
-  const busy = castBusy || W.mode || rubble.length || ultAim || fx.length || bursts.length || ghosts.length || tweens.size || flipping || eui.recruit || [...poses.values()].some((q) => q.until > now);
+  const busy = castBusy || fx2Busy || W.mode || rubble.length || ultAim || fx.length || bursts.length || ghosts.length || tweens.size || flipping || eui.recruit || [...poses.values()].some((q) => q.until > now);
   if (busy) draw(); else if (zs.length && !zoneT) zoneT = setTimeout(() => { zoneT = 0; draw(); }, 110) as any;
 }
 let isGuest = false;
@@ -1044,14 +1087,16 @@ function drawUnit(ctx: CanvasRenderingContext2D, p: any, race: string, pose: Pos
     const gy = y0 + cell * 0.84;
     ctx.fillStyle = hi + "55"; ctx.strokeStyle = own ? "#f4ead2" : INK; ctx.lineWidth = lw;
     ctx.beginPath(); ctx.ellipse(cx, gy, cell * 0.34, cell * 0.1, 0, 0, 7); ctx.fill(); ctx.stroke();
-    const spr = unitSprite(race, p.k, pose) || unitSprite(race, p.k, "idle"), sxs = Math.abs(face) < 0.08 ? 0.08 * Math.sign(face || 1) : face;
+    const ak = p.tr ? "knight" : p.k; // нет арта энта — рыцарь природы (не голая ладья)
+    const spr = unitSprite(race, ak, pose) || unitSprite(race, ak, "idle"), sxs = Math.abs(face) < 0.08 ? 0.08 * Math.sign(face || 1) : face;
     ctx.save(); ctx.translate(cx, 0); ctx.scale(sxs, 1); ctx.translate(-cx, 0);
-    if (spr) {
+    if (p.tr && drawEnt(ctx, pose, cx, gy + cell * 0.02, cell, performance.now())) { /* энт: арт fx-v1 ent_nature_* */ }
+    else if (spr) {
       const bb = spriteBox(spr) || [0, 0, spr.naturalWidth, spr.naturalHeight, spr.naturalWidth];
       const bw = bb[2] - bb[0], bh = bb[3] - bb[1], k = Math.min((cell * 0.8) / bh, (cell * 0.9) / bw);
       const dx = cx - (bb[0] + bw / 2) * k, dy = gy + cell * 0.02 - bb[3] * k;
       ctx.drawImage(spr, dx, dy, spr.naturalWidth * k, spr.naturalHeight * k);
-    } else codeFigure(ctx, p.k, hi, lo, cx, gy, cell);
+    } else codeFigure(ctx, p.tr ? "knight" : p.k, hi, lo, cx, gy, cell);
     ctx.restore();
     if (pose === "hit") { ctx.fillStyle = "#ffffff33"; ctx.fillRect(x0, y0, cell, cell); }
     if (withGlyph && glyphBadge) { const bx = x0 + cell * 0.16, by = y0 + cell * 0.16, br = cell * 0.13;
@@ -1453,13 +1498,16 @@ if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" 
   bindBoard(); bindTips();
   new ResizeObserver(() => { if (S?.g) { fitCam(false); draw(); } }).observe($("#stage"));
   setInterval(tick, 250);
-  connectHub(); loadOpen(); render(); loadArt(draw); loadWalls(draw); t2OnLoad(() => { mmKey = ""; draw(); }); injectIcons();
+  connectHub(); loadOpen(); render(); loadArt(draw); loadFx(draw); loadWalls(draw); t2OnLoad(() => { mmKey = ""; draw(); }); injectIcons();
   const d = LOCAL ? qs.get("demo") : null; if (d) startDemo(+d);
   const j = qs.get("join"); if (j && !d) joinCode(j);
 }
 
 // Хуки только для локального плейтеста (localhost + ?devUser): снимок состояния, камера и клик-план «как игрок».
 if (LOCAL && (qs.get("devUser") || qs.get("demo"))) { (window as any).__stratS = () => S; (window as any).__stratCam = () => ({ ...cam }); (window as any).__stratPerf = (k = 60) => { const t0 = performance.now(); for (let i = 0; i < k; i++) drawNow(); return (performance.now() - t0) / k; }; (window as any).__stratPend = () => pendAct; (window as any).__stratSel = () => ({ sel, selCell, taps: tapN }); (window as any).__stratFace = () => [...facing.entries()].map(([id, f]) => ({ id, dir: f.dir })); }
+// Тест эффектов: подать события сервера в onState (как пришли бы с сокетом). Только dev-сборка (vite вырезает в prod) + localhost + ?fxtest=1.
+if (import.meta.env.DEV && LOCAL && qs.get("fxtest") === "1") (window as any).__stratEvInj = (evs: any[], patch?: (g: any) => void) => {
+  const prev = { ...S, g: JSON.parse(JSON.stringify(S.g)) }; if (patch) patch(S.g); S.ev = evs; onState(prev); draw(); return true; };
 // только локально и только в демо-доске: открыть окна для скриншотов (в бою с сервером не существует)
 if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
   render: () => { gsCache = { s: null, g: null } as any; render(); }, chief: () => openChiefTree(true), name: (r: boolean) => askChiefName(r), menu: () => openMenu(), surr: () => surrender(), end: () => endTurn(),
