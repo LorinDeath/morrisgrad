@@ -6,7 +6,7 @@ import { newGame, apply, type GameState, type Action, type Ev, type StratCfg, ty
 
 export type LAct = [side: number, act: Action, auto: 0 | 1, dt: number]; // dt — мс от старта (для автопроигрывания «как было»)
 export type RLog = {
-  v: 1; id: string; size: number; races: Race[]; first: number; mode?: string; map: any | null; patch?: any; rv: string; t0: number; hiddenHp?: boolean;
+  v: 1; id: string; size: number; races: Race[]; first: number; mode?: string; map: any | null; patch?: any; rv: string; t0: number; hiddenHp?: boolean; fog?: boolean;
   acts: LAct[]; h: string[]; // h[k] — хэш состояния после k-го хода (смены cur)
   end?: { w: number; r: string; n: number };
 };
@@ -17,8 +17,8 @@ export function fnv(s: string): string { let h = 0x811c9dc5; for (let i = 0; i <
 export const rulesVer = (cfg: StratCfg) => fnv(JSON.stringify(cfg));
 export const hashG = (g: GameState) => fnv(JSON.stringify(g));
 
-export function startLog(id: string, g: GameState, cfg: StratCfg, map: any, patch?: any, hiddenHp = false): RLog {
-  return { v: 1, id, size: g.size, races: [...g.races], first: g.first, ...(g.mode && g.mode !== "1v1" ? { mode: g.mode } : {}), map: map || null, ...(patch ? { patch } : {}), rv: rulesVer(cfg), t0: Date.now(), ...(hiddenHp ? { hiddenHp } : {}), acts: [], h: [] };
+export function startLog(id: string, g: GameState, cfg: StratCfg, map: any, patch?: any, hiddenHp = false, fog = false): RLog {
+  return { v: 1, id, size: g.size, races: [...g.races], first: g.first, ...(g.mode && g.mode !== "1v1" ? { mode: g.mode } : {}), map: map || null, ...(patch ? { patch } : {}), rv: rulesVer(cfg), t0: Date.now(), ...(hiddenHp ? { hiddenHp } : {}), ...(fog ? { fog } : {}), acts: [], h: [] };
 }
 /** Записать принятое действие; turned — после него сменился ход (тогда же запоминаем хэш). */
 export function logAct(log: RLog, side: number, act: Action, auto: boolean, g: GameState, turned: boolean) {
@@ -77,8 +77,12 @@ export function note(size: number, act: Action): string {
   return a.a;
 }
 /** Список ходов для клиента. seat — кто смотрит (−1 — зритель); live — партия идёт (чужие действия урезаны). */
-export function moveList(log: RLog, seat: number, live: boolean, upto = log.acts.length) {
-  const list = log.acts.slice(0, upto).map(([side, act, auto, dt], i) => ({ i, side, a: actView(act, !live || side === seat), n: note(log.size, act), auto: !!auto, dt }));
+/** t1221: туман (fog: живая партия с туманом) — действия соперников вне команды зрителя (ally) обезличены: ни координат, ни фигуры, ни записи «→e4». */
+export function moveList(log: RLog, seat: number, live: boolean, upto = log.acts.length, fog?: { ally: (a: number, b: number) => boolean }) {
+  const hid = (side: number) => !!fog && live && !(seat >= 0 && fog.ally(side, seat));
+  const list = log.acts.slice(0, upto).map(([side, act, auto, dt], i) => hid(side)
+    ? { i, side, a: { a: act.a === "end" ? "end" : "hidden" }, n: act.a === "end" ? "—" : "…", auto: !!auto, dt }
+    : { i, side, a: actView(act, !live || side === seat || (!!fog && seat >= 0 && fog.ally(side, seat))), n: note(log.size, act), auto: !!auto, dt });
   return { n: upto, turns: turnMarks({ ...log, acts: log.acts.slice(0, upto) }), list };
 }
 export const encodeLog = (log: RLog) => JSON.stringify(log);

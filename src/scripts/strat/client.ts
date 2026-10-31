@@ -31,7 +31,7 @@ import { availItems, renderAvail } from "./avail";
 import { undeferLv } from "./units";
 import { raceNums, raceEffects, describeEffects } from "../../../server/strat/effects";
 import { TECHS } from "../../../server/strat/econ-cfg";
-import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
+import { Recorder, framesFrom, itemFrom, libFrom, winNicks, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
 import { codexGot, openCodex } from "./codex-ui";
 import { resultsHtml, type Sum } from "./results";
 import { hpBarArt, unitHpArt, HS_STEP } from "./ui2art";
@@ -596,7 +596,7 @@ async function loadLib(el: HTMLElement) {
   // сервер ответил → только его списки (r3: локальная копия — лишь когда сервера нет: демо/офлайн/гость)
   const lib = srv ? { saved: srv.saved, recent: srv.recent, keepDays: srv.keepDays, saveMax: srv.saveMax, recentMax: srv.recentMax } : { saved: merge([], local.filter((x) => x.saved)), recent: merge([], local.filter((x) => !x.saved)) };
   el.innerHTML = libHtml(lib, { crest, offline: !srv }); const all = [...lib.saved, ...lib.recent];
-  el.querySelectorAll<HTMLElement>(".lib-n").forEach((n) => { const it = all.find((x) => x.id === n.dataset.i); n.textContent = it?.title ? it.title + " — " + it.nicks.join(" · ") : it ? (it.nicks.length ? it.nicks.join(" · ") : "Партия") + (it.winner != null && it.nicks[it.winner] ? ` — победа: ${it.nicks[it.winner]}` : "") : "Партия"; });
+  el.querySelectorAll<HTMLElement>(".lib-n").forEach((n) => { const it = all.find((x) => x.id === n.dataset.i); n.textContent = it?.title ? it.title + " — " + it.nicks.join(" · ") : it ? (it.nicks.length ? it.nicks.join(" · ") : "Партия") + (winNicks(it).length ? ` — победа: ${winNicks(it).join(" и ")}` : "") : "Партия"; });
   el.querySelectorAll<HTMLButtonElement>("[data-lib]").forEach((b) => (b.onclick = async () => { const id = b.dataset.id!, k = b.dataset.lib;
     if (k === "open") return openReplay(id);
     if (k === "del") { lsDel(id); if (!demo && !menuDemo && !id.startsWith("loc-")) { const e: any = await hubReq("lib_unsave", { id }); if (e?.err) toast(ERR[e.err] || "Не удалось убрать", "bad", "warn"); } }
@@ -753,6 +753,7 @@ function renderLobby() {
   { const rk = $<HTMLInputElement>("#ranked"); rk.checked = !!S.ranked; rk.disabled = !host; const lg = $("#league"); lg.innerHTML = `${ic(LEAGUES.find((l) => l.id === leagueOf(S.size))!.icon)}<span>Лига: <b>${leagueName(S.size)}</b></span>${S.ranked ? `<em>рейтинговая</em>` : ""}`;
     const lock = !!S.ranked; for (const id of ["#csize", "#tl", "#tsec"]) { const el = $<HTMLInputElement>(id); el.disabled = !host || lock; el.closest(".fld")?.classList.toggle("locked", lock); }
     { const hh = $<HTMLInputElement>("#hhp"); hh.checked = !!S.hiddenHp && !lock; hh.disabled = !host || lock; $("#hhpwrap").classList.toggle("locked", lock); }
+    { const fg = $<HTMLInputElement>("#fog"); if (fg) { fg.checked = !!S.fog && !lock; fg.disabled = !host || lock; $("#fogwrap").classList.toggle("locked", lock); } }
     $("#hostpanel").classList.toggle("ranked", lock); for (const b of $("#maps").querySelectorAll<HTMLButtonElement>("[data-map]")) if (lock && b.dataset.map !== "") b.disabled = true; }
   const rd = $<HTMLButtonElement>("#ready"); rd.querySelector("span")!.textContent = seats[me]?.ready ? "Не готов" : "Готов к бою"; rd.classList.toggle("on", !!seats[me]?.ready);
   rd.disabled = me < 0 || (!S.ranked && !seats[me]?.race);
@@ -1239,6 +1240,7 @@ function drawNow() {
     ctx.globalAlpha = 1;
   }
   pruneMarks(liveMarks);
+  drawFog(ctx, n, sx, sy, z, vis);
   rubble = rubble.filter((r) => now - r.t < 1200);
   for (const r of rubble) { const k = (now - r.t) / 1200, X = sx(r.x) + z / 2, Y = sy(r.y) + z / 2; ctx.globalAlpha = 1 - k;
     for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + i, d = z * (0.15 + k * 0.55) * (0.6 + (i % 3) * 0.2); ctx.fillStyle = i % 3 ? "#6b5a48" : "#a89070";
@@ -1312,6 +1314,15 @@ function codeFigure(ctx: CanvasRenderingContext2D, k: string, hi: string, lo: st
   if (k === "pawn") { ctx.beginPath(); ctx.moveTo(cx + 0.24 * s, gy); ctx.lineTo(cx + 0.24 * s, gy - 0.95 * s); ctx.stroke(); P([[0.24, 0.95], [0.3, 0.82], [0.18, 0.82]], "#c9c2cc"); }
   if (k === "knight") P([[0.1, 0.5], [0.42, 0.62], [0.46, 0.5], [0.3, 0.42], [0.22, 0.2]], hi);
 }
+/** t1221: туман войны — маски с сервера (S.fog.vis / S.fog.seen, hex-битсеты); фигур в скрытых клетках сервер и не присылает. */
+let fogKey = "", fogM: { vis: Uint8Array; seen: Uint8Array } | null = null;
+function fogMasks(n: number) { const f = S?.fog; if (!f || typeof f.vis !== "string") return null; const k = n + "|" + f.vis + "|" + f.seen; if (k === fogKey) return fogM;
+  const dec = (h: string) => { const M = new Uint8Array(n * n); for (let i = 0; i < h.length; i++) { const v = parseInt(h[i], 16) || 0; for (let b = 0; b < 4; b++) if (4 * i + b < M.length) M[4 * i + b] = (v >> b) & 1; } return M; };
+  fogKey = k; fogM = { vis: dec(f.vis), seen: dec(f.seen || "") }; return fogM; }
+function drawFog(ctx: CanvasRenderingContext2D, n: number, sx: (x: number) => number, sy: (y: number) => number, z: number, vis: (x: number, y: number) => boolean) {
+  const M = fogMasks(n); if (!M) return;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x; if (M.vis[i] || !vis(x, y)) continue;
+    ctx.fillStyle = M.seen[i] ? "rgba(12,10,16,.5)" : "rgba(8,7,12,.93)"; ctx.fillRect(sx(x) - 0.5, sy(y) - 0.5, z + 1, z + 1); } }
 /** Мини-карта: рельеф + территория + фигуры точками, рамка видимой области; клик/перетаскивание — прыжок. */
 let mmKey = "", mmBase: HTMLCanvasElement | null = null;
 function drawMinimap() {
@@ -1329,6 +1340,7 @@ function drawMinimap() {
     if (T) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o >= 0) { x2.fillStyle = raceCol(o) + "55"; x2.fillRect(vx(x) * k, vy(y) * k, k, k); } }
     const mc = mi("mini_city"); if (mc && G0.ec) for (const ct of G0.ec.cities) { const s2 = k * (ct.cap ? 1.8 : 1.3); x2.drawImage(mc, vx(ct.x) * k + k / 2 - s2 / 2, vy(ct.y) * k + k / 2 - s2 / 2, s2, s2); } }
   const ctx = c.getContext("2d")!; ctx.drawImage(mmBase, 0, 0);
+  { const M = fogMasks(n); if (M) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x; if (M.vis[i]) continue; ctx.fillStyle = M.seen[i] ? "rgba(12,10,16,.5)" : "rgba(8,7,12,.93)"; ctx.fillRect(vx(x) * k, vy(y) * k, k + 0.3, k + 0.3); } } // t1221
   for (const p of g.pieces) { ctx.fillStyle = raceCol(p.o); ctx.strokeStyle = INK; ctx.lineWidth = 1; const s = Math.max(3, k * (p.k === "king" ? 1.6 : 1)); ctx.fillRect(vx(p.x) * k + k / 2 - s / 2, vy(p.y) * k + k / 2 - s / 2, s, s); ctx.strokeRect(vx(p.x) * k + k / 2 - s / 2, vy(p.y) * k + k / 2 - s / 2, s, s); }
   const w = (cam.W / cam.z) * k, h = (cam.H / cam.z) * k; ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = 2; ctx.strokeRect((cam.cx * k) - w / 2, (cam.cy * k) - h / 2, w, h);
 }
@@ -1676,6 +1688,7 @@ export function boot() {
   $("#copy").onclick = async () => { const u = location.origin + location.pathname + "?join=" + S.code; try { await navigator.clipboard.writeText(u); toast("Ссылка скопирована", "good", "copy"); } catch { toast("Код лобби: " + S.code, "info", "copy"); } };
   $("#goals").addEventListener("click", (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>("[data-bl]"); if (b) openBlacklist(+b.dataset.bl!); });
   $<HTMLInputElement>("#hhp").onchange = (e) => send({ type: "cfg", hiddenHp: (e.target as HTMLInputElement).checked });
+  { const fg = $<HTMLInputElement>("#fog"); if (fg) fg.onchange = () => send({ type: "cfg", fog: fg.checked }); } // t1221
   $<HTMLInputElement>("#ranked").onchange = (e) => send({ type: "cfg", ranked: (e.target as HTMLInputElement).checked });
   { const pb = document.getElementById("profbtn"); if (pb) pb.onclick = () => showProfile(); }
   { const tb = document.getElementById("topbtn"); if (tb) tb.onclick = () => openLeaderboard(topGet, myNick(), "fast", showProfile); }

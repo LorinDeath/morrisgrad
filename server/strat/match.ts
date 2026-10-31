@@ -13,6 +13,7 @@ import { newGame, makeMap, apply, view, botAction, inCheck, RACES, SIZES, STRAT_
 import { loadStratCfg } from "./cfg";
 import { ECON_ACTS, talentOpts, goalDetails, bldMaxHp, growEvery, claimCost, claimCells, raceAp, apFor } from "./econ";
 import { redactHp, setTowerMax } from "./hidehp";
+import { visMask, fogRedact, mergeSeen, fromHex } from "./fog";
 import { startLog, logAct, logEnd, moveList, FrameCache, redactX, type RLog } from "./replay";
 import { putReplay, pruneReplays, replayCfg, revealFrame } from "./replay-db";
 import { drawRaces, newSeed, commitOf, cleanFav, rollsFor } from "./racedraw";
@@ -45,6 +46,8 @@ type L = {
   code: string; created: number; touched: number; size: number; pub: boolean;
   mapId?: string; mapName?: string; mapStatus?: string; xpMap?: boolean; // выбранная карта; xpMap=false — неодобренная карта (без опыта)
   map?: MapData; // предпросмотр в лобби и рельеф партии
+  fog?: boolean; // t1221: «Туман войны» (ТЗ §3.12), в рейтинговой — выкл.
+  fogSeen?: Record<string, string>; // разведанные клетки по командам (hex-битсет), память тумана — вне GameState (повтор детерминирован)
   hiddenHp?: boolean; // «Скрытое здоровье»: точные ОЗ чужих фигур/построек не отдаются (в рейтинговой — выкл.)
   turnLimit?: number | null; // null/нет = по умолчанию для размера; 0 = без лимита; иначе TURN_LIMIT.min..max
   mode?: ModeId; // t1219: режим (нет = 1×1); места: 2×2 — [A1,B1,A2,B2], «Все» — по кругу
@@ -86,10 +89,10 @@ export class StratMatch extends DurableObject {
     for (let k = Math.floor(this.rSaved / RCH); k * RCH < Math.max(n, 1); k++) out["ra:" + k] = acts.slice(k * RCH, (k + 1) * RCH);
     L.rn = Math.ceil(n / RCH); this.rSaved = n; return out; }
   /** Повтор в D1: status live — по ходу (не чаще rollMs), over — в конце. Ошибки D1 партию не ломают. */
-  // 2×2/«Все»: в строке D1 — первые два места (A1, B1); все места — в логе (races/mode)
+  // t1221: все места (до 8) — в seats (JSON) и strat_replay_players; p0/p1 — первые два места (совместимость)
   async rdb(status: "live" | "over") { const L = this.L, R = this.R, db = this.env.GAME_DB; if (!L || !R || !db || L.rid !== R.id) return;
     const C = this.cfg(), g = L.game!, S = L.seats; L.rlast = Date.now();
-    try { await putReplay(db, { log: R, status, uids: [S[0]?.pkey || "", S[1]?.pkey || ""], nicks: [S[0]?.nick || "", S[1]?.nick || ""], winner: g.winner, reason: g.reason || null, turns: g.turn, rated: !!L.rated, mapId: L.mapId || null }, C);
+    try { await putReplay(db, { log: R, status, uids: S.map((x) => x?.pkey || ""), nicks: S.map((x) => x?.nick || ""), teams: S.map((_, i) => teamOf(g, i)), bots: S.map((x) => !!x?.bot), winner: g.winner, reason: g.reason || null, turns: g.turn, rated: !!L.rated, mapId: L.mapId || null }, C);
       if (status === "over") await pruneReplays(db, C); } catch {} }
   lastReport = "";
   /** Сводка лобби → StratIndex (список «Ждут соперника»); только при изменении. */
@@ -228,11 +231,11 @@ export class StratMatch extends DurableObject {
   replayMsg(ws: WebSocket, seat: number, m: any) {
     const L = this.L!, R = this.R; if (!R || L.rid !== R.id || !L.game) return this.send(ws, { type: "err", err: "no_replay", rq: m.rq });
     const live = L.phase === "play", n = R.acts.length;
-    if (m.type === "moves") return this.send(ws, { type: "moves", rq: m.rq, id: R.id, live, ...moveList(R, seat, live) });
+    if (m.type === "moves") return this.send(ws, { type: "moves", rq: m.rq, id: R.id, live, ...moveList(R, seat, live, R.acts.length, live && L.fog && L.game ? { ally: (a, b) => teamOf(L.game!, a) === teamOf(L.game!, b) } : undefined) });
     const i = Number.isInteger(m.i) ? Math.max(0, Math.min(n, m.i)) : n;
     const fc = this.fc && this.fc.log === R ? this.fc : (this.fc = new FrameCache(R, this.cfg())), f = fc.at(i);
     let frame: any;
-    if (live) { const keep = L.game, kp = L.phase; try { L.game = f.g; frame = this.stateFor(seat, f.ev); } finally { L.game = keep; L.phase = kp; }
+    if (live) { const keep = L.game, kp = L.phase; try { L.game = f.g; this.fogNoMem = true; frame = this.stateFor(seat, f.ev); } finally { L.game = keep; L.phase = kp; this.fogNoMem = false; }
       for (const k of ["clock", "away", "canClaim", "result", "rating", "raceDraw", "lobbyMap", "seats", "chat", "now"]) delete frame[k]; frame.type = undefined; }
     else frame = revealFrame(f.g, f.ev, this.cfg(), terrView as any);
     this.send(ws, { type: "frame", rq: m.rq, id: R.id, i, n, live, diverged: f.diverged, frame });
@@ -253,9 +256,10 @@ export class StratMatch extends DurableObject {
         if (m.ranked !== undefined && m.rated === undefined) m.rated = m.ranked; // имя поля у клиента UI-воркера
         if (m.turnSec !== undefined && m.turnMin === undefined) m.turnMin = m.turnSec == null ? null : Math.round(+m.turnSec / 60);
         if (m.rated && L.xpMap === false) return "map_unrated"; // неодобренная карта: без опыта и рейтинга для всех (t1218)
-        if (m.rated !== undefined) { L.rated = !!m.rated; if (L.rated) { L.turnMin = null; L.hiddenHp = false; for (const s of L.seats) if (s && !s.bot) { s.race = null; s.ready = false; } await this.ensureDraw(); } } // «Рейтинговая» форсирует стандарт; раса — жребием
+        if (m.rated !== undefined) { L.rated = !!m.rated; if (L.rated) { L.turnMin = null; L.hiddenHp = false; L.fog = false; for (const s of L.seats) if (s && !s.bot) { s.race = null; s.ready = false; } await this.ensureDraw(); } } // «Рейтинговая» форсирует стандарт; раса — жребием
         if (m.turnMin !== undefined) { const t = validTurnMin(m.turnMin); if (t === undefined) return "bad_turn_min"; if (L.rated && t !== null) return "rated_fixed"; L.turnMin = t; }
         if (m.hiddenHp !== undefined) { if (L.rated && m.hiddenHp) return "rated_fixed"; L.hiddenHp = !!m.hiddenHp; }
+        if (m.fog !== undefined) { if (L.rated && m.fog) return "rated_fixed"; L.fog = !!m.fog; }
         if (m.turnLimit !== undefined && m.turnLimit !== null && m.turnLimit !== 0) return "no_turn_limit"; // t1135: лимита ходов нет; null/0 — совместимость со старым клиентом
         for (const s of L.seats) if (s && !s.bot) s.ready = false; // настройки поменялись — «Готов» сбрасывается
         break;
@@ -379,12 +383,13 @@ export class StratMatch extends DurableObject {
     const z = () => L.seats.map(() => 0);
     L.clock = { turnStart: Date.now(), reserve: z() }; L.skips = z(); L.acts = z(); // запаса больше нет: только лимит хода
     L.st = { start: Date.now(), ck: z(), tal: L.seats.map(() => []), ult: L.seats.map(() => []), kl: z(), ls: z(), gi: z(), go: z() }; L.activeMs = z(); this.cx = L.seats.map(() => new Set());
-    L.phase = "play"; this.lastEv = [{ e: "turn", cur: first, turn: 1 }];
-    if ((L.cfg.econ as any).replay?.on !== false) { L.rid = L.code + ":" + L.st.start; L.rn = 0; this.R = startLog(L.rid, L.game, L.cfg, L.map, L.cfgPatch, !!L.hiddenHp); this.rSaved = 0; this.fc = null; (this.R as any)._m = 1; }
+    L.phase = "play"; L.fogSeen = {}; this.lastEv = [{ e: "turn", cur: first, turn: 1 }];
+    if ((L.cfg.econ as any).replay?.on !== false) { L.rid = L.code + ":" + L.st.start; L.rn = 0; this.R = startLog(L.rid, L.game, L.cfg, L.map, L.cfgPatch, !!L.hiddenHp, !!L.fog); this.rSaved = 0; this.fc = null; (this.R as any)._m = 1; }
     else { L.rid = undefined; this.R = null; }
     this.botMaybe();
   }
   lastEv: Ev[] = [];
+  fogNoMem = false; // кадр живого повтора: память тумана не пополняем
   /** t1144: жребий рас включён — рейтинговая партия и econ.raceDraw.on (конфиг админки) */
   drawOn() { const L = this.L!; return !!L.rated && ((L.cfg || STRAT_CFG).econ as any).raceDraw?.on !== false; }
   /** seed на следующий жребий: commit = SHA-256 публикуется в лобби заранее, seed — только при старте */
@@ -596,7 +601,7 @@ export class StratMatch extends DurableObject {
       race: hideRace && i !== seat ? null : s.race, online: !s.goneAt, rematch: !!(s as any).rematch,
       botLv: s.bot ? s.level || "medium" : undefined, away: L.phase === "play" && s.goneAt != null, skips: L.skips?.[i] || 0, col: typeof s.col === "number" ? s.col : undefined, team: tms[i], out: !!L.game?.out?.includes(i) });
     const D = L.draw, raceDraw = this.drawOn() && D ? { commit: D.commit, ...(D.rolls && L.phase !== "lobby" ? { seed: D.seed, rolls: rollsFor(D.rolls, seat), order: D.order, w: D.w } : {}) } : null; // seed — только после старта; чужие любимые расы не уходят (t1175)
-    const out: any = { type: "st", raceDraw, code: L.code, phase: L.phase, size: L.size, pub: L.pub, rated: !!L.rated, ranked: !!L.rated, hiddenHp: !!L.hiddenHp, mode: this.mode(), maxSeats: L.seats.length, teams: teamsFor(this.mode()), turnSec: L.turnMin != null ? L.turnMin * 60 : null, rating: this.ratingView(), turnLimit: L.game?.turnLimit ?? null, you: seat, seats, ev, now: Date.now(),
+    const out: any = { type: "st", raceDraw, code: L.code, phase: L.phase, size: L.size, pub: L.pub, rated: !!L.rated, ranked: !!L.rated, hiddenHp: !!L.hiddenHp, fog: !!L.fog, mode: this.mode(), maxSeats: L.seats.length, teams: teamsFor(this.mode()), turnSec: L.turnMin != null ? L.turnMin * 60 : null, rating: this.ratingView(), turnLimit: L.game?.turnLimit ?? null, you: seat, seats, ev, now: Date.now(),
       mapInfo: { id: L.mapId || "", name: L.mapName || "", status: L.mapStatus || "official", xp: L.xpMap !== false } };
     if (L.phase === "lobby" && L.map) out.lobbyMap = L.map; // предпросмотр
     if (L.phase === "lobby" && this.multi()) out.modeSizes = [...new Set(showcaseAll().filter((m) => mapFits(m, this.mode())).map((m) => m.size))].sort((a, b) => a - b);
@@ -617,6 +622,10 @@ export class StratMatch extends DurableObject {
         out.towers = (g.ec.towers || []).map((t: any) => ({ ...t })); { const lid = leagueOf(g.size) || "tactical"; out.league = { id: lid, ...(C.econ as any).league[lid] }; }
         out.bhp = g.ec.cities.map((c) => ({ city: c.id, b: c.bld.map((b) => ({ b, hp: c.bhp?.[b] ?? bldMaxHp(g, c, b, C), max: bldMaxHp(g, c, b, C) })), ruin: c.ruin || [] })); } // t1136
       if (L.hiddenHp) { setTowerMax(((this.cfg().econ as any).tower?.hp) || 16); const R = redactHp(out.g, out.ev, out.bhp, mine ? seat : -1, (a, b) => teamOf(g, a) === teamOf(g, b)); out.g = R.g; out.ev = R.ev; if (out.bhp) out.bhp = R.bhp; }
+      if (L.fog && L.phase !== "over") { // t1221: туман — сервер отдаёт только видимое команде; зрителю — ни одной фигуры до конца партии
+        const same = (a: number, b: number) => teamOf(g, a) === teamOf(g, b), me = mine ? seat : -1, V = visMask(g, me, same, this.cfg()), tk = me >= 0 ? String(teamOf(g, me)) : "";
+        const sh = me >= 0 ? mergeSeen(L.fogSeen?.[tk], V) : ""; if (me >= 0 && !this.fogNoMem) (L.fogSeen ||= {})[tk] = sh;
+        fogRedact(out, g, me, same, V, fromHex(sh, V.length)); }
       if (L.clock && L.phase === "play") out.clock = { deadline: this.deadline(), turnEnds: L.clock.turnStart + this.turnMs(), turnMs: this.turnMs(), reserve: L.clock.reserve };
       if (L.phase === "play") { const sk = L.skips || []; out.away = L.seats.map((_, i) => ({ away: L.seats[i]?.goneAt != null, label: L.seats[i]?.goneAt != null ? "Игрок не за столом" : "", skips: sk[i] || 0, out: isOut(g, i) }));
         out.canClaim = !this.multi() && (seat === 0 || seat === 1) && !!L.seats[1 - seat] && !L.seats[1 - seat]!.bot && canClaim(L.seats[1 - seat]!.goneAt != null, sk[1 - seat] || 0); out.turnMin = this.turnMs() / 60000; }

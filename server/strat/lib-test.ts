@@ -20,7 +20,7 @@ ok((await libRename(db, "u1", R, "Новая " + "я".repeat(80))) === "" && tit
 ok((await libRename(db, "u2", R, "чужая")) === "not_saved" && title("u1", R).startsWith("Новая"), "rename чужой записи не трогает её");
 await libUnsave(db, "u1", R); ok(title("u1", R) === undefined, "unsave удаляет");
 // t1175: хранение 90 дн., «Недавние» — последние 50, библиотека — до 100, чужие партии сохранять можно
-{ const q = new Database(":memory:"); q.exec(readFileSync(new URL("../migrations/0031_strat_replays.sql", import.meta.url), "utf8"));
+{ const q = new Database(":memory:"); for (const f of ["0031_strat_replays.sql", "0036_strat_replay_seats.sql"]) q.exec(readFileSync(new URL("../migrations/" + f, import.meta.url), "utf8")); // t1221: + места повтора
   const D2 = { prepare: (x: string) => { const st = q.query(x); const b = (...a: any[]) => ({ first: async () => st.get(...a) ?? null, all: async () => ({ results: st.all(...a) }), run: async () => st.run(...a) }); return { bind: b, ...b() }; } };
   const now = Date.now(), DAY = 86400_000, ins = q.query("INSERT INTO strat_replays (id, status, log, p0, p1, nick0, nick1, race0, race1, ended_at, started_at) VALUES (?, 'over', '{}', ?, ?, 'a', 'b', 'fire', 'ice', ?, ?)");
   const id = (k: number) => "P" + String(k).padStart(5, "0") + ":1700000000000";

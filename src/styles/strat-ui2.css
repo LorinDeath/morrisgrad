@@ -134,7 +134,7 @@
 .hs-ok { --hs: var(--good); } .hs-hurt { --hs: #e3a630; } .hs-low { --hs: var(--red-hi); }
 .hsb, small.hs { display: inline-block; padding: 0 6px; font: 700 .72rem var(--f-disp); letter-spacing: .04em; color: var(--ink); background: var(--hs, #888); }
 .meter.hs { position: relative; height: 14px; } .meter.hs i { background: var(--hs); } .meter.hs span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 .66rem var(--f-disp); color: var(--ivory); text-shadow: 0 1px 0 #000; }
-#hhpwrap.locked { opacity: .55; } #hhpwrap.locked input { cursor: not-allowed; }
+#hhpwrap.locked, #fogwrap.locked { opacity: .55; } #hhpwrap.locked input, #fogwrap.locked input { cursor: not-allowed; }
 
 .tipland { display: inline-flex; align-items: center; gap: 5px; } .tipland::before { content: ""; width: 9px; height: 9px; background: var(--pc); transform: rotate(45deg); border: 1px solid #000; }
 

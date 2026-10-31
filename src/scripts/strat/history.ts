@@ -11,7 +11,7 @@ import { ic } from "./icons";
 import { esc } from "./ui-kit";
 
 export type Frame = { turn: number; cur: number; v?: number; g: any; ev: any[]; at: number };
-export type LibItem = { id: string; code?: string; at: number; races: string[]; nicks: string[]; winner?: number | null; turns?: number; league?: string; saved?: boolean; local?: boolean; title?: string; rated?: boolean; srv?: boolean };
+export type LibItem = { id: string; code?: string; at: number; races: string[]; nicks: string[]; winner?: number | null; turns?: number; league?: string; saved?: boolean; local?: boolean; title?: string; rated?: boolean; srv?: boolean; teams?: number[]; mode?: string };
 /** §14.I сервер повторов: idx[k] — номер действия для кадра k (конец полухода), list — действия с dt, div — первое расхождение. */
 export type RpInfo = { id: string; n: number; idx: number[]; turns: { turn: number; side: number; from: number; to: number }[]; list: { i: number; side?: number; n?: string; dt?: number; auto?: number }[]; rulesChanged?: boolean; div?: number | null };
 export type Rec = LibItem & { you?: number; map?: any; frames: Frame[]; rp?: RpInfo; sum?: any }; // t1236: sum — «Итоги партии» (сервер: лог повтора .sum)
@@ -28,8 +28,10 @@ export function itemFrom(x: any, saved?: boolean): LibItem | null {
   const id = String(x?.id ?? x?.matchId ?? x?.match_id ?? x?.code ?? ""); if (!id) return null;
   const nicks = Array.isArray(x.nicks) ? x.nicks.map(String) : Array.isArray(x.players) ? x.players.map((p: any) => String(p?.nick ?? p ?? "?")) : [];
   return { id, code: x.code, at: num(x.at ?? x.endedAt ?? x.ended_at ?? x.startedAt, Date.now()), races: Array.isArray(x.races) ? x.races.map(String) : [], nicks,
-    winner: x.winner ?? null, turns: x.turns != null ? num(x.turns) : undefined, league: x.league, saved: saved ?? !!x.saved, title: x.title ? String(x.title).slice(0, 60) : undefined, rated: !!x.rated, srv: true };
+    winner: x.winner ?? null, turns: x.turns != null ? num(x.turns) : undefined, league: x.league, saved: saved ?? !!x.saved, title: x.title ? String(x.title).slice(0, 60) : undefined, rated: !!x.rated, srv: true, ...(Array.isArray(x.teams) ? { teams: x.teams.map(Number) } : {}), ...(x.mode ? { mode: String(x.mode) } : {}) };
 }
+/** t1221: победители записи — в 2×2/«Все» winner — номер команды (teams), иначе место. */
+export const winNicks = (it: LibItem): string[] => it.winner == null || it.winner < 0 ? [] : it.teams?.length ? it.nicks.filter((_, i) => it.teams![i] === it.winner) : it.nicks[it.winner] ? [it.nicks[it.winner]] : [];
 export function libFrom(x: any): { saved: LibItem[]; recent: LibItem[]; keepDays?: number; saveMax?: number; recentMax?: number } | null {
   if (!x || x.err) return null;
   // §14.I lib: {recent:[ReplayMeta+saved], saved:[ReplayMeta+title]} — «Недавние» остаются недавними, флаг saved лишь отмечает звёздочку
