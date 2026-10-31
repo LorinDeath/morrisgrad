@@ -23,6 +23,7 @@ import { favRaces, setFavLocal, lobbyDrawHtml, favPickerHtml, bindFavPicker, dru
 import { wonderPopup } from "./bldart";
 import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, razeTargets, buildChoices, towerCells, claimable, cityName, apTip, HS_NAME, HS_COL, hsByHp, loadWalls, cityBld, towersOf, terrCities } from "./world";
 import { bName } from "./econ-ui";
+import { raceNums, raceEffects, describeEffects } from "../../../server/strat/effects";
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
 import { hpBarArt, unitHpArt, HS_STEP } from "./ui2art";
@@ -148,7 +149,7 @@ async function createLobby() {
 /** Выбор в меню «Играть» (рейтинговая / с ботом / размер) применяется хостом к только что созданному лобби — обычными cfg/bot, сервер всё проверяет сам. */
 function applyIntent() {
   if (!pendingIntent || !S || S.phase !== "lobby" || S.you !== 0) return; const it = pendingIntent; pendingIntent = null;
-  if (it.size) send({ type: "cfg", size: it.size }); if (it.mode === "ranked") send({ type: "cfg", ranked: true }); if (it.mode === "bot") send({ type: "bot", slot: 1, on: true });
+  if (it.size) send({ type: "cfg", size: it.size }); send({ type: "cfg", ranked: it.mode === "ranked" }); /* r3: у сервера ratedDefault=true — «Обычная» и «с ботом» явно без рейтинга */ if (it.mode === "bot") send({ type: "bot", slot: 1, on: true });
 }
 function joinCode(code: string) {
   code = code.trim().toUpperCase(); if (!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) return toast("Код — 6 символов", "bad");
@@ -292,6 +293,7 @@ function onState(prev: any) {
       prevChief = { alive, pend: ch.pend }; }
   }
   if (S.phase === "over" && !endShown && g) { endShown = true; setTimeout(showEnd, prev?.phase === "play" ? 900 : 0); }
+  else if (S.phase === "over" && endShown) patchEndRating(); // r3: рейтинг сервер дописывает в st чуть позже конца партии
   if (S.phase !== "over") { endShown = false; document.getElementById("endscreen")?.remove(); }
   render();
 }
@@ -446,8 +448,8 @@ function curRec(saved: boolean): Rec | null {
     turns: g.turn, you: base.you, map: rec.map, frames: F, saved };
 }
 /** §14.I lib_save {id, title?}: название до 60 символов; пустое — без названия, «Отмена» — не сохранять. */
-function askTitle(def: string): Promise<string | null> {
-  const m = modal({ title: "Сохранить партию", icon: "rp_save", cls: "small rptitle", sub: "Название увидите в «Библиотеке партий»",
+function askTitle(def: string, ren = false): Promise<string | null> {
+  const m = modal({ title: ren ? "Переименовать партию" : "Сохранить партию", icon: ren ? "pen" : "rp_save", cls: "small rptitle", sub: "Название увидите в «Библиотеке партий»",
     body: `<label class="fld"><span>Название (необязательно)</span><input type="text" maxlength="60" autocomplete="off" enterkeyhint="done"></label>`,
     acts: [{ label: "Отмена", cls: "ghost", val: false }, { label: "Сохранить", cls: "gold", val: true, icon: "rp_save" }] });
   const inp = m.el.querySelector("input")!; inp.value = def.slice(0, 60); inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); m.close(true); } }; setTimeout(() => { inp.focus(); inp.select(); }, 50);
@@ -467,7 +469,7 @@ async function openReplay(id: string) {
   let r: Rec | null = lsGetRec(id);
   if (!r) r = await fetchReplay(id);
   if (!r) return toast("Повтор недоступен", "bad", "warn");
-  document.getElementById("profdlg")?.remove(); document.getElementById("endscreen")?.remove(); histOpen(0, r);
+  document.getElementById("profdlg")?.remove(); document.getElementById("endscreen")?.remove(); document.getElementById("libdlg")?.remove(); histOpen(0, r);
 }
 /** §14.I HTTP: GET /strat/replay?id= → {meta, log, moves:{turns:[{turn,side,from,to}], list:[{i,…,dt}]}, rulesChanged}; кадры на конец каждого полухода (&i=turns[k].to, по 6 параллельно) —
  *  для шагов и перемотки; между ними при автопроигрывании — пакеты &from=&to= (rpFrame). */
@@ -490,18 +492,33 @@ function demoLib() { const now = Date.now(), H = 3600e3, m = (id: string, ago: n
 async function loadLib(el: HTMLElement) {
   const local = lsList(); const j = menuDemo ? demoLib() : demo ? { err: "demo" } : await hubReq("lib_list"); const srv = libFrom(j);
   const merge = (a: LibItem[], b: LibItem[]) => [...a, ...b.filter((x) => !a.some((y) => y.id === x.id))].sort((x, y) => y.at - x.at);
-  const lib = { saved: merge(srv?.saved || [], local.filter((x) => x.saved)), recent: merge(srv?.recent || [], local.filter((x) => !x.saved)), keepDays: srv?.keepDays, saveMax: srv?.saveMax };
+  // сервер ответил → только его списки (r3: локальная копия — лишь когда сервера нет: демо/офлайн/гость)
+  const lib = srv ? { saved: srv.saved, recent: srv.recent, keepDays: srv.keepDays, saveMax: srv.saveMax } : { saved: merge([], local.filter((x) => x.saved)), recent: merge([], local.filter((x) => !x.saved)) };
   el.innerHTML = libHtml(lib, { crest, offline: !srv }); const all = [...lib.saved, ...lib.recent];
   el.querySelectorAll<HTMLElement>(".lib-n").forEach((n) => { const it = all.find((x) => x.id === n.dataset.i); n.textContent = it?.title ? it.title + " — " + it.nicks.join(" · ") : it ? (it.nicks.length ? it.nicks.join(" · ") : "Партия") + (it.winner != null && it.nicks[it.winner] ? ` — победа: ${it.nicks[it.winner]}` : "") : "Партия"; });
   el.querySelectorAll<HTMLButtonElement>("[data-lib]").forEach((b) => (b.onclick = async () => { const id = b.dataset.id!, k = b.dataset.lib;
     if (k === "open") return openReplay(id);
-    if (k === "del") { lsDel(id); if (!demo && !id.startsWith("loc-")) await hubReq("lib_unsave", { id }); }
+    if (k === "del") { lsDel(id); if (!demo && !menuDemo && !id.startsWith("loc-")) { const e: any = await hubReq("lib_unsave", { id }); if (e?.err) toast(ERR[e.err] || "Не удалось убрать", "bad", "warn"); } }
+    if (k === "ren") { const it = all.find((x) => x.id === id); const title = await askTitle(it?.title || defTitle(it || {}), true); if (title === null) return;
+      const r = lsGetRec(id); if (r) lsPut({ ...r, saved: true, title: title || undefined });
+      if (!demo && !menuDemo && !id.startsWith("loc-")) { const e: any = await hubReq("lib_rename", { id, title }); if (e?.err) toast(ERR[e.err] || "Не удалось переименовать", "bad", "warn"); } }
     if (k === "save") { const r = lsGetRec(id), it = all.find((x) => x.id === id); const title = await askTitle(it?.title || defTitle(it || r || {})); if (title === null) return;
       if (r) lsPut({ ...r, saved: true, title: title || undefined }); if (!demo && !menuDemo && !id.startsWith("loc-")) { const e: any = await hubReq("lib_save", { id, ...(title ? { title } : {}) }); if (e?.err) toast(ERR[e.err] || "Не удалось сохранить", "bad", "warn"); } }
     loadLib(el); }));
 }
 
 // ---------- экран конца партии ----------
+// r3: сервер (match.ts ratingView) шлёт в st.rating = {league: quick|normal|tactical, unrated, seats:[{rating, delta, xp, coins}]}
+const LG_UI: Record<string, string> = { quick: "fast", normal: "normal", tactical: "tactic" };
+function myRating(me: number) {
+  const old = S.result?.rating?.[me]; if (old) return old; const R = S.rating, c = R?.seats?.[me];
+  if (!c || typeof c.delta !== "number") return null; return { league: LG_UI[R.league] || R.league, delta: c.delta, after: c.rating, before: (c.rating ?? 0) - c.delta };
+}
+function patchEndRating() {
+  const f = document.querySelector("#endscreen .es-foot"), me = S?.you; if (!f || !(me >= 0) || f.querySelector(".rdelta")) return; const h = ratingDelta(myRating(me)); if (!h) return;
+  const sc = f.querySelector(".es-score"); if (sc) sc.insertAdjacentHTML("afterend", h); else f.insertAdjacentHTML("afterbegin", h);
+}
+const endReason = (win: boolean, draw_: boolean, me: number) => { const r = S.result?.reason; if (me >= 0 && !win && !draw_ && r === "forfeit") return "Вы сдались"; if (me >= 0 && !win && !draw_ && r === "disconnect") return "Вы не вернулись вовремя"; return REASON[r] || r || ""; };
 function showEnd() {
   if (!S?.g || S.phase !== "over") return; const me = S.you, w = S.result?.winner, g = S.g;
   const win = me >= 0 && w === me, draw_ = w === 2 || w == null, title = draw_ ? "Ничья" : me < 0 ? `Победил ${S.seats[w]?.nick || "?"}` : win ? "Победа" : "Поражение";
@@ -510,10 +527,10 @@ function showEnd() {
     <b class="nick"></b><small class="cname"></small><div class="es-goals">${gl.sides[i].map((q) => { const d = goalDef(q); return `<i class="${q.done ? "on" : ""}" data-tip="${esc(d.name)}">${ic(d.icon)}</i>`; }).join("")}</div>
     <span class="es-n">${ic("glory")}${g.ec?.res?.[i]?.glory ?? 0} · ${ic("sword")}${g.pieces.filter((p: any) => p.o === i).length}</span></div>`;
   const m = modal({ id: "endscreen", title, icon: win ? "crown" : draw_ ? "scales" : "skull", cls: "endscreen " + (win || me < 0 ? "win" : draw_ ? "draw" : "lose"), dismiss: true,
-    sub: esc(REASON[S.result?.reason] || S.result?.reason || ""),
+    sub: esc(endReason(win, draw_, me)),
     body: `<div class="es-hero"><img src="${unitArt(race, "king")}" alt="" onerror="this.remove()"></div>
       <p class="es-chief"></p><div class="es-sides">${stat(0)}<span class="vs">VS</span>${stat(1)}</div>
-      <div class="es-foot"><div class="es-score" data-tip="Выполнено целей"><small>Цели</small><b>${gl.sides[Math.max(0, me)].filter((q) => q.done).length}–${gl.sides[me === 1 ? 0 : 1].filter((q) => q.done).length}</b></div>${me >= 0 ? ratingDelta(S.result?.rating?.[me]) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>`,
+      <div class="es-foot"><div class="es-score" data-tip="Выполнено целей"><small>Цели</small><b>${gl.sides[Math.max(0, me)].filter((q) => q.done).length}–${gl.sides[me === 1 ? 0 : 1].filter((q) => q.done).length}</b></div>${me >= 0 ? ratingDelta(myRating(me)) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>`,
     acts: [{ label: "В меню", cls: "ghost", val: "menu", icon: "back" }, { label: "К доске", cls: "", val: "board", icon: "eye" }, ...(rec.frames.length > 1 ? [{ label: "Повтор", cls: "", val: "replay", icon: "hist" }] : []), ...(me >= 0 ? [{ label: S.seats[me]?.rematch ? "Ждём соперника…" : "Реванш", cls: "gold", val: "rematch", icon: "refresh", id: "es-rematch" }] : [])] });
   m.el.querySelectorAll<HTMLElement>(".es-side").forEach((el, i) => { el.querySelector(".nick")!.textContent = S.seats[i]?.nick || "?"; el.querySelector(".cname")!.textContent = "Вождь " + chiefName(i); });
   m.el.querySelector(".es-chief")!.textContent = draw_ ? "" : `Вождь ${chiefName(w)} ведёт ${RACE_NAME[g.races[w]] || ""} к победе`;
@@ -567,8 +584,12 @@ function seatHtml(i: number) {
     <span class="rdy">${s.ready ? ic("check") + "Готов" : "Не готов"}</span>${seatRating(s)}</div>`;
 }
 /** Только числа и особые свойства — никаких подсказок «для какой тактики» раса. */
+/** Размер поля для чисел расы: партия → лобби → 8. */
+const raceSize = () => +(S?.g?.size || S?.size || 8);
+/** Подсказка расы с числами лиги этого поля (как tipRace сервера: describeEffects(raceEffects(cfg, race, size))). */
+export const tipRace = (r: string, size = raceSize()) => { try { return describeEffects(raceEffects(cfgOf(S), r, size)); } catch { return ""; } };
 function raceTraits(r: string): string[] {
-  const c: any = (cfgOf(S).race as any)[r] || {}, t: string[] = [];
+  const c: any = raceNums(cfgOf(S), r, raceSize()), t: string[] = [];
   if (c.hpMul && c.hpMul !== 1) t.push(`Здоровье фигур ×${c.hpMul}`);
   if (c.atk) t.push(`Атака ${c.atk > 0 ? "+" : ""}${c.atk}`); if (c.arm) t.push(`Броня ${c.arm > 0 ? "+" : ""}${c.arm} всем`); if (c.rookAtk) t.push(`Страж: атака ${c.rookAtk > 0 ? "+" : ""}${c.rookAtk}`);
   if (c.burnTurns) t.push(`Поджог: −${c.burnDmg} HP, ${c.burnTurns} хода`); if (c.chillTurns) t.push(`Обморожение: цель ходит на ${c.chillMove}`); if (c.knowPen) t.push(`Знания −${c.knowPen} за ход`);
@@ -584,12 +605,12 @@ function renderLobby() {
   rc.hidden = drawL; rdv.hidden = !drawL; $("#racehdr").textContent = drawL ? "Раса — жребием" : "Выберите расу";
   $("#racesub").textContent = drawL ? "Рейтинговая партия: выбора расы нет, жребий у всех одновременно на старте." : "Соперник увидит вашу расу только на старте партии.";
   if (drawL) { const h = lobbyDrawHtml(S, raceD(), isGuest); if (rdv.dataset.h !== h) { rdv.dataset.h = h; rdv.innerHTML = h; const fe = rdv.querySelector<HTMLButtonElement>("[data-favedit]"); if (fe) fe.onclick = () => openFavDlg(); } }
-  if (!rc.dataset.built) { rc.dataset.built = "1"; rc.innerHTML = RACES.map((r) => `<button class="racecard r-${r}" data-race="${r}">
+  if (rc.dataset.built !== String(raceSize())) { rc.dataset.built = String(raceSize()); rc.innerHTML = RACES.map((r) => `<button class="racecard r-${r}" data-race="${r}">
       <span class="rc-art"><img class="cr" src="/strat/ui/crests/crest_${r}.png" alt=""><img class="k" src="${unitArt(r, "king")}" alt="" onerror="this.remove()"><img class="a" src="${unitArt(r, "knight")}" alt="" onerror="this.remove()"><img class="b" src="${unitArt(r, "mage")}" alt="" onerror="this.remove()"></span>
-      <span class="rc-name"><b>${RACE_NAME[r]}</b></span><span class="rc-word">${RACE_WORD[r] || ""}</span><ul class="rc-tr"></ul><span class="rc-pas pas-row">${racePassives(cfgOf(S), r).map(pasIcon).join("")}</span><span class="rc-pick">${ic("check")}Выбрано</span></button>`).join("");
+      <span class="rc-name"><b>${RACE_NAME[r]}</b></span><span class="rc-word">${RACE_WORD[r] || ""}</span><ul class="rc-tr"></ul><span class="rc-pas pas-row">${racePassives(cfgOf(S), r, null, 0, raceSize()).map(pasIcon).join("")}</span><span class="rc-pick">${ic("check")}Выбрано</span></button>`).join("");
     for (const b of rc.querySelectorAll<HTMLButtonElement>("[data-race]")) b.onclick = () => send({ type: "race", race: b.dataset.race }); }
   for (const b of rc.querySelectorAll<HTMLButtonElement>("[data-race]")) { b.classList.toggle("on", seats[me]?.race === b.dataset.race); b.disabled = me < 0;
-    const ul = b.querySelector(".rc-tr")!, tr = raceTraits(b.dataset.race!); if (ul.textContent !== tr.join("")) { ul.innerHTML = ""; for (const t of tr) { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); } } }
+    const ul = b.querySelector(".rc-tr")!, tr = raceTraits(b.dataset.race!), tp = tipRace(b.dataset.race!); if (b.dataset.tip !== tp) b.dataset.tip = tp; if (ul.textContent !== tr.join("")) { ul.innerHTML = ""; for (const t of tr) { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); } } }
   // тип Вождя — только если у расы их больше одного
   const myRace = seats[me]?.race, types = myRace ? chiefTypes(cfgOf(S), myRace) : [], cp = $("#chiefpick");
   cp.hidden = types.length < 2;
@@ -1209,7 +1230,8 @@ function saveFav(xs: string[]) { setFavLocal(xs); if (demo || hub?.readyState !=
 function openFavDlg() { const m = modal({ id: "favdlg", title: "Любимые расы", icon: "crown", cls: "favdlg", body: favPickerHtml(raceD(), favRaces()) });
   bindFavPicker(m.el, raceD(), favRaces(), (xs) => { saveFav(xs); m.close(); }); }
 /** Игровой профиль: hub {type:"profile_get"}; личная вкладка — только если сервер подтвердил владельца. */
-function showProfile() { return openProfile(() => (demo || menuDemo ? Promise.resolve(demoProfile(S?.seats?.[S.you]?.nick || $("#me").textContent || "Гость")) : hubReq("profile_get")), { crest, raceName: RACE_NAME, raceCol: (r) => (RACE_COL[r] || [GOLD])[0], lib: libDeps(), fav: { get: favRaces, html: () => favPickerHtml(raceD(), favRaces()), bind: (el: HTMLElement) => bindFavPicker(el, raceD(), favRaces(), saveFav), guest: () => isGuest } }); }
+/** nick — чужой профиль (публичная часть; сервер сам решает own по сессии). */
+function showProfile(nick?: string) { return openProfile(() => (demo || menuDemo ? Promise.resolve(demoProfile(nick || S?.seats?.[S.you]?.nick || $("#me").textContent || "Гость")) : hubReq("profile_get", nick ? { nick } : {})), { crest, raceName: RACE_NAME, raceCol: (r) => (RACE_COL[r] || [GOLD])[0], lib: libDeps(), fav: { get: favRaces, html: () => favPickerHtml(raceD(), favRaces()), bind: (el: HTMLElement) => bindFavPicker(el, raceD(), favRaces(), saveFav), guest: () => isGuest } }); }
 async function loadResume() {
   const j: any = await hubReq("resume_get");
   if (j?.game || j?.code) { resumeInfo = j.game || j; renderResume(); }
@@ -1242,9 +1264,9 @@ function openMenu() {
   q("m-cont")!.onclick = () => m.close(null);
   m.el.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest("[data-prof]")) showProfile(); });
   const pf = m.el.querySelector<HTMLElement>(".profile")!; pf.querySelector(".pf-nick")!.textContent = S?.seats?.[S.you]?.nick || ($("#me").textContent || "Гость");
-  pf.querySelector<HTMLButtonElement>("[data-top]")!.onclick = () => openLeaderboard(topGet, S?.seats?.[S.you]?.nick || "", leagueOf(S?.g?.size || S?.size || 8));
+  pf.querySelector<HTMLButtonElement>("[data-top]")!.onclick = () => openLeaderboard(topGet, S?.seats?.[S.you]?.nick || "", leagueOf(S?.g?.size || S?.size || 8), showProfile);
   (demo ? Promise.resolve((window as any).__stratRatingDemo?.() || {}) : hubReq("rating_get")).then((r: any) => { if (!r?.leagues || !pf.isConnected) return; const nk = pf.querySelector(".pf-nick")!.textContent; pf.outerHTML = profileHtml(r.leagues);
-    const pf2 = m.el.querySelector<HTMLElement>(".profile")!; pf2.querySelector(".pf-nick")!.textContent = nk; pf2.querySelector<HTMLButtonElement>("[data-top]")!.onclick = () => openLeaderboard(topGet, nk || "", leagueOf(S?.g?.size || S?.size || 8)); });
+    const pf2 = m.el.querySelector<HTMLElement>(".profile")!; pf2.querySelector(".pf-nick")!.textContent = nk; pf2.querySelector<HTMLButtonElement>("[data-top]")!.onclick = () => openLeaderboard(topGet, nk || "", leagueOf(S?.g?.size || S?.size || 8), showProfile); });
   q("m-style")!.onclick = () => { togglePieceStyle(); q("m-style")!.querySelector("span")!.textContent = pieceStyle === "figures" ? "Вид: фигуры ⇄ фишки" : "Вид: фишки ⇄ фигуры"; };
   q("m-hp")!.onclick = () => { hideHp = !hideHp; localStorage.setItem("strat.hideHp", hideHp ? "1" : "0"); const b = q("m-hp")!; b.setAttribute("aria-pressed", String(hideHp)); b.querySelector("span")!.textContent = "Скрывать ОЗ: " + (hideHp ? "вкл" : "выкл"); draw(); };
   q("m-rules")!.onclick = () => { m.close(null); showRules(); };
@@ -1302,7 +1324,7 @@ async function loadCommander() {
       ${lv ? `<div class="meter xp cm-xp" data-tip="Опыт ${+c.xp || 0}${c.next ? " / " + c.next : ""} · 1 XP ≈ минута своих ходов; уровень — только косметика"><i style="width:${Math.round(Math.max(0, Math.min(1, +c.frac || 0)) * 100)}%"></i></div>` : ""}</div>
     <div class="cm-lgs">${lg}</div>`;
   el.querySelector(".cm-nick")!.textContent = myNick() || "…";
-  el.querySelectorAll<HTMLButtonElement>(".cm-lg").forEach((b) => (b.onclick = () => openLeaderboard(topGet, myNick(), b.dataset.lg as any)));
+  el.querySelectorAll<HTMLButtonElement>(".cm-lg").forEach((b) => (b.onclick = () => openLeaderboard(topGet, myNick(), b.dataset.lg as any, showProfile)));
   const pe = document.getElementById("profem"); if (pe && lv) pe.innerHTML = `<img src="/strat/ui2/badges/warlord_emblem_${tier}.png" alt="">`;
 }
 function openLibDlg() { const m = modal({ id: "libdlg", title: "Библиотека партий", icon: "book", cls: "libdlg", body: `<div class="ppane">${libHtml(null, { crest, loading: true })}</div>` }); loadLib(m.el.querySelector<HTMLElement>(".ppane")!); }
@@ -1348,7 +1370,7 @@ export function boot() {
   $<HTMLInputElement>("#hhp").onchange = (e) => send({ type: "cfg", hiddenHp: (e.target as HTMLInputElement).checked });
   $<HTMLInputElement>("#ranked").onchange = (e) => send({ type: "cfg", ranked: (e.target as HTMLInputElement).checked });
   { const pb = document.getElementById("profbtn"); if (pb) pb.onclick = () => showProfile(); }
-  { const tb = document.getElementById("topbtn"); if (tb) tb.onclick = () => openLeaderboard(topGet, myNick(), "fast"); }
+  { const tb = document.getElementById("topbtn"); if (tb) tb.onclick = () => openLeaderboard(topGet, myNick(), "fast", showProfile); }
   initMenu(); initMobileTabs();
   $("#claim").onclick = async () => { if (await confirmDlg("Завершить партию?", "Соперник не за столом и пропустил 5 ходов подряд. Партия завершится вашей победой — решение проверит сервер.", "Завершить", { icon: "flag" })) send({ type: "claim_away" }); };
   $<HTMLSelectElement>("#tsec").onchange = (e) => { const v = (e.target as HTMLSelectElement).value; send({ type: "cfg", turnSec: v === "" ? null : +v }); };

@@ -686,3 +686,4 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
 }
 /* портрет фигуры в карточке: арт крупнее рамки, обрезан сверху по центру (раньше <img> раздувался до 307px и в окне была пустота) */
 .uc-port { position: relative; } .uc-port img { position: absolute; left: -15%; top: -4%; width: 130%; height: 130%; max-width: none; object-fit: cover; object-position: 50% 0; }
+.lrow .nk.lnk{cursor:pointer;text-decoration:underline dotted rgba(232,200,120,.5);text-underline-offset:3px}.lrow .nk.lnk:hover{color:#f3d58a}

@@ -63,6 +63,7 @@ export const ICONS: Record<string, string> = {
   plus: s(`<path d="M12 4v16M4 12h16" fill="none" stroke-width="3.6"/><path d="M12 4v16M4 12h16" fill="none" stroke="${G2}" stroke-width="1.6"/>`),
   arrow: s(`<path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke-width="2.6"/>`),
   back: s(`<path d="M20 12H5M11 6l-6 6 6 6" fill="none" stroke="${G2}" stroke-width="2.6"/>`),
+  pen: s(`<path d="M4 20l1.2-4.6L16 4.6a1.8 1.8 0 0 1 2.6 0l.8.8a1.8 1.8 0 0 1 0 2.6L8.6 18.8z" fill="${I}"/><path d="M14 7l3 3" fill="none" stroke-width="1.6"/>`),
   copy: s(`<rect x="8" y="8" width="12" height="13" fill="${I}"/><path d="M5 16V3.5h11" fill="none" stroke-width="2"/>`),
   bot: s(`<rect x="4" y="7" width="16" height="12" fill="${I}"/><path d="M12 7V3.5" fill="none" stroke-width="2"/><circle cx="12" cy="3" r="1.5" fill="${R}"/><rect x="7.5" y="10.5" width="3" height="3" fill="${G}"/><rect x="13.5" y="10.5" width="3" height="3" fill="${G}"/><path d="M8.5 16.5h7" fill="none"/>`),
   dice: s(`<rect x="3.5" y="3.5" width="17" height="17" fill="${I}"/><circle cx="8" cy="8" r="1.4" fill="${K}"/><circle cx="16" cy="16" r="1.4" fill="${K}"/><circle cx="12" cy="12" r="1.4" fill="${K}"/>`),

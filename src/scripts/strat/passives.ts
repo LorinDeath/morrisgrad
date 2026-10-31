@@ -4,6 +4,7 @@ import type { GameState, StratCfg } from "../../../server/strat/rules";
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { burnTurns, burnDmg, chillTurns, mageShot } from "../../../server/strat/econ";
 import { TER_RULES } from "../../../server/strat/terrain";
+import { raceNums } from "../../../server/strat/effects";
 import { esc } from "./ui-kit";
 import { ic } from "./icons";
 
@@ -49,8 +50,9 @@ const hasT = (G: GameState | null, side: number, t: string) => !!G?.ec?.techs?.[
 const CYCLE = ["water", "fire", "ice", "nature", "stone", "lightning"];
 const RN: Record<string, string> = { fire: "Огонь", ice: "Лёд", water: "Вода", stone: "Камень", nature: "Природа", lightning: "Молния" };
 /** Пассивки расы (живые числа: правки конфига и изученные технологии стороны). */
-export function racePassives(cfg: StratCfg, race: string, G: GameState | null = null, side = 0): Passive[] {
-  const c: any = (cfg.race as any)[race] || {}, out: Passive[] = [], fakeG: any = G || { ec: { techs: [[], []] } };
+/** size — размер поля партии/лобби: числа расы берутся по лиге (econ.league[лига].race поверх cfg.race, как в партии на сервере). */
+export function racePassives(cfg: StratCfg, race: string, G: GameState | null = null, side = 0, size?: number): Passive[] {
+  const c: any = raceNums(cfg, race, size ?? (G as any)?.size), out: Passive[] = [], fakeG: any = G || { ec: { techs: [[], []], cities: [], res: [{}, {}], chief: [null, null] }, pieces: [], races: [race, race], size: size ?? 8 }; // r3: tfx сервера читает g.races[side]
   if (c.hpMul != null && c.hpMul !== 1) out.push({ key: `race.${race}.hp`, name: "Хрупкость", icon: "heart", effs: [{ stat: "hpMul", v: c.hpMul, when: "always", who: "все свои фигуры при появлении", stack: "none", src: "раса" }] });
   if (race === "fire") out.push({ key: "race.fire.burn", name: "Поджог", icon: "burn", effs: [{ stat: "burn", v: burnDmg(fakeG, 1 - side, cfg), when: "on_hit", who: "вражеская фигура, по которой попали", dur: burnTurns(fakeG, side, cfg), stack: "refresh", src: hasT(G, side, "wildfire") || hasT(G, side, "embers") ? "раса + технология" : "раса" }] });
   if (race === "ice") { out.push({ key: "race.ice.chill", name: "Обморожение", icon: "chill", effs: [{ stat: "chill", v: c.chillMove ?? 1, when: "on_hit", who: "вражеская фигура, по которой попали", dur: chillTurns(fakeG, side, cfg), stack: "refresh", src: hasT(G, side, "deepfreeze") ? "раса + технология" : "раса" }] });

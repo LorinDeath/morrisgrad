@@ -1,8 +1,9 @@
 // Игровой профиль: публичная статистика и личная вкладка (только владелец).
-// Протокол (догадка до серверной части): hub {type:"profile_get", nick?} → {
+// Протокол (сервер strategy-mvp 60244f2, hub.ts mapMsg): hub {type:"profile_get", nick?} → {
 //   nick, own:boolean (сервер сам решает, чей профиль — по сессии),
 //   races:{<race>:{games, wins}}, leagues:{fast|normal|tactic: LStat},
-//   priv?:{ techs:[{id,name,n}], chiefLv:{<lv>:n}, chiefsLeveled:n, recordChiefKills:{n, turn?, race?}, talents:[{name,n}], ults:[{kind,name,n}] }
+//   priv?:{ techs:[{id,name,n}], chiefsLeveled:n, chiefTypes:[{id,name,levelsGained}], recordChiefKills:{n, match?}, talents:[{id,name,n}], ults:[{id,kind,name,n}], avgMatch:{minutes,turns}, maps }
+//   (chiefLv:{<lv>:n} — только в демо; сервер отдаёт chiefTypes)
 // }. Поле priv сервер присылает только владельцу; клиент показывает вкладку, только если priv пришёл И own=true.
 import { ic } from "./icons";
 import { modal } from "./ui-kit";
@@ -11,7 +12,7 @@ import { LEAGUES, leagueBadge, type LeagueId, type LStat } from "./rating";
 export type RStat = { games: number; wins: number };
 export type Profile = {
   nick: string; own?: boolean; coins?: number; commander?: { level: number; xp?: number; next?: number; frac?: number } | null; races?: Record<string, RStat>; leagues?: Partial<Record<LeagueId, LStat>>;
-  priv?: { techs?: { id?: string; name: string; n: number }[]; chiefsLeveled?: number; chiefLv?: Record<string, number>; recordChiefKills?: { n: number; turn?: number; race?: string };
+  priv?: { techs?: { id?: string; name: string; n: number }[]; chiefsLeveled?: number; chiefLv?: Record<string, number>; chiefTypes?: { id: string; name: string; levelsGained: number }[]; avgMatch?: { minutes: number; turns: number }; recordChiefKills?: { n: number; turn?: number; race?: string };
     talents?: { name: string; n: number }[]; ults?: { kind?: string; name: string; n: number }[] };
 };
 type Deps = { crest: (r: string) => string; raceName: Record<string, string>; raceCol: (r: string) => string;
@@ -50,15 +51,15 @@ function privHtml(p: Profile, d: Deps): string {
   const lv = v.chiefLv || {}, lvRow = [1, 2, 3, 4, 5].map((k) => `<span class="plv lv${k}"><em>${k}</em><b>${num(lv[k])}</b></span>`).join("");
   return `<p class="ppriv-note">${ic("lock")}<span>Эту вкладку видите только вы.</span></p>
     <div class="pstats">${tile("xp", String(num(v.chiefsLeveled)), "Вождей прокачано")}<div class="pstat rec"><img class="ps-medal" src="/strat/ui2/stats/medal_record.png" alt="" width="48" height="48"><b>${num(rk?.n)}</b><small>рекорд убийств Вождём${rk?.turn ? ` · к ${rk.turn}-му ходу` : ""}</small>${rk?.race && d.raceName[rk.race] ? `<span class="ps-cr sm">${d.crest(rk.race)}</span>` : ""}</div></div>
-    <div class="plvrow"><small>Уровни ваших Вождей</small>${lvRow}</div>
-    <div class="plists">${listHtml("Любимые технологии", "tech", v.techs, "раз")}${listHtml("Любимые таланты", "spark", v.talents, "раз")}${listHtml("Ульты", "ult", v.ults, "каст.")}</div>`;
+    ${v.chiefLv ? `<div class="plvrow"><small>Уровни ваших Вождей</small>${lvRow}</div>` : ""}
+    <div class="plists">${v.chiefLv ? "" : listHtml("Вожди: уровни получено", "xp", (v.chiefTypes || []).map((c) => ({ name: c.name, n: c.levelsGained })), "ур.")}${listHtml("Любимые технологии", "tech", v.techs, "раз")}${listHtml("Любимые таланты", "spark", v.talents, "раз")}${listHtml("Ульты", "ult", v.ults, "каст.")}</div>`;
 }
 
 /** Окно профиля. Личная вкладка — только если сервер подтвердил владельца (own) и прислал priv. */
 export async function openProfile(get: () => Promise<any>, d: Deps) {
   const m = modal({ id: "profdlg", title: "Профиль", icon: "user", cls: "profdlg", body: `<div class="emptyrow">${ic("clock")}<span>Загрузка…</span></div>` });
   const p: Profile | null = await get().catch(() => null); const b = m.el.querySelector<HTMLElement>(".dlg-b")!;
-  if (!p || !p.nick) { b.innerHTML = `<div class="emptyrow">${ic("warn")}<span>Профиль недоступен — нет связи с сервером</span></div>`; return m; }
+  if (!p || !p.nick) { const e = (p as any)?.err; b.innerHTML = `<div class="emptyrow">${ic("warn")}<span>${e === "need_login" ? "Профиль есть только у вошедших игроков — войдите" : e === "not_found" ? "Игрок не найден" : "Профиль недоступен — нет связи с сервером"}</span></div>`; return m; }
   const priv = !!(p.own && p.priv);
   const coins = p.own && p.coins != null ? `<span class="pcoins" data-tip="Монеты: за победы в рейтинговых партиях">${ic("coin")}<b>${num(p.coins)}</b><small>монет</small></span>` : "";
   const sets = !!(p.own && d.fav && !d.fav.guest()), lib = !!(p.own && d.lib);

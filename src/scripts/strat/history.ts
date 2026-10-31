@@ -2,7 +2,7 @@
 // Серверной части пока нет — формы терпимые (ТЗ §14.G: неизвестные поля игнорируются), всё на догадках:
 //   в state:   S.hist? = [{turn, cur, g, ev}]          — если сервер когда-нибудь пришлёт историю сразу;
 //   hub (ТЗ §14.I): {type:"lib_list"} → {type:"lib", recent:[ReplayMeta+saved], saved:[ReplayMeta+title], keepDays, saveMax}
-//              {type:"lib_save", id, title?} / {type:"lib_unsave", id} → lib | err no_replay/live/lib_full/bad_id/guest
+//              {type:"lib_save", id, title?} / {type:"lib_unsave", id} / {type:"lib_rename", id, title} → lib | err no_replay/live/lib_full/bad_id/guest
 //   HTTP:      GET /strat/replay?id= → {meta, log, moves:{turns,list}, rulesChanged}; &i=N → {n,i,diverged,frame}; &from=A&to=B → {frames:[{i,diverged,frame}]}
 //   Item = {id|code|matchId, at|endedAt|ended_at, races[], nicks[]|players[{nick}], winner, turns, league?, saved?}
 //   Frame = {turn, cur, g|state|st:{g}, ev|events}
@@ -177,7 +177,7 @@ export function libHtml(lib: { saved: LibItem[]; recent: LibItem[]; keepDays?: n
   const row = (it: LibItem) => { const dt = new Date(it.at), when = `${dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })} ${dt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
     return `<div class="lib-row ${it.saved ? "saved" : ""}" data-id="${esc(it.id)}"><span class="lib-cr">${it.races.slice(0, 4).map((r) => d.crest(r)).join("")}</span>
       <div class="lib-b"><b class="lib-n" data-i="${esc(it.id)}"></b><small>${esc(when)}${it.turns ? ` · ${it.turns} ход.` : ""}${it.local ? " · на этом устройстве" : ""}</small></div>
-      <button class="btn sm" data-lib="open" data-id="${esc(it.id)}">${ic("rp_play")}<span>Смотреть</span></button>${it.saved ? `<button class="btn sm ghost" data-lib="del" data-id="${esc(it.id)}" aria-label="Удалить" data-tip="Убрать из сохранённых">${ic("close")}</button>` : `<button class="btn sm ghost" data-lib="save" data-id="${esc(it.id)}" aria-label="Сохранить" data-tip="Сохранить в библиотеку">${ic("rp_save")}</button>`}</div>`; };
+      <button class="btn sm" data-lib="open" data-id="${esc(it.id)}">${ic("rp_play")}<span>Смотреть</span></button>${it.saved && lib?.saved?.includes(it) ? `<button class="btn sm ghost" data-lib="ren" data-id="${esc(it.id)}" aria-label="Переименовать" data-tip="Переименовать">${ic("pen")}</button>` : ""}${it.saved ? `<button class="btn sm ghost" data-lib="del" data-id="${esc(it.id)}" aria-label="Удалить" data-tip="Убрать из сохранённых">${ic("close")}</button>` : `<button class="btn sm ghost" data-lib="save" data-id="${esc(it.id)}" aria-label="Сохранить" data-tip="Сохранить в библиотеку">${ic("rp_save")}</button>`}</div>`; };
   const sec = (t: string, L: LibItem[], empty: string) => `<div class="lib-h">${esc(t)} <small>${L.length}</small></div>${L.length ? L.map(row).join("") : `<div class="emptyrow">${ic("book")}<span>${esc(empty)}</span></div>`}`;
   return `<div class="lib">${d.offline ? `<p class="lib-note">${ic("warn")}<span>Сервер повторов пока не отвечает — показаны партии, записанные на этом устройстве.</span></p>` : ""}
     ${sec("Сохранённые" + (lib?.saveMax ? ` · до ${lib.saveMax}` : ""), lib?.saved || [], "Нажмите «Сохранить» в конце партии или в просмотре ходов")}${sec("Недавние" + (lib?.keepDays ? ` · хранятся ${lib.keepDays} дн.` : ""), lib?.recent || [], "Сыгранные партии появятся здесь")}</div>`;

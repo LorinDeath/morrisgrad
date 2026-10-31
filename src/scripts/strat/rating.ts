@@ -32,14 +32,14 @@ export function profileHtml(ls: Partial<Record<LeagueId, LStat>> | null): string
     <div class="lbadges">${LEAGUES.map((l) => leagueBadge(l.id, ls?.[l.id])).join("")}</div>${ls ? "" : `<small class="muted">Рейтинг появится после первой рейтинговой партии.</small>`}</div>`;
 }
 /** Экран таблиц лиг. */
-export async function openLeaderboard(get: (league: LeagueId) => Promise<any>, myNick: string, start: LeagueId = "fast") {
+export async function openLeaderboard(get: (league: LeagueId) => Promise<any>, myNick: string, start: LeagueId = "fast", onNick?: (nick: string) => void) {
   const m = modal({ id: "topdlg", title: "Рейтинг", icon: "glory", cls: "topdlg", body: `<div class="ltabs" role="tablist">${LEAGUES.map((l) => `<button class="ltab" role="tab" data-l="${l.id}"><img class="lt-em" src="/strat/ui2/leagues/league_${l.id}_64.png" alt=""><span>${l.name}</span><small>${l.sizes}</small></button>`).join("")}</div><div class="lme" hidden></div><div class="ltable"></div>` });
   const tbl = m.el.querySelector<HTMLElement>(".ltable")!, meEl = m.el.querySelector<HTMLElement>(".lme")!;
   const load = async (id: LeagueId) => {
     m.el.querySelectorAll<HTMLElement>(".ltab").forEach((b) => b.classList.toggle("on", b.dataset.l === id)); tbl.innerHTML = `<div class="emptyrow">${ic("clock")}<span>Загрузка…</span></div>`; meEl.hidden = true;
     const j: any = await get(id).catch(() => null);
-    // top_get есть в рабочей ветке сервера (hub.ts mapMsg), но не на сервере этой ветки → заглушка, а не «пусто»
-    if (!j || j.err) { tbl.innerHTML = `<div class="emptyrow ph">${ic("warn")}<span>Таблица лиги пока недоступна — сервер не отдаёт рейтинг. Загляните позже.</span></div>`; return; }
+    // r3: top_get отвечает сервер (hub.ts mapMsg); сюда попадаем только без связи
+    if (!j || j.err) { tbl.innerHTML = `<div class="emptyrow ph">${ic("warn")}<span>Таблица лиги недоступна — нет связи с сервером. Загляните позже.</span></div>`; return; }
     const me = j.me as (LStat & { place?: number; left?: number }) | null | undefined;
     if (me && (me.games || me.place)) { const prov = isProv(me as LStat);
       meEl.hidden = false; meEl.innerHTML = `<span class="lme-l">Ваше место</span><b class="lme-p">${me.place ? "#" + me.place : "—"}</b>${j.total ? `<small>из ${+j.total}</small>` : ""}<span class="lme-r">${fmtR(me.r)}${prov ? `<img class="prov-m" src="/strat/ui2/badges/provisional_mark.png" alt="?" data-tip="Предварительный рейтинг: сыграйте ещё ${me.left ? +me.left + " " : ""}партий, чтобы попасть в таблицу">` : ""}</span><small>${+me.games || 0} парт. · <i class="w">${+me.w || 0}</i>/<i class="l">${+me.l || 0}</i>/<i class="d">${+me.d || 0}</i></small>`; }
@@ -47,7 +47,8 @@ export async function openLeaderboard(get: (league: LeagueId) => Promise<any>, m
     const list: any[] = j?.list || []; if (!list.length) { tbl.innerHTML = `<div class="emptyrow">${ic("glory")}<span>В этой лиге пока нет рейтинговых партий</span></div>`; return; }
     tbl.innerHTML = `<div class="lrow h"><span>#</span><span>Игрок</span><span>Рейтинг</span><span>Партии</span><span>П/П/Н</span></div>` + list.slice(0, 100).map((p, i) => { const pl = +p.place || i + 1;
       return `<div class="lrow ${pl <= 3 ? "top" + pl : ""} ${p.me ? "me" : ""}"><span class="pos">${pl}</span><span class="nk"></span><span class="rt">${fmtR(p.r)}${isProv(p) ? `<img class="prov-m" src="/strat/ui2/badges/provisional_mark.png" alt="?" data-tip="Предварительный рейтинг">` : ""}</span><span>${+p.games || 0}</span><span><i class="w">${+p.w || 0}</i>/<i class="l">${+p.l || 0}</i>/<i class="d">${+p.d || 0}</i></span></div>`; }).join("");
-    tbl.querySelectorAll<HTMLElement>(".lrow:not(.h)").forEach((el, i) => { el.querySelector(".nk")!.textContent = String(list[i].nick || "?").slice(0, 24); if (myNick && list[i].nick === myNick) el.classList.add("me"); });
+    tbl.querySelectorAll<HTMLElement>(".lrow:not(.h)").forEach((el, i) => { const nk = el.querySelector<HTMLElement>(".nk")!; nk.textContent = String(list[i].nick || "?").slice(0, 24); if (myNick && list[i].nick === myNick) el.classList.add("me");
+      if (onNick && list[i].nick) { nk.classList.add("lnk"); nk.setAttribute("role", "button"); nk.tabIndex = 0; nk.dataset.tip = "Открыть профиль"; nk.onclick = () => onNick(String(list[i].nick)); } });
   };
   m.el.querySelectorAll<HTMLButtonElement>(".ltab").forEach((b) => (b.onclick = () => load(b.dataset.l as LeagueId))); load(start);
   return m;

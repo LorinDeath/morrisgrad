@@ -11,7 +11,7 @@ async function player(uid, extra = "", mobile = false) {
   const vp = typeof mobile === "object" ? mobile : mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, touch = !!mobile;
   const ctx = await br.newContext({ viewport: vp, deviceScaleFactor: touch ? 2 : 1, isMobile: touch && vp.width < 1000, hasTouch: touch });
   await ctx.addCookies([{ name: "mg_dev_noclerk", value: "1", url: "http://127.0.0.1:4392" }]);
-  const p = await ctx.newPage(); p.setDefaultTimeout(8000); p.on("pageerror", (e) => errs.push(uid + ": " + e.message));
+  const p = await ctx.newPage(); p.setDefaultTimeout(8000); p.on("pageerror", (e) => errs.push(uid + ": " + e.message + " @ " + String(e.stack || "").split("\n").slice(1, 3).join(" ").slice(0, 240)));
   p.on("console", (m) => m.type() === "error" && !/favicon|Failed to load resource|WebSocket/.test(m.text()) && errs.push(uid + " console: " + m.text()));
   p.on("response", (r) => r.status() >= 400 && !/favicon/.test(r.url()) && errs.push(uid + " HTTP " + r.status() + " " + r.url().slice(0, 140)));
   await p.goto(SITE + "?devUser=" + uid + extra + WSQ); await sleep(1800); await p.addStyleTag({ content: "astro-dev-toolbar{display:none!important}" }); return p;
@@ -142,12 +142,12 @@ if (only === "all" || only === "t2") {
   await dev(M, "cam", mx, my, 16); await shot(M, "s6-ui-79-t2-mobile-lod64", 1500); await dev(M, "cam", mx, my, 30); await shot(M, "s6-ui-79b-t2-mobile-full-tiles", 1500);
 }
 if (only === "all" || only === "menu") {
-  // главное меню: заглушки (сервер ветки не знает rating_get/top_get/profile_get/lib_list) и демо-данные (?menudemo=1)
+  // главное меню: настоящий локальный сервер (r3) и демо-данные (?menudemo=1)
   const VP = { desk: false, p390: { width: 390, height: 844 }, l844: { width: 844, height: 390 }, tab: { width: 820, height: 1180 } };
   const small = async (P, nm) => { const n = await P.evaluate(() => [...document.querySelectorAll("#home button, #home select, #home input, .modal button")].filter((e) => { const r = e.getBoundingClientRect(); return r.width && r.height && (r.height < 44 && r.width < 44 || r.height < 30); }).map((e) => (e.id || e.className || e.tagName) + ":" + Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height))); if (n.length) console.log("small targets", nm, n.join(", ")); };
   for (const [k, vp] of Object.entries(VP)) for (const md of ["", "&menudemo=1"]) {
     const P = await player("s6_" + T + "_mn" + k + (md ? "d" : ""), md, vp); await sleep(1200); await noAdmin(P, "menu " + k);
-    const tag = k + (md ? "-demo" : "-placeholder"); await shot(P, "s6-ui-menu-" + tag, md ? 900 : 5500);
+    const tag = k + (md ? "-demo" : "-server"); await shot(P, "s6-ui-menu-" + tag, md ? 900 : 5500);
     if (k !== "desk") await P.screenshot({ path: OUT + N("s6-ui-menu-" + tag + "-full") + ".png", fullPage: true });
     await small(P, tag);
     if (md || k === "desk") {
@@ -201,6 +201,91 @@ if (only === "all" || only === "mobile") {
       c.dispatchEvent(new PointerEvent("pointerup", o)); return on; });
     console.log("longpress", k, lp ? "sheet ok" : "NO SHEET"); await shot(M, "s6-ui-mobile-" + k + "-longpress-tip", 400);
     await M.context().close();
+  }
+}
+if (only === "all" || only === "real") {
+  // r3: всё на НАСТОЯЩЕМ локальном сервере (60244f2): рейтинговая 8×8 A (стол) vs B (телефон) → WS moves/frame → сдача → rating_get/top_get/profile_get (свой+чужой)/lib_list/save/rename/unsave → HTTP повтор
+  const uA = "r3A_" + T, uB = "r3B_" + T, nA = "Алекс" + (T % 1000), nB = "Мира" + (T % 1000);
+  const top = (P) => P.locator("#modals .ovl").last();
+  const nameIt = async (P, nk) => { for (let k = 0; k < 2; k++) { if (await P.isVisible("#modals .namedlg").catch(() => false)) { if (/Вожд/.test(await P.textContent("#modals .namedlg").catch(() => ""))) { await P.locator("#modals .namedlg button", { hasText: /Позже/i }).first().click({ timeout: 2000 }).catch(() => {}); await sleep(500); continue; } await P.fill("#modals .namedlg input", nk).catch(() => {}); await P.locator("#modals .namedlg button", { hasText: /Назвать/i }).last().click({ timeout: 3000 }).catch(() => P.keyboard.press("Enter")); await sleep(700); } } };
+  const hubLog = (P) => P.evaluate(() => { window.__hubIn = []; const o = WebSocket.prototype.send; if (window.__hubHook) return; window.__hubHook = 1; WebSocket.prototype.send = function (d) { try { const m = JSON.parse(d); if (/_get|lib_|moves|frame|cfg/.test(m.type)) window.__hubIn.push(m.type + (m.nick ? ":" + m.nick : "") + (m.ranked !== undefined ? ":ranked=" + m.ranked : "")); } catch {} return o.call(this, d); }; });
+  // локальная D1: таблицы users (сайт, Clerk) в миграциях нет — для ников/чужого профиля создаём локальную фикстуру (только --local)
+  { const { execSync } = await import("node:child_process"); const q = `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT); INSERT OR REPLACE INTO users (id, username) VALUES ('${uA}', '${nA}'), ('${uB}', '${nB}');`;
+    try { execSync(`/workspace/mg-strat-ui/node_modules/.bin/wrangler d1 execute morrisgrad_db --local --config wrangler.json --command "${q}"`, { cwd: "/workspace/mg-strat-ui/server", stdio: "pipe" }); } catch (e) { errs.push("users fixture: " + String(e.stderr || e.message).slice(0, 200)); } }
+  // подсказка расы: числа лиги по размеру поля (обычное лобби 8×8 и 15×15)
+  { const C = await player("r3C_" + T); await hubLog(C); await C.click('.pmode[data-pm="normal"]').catch((e) => errs.push("C normal: " + e.message)); console.log("real: C playMode", await C.evaluate(() => localStorage.getItem("strat.playMode"))); await C.selectOption("#size", "8"); await C.click("#create"); await sleep(1800);
+    const tip = () => C.evaluate(() => [...document.querySelectorAll(".racecard")].map((b) => b.dataset.race + ": " + (b.dataset.tip || "—")).join("\n"));
+    console.log("real: C sent", await C.evaluate(() => window.__hubIn.join(",")), "ranked box", await C.evaluate(() => document.querySelector("#ranked")?.checked));
+    const t8 = await tip(); console.log("real: race tips 8x8\n" + t8);
+    await C.locator('.racecard[data-race="lightning"]').hover().catch(() => {}); await shot(C, "s6-ui-r-00-race-tip-8x8", 700);
+    await C.locator("#size").selectOption("15").catch(() => {}); await C.evaluate(() => { const s = document.querySelector("#lsize, #cfgsize"); }); await sleep(300);
+    await C.context().close(); }
+  const A = await player(uA), B = await player(uB, "", true); await hubLog(A); await hubLog(B);
+  await nameIt(A, nA); await nameIt(B, nB);
+  await A.click('.pmode[data-pm="ranked"]').catch((e) => errs.push("pm ranked: " + e.message)); await A.selectOption("#size", "8"); await A.click("#create"); await sleep(1800); await nameIt(A, nA);
+  const code = ((await A.textContent("#code").catch(() => "")) || "").trim(); console.log("real: lobby", code);
+  await B.fill("#joincode", code); await B.click("#joinbtn"); await sleep(1800); await nameIt(B, nB);
+  await A.locator(".racecard").first().hover().catch(() => {}); await sleep(500);
+  console.log("real: race tip (8x8)", await A.evaluate(() => document.querySelector(".racecard")?.dataset.tip || "—"));
+  await shot(A, "s6-ui-r-01-lobby-ranked-real", 400); await A.mouse.move(5, 5);
+  await A.click("#ready").catch((e) => errs.push("A ready: " + e.message)); await B.locator("#ready").scrollIntoViewIfNeeded().catch(() => {}); await B.click("#ready", { force: true }).catch((e) => errs.push("B ready: " + e.message)); await sleep(1500);
+  console.log("real: ready states", await A.evaluate(() => document.querySelector("#status, .lstatus, #lobby h3")?.textContent?.trim().slice(0, 80))); await sleep(6000); await nameIt(A, nA); await nameIt(B, nB);
+  console.log("real: phase", await A.evaluate(() => document.body.className.slice(0, 80)));
+  await noAdmin(A, "real game"); await noAdmin(B, "real game phone");
+  await sleep(1500); await nameIt(A, nA); await nameIt(B, nB); for (const P of [A, B]) await P.locator("#modals .namedlg button", { hasText: /Позже/i }).first().click({ timeout: 1500 }).catch(() => {}); await sleep(400); await shot(A, "s6-ui-r-02-game-desktop-real", 1500); await shot(B, "s6-ui-r-03-game-phone-real", 300);
+  // ход-другой, чтобы в повторе были действия: конец хода у того, чей ход
+  // рейтинг считается при сдаче только с хода ≥ RATING_CFG.early.none (5): доигрываем 6 полных ходов
+  for (let k = 0; k < 7; k++) for (const P of [A, B]) { await nameIt(P, P === A ? nA : nB); if (await P.isEnabled("#end").catch(() => false)) { await P.click("#end").catch(() => {}); await sleep(1300); } }
+  console.log("real: turn", await A.evaluate(() => document.querySelector("#turnno, .turnno, #hturn")?.textContent?.trim()));
+  await sleep(2500); console.log("real: rec frames A", await A.evaluate(() => window.__stratDev?.recLen?.() ?? "n/a"), "hprev enabled", await A.isEnabled("#hprev").catch(() => false), "mvlist", await A.evaluate(() => document.querySelector("#mvlist")?.innerText.replace(/\s+/g, " ").slice(0, 160)));
+  for (const P of [A, B]) await P.evaluate(() => document.querySelectorAll("#chiefdlg, #modals .namedlg").forEach((e) => e.remove()));
+  if (await A.isEnabled("#hprev").catch(() => false)) await A.click("#hprev"); else errs.push("hprev disabled after 6 turns"); await sleep(1500);
+  console.log("real: ws replay histbar", await A.evaluate(() => document.querySelector("#histbar")?.innerText.replace(/\s+/g, " ").slice(0, 160)));
+  await shot(A, "s6-ui-r-04-ws-moves-real", 300); await A.keyboard.press("Escape").catch(() => {});
+  await A.click("#forfeit").catch((e) => errs.push("forfeit: " + e.message)); await sleep(600); await top(A).locator("button").last().click().catch((e) => errs.push("forfeit ok: " + e.message)); await sleep(3500);
+  await sleep(1500); console.log("real: end foot", await A.evaluate(() => document.querySelector("#endscreen .es-foot")?.innerText.replace(/\s+/g, " ")), "| B", await B.evaluate(() => document.querySelector("#endscreen .es-foot")?.innerText.replace(/\s+/g, " ")));
+  await A.evaluate(() => document.querySelector("#endscreen .es-foot")?.scrollIntoView({ block: "center" })); await B.evaluate(() => document.querySelector("#endscreen .es-foot")?.scrollIntoView({ block: "center" }));
+  await shot(A, "s6-ui-r-05-end-rating-desktop", 300); await shot(B, "s6-ui-r-06-end-rating-phone", 100);
+  console.log("real: ws sent A", await A.evaluate(() => window.__hubIn.join(",")));
+  await A.context().close(); await B.context().close();
+  // таблица лиги показывает только непредварительных (games ≥ 10, rating-db.ts): локальная фикстура — добавляем партии тестовым игрокам (только --local)
+  { const { execSync } = await import("node:child_process");
+    try { execSync(`/workspace/mg-strat-ui/node_modules/.bin/wrangler d1 execute morrisgrad_db --local --config wrangler.json --command "UPDATE strat_ratings SET games = games + 11, wins = wins + 6, losses = losses + 5 WHERE user_id IN ('${uA}', '${uB}')"`, { cwd: "/workspace/mg-strat-ui/server", stdio: "pipe" }); } catch (e) { errs.push("ratings fixture: " + String(e.stderr || e.message).slice(0, 200)); } }
+  for (const [uid, nk, vp, sfx] of [[uA, nA, false, "desk"], [uB, nB, { width: 390, height: 844 }, "phone"]]) {
+    const P = await player(uid, "", vp); await hubLog(P); await nameIt(P, nk); await sleep(2500); await noAdmin(P, "real menu " + sfx);
+    await shot(P, "s6-ui-r-10-menu-rating-" + sfx, 300);
+    await P.click("#topbtn"); await sleep(2500); await shot(P, "s6-ui-r-11-leaderboard-" + sfx, 0);
+    console.log("real: top rows", sfx, await P.evaluate(() => [...document.querySelectorAll(".ltable .lrow:not(.h)")].map((r) => r.innerText.replace(/\s+/g, " ")).join(" | ").slice(0, 300)));
+    const other = sfx === "desk" ? nB : nA, lk = P.locator(".ltable .nk.lnk", { hasText: other }).first();
+    if (await lk.count()) { await lk.click(); await sleep(2500); await shot(P, "s6-ui-r-12-profile-public-" + sfx, 0);
+      console.log("real: public profile", sfx, await P.evaluate(() => ({ priv: !!document.querySelector('#profdlg .ptab[data-t="priv"]'), coins: !!document.querySelector("#profdlg .pcoins"), txt: document.querySelector("#profdlg")?.innerText.replace(/\s+/g, " ").slice(0, 160) })));
+      await esc(P); } else errs.push("no clickable nick " + other + " in top (" + sfx + ")");
+    await esc(P);
+    await P.click("#profbtn"); await sleep(2500); await shot(P, "s6-ui-r-13-profile-own-" + sfx, 0);
+    if (await P.isVisible('#profdlg .ptab[data-t="priv"]')) { await P.click('#profdlg .ptab[data-t="priv"]'); await shot(P, "s6-ui-r-14-profile-private-" + sfx, 600); } else errs.push("no private tab for owner " + sfx);
+    await esc(P);
+    await P.click("#libbtn"); await sleep(2500); await shot(P, "s6-ui-r-15-library-" + sfx, 0);
+    const lib = () => P.evaluate(() => [...document.querySelectorAll("#libdlg .lib-row")].map((r) => (r.classList.contains("saved") ? "★" : "") + r.querySelector(".lib-n")?.textContent).join(" | "));
+    console.log("real: lib", sfx, await lib());
+    if (sfx === "desk") {
+      const sv = P.locator('#libdlg [data-lib="save"]').first();
+      if (await sv.count()) { await sv.click(); await sleep(500); await top(P).locator("input").fill("Первая партия r3"); await top(P).locator("button").last().click(); await sleep(1800); } else errs.push("no save button in library");
+      console.log("real: lib after save", await lib());
+      const rn = P.locator('#libdlg [data-lib="ren"]').first();
+      if (await rn.count()) { await rn.click(); await sleep(500); await shot(P, "s6-ui-r-16-library-rename-dialog", 200); await top(P).locator("input").fill("Сдача на 2-м ходу (r3)"); await top(P).locator("button").last().click(); await sleep(1800); } else errs.push("no rename button");
+      console.log("real: lib after rename", await lib()); await shot(P, "s6-ui-r-17-library-renamed", 200);
+      const reqs = []; P.on("request", (r) => /\/strat\/replay\?/.test(r.url()) && reqs.push(new URL(r.url()).search));
+      await P.locator('#libdlg [data-lib="open"]').first().click(); await sleep(3500);
+      console.log("real: http replay histbar", await P.evaluate(() => document.querySelector("#histbar")?.innerText.replace(/\s+/g, " ").slice(0, 160)), "requests", reqs.join(" ").slice(0, 300));
+      await P.click('#histbar [data-hv="play"]').catch((e) => errs.push("rp play: " + e.message)); await sleep(2500); await shot(P, "s6-ui-r-18-replay-http-real", 0);
+      await P.click('#histbar [data-hv="play"]').catch(() => {});
+    } else {
+      const del = P.locator('#libdlg [data-lib="save"]').first(); if (await del.count()) { await del.click(); await sleep(400); await top(P).locator("button").last().click(); await sleep(1800); }
+      const un = P.locator('#libdlg [data-lib="del"]').first(); if (await un.count()) { await un.click(); await sleep(1800); } console.log("real: lib after save+unsave (phone)", await lib());
+      await shot(P, "s6-ui-r-19-library-phone-after-unsave", 0);
+    }
+    console.log("real: hub sent", sfx, await P.evaluate(() => window.__hubIn.join(",")));
+    await P.context().close();
   }
 }
 if (only === "all" || only === "replay") {
