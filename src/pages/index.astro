@@ -206,6 +206,37 @@ const activities = [
       </a>
     </section>
 
+    <!-- БЛОК «ПАРТИЯ ЧЁРНЫХ КОРОЛЕЙ» (t1196) — под «Проклятыми», обложка Художника cover-v1: текст только в title_safe -->
+    <section class="flagship-section flagship-section--bk">
+      <a href="/games/strategy" class="flagship-card flagship-card--bk" title="Играть в «Партию Чёрных королей»">
+        <div class="bk-art">
+          <picture class="bk-cover">
+            <source media="(max-width: 600px)" srcset="/strat/cover/cover_square.webp" type="image/webp" width="800" height="800" />
+            <img src="/strat/cover/cover_wide_left.webp" srcset="/strat/cover/cover_wide_left.webp 1x, /strat/cover/cover_wide_left@2x.webp 2x" width="1600" height="640" alt="" loading="lazy" decoding="async" />
+          </picture>
+          <div class="bk-head">
+            <div class="flagship-badge bk-badge"><span class="badge-dot"></span> ПОШАГОВАЯ СТРАТЕГИЯ // НОВОЕ</div>
+            <h2 class="flagship-title bk-title"><span class="bk-t1">ПАРТИЯ</span> <span class="bk-t2">ЧЁРНЫХ КОРОЛЕЙ</span></h2>
+          </div>
+        </div>
+        <div class="flagship-corners top-l"></div>
+        <div class="flagship-corners top-r"></div>
+        <div class="flagship-corners bot-l"></div>
+        <div class="flagship-corners bot-r"></div>
+        <div class="flagship-aura"></div>
+        <div class="bk-more">
+          <p class="flagship-desc bk-desc">Шахматная стратегия по ходам: 6 рас, Вожди со своими умениями, борьба за землю и три пути к победе. Играйте с ботом или с живым соперником онлайн — в рейтинге.</p>
+          <div class="flagship-meta bk-meta">
+            <span class="meta-tag">♚ 6 рас и Вожди</span>
+            <span class="meta-tag">🗺️ Борьба за землю</span>
+            <span class="meta-tag">🏆 3 пути к победе</span>
+            <span class="meta-tag">🤖 Бот · ⚔️ Онлайн · Рейтинг</span>
+          </div>
+          <div class="btn-play bk-play"><span class="btn-text">ИГРАТЬ</span><span class="btn-arrow">→</span></div>
+        </div>
+      </a>
+    </section>
+
     <!-- БЛОК «ЛОРОПЕДИЯ» — сразу под «Проклятыми», в том же ар-деко -->
     <section class="flagship-section flagship-section--lore">
       <a href="/loropedia" class="flagship-card flagship-card--lore" title="Открыть Лоропедию МоррисГрада">
@@ -984,6 +1015,45 @@ const activities = [
     color: var(--text-dim);
     font-family: monospace;
     letter-spacing: 0.3px;
+  }
+
+  /* «Партия Чёрных королей» (t1196): обложка во всю карточку; ≥901px весь текст в title_safe wide_left (64,112,600,416 из 1600×640):
+     заголовок — к верху зоны, описание/теги/кнопка — к низу зоны */
+  .flagship-section--bk { margin-top: -1rem; }
+  .flagship-card.flagship-card--bk { display: block; padding: 0; aspect-ratio: 5 / 2; background: #15101b; box-shadow: 0 15px 45px rgba(0, 0, 0, 0.8), 0 0 35px rgba(224, 176, 74, 0.25), inset 0 0 30px rgba(224, 176, 74, 0.1); }
+  .flagship-card--bk:hover { box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 50px rgba(224, 176, 74, 0.45), 0 0 30px rgba(200, 56, 43, 0.35); }
+  .flagship-card--bk .flagship-aura { background: radial-gradient(circle at 75% 50%, rgba(224, 176, 74, 0.14) 0%, transparent 55%); opacity: 0.6; }
+  .bk-art { position: absolute; inset: 0; }
+  .bk-cover, .bk-cover img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .bk-cover img { object-fit: cover; transition: transform 0.6s ease; }
+  .flagship-card--bk:hover .bk-cover img { transform: scale(1.02); }
+  .bk-head { position: absolute; left: 4%; top: 17.5%; width: 37.5%; z-index: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+  .bk-more { position: absolute; left: 4%; bottom: 17.5%; width: 37.5%; z-index: 1; display: flex; flex-direction: column; gap: 0.6rem; }
+  .bk-badge { align-self: flex-start; margin: 0; font-size: 0.7rem; }
+  .bk-badge .badge-dot { background: #e0b04a; box-shadow: 0 0 8px #e0b04a; }
+  .bk-title { margin: 0; font-size: clamp(1.5rem, 2.6vw, 2.3rem); line-height: 1.05; color: #f4ead2; text-shadow: 0 2px 0 #000, 0 0 22px rgba(224, 176, 74, 0.35); }
+  .bk-t1 { color: #e0b04a; display: block; font-size: 0.72em; letter-spacing: 4px; }
+  .bk-t2 { display: block; }
+  .bk-desc { margin: 0; font-size: clamp(0.8rem, 1.05vw, 0.95rem); line-height: 1.45; color: #e9dfc6; }
+  .bk-meta { gap: 6px; }
+  .bk-meta .meta-tag { font-size: 0.72rem; padding: 3px 8px; color: #f4ead2; background: rgba(21, 16, 27, 0.75); border-color: rgba(224, 176, 74, 0.4); }
+  .bk-play { align-self: flex-start; padding: 10px 22px; font-size: 1rem; }
+  @media (max-width: 1180px) and (min-width: 901px) { .bk-meta { display: none; } }
+  /* ≤900px: обложка сверху в своих пропорциях (заголовок — в её title_safe), описание, теги и кнопка — под картинкой */
+  @media (max-width: 900px) {
+    .flagship-card.flagship-card--bk { aspect-ratio: auto; display: flex; flex-direction: column; align-items: stretch; padding: 0; }
+    .bk-art { position: relative; inset: auto; aspect-ratio: 5 / 2; }
+    .bk-title { font-size: clamp(1.1rem, 3.6vw, 1.8rem); }
+    .bk-more { position: relative; left: auto; bottom: auto; width: auto; padding: 1.1rem 1.4rem 1.5rem; }
+    .bk-play { align-self: stretch; justify-content: center; }
+  }
+  /* ≤600px: квадратная обложка; заголовок — в title_safe (56,616,688,136 из 800×800) по центру, плашка — вверху слева */
+  @media (max-width: 600px) {
+    .bk-art { aspect-ratio: 1 / 1; }
+    .bk-head { position: static; }
+    .bk-badge { position: absolute; top: 4%; left: 5%; }
+    .bk-title { position: absolute; left: 7%; width: 86%; top: 77%; height: 17%; display: flex; flex-direction: column; justify-content: center; text-align: center; font-size: clamp(1.15rem, 6vw, 1.7rem); }
+    .bk-t1 { letter-spacing: 3px; }
   }
 
   /* Лоропедия: та же флагманская карточка, но «книжная» палитра — бирюза и золото */
