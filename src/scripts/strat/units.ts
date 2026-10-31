@@ -7,6 +7,8 @@ import { KIND_NAME, pieceLevel, pendingTalent, talentOptions, talKind, TAL_KIND_
 import { regPassive, talentPassive } from "./passives";
 
 const deferred = new Set<string>(), autoSent = new Set<string>(); let deferTurn = -1;
+/** t1221: подсказка «Доступно → новый уровень» снимает «Позже», чтобы док снова показался */
+export function undeferLv() { deferred.clear(); }
 export const autoPick = () => localStorage.getItem("strat.autoPick") === "1";
 const talDef = (cfg: StratCfg, k: string, id: string): any => { for (const lv of (cfg.talents as any)[k] || []) for (const o of lv) if (o.id === id) return o; return null; };
 

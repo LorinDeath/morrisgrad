@@ -25,6 +25,8 @@ import { favRaces, setFavLocal, lobbyDrawHtml, favPickerHtml, bindFavPicker, dru
 import { wonderPopup } from "./bldart";
 import { worldEvent, W, terrFull, drawWalls, drawBuildings, drawWorldOverlay, razeTargets, buildChoices, towerCells, claimable, cityName, apTip, HS_NAME, HS_COL, hsByHp, loadWalls, cityBld, towersOf, terrCities, chiefSite } from "./world";
 import { bName, openBldCard } from "./econ-ui";
+import { availItems, renderAvail } from "./avail";
+import { undeferLv } from "./units";
 import { raceNums, raceEffects, describeEffects } from "../../../server/strat/effects";
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
@@ -837,7 +839,13 @@ function renderHud() {
     goals: (i) => { const q = glP.sides?.[i]; return q ? { done: q.filter((x: any) => x.done).length, need: glP.need, total: q.length } : null; } });
   { const opp = S.seats.findIndex((s: any, i: number) => i !== me && !allies(S, me, i) && isAway(s) && (s.skips ?? s.missed ?? 0) >= 5); const cl = $("#claim");
     cl.hidden = !(me >= 0 && S.phase === "play" && opp >= 0); }
-  renderLvDock(ectx(), $("#lvdock"), () => setTimeout(render, 0)); chatShow(me >= 0 && S.phase !== "lobby", modeOf(S) === "2v2");
+  renderLvDock(ectx(), $("#lvdock"), () => setTimeout(render, 0));
+  { const pickP = (pid: number) => { const p = G.pieces.find((q) => q.id === pid); if (!p) return; sel = p.id; selCell = null; renderInfo(); centerOn(p.x, p.y); draw(); };
+    renderAvail(document.getElementById("avail"), availItems(G, S, me, cfg), { // t1221: «Доступно»
+      lvl: (pid) => { undeferLv(); render(); const k = G.pieces.find((q) => q.id === pid); if (k?.kind === "king" && $("#lvdock").hidden) openChiefTree(false); else $("#lvdock").scrollIntoView({ block: "nearest" }); },
+      tech: () => { eui.tech = true; renderTech(ectx()); }, city: (id) => { eui.city = id; renderCity(ectx()); },
+      build: () => { const k = G.pieces.find((q) => q.owner === me && q.kind === "king"); if (k) pickP(k.id); }, ap: (pid) => { if (pid >= 0) pickP(pid); } }); }
+  chatShow(me >= 0 && S.phase !== "lobby", modeOf(S) === "2v2");
   const gl = goalsWithSticky(G, cfg), gb = $("#goals");
   { const order = [...gl.sides.keys()].filter((i) => S.seats[i]).sort((x, y) => (x === me ? -1 : y === me ? 1 : allies(S, me, x) === allies(S, me, y) ? x - y : allies(S, me, x) ? -1 : 1));
     const many = order.length > 2, total = Math.max(...gl.sides.map((r) => r.length), 1);
@@ -1281,6 +1289,7 @@ function bindMinimap() {
 }
 
 // ---------- телефон (портрет): нижние вкладки-шторки ----------
+(window as any).__stratMSheet = (k: string) => setMSheet(k);
 function setMSheet(k: string) {
   document.body.dataset.msheet = k;
   document.querySelectorAll<HTMLElement>("#mtabs [data-ms]").forEach((b) => { const on = b.dataset.ms === k; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
