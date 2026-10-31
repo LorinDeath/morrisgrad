@@ -355,7 +355,10 @@ export function drawEcon(ctx: CanvasRenderingContext2D, c: Ctx, cell: number, sx
   const B = (nm: string, o: number, X: number, Y: number) => { const im = t2Tint(nm, c.col(o), px); if (im) ctx.drawImage(im, X, Y, cell + 0.5, cell + 0.5); };
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o < 0 || !vis(x, y)) continue; const X = sx(x), Y = sy(y);
     const fill = t2Tint("territory_fill", c.col(o), px);
-    if (fill) { ctx.globalAlpha = 0.5; ctx.drawImage(fill, X, Y, cell + 0.5, cell + 0.5); ctx.globalAlpha = 1; } else { ctx.fillStyle = c.col(o) + "1c"; ctx.fillRect(X, Y, cell, cell); }
+    // t1199: сплошная полупрозрачная заливка цветом владельца (~25%) — сразу видно, какие клетки городские; штриховка поверх — слабее
+    ctx.fillStyle = c.col(o) + "40"; ctx.fillRect(X, Y, cell + 0.5, cell + 0.5);
+    if (fill) { ctx.globalAlpha = 0.3; ctx.drawImage(fill, X, Y, cell + 0.5, cell + 0.5); ctx.globalAlpha = 1; }
+    if (walls) continue; // граница — тонкие стены на гранях (world.drawWalls); border_* внутри клетки не рисуем
     // M6 аудита: где есть стены города (walls-v1), видимая граница — сама стена; border_* — только без стен (нет walls / дальний план)
     // S6b: при стенах border_* тоже рисуется — бледным тоном под стеной (стены ложатся сверху), чтобы край земли читался и между башнями
     if (cell < 7) continue;

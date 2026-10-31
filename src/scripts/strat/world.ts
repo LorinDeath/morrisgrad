@@ -159,36 +159,49 @@ const WALL: Record<string, { base: string; hi: string; mort: string; kind: "bric
   ice: { base: "#4f7fa3", hi: "#e6f6ff", mort: "#24425e", kind: "shard" }, nature: { base: "#5a3b1e", hi: "#a8743e", mort: "#2a1a0a", kind: "stake" },
   water: { base: "#1d5d72", hi: "#6fd0d8", mort: "#0c2c38", kind: "coral" }, lightning: { base: "#2d2a44", hi: "#8f87c9", mort: "#ffe14d", kind: "plate" },
 };
-/** Стены по краю земли каждого города (стыки краёв, внешние и внутренние углы); между своими городами — тоньше. */
+/** t1199/t1200 (Алекс): тонкие стены РОВНО на гранях клеток. Ребро — по правилу edges(cells) (wall-edges.ts): своя/союзная клетка ↔ не своя;
+ * между своими клетками стен нет; стык двух игроков — одна общая двухцветная линия (каждая половина — со своей стороны); узлы сетки — столбики,
+ * чтобы углы смыкались без щелей. Ворота — разрыв с золотыми створками, где дорога пересекает границу (открыты — створки разведены). */
 export function drawWalls(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string, wo: WallOpts = {}) {
-  const n = G.size; if (z < 7) return; if (drawWallsArt(ctx, G, T, C, z, sx, sy, vis, col, wo)) return; const t = Math.max(2.5, z * 0.15), sideOf = wo.side || ((q: number) => q);
-  const cx = (x: number) => sx(x) + z / 2, cy = (y: number) => sy(y) + z / 2;
-  ctx.save();
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, cid = C[i]; if (cid < 0 || !vis(x, y)) continue;
-    const o = T[i], race = G.races[o] || "stone", st = WALL[race] || WALL.stone, art = wallArt[race];
-    // t1198: стена — только по внешней границе своей/союзной земли (wall-edges.ts), между своими городами стен нет
-    const other = (X: number, Y: number) => X < 0 || Y < 0 || X >= n || Y >= n || C[Y * n + X] < 0 || sideOf(T[Y * n + X]) !== sideOf(o);
-    const thin = (_X: number, _Y: number) => false;
-    const N = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const, wall = N.map(([dx, dy]) => other(x + dx, y + dy));
-    for (let k = 0; k < 4; k++) { if (!wall[k]) continue; const [dx, dy] = N[k];
-      // экранное направление наружу (учёт разворота доски)
-      const ux = Math.sign(cx(x + dx) - cx(x)), uy = Math.sign(cy(y + dy) - cy(y)), X0 = sx(x), Y0 = sy(y), th = thin(x + dx, y + dy) ? t * 0.55 : t;
-      const r = ux > 0 ? [X0 + z - th, Y0, th, z] : ux < 0 ? [X0, Y0, th, z] : uy > 0 ? [X0, Y0 + z - th, z, th] : [X0, Y0, z, th];
-      const ang = ux > 0 ? Math.PI / 2 : ux < 0 ? -Math.PI / 2 : uy > 0 ? Math.PI : 0;
-      if (art?.edge) { ctx.save(); ctx.translate(X0 + z / 2, Y0 + z / 2); ctx.rotate(ang); ctx.drawImage(art.edge, -z / 2, -z / 2, z, z); ctx.restore(); }
-      else wallSeg(ctx, r[0], r[1], r[2], r[3], st, col(o), ux !== 0, (x * 31 + y * 17 + k) | 0, ux > 0 || uy > 0); }
-    // углы: внешний (две стены сходятся) — башенка; внутренний (диагональ чужая, стороны свои) — заполняем стык
-    const corners = [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
-    for (const [dx, dy] of corners) { const wx = other(x + dx, y), wy = other(x, y + dy), wd = other(x + dx, y + dy);
-      const ux = Math.sign(cx(x + dx) - cx(x)), uy = Math.sign(cy(y + dy) - cy(y)), PX = ux > 0 ? sx(x) + z : sx(x), PY = uy > 0 ? sy(y) + z : sy(y);
-      if (wx && wy) { const s = t * 1.35, bx = ux > 0 ? PX - s : PX, by = uy > 0 ? PY - s : PY;
-        if (art?.outer) { ctx.save(); ctx.translate(sx(x) + z / 2, sy(y) + z / 2); ctx.rotate(Math.atan2(uy, ux) - Math.PI / 4 - Math.PI / 2); ctx.drawImage(art.outer, -z / 2, -z / 2, z, z); ctx.restore(); }
-        else { ctx.fillStyle = st.base; ctx.fillRect(bx, by, s, s); ctx.fillStyle = st.hi; ctx.fillRect(bx + s * 0.18, by + s * 0.18, s * 0.64, s * 0.64); ctx.strokeStyle = "#140f18"; ctx.lineWidth = Math.max(1, z * 0.02); ctx.strokeRect(bx, by, s, s);
-          ctx.fillStyle = col(o); ctx.fillRect(bx + s * 0.34, by + s * 0.34, s * 0.32, s * 0.32); } }
-      else if (!wx && !wy && wd) { const bx = ux > 0 ? PX - t : PX, by = uy > 0 ? PY - t : PY;
-        if (art?.inner) { ctx.save(); ctx.translate(sx(x) + z / 2, sy(y) + z / 2); ctx.rotate(Math.atan2(uy, ux) - Math.PI / 4 - Math.PI / 2); ctx.drawImage(art.inner, -z / 2, -z / 2, z, z); ctx.restore(); }
-        else { ctx.fillStyle = st.base; ctx.fillRect(bx, by, t, t); ctx.fillStyle = st.hi; ctx.fillRect(bx + t * 0.25, by + t * 0.25, t * 0.5, t * 0.5); } } }
+  const n = G.size; if (z < 5) return; const sideOf = wo.side || ((q: number) => q), t = Math.max(2, z * 0.065), post = t * 1.7;
+  const tt: string = (G as any).map?.t || "", inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n;
+  const road = (X: number, Y: number) => inb(X, Y) && (tt[Y * n + X] === "r" || tt[Y * n + X] === "b");
+  const city = (X: number, Y: number) => inb(X, Y) && C[Y * n + X] >= 0;
+  type Seg = { ax: number; ay: number; bx: number; by: number; nx: number; ny: number; c1: string; c2?: string; gate?: boolean; open?: boolean };
+  const segs: Seg[] = [], posts = new Map<string, [number, number, string, number, number]>();
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { if (!city(x, y)) continue; const o = T[y * n + x], sd = sideOf(o);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) { const X = x + dx, Y = y + dy;
+      const nb = city(X, Y), mine = nb && sideOf(T[Y * n + X]) === sd; if (mine) continue;
+      if (nb && (Y * n + X) < (y * n + x)) continue; // общее ребро с чужим — один раз
+      if (!vis(x, y) && !(inb(X, Y) && vis(X, Y))) continue;
+      const Ax = sx(x) + z / 2, Ay = sy(y) + z / 2, Bx = sx(X) + z / 2, By = sy(Y) + z / 2, mx = (Ax + Bx) / 2, my = (Ay + By) / 2;
+      const ux = Math.sign(Bx - Ax), uy = Math.sign(By - Ay), px = -uy * z / 2, py = ux * z / 2; // наружу (ux,uy), вдоль (px,py)
+      const sg: Seg = { ax: mx - px, ay: my - py, bx: mx + px, by: my + py, nx: ux, ny: uy, c1: col(o) };
+      if (nb) sg.c2 = col(T[Y * n + X]);
+      else if (road(x, y) && road(X, Y)) { sg.gate = true; sg.open = !!wo.gateOpen?.(x, y, X, Y); }
+      segs.push(sg);
+      // столбик — только в узле, где граница поворачивает или ветвится (на прямом участке — сплошная линия)
+      const ax = Math.abs(sg.bx - sg.ax) > Math.abs(sg.by - sg.ay) ? 1 : 2;
+      for (const [qx, qy] of [[sg.ax, sg.ay], [sg.bx, sg.by]]) { const k = Math.round(qx) + "," + Math.round(qy), q = posts.get(k); if (q) q[3] |= ax, q[4]++; else posts.set(k, [qx, qy, sg.c1, ax, 1]); } }
   }
+  if (!segs.length) return;
+  ctx.save(); ctx.lineCap = "butt";
+  const line = (s: Seg, w: number, c: string, off = 0, gap = 0) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath();
+    const ox = s.nx * off, oy = s.ny * off;
+    if (gap) { const f = (k: number) => [s.ax + (s.bx - s.ax) * k + ox, s.ay + (s.by - s.ay) * k + oy];
+      let [a, b] = f(0), [c2, d] = f(0.5 - gap / 2); ctx.moveTo(a, b); ctx.lineTo(c2, d); [a, b] = f(0.5 + gap / 2); [c2, d] = f(1); ctx.moveTo(a, b); ctx.lineTo(c2, d); }
+    else { ctx.moveTo(s.ax + ox, s.ay + oy); ctx.lineTo(s.bx + ox, s.by + oy); } ctx.stroke(); };
+  // 1) тёмная обводка, 2) цвет владельца (у стыка — две половины по сторонам линии), 3) светлый блик, 4) столбики в узлах
+  for (const s of segs) line(s, t + 2, "#140f18", 0, s.gate ? 0.36 : 0);
+  for (const s of segs) { if (s.c2) { line(s, t / 2, s.c1, -t / 4); line(s, t / 2, s.c2, t / 4); } else line(s, t, s.c1, 0, s.gate ? 0.36 : 0); }
+  for (const s of segs) if (!s.c2) line(s, Math.max(1, t * 0.28), "rgba(255,255,255,.35)", 0, s.gate ? 0.36 : 0);
+  for (const s of segs) if (s.gate) { // створки ворот
+    const L = Math.hypot(s.bx - s.ax, s.by - s.ay), vx = (s.bx - s.ax) / L, vy = (s.by - s.ay) / L, mx = (s.ax + s.bx) / 2, my = (s.ay + s.by) / 2, h = L * 0.18;
+    ctx.strokeStyle = "#140f18"; ctx.lineWidth = t + 2; ctx.fillStyle = "#e8b64a";
+    for (const sgn of [-1, 1]) { const ex = mx + vx * sgn * h, ey = my + vy * sgn * h;
+      const tx = s.open ? ex + s.nx * h * 0.9 : mx + vx * sgn * h * 0.08, ty = s.open ? ey + s.ny * h * 0.9 : my + vy * sgn * h * 0.08;
+      ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(tx, ty); ctx.stroke(); ctx.strokeStyle = "#e8b64a"; ctx.lineWidth = t * 0.8; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(tx, ty); ctx.stroke(); ctx.strokeStyle = "#140f18"; ctx.lineWidth = t + 2; } }
+  for (const [qx, qy, c, axm, cnt] of posts.values()) { if (axm !== 3 && cnt < 3) continue; ctx.fillStyle = "#140f18"; ctx.fillRect(qx - post / 2 - 1, qy - post / 2 - 1, post + 2, post + 2); ctx.fillStyle = c; ctx.fillRect(qx - post / 2, qy - post / 2, post, post); }
   ctx.restore();
 }
 function wallSeg(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, st: (typeof WALL)[string], pc: string, vert: boolean, seed: number, far: boolean) {

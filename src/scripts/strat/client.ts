@@ -1078,7 +1078,7 @@ function drawNow() {
   // видимая область (в координатах карты) — рисуем только её
   const m = 1, vis = (x: number, y: number) => { const X = scrX(x), Y = scrY(y); return X > -z * m && Y > -z * m && X < cam.W + z * (m - 1) + z && Y < cam.H + z * (m - 1) + z; };
   const sx = scrX, sy = scrY;
-  if (T && WT) { const ec0 = ectx(); drawEcon(ctx, ec0, z, sx, sy, T, vis, () => { const w = wallTest ? wallTestLayout(G0, WT.T, WT.C) : { G: G0, T: WT.T, C: WT.C }; drawWalls(ctx, w.G, w.T, w.C, z, sx, sy, vis, raceCol, { ...wallOpts(w.G, w.T), ...(wallTest?.front != null ? { front: wallTest.front } : {}), ...(wallTest?.open ? { gateOpen: () => true } : {}) }); }); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp, WT.C); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
+  if (T && WT) { const ec0 = ectx(), w = wallTest ? wallTestLayout(G0, WT.T, WT.C) : { G: G0, T: WT.T, C: WT.C }; drawEcon(ctx, ec0, z, sx, sy, wallTest ? w.T : T, vis, () => { drawWalls(ctx, w.G, w.T, w.C, z, sx, sy, vis, raceCol, { ...wallOpts(w.G, w.T), ...(wallTest?.front != null ? { front: wallTest.front } : {}), ...(wallTest?.open ? { gateOpen: () => true } : {}) }); }); drawBuildings(ctx, ec0, z, sx, sy, vis, hideHp, WT.C); drawWorldOverlay(ctx, ec0, z, sx, sy, vis, WT.T, WT.C, performance.now()); }
   const zs = zonesOf(g); if (zs.length) drawZones(ctx, zs, n, sx, sy, z, performance.now());
   const GP = new Map(G0.pieces.map((q) => [q.id, q]));
   // метки terrain-v2: mark_select (#f3d27a), mark_move/hover (белые → тон), mark_attack (#b3261e); нет арта — прежние линии
