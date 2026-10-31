@@ -875,6 +875,15 @@ function stopAim() { ultAim = null; aimCell = null; renderHint(); draw(); }
 // ---------- камера: карты до 100×100 ----------
 // cx, cy — центр экрана в координатах вида (клетки, уже с разворотом для стороны 1), z — px на клетку.
 const cam = { cx: 0, cy: 0, z: 40, n: 0, W: 0, H: 0, fit: 40 };
+const TAP_SLOP = 8, PINCH_GUARD = 250, ZMAX = 120;
+// инерция прокрутки после броска пальцем; касание во время неё — только остановка, не ход
+let inert = 0;
+function stopInertia(): boolean { if (!inert) return false; cancelAnimationFrame(inert); inert = 0; return true; }
+function startInertia(vx0: number, vy0: number) { stopInertia(); let vx1 = vx0, vy1 = vy0, t0 = performance.now();
+  if (Math.hypot(vx1, vy1) < 0.25) return;
+  const step = (t: number) => { const dt = Math.min(40, t - t0); t0 = t; const ox = cam.cx, oy = cam.cy; cam.cx -= (vx1 * dt) / cam.z; cam.cy -= (vy1 * dt) / cam.z; clampCam(); drawNow();
+    const k = Math.pow(0.0035, dt / 1000); vx1 *= k; vy1 *= k; if (Math.hypot(vx1, vy1) < 0.03 || (ox === cam.cx && oy === cam.cy)) { inert = 0; return; } inert = requestAnimationFrame(step); };
+  inert = requestAnimationFrame(step); }
 const cv = () => $<HTMLCanvasElement>("#board");
 const big = () => (S?.g?.size || 0) > SMALL;
 const flipped = () => S?.you === 1;
@@ -893,7 +902,7 @@ function fitCam(force: boolean) {
   $("#minimapbox").hidden = !big(); $("#camctl").hidden = !big(); document.body.classList.toggle("bigmap", big());
 }
 function clampCam() {
-  const n = cam.n; cam.z = Math.max(cam.fit, Math.min(120, cam.z));
+  const n = cam.n; cam.z = Math.max(cam.fit, Math.min(ZMAX, cam.z));
   const hw = cam.W / 2 / cam.z, hh = cam.H / 2 / cam.z;
   cam.cx = hw * 2 >= n ? n / 2 : Math.max(hw, Math.min(n - hw, cam.cx)); cam.cy = hh * 2 >= n ? n / 2 : Math.max(hh, Math.min(n - hh, cam.cy));
 }
@@ -952,7 +961,10 @@ function drawNow() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cam.W, cam.H); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
   const map: MapData = g.map || openMap(n), G0 = gs()!, cfg = cfgOf(S), T0 = G0.ec ? territoryCached(G0, cfg, g) : null, WT = T0 ? terrFull(G0, T0, g) : null, T = WT ? WT.T : null;
   const L = Math.min(n > 60 ? 3072 : 4096, Math.max(512, Math.ceil(n * Math.min(64, Math.max(cam.fit, 24)) * dpr)));
-  ctx.drawImage(terrainLayer(map, L, flipped(), [raceCol(0), raceCol(1)], T ? (x, y) => T[y * n + x] : undefined, z < 20), scrX(flipped() ? n - 1 : 0), scrY(flipped() ? n - 1 : 0), n * z, n * z);
+  { // рельеф: только видимый кусок слоя (на больших картах не масштабируем весь слой каждый кадр)
+    const lay = terrainLayer(map, L, flipped(), [raceCol(0), raceCol(1)], T ? (x, y) => T[y * n + x] : undefined, z < 20), ox = cam.W / 2 - cam.cx * z, oy = cam.H / 2 - cam.cy * z, k = lay.width / n;
+    const c0 = Math.max(0, Math.floor(-ox / z)), r0 = Math.max(0, Math.floor(-oy / z)), c1 = Math.min(n, Math.ceil((cam.W - ox) / z)), r1 = Math.min(n, Math.ceil((cam.H - oy) / z));
+    if (c1 > c0 && r1 > r0) ctx.drawImage(lay, c0 * k, r0 * k, (c1 - c0) * k, (r1 - r0) * k, ox + c0 * z, oy + r0 * z, (c1 - c0) * z, (r1 - r0) * z); }
   // видимая область (в координатах карты) — рисуем только её
   const m = 1, vis = (x: number, y: number) => { const X = scrX(x), Y = scrY(y); return X > -z * m && Y > -z * m && X < cam.W + z * (m - 1) + z && Y < cam.H + z * (m - 1) + z; };
   const sx = scrX, sy = scrY;
@@ -963,6 +975,9 @@ function drawNow() {
   const mpx = z * (devicePixelRatio || 1), mark = (nm: string, x: number, y: number, col?: string) => { const im = col ? t2Tint(nm, col, mpx) : t2(nm, mpx); if (!im) return false; ctx.drawImage(im, sx(x), sy(y), z, z); return true; };
   if (hoverCell && S.phase === "play" && !(selCell && selCell[0] === hoverCell[0] && selCell[1] === hoverCell[1]) && vis(hoverCell[0], hoverCell[1])) mark("mark_hover", hoverCell[0], hoverCell[1], "#f4ead2");
   if (selCell && !mark("mark_select", selCell[0], selCell[1])) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(sx(selCell[0]) + 2, sy(selCell[1]) + 2, z - 4, z - 4); ctx.setLineDash([]); }
+  if (pendAct && sel != null && vis(pendAct[0], pendAct[1])) { const X = sx(pendAct[0]), Y = sy(pendAct[1]); ctx.save(); ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(3, z * 0.08); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 4; ctx.strokeRect(X + 2, Y + 2, z - 4, z - 4);
+    const fs = Math.max(10, Math.min(15, z * 0.26)); ctx.font = `700 ${fs}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; const tw = ctx.measureText("ещё раз").width + 10;
+    ctx.fillStyle = "rgba(20,14,8,.88)"; ctx.fillRect(X + z / 2 - tw / 2, Y - fs - 4, tw, fs + 6); ctx.fillStyle = "#f3d27a"; ctx.fillText("ещё раз", X + z / 2, Y - fs / 2 - 1); ctx.restore(); }
   const G = gs()!, P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
     for (const [x, y] of moveTargets(G, P)) { if (!vis(x, y)) continue; if (mark("mark_move", x, y, "#f3d27a")) continue; ctx.fillStyle = "rgba(243,210,122,.28)"; ctx.fillRect(sx(x) + 2, sy(y) + 2, z - 4, z - 4); ctx.fillStyle = "#f3d27a"; ctx.beginPath(); ctx.arc(sx(x) + z / 2, sy(y) + z / 2, Math.max(2, z * 0.08), 0, 7); ctx.fill(); }
@@ -1109,26 +1124,46 @@ function initMobileTabs() {
 
 // ---------- ввод: клик, перетаскивание, щипок, колесо ----------
 function bindBoard() {
-  const c = cv(), pts = new Map<number, { x: number; y: number }>(); let moved = false, start: { x: number; y: number } | null = null, pinch0 = 0, z0 = 0;
+  const c = cv(), pts = new Map<number, { x: number; y: number }>(); let moved = false, start: { x: number; y: number } | null = null;
   const local = (e: { clientX: number; clientY: number }) => { const r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  // щипок: точка карты под серединой пальцев остаётся под серединой (зум + сдвиг одновременно)
+  let pz: { d: number; z: number; wx: number; wy: number } | null = null;
+  const pinchStart = () => { const [a, b] = [...pts.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    pz = { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), z: cam.z, wx: cam.cx + (mx - cam.W / 2) / cam.z, wy: cam.cy + (my - cam.H / 2) / cam.z }; };
+  // защита от случайных действий: сдвиг > TAP_SLOP — это прокрутка; после щипка PINCH_GUARD мс касания не считаются; касание во время инерции только останавливает её
+  let guardTill = 0, swallow = false, btn = 0;
+  const vel: { t: number; x: number; y: number }[] = [];
   // долгое нажатие на касании — подсказка по клетке шторкой (вместо наведения), без хода
   let lpT = 0, lpFired = false;
-  c.addEventListener("pointerdown", (e) => { try { c.setPointerCapture(e.pointerId); } catch {} pts.set(e.pointerId, local(e)); moved = false; start = local(e);
+  c.addEventListener("contextmenu", (e) => { if (big()) e.preventDefault(); });
+  c.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); }); // средняя кнопка — перетаскивание, не автопрокрутка
+  c.addEventListener("pointerdown", (e) => { try { c.setPointerCapture(e.pointerId); } catch {} pts.set(e.pointerId, local(e)); moved = false; start = local(e); btn = e.button;
+    swallow = stopInertia() || performance.now() < guardTill; vel.length = 0;
     clearTimeout(lpT); lpFired = false;
     if (e.pointerType !== "mouse" && pts.size === 1) { const p0 = local(e); lpT = window.setTimeout(() => { if (moved || pts.size !== 1) return; lpFired = true; hoverTip(p0.x, p0.y, 0, 0, true); }, 450); }
-    if (pts.size === 2) { clearTimeout(lpT); const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); z0 = cam.z; } });
+    if (pts.size >= 2) { clearTimeout(lpT); moved = true; swallow = true; if (big()) pinchStart(); } });
   c.addEventListener("pointermove", (e) => {
     const p = local(e);
     if (!pts.has(e.pointerId)) { if (ultAim) { const at = cellAt(p.x, p.y); if (at && (at[0] !== aimCell?.[0] || at[1] !== aimCell?.[1])) { aimCell = at; draw(); } return; } hoverTip(p.x, p.y, e.clientX, e.clientY); return; }
     const prev = pts.get(e.pointerId)!; pts.set(e.pointerId, p);
-    if (pts.size === 2 && big()) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y); moved = true; zoomAt((z0 * d) / Math.max(1, pinch0) / cam.z, (a.x + b.x) / 2, (a.y + b.y) / 2); return; }
-    if (start && Math.hypot(p.x - start.x, p.y - start.y) > 6) { moved = true; clearTimeout(lpT); }
-    if (moved && big()) { cam.cx -= (p.x - prev.x) / cam.z; cam.cy -= (p.y - prev.y) / cam.z; clampCam(); draw(); hideTip(); }
+    if (pts.size >= 2) { if (big() && pz) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        cam.z = pz.z * d / pz.d; clampCam(); cam.cx = pz.wx - (mx - cam.W / 2) / cam.z; cam.cy = pz.wy - (my - cam.H / 2) / cam.z; clampCam(); draw(); hideTip(); } return; }
+    if (start && Math.hypot(p.x - start.x, p.y - start.y) > TAP_SLOP) { moved = true; clearTimeout(lpT); }
+    if (moved && big()) { cam.cx -= (p.x - prev.x) / cam.z; cam.cy -= (p.y - prev.y) / cam.z; clampCam(); draw(); hideTip();
+      vel.push({ t: e.timeStamp, x: p.x, y: p.y }); while (vel.length > 2 && e.timeStamp - vel[0].t > 90) vel.shift(); }
   });
-  const up = (e: PointerEvent) => { clearTimeout(lpT); const was = pts.has(e.pointerId); pts.delete(e.pointerId); if (pts.size) return; if (lpFired) { lpFired = false; start = null; return; } if (was && !moved) { const p = local(e); onBoard(p.x, p.y); } start = null; };
-  c.addEventListener("pointerup", up); c.addEventListener("pointercancel", (e) => { pts.delete(e.pointerId); start = null; });
+  const up = (e: PointerEvent) => { clearTimeout(lpT); const was = pts.has(e.pointerId), n0 = pts.size; pts.delete(e.pointerId);
+    if (n0 >= 2) { guardTill = performance.now() + PINCH_GUARD; pz = null; if (pts.size >= 2) pinchStart(); vel.length = 0; return; } // щипок кончился: оставшийся палец только двигает карту
+    if (pts.size) return;
+    if (lpFired) { lpFired = false; start = null; return; }
+    if (was && moved && big() && e.pointerType !== "mouse" && vel.length >= 2 && e.timeStamp - vel[vel.length - 1].t < 60) { const a = vel[0], b = vel[vel.length - 1], dt = Math.max(1, b.t - a.t); startInertia((b.x - a.x) / dt, (b.y - a.y) / dt); }
+    if (was && !moved && !swallow && btn === 0 && performance.now() >= guardTill) { const p = local(e); onBoard(p.x, p.y); }
+    start = null; swallow = false; };
+  c.addEventListener("pointerup", up); c.addEventListener("pointercancel", (e) => { pts.delete(e.pointerId); if (pts.size < 2) pz = null; start = null; });
   c.addEventListener("pointerleave", () => hideTip());
-  c.addEventListener("wheel", (e) => { if (!big()) return; e.preventDefault(); const p = local(e); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, p.x, p.y); }, { passive: false });
+  // колесо/тачпад: плавный зум к точке курсора (deltaY в пикселях или строках)
+  c.addEventListener("wheel", (e) => { if (!big()) return; e.preventDefault(); stopInertia(); const p = local(e), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(Math.exp(-Math.max(-240, Math.min(240, dy)) * (e.ctrlKey ? 0.01 : 0.0016)), p.x, p.y); }, { passive: false });
   $("#zin").onclick = () => zoomAt(1.3); $("#zout").onclick = () => zoomAt(1 / 1.3); $("#zfit").onclick = () => { cam.z = cam.fit; clampCam(); draw(); };
   $("#cenking").onclick = () => { const k = S?.g?.pieces.find((p: any) => p.o === Math.max(0, S.you) && p.k === "king"); if (k) { if (cam.z < 40) cam.z = Math.max(cam.fit, 48); centerOn(k.x, k.y); } else toast("Вождя сейчас нет", "bad", "skull"); };
   $("#cencity").onclick = () => { const cs = (S?.g?.ec?.cities || []).filter((q: any) => q.owner === Math.max(0, S.you)); if (!cs.length) return toast("Городов нет", "bad", "castle");
@@ -1153,8 +1188,16 @@ function hoverTip(px: number, py: number, cx: number, cy: number, sheet = false)
   showTip(`<div class="tip-b">${h}</div>`, cx + 14, cy + 14);
 }
 const await0 = <T,>(p: Promise<T>) => p;
+// подтверждение хода/удара вторым касанием (телефон; настройка, по умолчанию вкл. на сенсорных экранах)
+const coarsePtr = matchMedia("(pointer: coarse)").matches;
+let confirmTap = (localStorage.getItem("strat.confirmTap") ?? (coarsePtr ? "1" : "0")) === "1";
+let pendAct: [number, number] | null = null;
+let tapN = 0;
 function onBoard(px: number, py: number) {
+  tapN++;
   if (!S?.g) return; const at = cellAt(px, py); if (!at) return; const [x, y] = at;
+  const pend0 = pendAct; if (pendAct) { pendAct = null; draw(); }
+  const confirmed = () => { if (!confirmTap || (pend0 && pend0[0] === x && pend0[1] === y)) return true; pendAct = [x, y]; draw(); return false; };
   if (ultAim) { const touch = !matchMedia("(hover: hover)").matches;
     if (touch && (aimCell?.[0] !== x || aimCell?.[1] !== y)) { aimCell = [x, y]; return draw(); }
     if (demo) { const u = parseUlt({ e: ultAim.chief ? "ult" : "uult", id: ultAim.pid, x, y, r: ultAim.r, race: ultAim.race }, S.g, performance.now()); if (u) { addCast(u, S.g.turn); ultBanner(u, true, ""); } }
@@ -1169,7 +1212,7 @@ function onBoard(px: number, py: number) {
   const G = gs()!, here = G.pieces.find((p) => p.x === x && p.y === y);
   { const P0 = sel != null ? G.pieces.find((q) => q.id === sel) : null;
     if (P0 && P0.owner === S.you && S.phase === "play" && G.cur === S.you && !P0.acted) { const rt = razeTargets(S, G, P0).find((t) => t.x === x && t.y === y);
-      if (rt && !(here && attackTargets(G, P0).some(([a, b]) => a === x && b === y))) {
+      if (rt && !(here && attackTargets(G, P0).some(([a, b]) => a === x && b === y))) { if (!confirmed()) return;
         const pick = rt.b.length === 1 ? rt.b[0] : await0(choiceDlg("Удар по постройке", `${rt.tower ? "Сторожевая башня" : cityName(G, rt.city)}: что разрушать?`, rt.b.map((b) => ({ id: b, title: bName(b, G.races[1 - S.you] || ""), icon: "target" })), "builds"));
         Promise.resolve(pick).then((b) => { if (b) { faceAt(P0.id, x, y); send({ type: "act", act: { a: "raze", id: P0.id, city: rt.city, b } }); } }); return; } } }
   if (S.phase !== "play") { selCell = here ? null : [x, y]; sel = here ? here.id : null; renderInfo(); return draw(); }
@@ -1178,8 +1221,8 @@ function onBoard(px: number, py: number) {
   if (here && here.owner === S.you) { sel = here.id === sel ? null : here.id; renderInfo(); return draw(); }
   const P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && G.cur === S.you) {
-    if (here && attackTargets(G, P).some(([a, b]) => a === x && b === y)) { faceAt(P.id, x, y); send({ type: "act", act: { a: "attack", id: P.id, x, y } }); }
-    else if (!here && moveTargets(G, P).some(([a, b]) => a === x && b === y)) {
+    if (here && attackTargets(G, P).some(([a, b]) => a === x && b === y)) { if (!confirmed()) return; faceAt(P.id, x, y); send({ type: "act", act: { a: "attack", id: P.id, x, y } }); }
+    else if (!here && moveTargets(G, P).some(([a, b]) => a === x && b === y)) { if (!confirmed()) return;
       const last = P.owner === 0 ? 0 : G.size - 1;
       if (P.kind === "pawn" && y === last) { choiceDlg("Повышение", "Ополченец дошёл до края поля. Кем он станет?",
           (["knight", "mage", "rook"] as Kind[]).map((k) => ({ id: k, title: KIND_NAME[k], img: unitArt(S.g.races[P.owner], k), foot: `${ic("heart")}${cfgOf(S).units[k].hp} ${ic("sword")}${cfgOf(S).units[k].atk} ${ic("shield")}${cfgOf(S).units[k].arm}` })), "promo")
@@ -1341,6 +1384,7 @@ function openSettings() {
   const m = modal({ id: "setdlg", title: "Настройки", icon: "gear", cls: "small setdlg", body: `<div class="setlist">
     <div class="setrow"><span>${ic("eye")}<b>Вид фигур</b><small>фигуры или плоские фишки</small></span><button class="btn sm" id="s-style">${pieceStyle === "figures" ? "Фигуры ⇄ фишки" : "Фишки ⇄ фигуры"}</button></div>
     <label class="setrow"><span>${ic("crown")}<b>Значки на фигурах</b><small>символ фигуры в углу (вид «фигуры»)</small></span><input type="checkbox" id="s-badge" ${glyphBadge ? "checked" : ""}></label>
+    <label class="setrow"><span>${ic("target")}<b>Подтверждать ход касанием</b><small>ход и удар — вторым касанием той же клетки</small></span><input type="checkbox" id="s-conf" ${confirmTap ? "checked" : ""}></label>
     <label class="setrow"><span>${ic("heart")}<b>Скрывать полосы ОЗ</b><small>видны только у выбранной и наведённой фигуры</small></span><input type="checkbox" id="s-hp" ${hideHp ? "checked" : ""}></label>
     <label class="setrow dis" data-tip="Звуков в игре пока нет — настройка сохранится на будущее"><span>${ic("sound")}<b>Звук</b><small>пока без звуков</small></span><input type="checkbox" id="s-snd" ${snd ? "checked" : ""}></label>
     <div class="setrow"><span>${ic("crown")}<b>Любимые расы</b><small>до 3 — для жребия рейтинговой партии</small></span><button class="btn sm" id="s-fav">Выбрать</button></div></div>` });
@@ -1348,6 +1392,7 @@ function openSettings() {
   q("s-style").onclick = () => { togglePieceStyle(); q("s-style").textContent = pieceStyle === "figures" ? "Фигуры ⇄ фишки" : "Фишки ⇄ фигуры"; };
   q("s-badge").onchange = () => { glyphBadge = q("s-badge").checked; localStorage.setItem("strat.glyphBadge", glyphBadge ? "1" : "0"); (window as any).__syncPs?.(); savePrefs(); draw(); };
   q("s-hp").onchange = () => { hideHp = q("s-hp").checked; localStorage.setItem("strat.hideHp", hideHp ? "1" : "0"); draw(); };
+  q("s-conf").onchange = () => { confirmTap = q("s-conf").checked; localStorage.setItem("strat.confirmTap", confirmTap ? "1" : "0"); pendAct = null; draw(); };
   q("s-snd").onchange = () => localStorage.setItem("strat.sound", q("s-snd").checked ? "1" : "0");
   q("s-fav").onclick = () => { if (isGuest && !menuDemo) return toast("Любимые расы — только для вошедших на сайт", "info", "user"); openFavDlg(); };
 }
@@ -1414,7 +1459,7 @@ if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" 
 }
 
 // Хуки только для локального плейтеста (localhost + ?devUser): снимок состояния, камера и клик-план «как игрок».
-if (LOCAL && (qs.get("devUser") || qs.get("demo"))) { (window as any).__stratS = () => S; (window as any).__stratCam = () => ({ ...cam }); (window as any).__stratFace = () => [...facing.entries()].map(([id, f]) => ({ id, dir: f.dir })); }
+if (LOCAL && (qs.get("devUser") || qs.get("demo"))) { (window as any).__stratS = () => S; (window as any).__stratCam = () => ({ ...cam }); (window as any).__stratPerf = (k = 60) => { const t0 = performance.now(); for (let i = 0; i < k; i++) drawNow(); return (performance.now() - t0) / k; }; (window as any).__stratPend = () => pendAct; (window as any).__stratSel = () => ({ sel, selCell, taps: tapN }); (window as any).__stratFace = () => [...facing.entries()].map(([id, f]) => ({ id, dir: f.dir })); }
 // только локально и только в демо-доске: открыть окна для скриншотов (в бою с сервером не существует)
 if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
   render: () => { gsCache = { s: null, g: null } as any; render(); }, chief: () => openChiefTree(true), name: (r: boolean) => askChiefName(r), menu: () => openMenu(), surr: () => surrender(), end: () => endTurn(),

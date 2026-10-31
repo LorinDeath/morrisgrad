@@ -723,3 +723,6 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
   body.rcol-x #play.game, body.rcol-x.lcol-x #play.game { grid-template-columns: 0 minmax(0, 1fr) 124px; }
   body.rcol-x #play .endzone .endturn { width: 120px; max-width: 120px; }
 }
+
+/* S7 камера (t1176): журнал поверх доски не перехватывает клики/касания — клетки под ним доступны */
+#stage .log { pointer-events: none; }
