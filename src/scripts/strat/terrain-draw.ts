@@ -124,8 +124,10 @@ export function drawTerrainCell(ctx: CanvasRenderingContext2D, t: string, x: num
 // ---------- арт Художника (terrain-v1): тайлы 256×256, автотайлинг дорог/стен/берегов; нет файла — заглушка кодом ----------
 let LPX = 256, LOD = false; // размер клетки пререндера (px) — small/ terrain-v2 при ≤128; LOD — дальний план tile_lod_*
 /** вариант тайла: v1 _1.._n, а с вероятностью ~30% — вариант terrain-v2 _5.._8 (если подгружен) */
+// редкие варианты _5.._8 в terrain-v2 есть только у равнины/луга/леса/воды (README «P2 варианты»); у гор их нет — не запрашиваем (были 404 tile_mountain_5..7)
+const RARE = new Set(["tile_plain", "tile_meadow", "tile_forest", "tile_water"]);
 const pick = (base: string, n: number, x: number, y: number) => { const h = hash(x * 3 + 1, y * 5 + 2);
-  if (h > 0.7) { const v = t2(`${base}_${5 + Math.floor(((h - 0.7) / 0.3) * 3.999)}`, LPX); if (v) return v; }
+  if (h > 0.7 && RARE.has(base)) { const v = t2(`${base}_${5 + Math.floor(((h - 0.7) / 0.3) * 3.999)}`, LPX); if (v) return v; }
   return terrainImg(`${base}_${1 + Math.floor((h / 0.7 > 1 ? h : h / 0.7) * n * 0.999)}`) || terrainImg(base + "_1"); };
 const LOD_OF: Record<string, string> = { ".": "plain", ",": "meadow", f: "forest", m: "mountain", w: "water", r: "plain", g: "plain", b: "water", "#": "plain" };
 /** переходы terrain-v2 на клетке plain: blend_<сосед>_plain_<сторона> (лес/луг; пустыни/снега/болота в генераторе карт нет) */

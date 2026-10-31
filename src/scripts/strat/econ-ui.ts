@@ -77,7 +77,7 @@ export function techNodes(race: string, srv?: any[] | null, eraOf?: (t: { id: st
     return L.map((t: any) => { const u = t.unlocks || {}, red = redacted(t);
     // соперники по группе (TreeView.grp): взял один — остальные закрыты (как techRivals на сервере)
     const rivals = !red && t.grp && t.grp !== "root" ? L.filter((o: any) => o !== t && o.grp === t.grp).map((o: any) => String(o.id)) : [];
-    return { id: String(t.id), name: red ? "" : String(t.name), eff: red ? "" : t.eff || "", era: E(String(t.id), t.era), br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires),
+    return { id: String(t.id), name: red ? "" : String(t.name), eff: red ? "" : t.eff || "", era: +t.era || 1, br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires), // сервер уже отдаёт эпоху лиги (tree-view: techEra)
       excl: [...new Set([...arr(t.excl ?? t.excludes ?? t.locks), ...rivals])], unB: red ? [] : arr(u.b ?? u.buildings ?? t.builds ?? t.unlock), unK: red ? [] : arr(u.k ?? u.units), icon: red ? undefined : t.icon, raw: t, red } as TNode; }); }
   return (TECHS as any[]).filter((t0) => !t0.race || t0.race === race).map((t0) => {
     const sib = (() => { try { return techSibling(t0); } catch { return undefined; } })(), t: any = rv(t0, race), u = t.unlocks || {};
@@ -93,12 +93,15 @@ export const leagueEra = (G: GameState, cfg: StratCfg) => (t: { id: string; era:
 const LG_NAME: Record<string, string> = { quick: "Быстрая", normal: "Обычная", tactical: "Тактическая" };
 /** стоимость узла в знаниях: по эпохе лиги и множителю лиги (как canResearch/applyEcon на сервере) */
 const techCost = (G: GameState, cfg: StratCfg, era: number): number | "?" => { const v = cfg.econ.research.cost?.[era]; return v == null ? "?" : rCost(G, cfg, v); };
+/** цена узла: с сервера (state.tree уже по лиге — rCost), иначе свой расчёт */
+const nodeCost = (G: GameState, cfg: StratCfg, n: TNode): number | "?" => { const c = (n.raw as any)?.cost; return typeof c === "number" && (n.raw as any)?.state ? c : techCost(G, cfg, n.era); };
 /** подсказка узла (HTML): эффект + эпоха (с пометкой лиги, если она сдвинута) + цена */
 export function techTip(G: GameState, cfg: StratCfg, n: TNode): string {
-  const base = +(n.raw as any)?.era || n.era, lid = leagueOf(G.size) || "tactical";
-  const era = `Эпоха ${ERA_ROMAN[n.era] || n.era}` + (base !== n.era ? ` — в лиге «${LG_NAME[lid] || lid}» (обычно эпоха ${ERA_ROMAN[base] || base})` : "");
+  // эпоха уже по лиге; пометка — если лига сдвигает этот узел (econ.league[л].techEra); базовую эпоху знаем только без сервера (полное древо)
+  const lid = leagueOf(G.size) || "tactical", shifted = (cfg.econ as any).league?.[lid]?.techEra?.[n.id] != null, base = (n.raw as any)?.state ? 0 : +(n.raw as any)?.era || 0;
+  const era = `Эпоха ${ERA_ROMAN[n.era] || n.era}` + (shifted ? ` — в лиге «${LG_NAME[lid] || lid}»` + (base && base !== n.era ? ` (обычно эпоха ${ERA_ROMAN[base] || base})` : "") : "");
   const t = String((n.raw as any)?.tip || n.eff || ""); // подсказка вставляется как HTML (ui-kit tipOf) — текст экранируем
-  return (t ? esc(t) + "<br>" : "") + `<b>${esc(era)}</b> · ${techCost(G, cfg, n.era)} знаний`;
+  return (t ? esc(t) + "<br>" : "") + `<b>${esc(era)}</b> · ${nodeCost(G, cfg, n)} знаний`;
 }
 /** Видимость узла древа технологий для игрока (туман знаний). */
 export function techFog(G: GameState, me: number, n: TNode, st: TState): FogView {
@@ -231,14 +234,13 @@ export function renderTech(c: Ctx) {
   const eras = sizeOf(G, cfg).eras || 3, my = G.cur === me, race = G.races[me], nodes = techNodes(race, srvTree(G, me), leagueEra(G, cfg));
   const brs = [...new Set(["war", "econ", "elem", ...nodes.map((n) => n.br)])].filter((b) => nodes.some((n) => n.br === b) || b === "elem");
   const maxEra = Math.max(4, eras, ...nodes.map((n) => n.era)); // эпоха IV видна всегда: её узлы скрыты «?», пока сервер их не раскроет
-  const cost = (e: number) => techCost(G, cfg, e);
   const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
     return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" data-tip="${esc(techTip(G, cfg, n))}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
       <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
       <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>
-      <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + cost(n.era)}</em></button>`; };
+      <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + nodeCost(G, cfg, n)}</em></button>`; };
   const cell = (br: string, era: number) => {
     const ns = nodes.filter((n) => n.br === br && n.era === era);
     if (!ns.length && era >= 4) return `<div class="tcell e4">${[0, 1].map((i) => `${i ? '<span class="and"></span>' : ""}<span class="tnode fog e4q" data-tip="Эпоха IV: узел откроется позже"><span class="e4fr locked"><span class="fogq">?</span></span><small>Эпоха IV</small></span>`).join("")}</div>`;
