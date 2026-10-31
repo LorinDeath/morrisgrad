@@ -33,6 +33,51 @@ export const STRUCT = {
 export type StructCh = keyof typeof STRUCT;
 
 export type MapData = { id: string; name: string; size: number; t: string; s: string };
+/** Карты игроков (редактор, t1217): сторона 4…100. Лига — по стороне (rating.leagueOf). */
+export const MAP_MIN = 4, MAP_MAX = 100, SPAWN_MAX = 8;
+export const isMapSize = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= MAP_MIN && n <= MAP_MAX;
+/** Шаблон правил для произвольной стороны: армия, ОД, таймер, цели берутся у ближайшего штатного размера своей лиги. */
+export const tplSize = (n: number) => (n <= 6 ? 5 : n <= 9 ? 8 : n <= 29 ? 15 : 35);
+/** Точки спавна (P) карты: [x,y] по порядку чтения. */
+export function spawnsOf(m: MapData): [number, number][] { const out: [number, number][] = []; for (let i = 0; i < m.s.length; i++) if (m.s[i] === "P") out.push([i % m.size, Math.floor(i / m.size)]); return out; }
+/** Старт 1×1 на карте игрока: сторона 0 — нижняя точка спавна, сторона 1 — верхняя. null — меньше двух точек. */
+export function duelSpawns(m: MapData): [[number, number], [number, number]] | null {
+  const sp = spawnsOf(m); if (sp.length < 2) return null; const mid = (m.size - 1) / 2;
+  const by = (a: [number, number], b: [number, number]) => Math.abs(b[1] - mid) - Math.abs(a[1] - mid) || Math.abs(a[0] - mid) - Math.abs(b[0] - mid);
+  const lo = sp.filter((p) => p[1] > mid).sort(by)[0], hi = sp.filter((p) => p[1] < mid).sort(by)[0];
+  return lo && hi ? [lo, hi] : null;
+}
+/** Расстановка армии вокруг точки спавна (Вождь — на самой точке). army — ряды из cfg.sizes[n].army (ряд 0 — с Вождём).
+ *  Клетка занята/непроходима — ближайшая свободная проходимая (до 4 клеток). null — не хватило места. */
+export function placeArmy(m: MapData, army: string[][], sp: [number, number], dir: -1 | 1, taken = new Set<number>()): { k: string; x: number; y: number }[] | null {
+  const n = m.size, out: { k: string; x: number; y: number }[] = [], free = (x: number, y: number) => x >= 0 && y >= 0 && x < n && y < n && passable(m, x, y);
+  if (!free(sp[0], sp[1]) || taken.has(sp[1] * n + sp[0])) return null;
+  // клетки, достижимые от точки по проходимым (не через реку/стену), в радиусе рядов армии + 4
+  const R = army.length + 4, near = new Map<number, number>([[sp[1] * n + sp[0], 0]]), q = [sp[1] * n + sp[0]];
+  while (q.length) { const i = q.shift()!, d = near.get(i)!, x = i % n, y = Math.floor(i / n); if (d >= R) continue;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy, j = b * n + a; if (free(a, b) && !near.has(j)) { near.set(j, d + 1); q.push(j); } } }
+  const ki = Math.max(0, army[0].indexOf("king")), x00 = Math.floor((n - army[0].length) / 2) + ki; // ряды центрированы относительно ряда Вождя, как в штатной расстановке
+  const want: { k: string; x: number; y: number }[] = [];
+  army.forEach((row, r) => { const x0 = Math.floor((n - row.length) / 2); row.forEach((k, i) => want.push({ k, x: sp[0] + x0 + i - x00, y: sp[1] + dir * r })); });
+  want.sort((a, b) => (a.k === "king" ? -1 : b.k === "king" ? 1 : 0));
+  for (const w of want) {
+    let best = -1, bd = Infinity;
+    if (w.k === "king") best = sp[1] * n + sp[0];
+    else for (const [j] of near) { if (taken.has(j)) continue; const x = j % n, y = Math.floor(j / n); const d = Math.max(Math.abs(x - w.x), Math.abs(y - w.y)) * 4 + Math.abs(x - w.x) + Math.abs(y - w.y) + ((y - sp[1]) * dir < 0 ? 6 : 0); if (d < bd) { bd = d; best = j; } }
+    if (best < 0) return null; taken.add(best); out.push({ k: w.k, x: best % n, y: Math.floor(best / n) });
+  }
+  return out;
+}
+/** Клетки, недостижимые из главной области (для подсветки в редакторе). */
+export function unreachableCells(m: MapData): number[] {
+  const n = m.size, seen = new Uint8Array(n * n); let best: number[] = [];
+  for (let s = 0; s < n * n; s++) { if (seen[s] || !passable(m, s % n, Math.floor(s / n))) continue;
+    const comp = [s], q = [s]; seen[s] = 1;
+    while (q.length) { const i = q.pop()!, x = i % n, y = Math.floor(i / n);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (a < 0 || b < 0 || a >= n || b >= n) continue; const j = b * n + a; if (!seen[j] && passable(m, a, b)) { seen[j] = 1; comp.push(j); q.push(j); } } }
+    if (comp.length > best.length) best = comp; }
+  const main = new Set(best), out: number[] = []; for (let i = 0; i < n * n; i++) if (passable(m, i % n, Math.floor(i / n)) && !main.has(i)) out.push(i); return out;
+}
 export const TER_RULES = { forestArm: 1, gateArm: 1, towerArm: 2, wellHeal: 1 };
 
 const idx = (n: number, x: number, y: number) => y * n + x;
@@ -170,9 +215,9 @@ function tryGen(o: GenOpts, seed: number): MapData {
 }
 
 /** Проверка карты (официальной или игрока): ошибки блокируют публикацию, предупреждения дают «неравная». */
-export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [number, number][] }): { errors: string[]; warnings: string[] } {
+export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [number, number][]; army?: string[][] }): { errors: string[]; warnings: string[] } {
   const errors: string[] = [], warnings: string[] = [], n = m.size;
-  if (!Number.isInteger(n) || n < 5 || n > 40) return { errors: ["size"], warnings };
+  if (!isMapSize(n)) return { errors: ["size"], warnings };
   if (typeof m.t !== "string" || typeof m.s !== "string" || m.t.length !== n * n || m.s.length !== n * n) return { errors: ["shape"], warnings };
   for (const c of m.t) if (!(c in TERRAIN)) return { errors: ["bad_terrain"], warnings };
   for (const c of m.s) if (c !== "." && !(c in STRUCT)) return { errors: ["bad_struct"], warnings };
@@ -184,7 +229,14 @@ export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [numbe
   if (blocked > n * n * 0.25) errors.push("too_blocked");
   if (res0 + res1 > Math.floor((n * n) / 12)) errors.push("too_many_resources");
   if (Math.abs(res0 - res1) > 1) warnings.push("resources_unequal");
-  if (o) for (const [x, y] of o.armyCols) {
+  const sp = spawnsOf(m);
+  if (sp.length > SPAWN_MAX) errors.push("spawns_many");
+  if (sp.length >= 2) { // карта игрока со своими точками старта: армии встают у точек (placeArmy)
+    const d = duelSpawns(m);
+    if (!d) errors.push("spawn_half");
+    else if (o?.army) { const taken = new Set<number>(); if (!placeArmy(m, o.army, d[0], -1, taken) || !placeArmy(m, o.army, d[1], 1, taken)) errors.push("spawn_space"); }
+    if (sp.length > 2) warnings.push("spawns_extra"); // 2×2 и FFA — позже: пока партия 1×1 на нижней и верхней точке
+  } else if (o) for (const [x, y] of o.armyCols) {
     if (!passable(m, x, y) || !passable(m, n - 1 - x, n - 1 - y)) errors.push("army_blocked");
   }
   // связность проходимых клеток (8 соседей)

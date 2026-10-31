@@ -1,7 +1,7 @@
 // «Партия Чёрных королей» — этап 2: экономика, города и территория, постройки, найм, технологии, таланты, Слава.
 // Чистые функции поверх GameState (rules.ts вызывает хуки). Все числа — cfg.econ / cfg.build / cfg.talents (econ-cfg.ts).
 import type { GameState, Piece, Kind, Race, Ev, StratCfg, Action } from "./rules";
-import { passable, str as mapStr, ter } from "./terrain";
+import { passable, str as mapStr, ter, tplSize } from "./terrain";
 import { UNLOCK, PAWN_BARRACKS_COST, HERO_ERA, buildGate, type BuildId, type Tech, type TechFx } from "./econ-cfg";
 import type { ChiefDef, ChiefNode } from "./content-cfg";
 import { checkChiefName } from "./names";
@@ -211,7 +211,7 @@ function respawnChief(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk: Mk
 }
 export type MkPiece = (o: 0 | 1, k: Kind, x: number, y: number) => Piece;
 // ---------- цели
-export const goalCfg = (g: GameState, cfg: StratCfg) => { const S = (cfg as any).goals.sizes; const k = Object.keys(S).map(Number).filter((n) => n <= g.size).sort((a, b) => b - a)[0] ?? 8; return S[k]; };
+export const goalCfg = (g: GameState, cfg: StratCfg) => { const S = (cfg as any).goals.sizes; if (!S[g.size] && S[tplSize(g.size)]) return S[tplSize(g.size)]; const k = Object.keys(S).map(Number).filter((n) => n <= g.size).sort((a, b) => b - a)[0] ?? 8; return S[k]; };
 export const goalOn = (g: GameState, id: string, cfg: StratCfg) => goalCfg(g, cfg).list.includes(id);
 export function setGoal(g: GameState, side: number, id: string, ev: Ev[], cfg: StratCfg) {
   if (!g.ec || !goalOn(g, id, cfg) || g.ec.goals[side].includes(id)) return;

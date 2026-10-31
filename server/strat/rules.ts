@@ -1,7 +1,7 @@
 // «Партия Чёрных королей» — движок правил (этап 1). Чистые функции без I/O: один модуль для сервера (StratMatch),
 // клиента (подсветка ходов), бота и симулятора. Все числа — в STRAT_CFG (позже правятся в админке, game_overrides strat_*).
 
-import { type MapData, openMap, generateMap, passable, stopsSlide, blocksShot, coverArm, str as mapStr, TER_RULES } from "./terrain";
+import { type MapData, openMap, generateMap, tplSize, duelSpawns, placeArmy, passable, stopsSlide, blocksShot, coverArm, str as mapStr, TER_RULES } from "./terrain";
 export type { MapData } from "./terrain";
 import { ECON, BUILD, TALENTS, TECHS } from "./econ-cfg";
 import { ULTS, UNIT_TREE, UNIT_ULTS, UNIT_RACE_NAMES } from "./content-cfg";
@@ -58,6 +58,14 @@ export const STRAT_CFG = {
 };
 export type StratCfg = typeof STRAT_CFG;
 export const SIZES = [5, 8, 15, 35]; // t1201: 35×35 — Тактическая лига
+/** t1217: карта игрока любого размера 4…100 — правила размера (армия, ОД, таймер, эпохи) копируются у шаблона лиги (tplSize).
+ *  Дописывает cfg.sizes[n] и cfg.econ.sizes[n] на месте (снимок cfg партии сохраняет их). */
+export function ensureSize(cfg: StratCfg, n: number): SizeCfg {
+  const S = cfg.sizes as Record<number, SizeCfg>; if (S[n]) return S[n];
+  const t = tplSize(n), b = S[t]; S[n] = { ...b, size: n, army: b.army.map((r) => [...r]) };
+  const E = (cfg.econ as any).sizes; if (E && !E[n] && E[t]) E[n] = { ...E[t] };
+  return S[n];
+}
 /** Лимит ходов задаёт хост в лобби: по умолчанию — из размера поля; 0 = без лимита (партия до гибели Вождя / сдачи / таймаута). */
 export const TURN_LIMIT = { min: 5, max: 200, none: 0 };
 /** null — «по умолчанию»; число — допустимый лимит; undefined — неверное значение (сервер отвечает bad_turn_limit). */
@@ -115,7 +123,7 @@ const PROMO_OK: Kind[] = ["knight", "mage", "rook"];
 
 /** Клетки стартовой армии игрока 0 (игрок 1 — центрально-симметрично) и колонка Вождя. */
 export function armyCells(size: number, cfg: StratCfg = STRAT_CFG): { cells: [number, number][]; kingCol: number; rows: number } {
-  const sc = cfg.sizes[size]; const cells: [number, number][] = []; let kingCol = Math.floor(size / 2);
+  const sc = ensureSize(cfg, size); const cells: [number, number][] = []; let kingCol = Math.floor(size / 2);
   sc.army.forEach((row, r) => { const x0 = Math.floor((size - row.length) / 2); row.forEach((k, i) => { cells.push([x0 + i, size - 1 - r]); if (k === "king") kingCol = x0 + i; }); });
   return { cells, kingCol, rows: sc.army.length };
 }
@@ -141,10 +149,14 @@ export function makeMap(size: number, id: string | null | undefined, cfg: StratC
 
 export type GameOpts = { chiefs?: [string | undefined, string | undefined] }; // тип Вождя из лобби (виден, только если у расы > 1 доступного типа)
 export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg: StratCfg = STRAT_CFG, turnLimit?: number | null, map?: MapData, opts?: GameOpts): GameState {
-  const sc = cfg.sizes[size]; if (!sc) throw new Error("bad size");
+  if (!cfg.sizes[size] && !(size >= 4 && size <= 100)) throw new Error("bad size");
+  const sc = ensureSize(cfg, size);
   if (map && map.size !== size) throw new Error("map size");
   const g = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: sc.turnLimit || 0, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [], map: map || openMap(size) } as unknown as GameState;
-  for (const owner of [0, 1] as const) {
+  const dsp = map && /^[us]/.test(map.id || "") ? duelSpawns(map) : null; // t1217: карта игрока — армии у точек спавна
+  const placed = dsp ? (() => { const tk = new Set<number>(), a = placeArmy(map!, sc.army, dsp[0], -1, tk), b = placeArmy(map!, sc.army, dsp[1], 1, tk); return a && b ? [a, b] : null; })() : null;
+  if (placed) for (const owner of [0, 1] as const) for (const q of placed[owner]) g.pieces.push(mkPiece(g, owner, q.k as Kind, q.x, q.y, cfg));
+  else for (const owner of [0, 1] as const) {
     sc.army.forEach((row, r) => {
       const x0 = Math.floor((size - row.length) / 2);
       row.forEach((k, i) => {

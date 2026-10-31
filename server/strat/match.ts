@@ -4,7 +4,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { admitMessage, originAllowed, isLocalRequest, isDevRequest, MSG_BURST } from "../limits";
 import { identify, type Ident } from "./ident";
-import { resolveLobbyMap } from "./maps";
+import { resolveLobbyMap, isStratAdmin, countPlay } from "./maps";
+import { isMapSize } from "./terrain";
 import { type MapData } from "./terrain";
 import { newGame, makeMap, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, type GameState, type Race, type Action, type Ev, type Kind, type StratCfg } from "./rules";
 import { loadStratCfg } from "./cfg";
@@ -238,11 +239,12 @@ export class StratMatch extends DurableObject {
     switch (m.type) {
       case "cfg": {
         if (seat !== 0) return "not_host"; if (L.phase !== "lobby") return "bad_phase";
-        if (m.size !== undefined) { if (!SIZES.includes(m.size)) return "bad_size"; if (m.size !== L.size) { L.size = m.size; this.setMap(null); } }
+        if (m.size !== undefined) { if (!SIZES.includes(m.size) && !isMapSize(m.size)) return "bad_size"; /* t1217: 4…100 (случайная карта или карта игрока) */ if (m.size !== L.size) { L.size = m.size; this.setMap(null); } }
         if (m.map !== undefined) { const e = await this.pickMap(String(m.map).slice(0, 24), pkey); if (e) return e; }
         if (m.pub !== undefined) L.pub = !!m.pub;
         if (m.ranked !== undefined && m.rated === undefined) m.rated = m.ranked; // имя поля у клиента UI-воркера
         if (m.turnSec !== undefined && m.turnMin === undefined) m.turnMin = m.turnSec == null ? null : Math.round(+m.turnSec / 60);
+        if (m.rated && L.xpMap === false) return "map_unrated"; // неодобренная карта: без опыта и рейтинга для всех (t1218)
         if (m.rated !== undefined) { L.rated = !!m.rated; if (L.rated) { L.turnMin = null; L.hiddenHp = false; for (const s of L.seats) if (s && !s.bot) { s.race = null; s.ready = false; } await this.ensureDraw(); } } // «Рейтинговая» форсирует стандарт; раса — жребием
         if (m.turnMin !== undefined) { const t = validTurnMin(m.turnMin); if (t === undefined) return "bad_turn_min"; if (L.rated && t !== null) return "rated_fixed"; L.turnMin = t; }
         if (m.hiddenHp !== undefined) { if (L.rated && m.hiddenHp) return "rated_fixed"; L.hiddenHp = !!m.hiddenHp; }
@@ -315,17 +317,23 @@ export class StratMatch extends DurableObject {
     const L = this.L!; const d = map || { map: makeMap(L.size, null), xp: true, status: "official" };
     L.map = d.map; L.mapId = d.map.id; L.mapName = d.map.name; L.mapStatus = d.status; L.xpMap = d.xp;
   }
+  async hostAdmin(): Promise<boolean> { const h = this.L!.seats[0]; return !!h && !h.bot && (await isStratAdmin(this.env, h.pkey, !!h.verified).catch(() => false)); }
   async pickMap(id: string, hostPkey: string): Promise<string> {
-    const L = this.L!; const r = await resolveLobbyMap(this.env, id, L.size, hostPkey);
+    const L = this.L!, own = /^[us]/.test(id); // карта игрока/витрина задаёт размер поля сама
+    const r = await resolveLobbyMap(this.env, id, own ? 0 : L.size, hostPkey, own && (await this.hostAdmin()));
     if (r.err || !r.map) return r.err || "bad_map";
-    this.setMap({ map: r.map, xp: r.xp, status: r.status }); return "";
+    if (own) L.size = r.map.size;
+    this.setMap({ map: r.map, xp: r.xp, status: r.status });
+    if (!r.xp) L.rated = false; // на неодобренной — ни опыта, ни рейтинга (ни автору, ни приглашённым)
+    return "";
   }
   async start() {
     const L = this.L!;
     if (!L.map || L.map.size !== L.size) this.setMap(null);
-    if (L.mapId && /^u/.test(L.mapId)) { // статус могли поменять в админке, пока ждали соперника
-      const r = await resolveLobbyMap(this.env, L.mapId, L.size, L.seats[0]!.pkey);
+    if (L.mapId && /^[us]/.test(L.mapId)) { // статус могли поменять в админке, пока ждали соперника
+      const r = await resolveLobbyMap(this.env, L.mapId, L.size, L.seats[0]!.pkey, await this.hostAdmin());
       if (r.err || !r.map) { this.setMap(null); } else this.setMap({ map: r.map, xp: r.xp, status: r.status });
+      if (L.xpMap === false) L.rated = false;
     }
     L.mid = L.code + ":" + Date.now(); L.rating = undefined; L.sum = undefined; // t1236: новая партия — новый id (жребий, рейтинг, монеты, профиль) и чистые итоги
     const first = (crypto.getRandomValues(new Uint8Array(1))[0] & 1) as 0 | 1; // кто ходит первым — случайно
@@ -430,7 +438,7 @@ export class StratMatch extends DurableObject {
     const L = this.L!, g = L.game!, env = this.env; if (!env.GAME_DB) return;
     if (L.rating?.mid === mid) return; // t1236: по этой партии уже посчитано (повторный вызов — без второго начисления)
     const seats = L.seats as SeatS[], bots = seats.filter((s) => s?.bot).length, guests = seats.filter((s) => s && !s.bot && !s.verified).length;
-    const ctx = { rated: !!L.rated, standard: L.turnMin == null && !L.devTurnMs, mapInPool: await mapInPool(env, L.map as any, L.mapStatus || (L.mapId && /^o/.test(L.mapId) ? "official" : "")),
+    const ctx = { rated: !!L.rated && this.xpAllowed(), standard: L.turnMin == null && !L.devTurnMs, mapInPool: this.xpAllowed() && (await mapInPool(env, L.map as any, L.mapStatus || (L.mapId && /^o/.test(L.mapId) ? "official" : ""))),
       humans: seats.filter((s) => s && !s.bot).length, guests, bots, turns: g.turn, reason: g.reason };
     const goals = g.ec?.goals ? [g.ec.goals[0].length, g.ec.goals[1].length] : [undefined, undefined];
     const players = [0, 1].map((i) => ({ uid: seats[i].pkey, team: i, place: g.winner === 2 ? 1 : g.winner === i ? 1 : 2, goals: goals[i], actions: L.acts?.[i] || 0 }));
@@ -463,6 +471,7 @@ export class StratMatch extends DurableObject {
         techs: JSON.stringify(g.ec?.techs[i] || []), chief_type: ch?.type || null, chief_level: k ? pieceLevel(k, this.cfg()) : (ch?.hist?.at(-1)?.lvl ?? null),
         chief_kills: L.st?.ck[i] || 0, talents: JSON.stringify(L.st?.tal[i] || []), ults: JSON.stringify(L.st?.ult[i] || []), created_at: Date.now() }); }
     if (!dup) try { await addStats(env, rows); } catch {}
+    if (!dup) await countPlay(env, L.mapId, seats.filter((s) => s && !s.bot).map((s) => s.pkey)).catch(() => false); // хаб: «сыграно» (и право лайкать) — один раз на партию
     if (L.sum && L.sum.mid === mid) { L.sum.rating = this.ratingView();
       if (this.R && L.rid === this.R.id) { (this.R as any).sum = L.sum; (this.R as any)._m = 1; await this.rdb("over"); } } // в лог повтора — «Итоги» видны и в библиотеке
     await this.save(); this.broadcast();

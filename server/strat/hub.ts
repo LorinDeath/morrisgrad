@@ -9,7 +9,8 @@ import { identify } from "./ident";
 import { CODE_ALPHABET, CODE_RE } from "./match";
 import { SIZES, STRAT_CFG } from "./rules";
 import { loadStratCfg, saveStratPatch } from "./cfg";
-import { saveMap, listMaps, flagMap, modQueue, moderate, isStratAdmin, getMapRow, rowToMap } from "./maps";
+import { saveMap, listMaps, flagMap, modQueue, moderate, isStratAdmin, getMapRow, rowToMap, hubList, likeMap, favMap, listComments, addComment, reportComment, modComment, modApproved } from "./maps";
+import { isMapSize } from "./terrain";
 import { getRatings, getProfile, leaderboard, myPlace, poolSet } from "./rating-db";
 import { getPublicStats, getPrivateStats, privView } from "./stats";
 import { getCoins } from "./coins";
@@ -17,7 +18,7 @@ const UI_LG: Record<string, string> = { quick: "fast", normal: "normal", tactica
 const uiLeagues = (L: Record<string, any>) => Object.fromEntries(Object.entries(L).map(([k, v]) => [UI_LG[k] || k, { r: v.rating, rd: v.rd, games: v.games, w: v.wins, l: v.losses, d: v.draws, peak: v.peak, prov: v.provisional }]));
 
 type Lob = { code: string; pub: boolean; phase: string; size: number; host: string; n: number; at: number };
-type Att = { pkey?: string; nick?: string; verified?: boolean; mapAt?: number; sid?: string; url: string; tk: number; at: number; st: number; inv: number };
+type Att = { pkey?: string; nick?: string; verified?: boolean; mapAt?: number; likeAt?: number; sid?: string; url: string; tk: number; at: number; st: number; inv: number };
 const NEW_PER_MIN = 6, INVITE_GAP_MS = 10_000, INVITE_TTL_S = 60, LOBBY_LIST_TTL = 2 * 3600_000;
 
 const ACTIVE_TTL = 14 * 86400_000; // партия без событий 2 недели выпадает из «Мои партии»
@@ -185,11 +186,23 @@ export class StratIndex extends DurableObject {
     const who = { pkey: a.pkey!, nick: a.nick || "", verified: !!a.verified }, rq = m.rq;
     const reply = (o: any) => this.send(ws, { type: m.type + "_r", rq, ...o });
     try {
-      if (m.type === "map_list") return reply({ size: m.size, list: await listMaps(this.env, who.pkey, SIZES.includes(m.size) ? m.size : 8) });
+      if (m.type === "map_list") return reply({ size: m.size, list: await listMaps(this.env, who.pkey, isMapSize(m.size) ? m.size : 8) });
       if (m.type === "map_get") { const r = await getMapRow(this.env, String(m.id || "")); const admin = await isStratAdmin(this.env, who.pkey, who.verified);
-        if (!r || (r.status !== "approved" && r.author !== who.pkey && !admin)) return reply({ err: "not_found" }); return reply({ map: rowToMap(r), status: r.status }); }
+        if (!r || (r.status !== "approved" && r.author !== who.pkey && !admin)) return reply({ err: "not_found" }); return reply({ map: rowToMap(r), status: r.status, descr: r.descr || "", author: r.author_nick, mine: r.author === who.pkey, reason: r.author === who.pkey || admin ? r.reject_reason || undefined : undefined }); }
       if (m.type === "map_save") { const now = Date.now(); if (now - (a.mapAt || 0) < 5000) return reply({ err: "rate" }); a.mapAt = now; ws.serializeAttachment(a); return reply(await saveMap(this.env, who, m.map)); }
       if (m.type === "map_flag") return reply(await flagMap(this.env, who, String(m.id || ""), String(m.why || "")));
+      // ---- хаб карт (t1217): чужим — только одобренные; лайк/избранное/комментарии — только вход
+      if (m.type === "map_hub") return reply({ list: await hubList(this.env, who.verified ? who.pkey : null, { sort: String(m.sort || ""), league: String(m.league || ""), size: +m.size || undefined, q: String(m.q || ""), tab: String(m.tab || "") }), admin: await isStratAdmin(this.env, who.pkey, who.verified), me: who.verified });
+      if (m.type === "map_like" || m.type === "map_fav") { const now = Date.now(); if (now - (a.likeAt || 0) < 700) return reply({ err: "rate" }); a.likeAt = now; ws.serializeAttachment(a);
+        return reply(await (m.type === "map_like" ? likeMap : favMap)(this.env, who, String(m.id || ""), !!m.on)); }
+      if (m.type === "map_comments") { const admin = await isStratAdmin(this.env, who.pkey, who.verified); const r = await getMapRow(this.env, String(m.id || ""));
+        if (!r || (r.status !== "approved" && r.author !== who.pkey && !admin)) return reply({ err: "not_found" });
+        return reply({ list: await listComments(this.env, r.id, admin), admin }); }
+      if (m.type === "map_comment") return reply(await addComment(this.env, who, String(m.id || ""), m.text));
+      if (m.type === "map_comment_report") return reply(await reportComment(this.env, who, +m.cid || 0));
+      if (m.type === "map_comment_mod") { if (!(await isStratAdmin(this.env, who.pkey, who.verified))) return reply({ err: "not_admin" });
+        return reply(await modComment(this.env, who.pkey, +m.cid || 0, String(m.act || ""))); }
+      if (m.type === "map_rated") { if (!(await isStratAdmin(this.env, who.pkey, who.verified))) return reply({ err: "not_admin" }); return reply({ list: await modApproved(this.env) }); }
       if (m.type === "my_active") { // «Мои партии»: незавершённые, куда можно вернуться (код → /strat/m/CODE)
         if (!who.verified) return reply({ list: [] });
         const act: any = await this.liveAct(who.pkey); return reply({ list: Object.entries(act[who.pkey] || {}).map(([code, v]: any) => ({ code, size: v.size, at: v.at })) });
@@ -222,7 +235,7 @@ export class StratIndex extends DurableObject {
       }
       if (m.type === "map_queue" || m.type === "map_mod") {
         if (!(await isStratAdmin(this.env, who.pkey, who.verified))) return reply({ err: "not_admin" });
-        if (m.type === "map_queue") return reply({ list: await modQueue(this.env) });
+        if (m.type === "map_queue") return reply(await modQueue(this.env));
         return reply(await moderate(this.env, who.pkey, String(m.id || ""), String(m.act || ""), m.reason));
       }
     } catch (e: any) { return reply({ err: "db" }); }
