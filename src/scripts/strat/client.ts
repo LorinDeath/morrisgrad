@@ -80,7 +80,7 @@ const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нель
 Object.assign(ERR, { lib_full: "Библиотека заполнена — уберите старые партии", live: "Партия ещё идёт", no_replay: "Повтор недоступен", bad_id: "Неверная ссылка на повтор", ...(ERR.guest ? {} : { guest: "Нужно войти на сайт" }), need_login: "Нужно войти на сайт" });
 const toast = (t: string, k: "info" | "good" | "bad" | "turn" = "info", i?: string) => uiToast(t, k, i);
 /** Прицел ульты/способности: телеграф круга на доске до клика. */
-let ultAim: { id: string; pid: number; r: number; race: string; chief: boolean } | null = null, aimCell: [number, number] | null = null;
+let ultAim: { id: string; pid: number; r: number; race: string; chief: boolean; kind?: "act" | "ult" } | null = null, aimCell: [number, number] | null = null;
 /** Время на ход по размеру карты (если хост не задал): 4×4 — 1 мин … 50+ — 30 мин. */
 const turnSecFor = (n: number) => (n <= 4 ? 60 : n <= 5 ? 90 : n <= 8 ? 180 : n <= 15 ? 300 : n <= 25 ? 600 : n <= 49 ? 1200 : 1800);
 const fmtMin = (s: number) => (s >= 60 ? `${Math.round(s / 60)} мин` : `${s} с`);
@@ -942,7 +942,7 @@ function renderInfo() {
   if (p) { const sub = box.querySelector(".uc-sub"); if (sub) sub.textContent = (p.o === S.you ? "Ваш" : "Враг") + (p.k === "king" ? " · " + chiefName(p.o) : " · " + (RACE_NAME[g.races[p.o]] || ""));
     const P = gs()!.pieces.find((q) => q.id === p.id)!; bindPieceActs(ectx(), P, box); bindChiefActs(P, box);
     box.querySelectorAll<HTMLButtonElement>("[data-raze]").forEach((b) => (b.onclick = () => send({ type: "act", act: { a: "raze", id: P.id, city: +b.dataset.raze!, b: b.dataset.b } })));
-    bindAbilityBar(ectx(), P, p, box, (a) => startAim({ id: a.id, pid: a.pid, r: a.r, race: g.races[p.o], chief: false })); }
+    bindAbilityBar(ectx(), P, p, box, (a) => startAim({ id: a.id, pid: a.pid, r: a.r, race: g.races[p.o], chief: false, kind: a.kind })); }
 }
 /** Действия Вождя: «Построить» (выбор постройки → клетка для башни) и «Основать поселение» (многоходовое). */
 function chiefActs(P: any): string {
@@ -1377,7 +1377,7 @@ function onBoard(px: number, py: number) {
   if (ultAim) { const touch = !matchMedia("(hover: hover)").matches;
     if (touch && (aimCell?.[0] !== x || aimCell?.[1] !== y)) { aimCell = [x, y]; return draw(); }
     if (demo) { const u = parseUlt({ e: ultAim.chief ? "ult" : "uult", id: ultAim.pid, x, y, r: ultAim.r, race: ultAim.race }, S.g, performance.now()); if (u) { addCast(u, S.g.turn); ultBanner(u, true, ""); } }
-    else send({ type: "act", act: ultAim.chief || ultAim.id === "ult" ? { a: "ult", id: ultAim.pid, x, y } : { a: "ability", id: ultAim.pid, ab: ultAim.id, x, y } });
+    else send({ type: "act", act: ultAim.chief || ultAim.id === "ult" || ultAim.kind === "ult" ? { a: "ult", id: ultAim.pid, x, y } : { a: "ability", id: ultAim.pid, ab: ultAim.id, x, y } });
     stopAim(); return; }
   if (W.mode && S.phase === "play") { const G1 = gs()!, md = W.mode;
     if (md.k === "claim") { const tc = S.terr?.cities?.find((q: any) => q.city === md.city);
