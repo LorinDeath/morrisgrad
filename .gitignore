@@ -35,3 +35,5 @@ tools/light-emitters/.test-bundle.mjs
 .env.*
 !.env.example
 server/meta/_x_*
+.wr-maps/
+.shots/

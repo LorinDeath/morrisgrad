@@ -60,7 +60,9 @@ const title = 'Партия Чёрных королей | Моррис Град'
           <button type="button" class="mtile" id="profbtn"><span class="mt-em" id="profem"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg></span><b>Профиль</b><small>статистика, расы, монеты</small></button>
           <button type="button" class="mtile" id="libbtn"><img src="/strat/ui2/icons/icon_replay_history_64.png" alt="" /><b>Библиотека партий</b><small>недавние и сохранённые</small></button>
           <button type="button" class="mtile" id="codexbtn"><img src="/strat/ui2/icons/icon_book_64.png" alt="" /><b>Библиотека</b><small>всё об игре, открытия</small></button>
-          <button type="button" class="mtile" id="mapsbtn"><img src="/strat/ui2/icons/icon_map_64.png" alt="" /><b>Карты игроков</b><small>рейтинговый пул, хаб</small></button>
+          <button type="button" class="mtile" id="mapsbtn"><img src="/strat/ui2/icons/icon_map_64.png" alt="" /><b>Карты игроков</b><small>хаб, лайки, избранное</small></button>
+          <button type="button" class="mtile" id="mapedbtn"><img src="/strat/ui2/icons/icon_build_64.png" alt="" /><b>Редактор карт</b><small>от 4×4 до 100×100</small></button>
+          <button type="button" class="mtile" id="modbtn" hidden><img src="/strat/ui2/icons/icon_crown_64.png" alt="" /><b>Модерация карт</b><small>только админ</small></button>
           <button type="button" class="mtile" id="rulesbtn"><img src="/strat/ui2/icons/icon_book_64.png" alt="" /><b>Правила</b><small>как играть, правила лиг</small></button>
           <button type="button" class="mtile" id="setbtn"><span class="mt-em"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></span><b>Настройки</b><small>вид, ОЗ, звук</small></button>
         </div>
@@ -117,7 +119,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
           <div class="mapview">
             <div class="pvframe"><canvas id="mappv" width="300" height="300"></canvas></div>
             <b id="mapname0" class="mapname0"></b>
-            <span class="xpbadge" id="mapbadge" hidden>карта не проверена — без опыта</span>
+            <span class="xpbadge" id="mapbadge" hidden data-tip="Карта ещё не одобрена: партия не даёт опыта и не меняет рейтинг — ни автору, ни приглашённым">Без опыта и рейтинга</span>
             <div id="mapdesc" class="schips"></div>
           </div>
         </div>
@@ -170,7 +172,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
           <div id="log" class="log" aria-live="polite"></div>
           <button type="button" class="btn sq logbtn" id="logbtn" aria-label="Развернуть журнал" aria-expanded="false" aria-controls="log" data-tip="Журнал"><svg class="ic" aria-hidden="true"><use href="#i-hist"/></svg></button>
           <button type="button" class="chatfab" id="chatfab" hidden aria-label="Чат"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><b class="chat-unread" hidden></b></button>
-          <div class="maptag"><span id="mapname"></span><span class="xpbadge" id="mapbadge2" hidden>без опыта</span></div>
+          <div class="maptag"><span id="mapname"></span><span class="xpbadge" id="mapbadge2" hidden data-tip="Карта не одобрена: без опыта и рейтинга">Без опыта и рейтинга</span></div>
         </div>
       </div>
       <aside class="side">
@@ -214,7 +216,7 @@ const title = 'Партия Чёрных королей | Моррис Град'
     <div class="panel admin" id="admin">
       <h2 class="plate">Модерация карт</h2>
       <button class="btn sq ghost refresh" id="modrefresh" aria-label="Обновить"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
-      <p class="muted">Карты игроков попадают в общий список только после одобрения. До этого автор играет на них по ссылке или коду, без опыта.</p>
+      <p class="muted">Карты игроков попадают в общий список только после одобрения. До этого автор играет на них по ссылке или коду — без опыта и рейтинга. Полная модерация — «Модерация карт» в меню.</p>
       <div id="modq"></div>
       <h2 class="plate">Цели и лиги</h2>
       <div id="admgoals"></div>

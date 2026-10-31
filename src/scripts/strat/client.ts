@@ -6,6 +6,7 @@ import { loadArt, unitSprite, hitFx, spriteBox, type Pose } from "./art";
 import { terrainLayer, drawStructIcon, GOLD, INK } from "./terrain-draw";
 import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick, drawEcon, econFx, econToast, cfgOf, ui as eui, KIND_NAME, ECON_ERR, territoryCached, pieceLv, talName, unitArt, type Ctx } from "./econ-ui";
 import { TERRAIN, STRUCT, TER_RULES, openMap, type MapData } from "../../../server/strat/terrain";
+import { ensureSize } from "../../../server/strat/rules";
 import { moveTargets, attackTargets, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
 import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
 import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips, openSheet } from "./ui-kit";
@@ -33,6 +34,7 @@ import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel
 import { codexGot, openCodex } from "./codex-ui";
 import { resultsHtml, type Sum } from "./results";
 import { hpBarArt, unitHpArt, HS_STEP } from "./ui2art";
+import { openMapsHub as mapsHub, openEditor, openModeration, type MapsCtx } from "./maps-ui";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
 
 const PROD_WS = "wss://morris-multiplayer.alexseylyou.workers.dev";
@@ -118,7 +120,7 @@ function connectHub() {
   hub.onopen = async () => hub!.send(JSON.stringify({ type: "hello", ...(await helloMsg()) }));
   hub.onmessage = (e) => {
     const m = JSON.parse(e.data);
-    if (m.type === "hello_ok") { $("#me").textContent = m.nick + (m.guest ? " · гость" : ""); { const cn = document.querySelector("#cmdr .cm-nick"); if (cn) cn.textContent = m.nick; } isAdmin = !!m.admin; isGuest = !!m.guest; applyPrefs(m.prefs); if (Array.isArray(m.favRaces)) setFavLocal(m.favRaces); mountAdmin(); loadResume(); loadCommander(); }
+    if (m.type === "hello_ok") { $("#me").textContent = m.nick + (m.guest ? " · гость" : ""); { const cn = document.querySelector("#cmdr .cm-nick"); if (cn) cn.textContent = m.nick; } isAdmin = !!m.admin; isGuest = !!m.guest; { const mb = document.getElementById("modbtn"); if (mb) mb.hidden = !isAdmin; } applyPrefs(m.prefs); if (Array.isArray(m.favRaces)) setFavLocal(m.favRaces); mountAdmin(); loadResume(); loadCommander(); }
     if (m.type === "fav_races_ok") { setFavLocal(m.favRaces); toast("Любимые расы сохранены", "good", "check"); if (S?.phase === "lobby") renderLobby(); }
     if (typeof m.type === "string" && (m.type.endsWith("_r") || m.type === "lib" || m.type === "err") && m.rq && hubWait.has(m.rq)) { hubWait.get(m.rq)!(m); hubWait.delete(m.rq); return; }
     if (m.type === "online") { online = m.list; renderOnline(); }
@@ -154,7 +156,7 @@ function showInvite(from: string, code: string, ttl: number) {
 let selCell: [number, number] | null = null;
 let ws: WebSocket | null = null, S: any = null, curCode = "", sel: number | null = null, retry = 0, left = false, demo = false;
 let playMode: "normal" | "ranked" | "bot" = ((m) => (m === "ranked" || m === "bot" ? m : "normal"))(localStorage.getItem("strat.playMode"));
-let pendingIntent: { mode: string; size?: number } | null = null;
+let pendingIntent: { mode: string; size?: number; map?: string; bot?: boolean } | null = null;
 async function createLobby() {
   const want = +($<HTMLInputElement>("#size").value), size = want > 15 ? 15 : want, pub = playMode !== "bot" && $<HTMLInputElement>("#pub").checked; // /strat/new знает 5/8/15; больше — через cfg хоста
   const r = await fetch(HTTP + "/strat/new", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ size, pub }) }).catch(() => null);
@@ -165,7 +167,7 @@ async function createLobby() {
 /** Выбор в меню «Играть» (рейтинговая / с ботом / размер) применяется хостом к только что созданному лобби — обычными cfg/bot, сервер всё проверяет сам. */
 function applyIntent() {
   if (!pendingIntent || !S || S.phase !== "lobby" || S.you !== 0) return; const it = pendingIntent; pendingIntent = null;
-  if (it.size) send({ type: "cfg", size: it.size }); send({ type: "cfg", ranked: it.mode === "ranked" }); /* r3: у сервера ratedDefault=true — «Обычная» и «с ботом» явно без рейтинга */ if (it.mode === "bot") send({ type: "bot", slot: 1, on: true });
+  if (it.size) send({ type: "cfg", size: it.size }); send({ type: "cfg", ranked: it.mode === "ranked" }); if (it.map) send({ type: "cfg", map: it.map }); if (it.bot) send({ type: "bot", slot: 1, on: true }); /* r3: у сервера ratedDefault=true — «Обычная» и «с ботом» явно без рейтинга */ if (it.mode === "bot") send({ type: "bot", slot: 1, on: true });
 }
 function joinCode(code: string) {
   code = code.trim().toUpperCase(); if (!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) return toast("Код — 6 символов", "bad");
@@ -318,6 +320,7 @@ function chiefBannerEl(name: string, mine: boolean, who: string, img: HTMLImageE
   return el;
 }
 function onState(prev: any) {
+  if (S?.size && !(STRAT_CFG.sizes as any)[S.size]) ensureSize(STRAT_CFG, S.size); // t1217: любые размеры 4…100 — правила по шаблону лиги, как на сервере
   if (S.code !== prev?.code) resetMatchUi();
   if (S.phase !== "play") sel = null;
   if (S.g && prev?.g && S.g.cur !== prev.g.cur) sel = null;
@@ -1620,11 +1623,17 @@ async function loadCommander() {
   const pe = document.getElementById("profem"); if (pe && lv) pe.innerHTML = `<img src="/strat/ui2/badges/warlord_emblem_${tier}.png" alt="">`;
 }
 function openLibDlg() { const m = modal({ id: "libdlg", title: "Библиотека партий", icon: "book", cls: "libdlg", body: `<div class="ppane">${libHtml(null, { crest, loading: true })}</div>` }); loadLib(m.el.querySelector<HTMLElement>(".ppane")!); }
-function openMapsHub() {
-  modal({ id: "mapsdlg", title: "Карты игроков", icon: "map", cls: "mapsdlg", body: `<div class="mh-tabs" aria-disabled="true">${["Популярные", "Рейтинг", "Новые", "Избранное"].map((t, i) => `<span class="mh-tab ${i ? "" : "on"}">${t}</span>`).join("")}</div>
-    <div class="emptyrow ph"><img src="/strat/ui2/icons/icon_map_64.png" alt="" width="48" height="48"><span>Хаб карт игроков скоро откроется: лайки, комментарии, избранное и сортировка. Карты на рассмотрении публикуются только после проверки.</span></div>
-    <ul class="mh-now"><li>${ic("glory")}<span><b>Рейтинговые партии</b> идут на картах из рейтингового пула — карту выбирает сервер.</span></li><li>${ic("map")}<span>В обычной партии хост выбирает карту в лобби: «Настройки партии» → «Карта».</span></li><li>${ic("build")}<span>Свою карту можно нарисовать в редакторе и отправить на проверку.</span></li></ul>` });
+/** t1217: хаб карт игроков, редактор и модерация — src/scripts/strat/maps-ui.ts. */
+const mapsCtx: MapsCtx = { req: hubReq, toast: (t, k) => toast(t, k as any), isAdmin: () => isAdmin, isGuest: () => isGuest,
+  play: (id, size, bot) => playOnMap(id, size, bot) };
+async function playOnMap(id: string, size: number, bot: boolean) {
+  const base = size > 15 ? 15 : size <= 6 ? 5 : size <= 9 ? 8 : 15; // /strat/new знает 5/8/15; карта сама задаст размер (сервер берёт его из карты)
+  const r = await fetch(HTTP + "/strat/new", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ size: base, pub: false }) }).catch(() => null);
+  const j: any = r ? await r.json().catch(() => ({})) : {}; if (!j.code) return toast(ERR[j.err] || "Сервер недоступен", "bad");
+  pendingIntent = { mode: "custom", map: id, bot }; joinCode(j.code);
 }
+function openMapsHub() { mapsHub(mapsCtx); }
+if (LOCAL) (window as any).__mapsUi = { hub: () => mapsHub(mapsCtx), editor: () => openEditor(mapsCtx), mod: () => openModeration(mapsCtx), play: (id: string, n: number) => playOnMap(id, n, false) }; // только локальные плейтесты
 function openSettings() {
   const snd = localStorage.getItem("strat.sound") === "1";
   const m = modal({ id: "setdlg", title: "Настройки", icon: "gear", cls: "small setdlg", body: `<div class="setlist">
@@ -1649,7 +1658,7 @@ function initMenu() {
   pm.forEach((b) => (b.onclick = () => { playMode = b.dataset.pm as any; localStorage.setItem("strat.playMode", playMode); sync(); })); sync();
   for (const o of Array.from($<HTMLSelectElement>("#size").options)) o.textContent = `${o.value}×${o.value}${+o.value === 5 ? " — дуэль" : ""} · ${leagueName(+o.value)} лига`;
   const on = (id: string, f: () => void) => { const b = document.getElementById(id); if (b) b.onclick = f; };
-  on("libbtn", openLibDlg); on("codexbtn", () => openCodex({ http: HTTP, auth: async () => { const h = await helloMsg(); return h.token ? { token: h.token } : h.userId ? { dev: h.userId } : {}; } })); on("mapsbtn", openMapsHub); on("setbtn", openSettings); loadCommander();
+  on("libbtn", openLibDlg); on("codexbtn", () => openCodex({ http: HTTP, auth: async () => { const h = await helloMsg(); return h.token ? { token: h.token } : h.userId ? { dev: h.userId } : {}; } })); on("mapsbtn", openMapsHub); on("mapedbtn", () => openEditor(mapsCtx)); on("modbtn", () => openModeration(mapsCtx)); on("setbtn", openSettings); loadCommander();
 }
 
 // ---------- запуск ----------
