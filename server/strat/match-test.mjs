@@ -221,7 +221,10 @@ for (const c of [A, B, X, P, O2, H, h1, h2]) try { c.close(); } catch {}
   const D = rs?.raceDraw;
   ok(D && D.seed && createHash("sha256").update("strat-race:" + D.seed).digest("hex") === D.commit, "старт: seed раскрыт, SHA-256 совпадает с commit");
   ok(rs && rs.g.races[0] !== rs.g.races[1] && D.rolls?.length === 2 && D.w?.[0] === 85, "расы назначены жребием, без повтора, веса 85/15");
-  ok(D?.rolls?.find((r) => r.seat === 0)?.favPool?.length > 0 && D.rolls.find((r) => r.seat === 1)?.favPool?.length === 0, "любимые расы из D1 подтянуты (у Беты нет)");
+  const ra = await RA.wait("st", (m) => m.phase === "play" && m.raceDraw?.rolls, 6000), DA = ra?.raceDraw;
+  ok(DA?.rolls?.find((r) => r.seat === 0)?.favPool?.length > 0 && D.rolls.find((r) => r.seat === 1)?.favPool?.length === 0, "любимые расы из D1 подтянуты (у Беты нет) — каждому свой бросок");
+  const opp = D?.rolls?.find((r) => r.seat === 0), opp2 = DA?.rolls?.find((r) => r.seat === 1);
+  ok(opp && opp.race && !("favPool" in opp) && !("fromFav" in opp) && !("roll" in opp) && opp2 && !("favPool" in opp2), "t1175: любимые расы соперника не уходят клиенту");
   const rows2 = JSON.parse(execSync(`${process.env.WRANGLER || "npx wrangler"} d1 execute morrisgrad_db --local --persist-to ${process.env.PERSIST} --config wrangler.json --json --command "SELECT seed FROM strat_race_draws WHERE commit_hash = '${D?.commit}'"`, { encoding: "utf8" }))[0].results;
   ok(rows2[0]?.seed === D?.seed, "журнал жребия в D1 strat_race_draws");
   RA.send({ type: "forfeit" }); await RA.wait("st", (m) => m.phase === "over");

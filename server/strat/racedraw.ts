@@ -46,3 +46,8 @@ export async function drawRaces(seed: string, seats: DrawSeat[], cfg: Partial<Dr
   }
   return { races: taken as Race[], rolls, order } as any;
 }
+/** t1175: что видит место `viewer` из бросков жребия. Свой бросок — целиком (аудит по seed), у соперников — только место, раса и пул:
+ *  без favPool/fromFav/roll, иначе «Любимые расы» соперника видны (favPool) или вычисляются (roll против веса fav). Зритель (−1) — как соперник. */
+export function rollsFor(rolls: DrawRoll[] | undefined, viewer: number): any[] | undefined {
+  return rolls?.map((r) => (r.seat === viewer ? r : { seat: r.seat, race: r.race, pool: r.pool }));
+}

@@ -1,5 +1,5 @@
 // bun server/strat/racedraw-test.ts — рейтинговый жребий рас (t1144)
-import { drawRaces, cleanFav, commitOf, allowed } from "./racedraw";
+import { rollsFor, drawRaces, cleanFav, commitOf, allowed } from "./racedraw";
 import { RACES, type Race } from "./rules";
 import { deepMerge } from "./econ-cfg";
 import { STRAT_CFG } from "./rules";
@@ -43,4 +43,12 @@ t("allowed: 7 в одной команде не пусто", allowed(Array.from(
   t(`очерёдность честная ${w0}/${w1}`, Math.abs(w0 - w1) < 200 && w0 + w1 === 2000); }
 // проверяемость: из раскрытого seed пересчитывается то же
 { const seats = [S(["stone"], 0), S(["water", "nature"], 1)], r = await drawRaces("audit", seats); t("аудит: пересчёт по seed", JSON.stringify((await drawRaces("audit", seats)).races) === JSON.stringify(r.races)); }
+// t1175: чужие «Любимые расы» не уходят клиенту — у соперника нет favPool/fromFav/roll, свой бросок целиком
+{ const r = await drawRaces("leak", [S(["fire", "ice", "water"], 0), S(["stone", "nature"], 1)]);
+  const v0 = rollsFor(r.rolls, 0)!, v1 = rollsFor(r.rolls, 1)!, sp = rollsFor(r.rolls, -1)!, js = (x: any) => JSON.stringify(x);
+  const mine0 = v0.find((x) => x.seat === 0), opp0 = v0.find((x) => x.seat === 1), opp1 = v1.find((x) => x.seat === 0);
+  t("жребий: свой бросок целиком (аудит)", mine0.favPool?.length === 3 && "fromFav" in mine0 && "roll" in mine0);
+  t("жребий: у соперника только место/раса/пул", js(Object.keys(opp0).sort()) === js(["pool", "race", "seat"]) && js(Object.keys(opp1).sort()) === js(["pool", "race", "seat"]));
+  t("жребий: зрителю ничьих любимых", sp.every((x) => !("favPool" in x) && !("fromFav" in x) && !("roll" in x)));
+  t("жребий: исходные броски не изменены", r.rolls.every((x) => Array.isArray(x.favPool)) && rollsFor(undefined, 0) === undefined); }
 console.log(`racedraw: ${ok} PASS, ${bad} FAIL`); if (bad) process.exit(1);

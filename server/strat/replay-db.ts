@@ -30,7 +30,7 @@ export async function libList(db: any, uid: string, cfg: StratCfg) {
   const rec = await db.prepare(`SELECT ${META_COLS} FROM strat_replays WHERE status = 'over' AND (p0 = ? OR p1 = ?) AND ended_at >= ? ORDER BY ended_at DESC LIMIT ?`).bind(uid, uid, cut, C.recent).all();
   const sav = await db.prepare(`SELECT ${META_COLS.split(", ").map((c) => "r." + c).join(", ")}, s.title FROM strat_replay_saves s JOIN strat_replays r ON r.id = s.replay_id WHERE s.user_id = ? ORDER BY s.created_at DESC LIMIT ?`).bind(uid, C.saveMax).all();
   const savedIds = new Set((sav.results || []).map((r: any) => r.id));
-  return { recent: (rec.results || []).map((r: any) => ({ ...meta(r), saved: savedIds.has(r.id) })), saved: (sav.results || []).map(meta), keepDays: C.keepDays, saveMax: C.saveMax };
+  return { recent: (rec.results || []).map((r: any) => ({ ...meta(r), saved: savedIds.has(r.id) })), saved: (sav.results || []).map(meta), keepDays: C.keepDays, saveMax: C.saveMax, recentMax: C.recent };
 }
 export const cleanTitle = (t: any) => String(t ?? "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 60);
 /** Сохранить партию в избранное. Можно сохранить любую законченную партию (свою или чужую, по ссылке). */

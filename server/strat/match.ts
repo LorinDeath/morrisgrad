@@ -12,7 +12,7 @@ import { ECON_ACTS, goalDetails, bldMaxHp, growEvery, claimCost, claimCells, rac
 import { redactHp, setTowerMax } from "./hidehp";
 import { startLog, logAct, logEnd, moveList, FrameCache, redactX, type RLog } from "./replay";
 import { putReplay, pruneReplays, replayCfg, revealFrame } from "./replay-db";
-import { drawRaces, newSeed, commitOf, cleanFav } from "./racedraw";
+import { drawRaces, newSeed, commitOf, cleanFav, rollsFor } from "./racedraw";
 import { treeView, publicPatch, hiddenTarget } from "./tree-view";
 import { RATING_CFG, xpMul } from "./rating";
 import { matchBot, BOT_LEVELS, TACTIC_IDS, type BotLevel } from "./ai";
@@ -471,7 +471,7 @@ export class StratMatch extends DurableObject {
     const seats = L.seats.map((s, i) => s && { nick: s.nick, guest: !s.verified && !s.bot, bot: !!s.bot, ready: s.ready, picked: !!s.race,
       race: hideRace && i !== seat ? null : s.race, online: !s.goneAt, rematch: !!(s as any).rematch,
       botLv: s.bot ? s.level || "medium" : undefined, away: L.phase === "play" && s.goneAt != null, skips: L.skips?.[i] || 0 });
-    const D = L.draw, raceDraw = this.drawOn() && D ? { commit: D.commit, ...(D.rolls && L.phase !== "lobby" ? { seed: D.seed, rolls: D.rolls, order: D.order, w: D.w } : {}) } : null; // seed — только после старта
+    const D = L.draw, raceDraw = this.drawOn() && D ? { commit: D.commit, ...(D.rolls && L.phase !== "lobby" ? { seed: D.seed, rolls: rollsFor(D.rolls, seat), order: D.order, w: D.w } : {}) } : null; // seed — только после старта; чужие любимые расы не уходят (t1175)
     const out: any = { type: "st", raceDraw, code: L.code, phase: L.phase, size: L.size, pub: L.pub, rated: !!L.rated, ranked: !!L.rated, hiddenHp: !!L.hiddenHp, mode: "1v1", maxSeats: 2, turnSec: L.turnMin != null ? L.turnMin * 60 : null, rating: this.ratingView(), turnLimit: null, you: seat, seats, ev, now: Date.now(),
       mapInfo: { id: L.mapId || "", name: L.mapName || "", status: L.mapStatus || "official", xp: L.xpMap !== false } };
     if (L.phase === "lobby" && L.map) out.lobbyMap = L.map; // предпросмотр
