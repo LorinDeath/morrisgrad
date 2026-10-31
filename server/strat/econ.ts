@@ -440,6 +440,12 @@ export function pendingTalent(p: Piece, cfg: StratCfg, g?: GameState) {
   if (p.kind === "king") return g && n + 2 <= lv && chiefChoices(g, p, cfg).length ? n + 2 : 0;
   return n + 2 <= lv && n + 2 <= 3 && unitChoices(p, n + 2, cfg).length ? n + 2 : 0;
 }
+/** t1221: ждущий уровень и РОВНО те карты, что примет действие talent (Вождь — дерево вождя, фигуры — ур. 2 пассивки / ур. 3 умения). Клиенту — только по своим фигурам. */
+export function talentOpts(g: GameState, p: Piece, cfg: StratCfg): { lv: number; o: { id: string; name: string; eff: string; cd?: number; lvl?: number }[] } | null {
+  const lv = pendingTalent(p, cfg, g); if (!lv) return null;
+  const src: any[] = p.kind === "king" ? chiefChoices(g, p, cfg) : unitChoices(p, lv, cfg);
+  return { lv, o: src.map((x) => ({ id: String(x.id), name: String(x.name || x.id), eff: String(x.eff || ""), ...(x.cd != null ? { cd: +x.cd } : {}), ...(x.lvl != null ? { lvl: +x.lvl } : {}) })) };
+}
 export function onHit(g: GameState, a: Piece, t: Piece, killed: boolean, ev: Ev[], cfg: StratCfg) {
   if (!g.ec) return;
   g.ec.quiet = 0;
@@ -874,7 +880,7 @@ export function applyEcon(g: GameState, side: 0 | 1, act: EconAction, cfg: Strat
         if (n.fx.ap && g.cur === side) { g.ap += n.fx.ap; g.apMax += n.fx.ap; }
         ev.push({ e: "talent", id: p.id, t: n.id }); return ok(ev);
       }
-      const lv = pendingTalent(p, cfg); if (!lv) return no("no_talent");
+      const lv = pendingTalent(p, cfg, g); if (!lv) return no("no_talent");
       const pair: any[] = unitChoices(p, lv, cfg), t = act.t === "auto" ? pair[0] : pair.find((x) => x.id === act.t); if (!t) return no("bad_talent"); // "auto" — быстрый выбор
       p.tal = [...(p.tal || []), t.id];
       if (lv === 2) { p.atk += t.atk || 0; p.arm += t.arm || 0; if (t.hp) { p.maxHp += t.hp; p.hp += t.hp; } }
@@ -955,7 +961,7 @@ export function validateTrade(g: GameState, side: number, act: { to: number; giv
 /** Есть ли у стороны «бесплатные» действия (город/исследование/эпоха/талант) — тогда ход сам не передаётся при 0 ОД. */
 export function hasFree(g: GameState, side: 0 | 1, cfg: StratCfg): boolean {
   if (!g.ec) return false;
-  if (g.pieces.some((p) => p.owner === side && pendingTalent(p, cfg))) return true;
+  if (g.pieces.some((p) => p.owner === side && pendingTalent(p, cfg, g))) return true; // t1221: с g — иначе ждущий навык Вождя не считался
   if (!canEra(g, side, cfg)) return true;
   if (techList(cfg).some((t) => !canResearch(g, side, t, cfg))) return true;
   for (const c of g.ec.cities) if (c.owner === side && !c.acted) {

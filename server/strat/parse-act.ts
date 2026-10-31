@@ -17,6 +17,7 @@ export function parseAct(a: any): Action | null {
 }
 /** Экономика (этап 2): только целые id/координаты и строки из белого списка; остальное проверяет движок. */
 function parseEcon(a: any): Action | null {
+  if (a.a === "skill" && a.t === undefined) a = { a: "talent", id: a.id, t: a.s }; // t1221: старый клиент слал выбор из древа Вождя как «skill» — сервер его молча отбрасывал
   if (!ECON_ACTS.includes(a.a)) return null;
   const id = (v: any) => Number.isInteger(v) && v >= 0 && v < 1e6, int = (v: any) => Number.isInteger(v) && v >= 0 && v < 64;
   const word = (v: any) => typeof v === "string" && /^[a-z0-9_]{1,16}$/.test(v);

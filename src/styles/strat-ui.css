@@ -747,3 +747,4 @@ body[data-screen="game"] .gtop { display: none; }
 .ag-lg label { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: .85em; margin: 3px 0; }
 .ag-lg label.ov span { color: #ffd76a; } .ag-lg input { width: 84px; }
 .ag-err:empty { display: none; } .ag-log { font-size: .8em; max-height: 220px; overflow: auto; }
+.plaque .pcnt { white-space: nowrap; } .score.many .plaque .pcnt { font-size: .68rem; }

@@ -41,17 +41,18 @@ export const botLvName = (s: any) => (BOT_LV.find(([k]) => k === (s?.botLv ?? s?
 export const isAway = (s: any) => !!s && !s.bot && (s.online === false || s.away === true || s.dc === true || s.conn === false);
 const AWAY = `<span class="away" data-tip="Связь потеряна — ждём возвращения. Ход пройдёт по таймеру.">${ic("warn")}Игрок не за столом</span>`;
 
+const fogN = (S: any, i: number, me: number) => (S?.g?.fog && i !== me && !allies(S, i, me) ? " (видимых)" : "");
 /** Компактный список игроков в HUD: герб, цвет, команда, чей ход, «не за столом», прогресс целей. */
-export function renderPlayers(root: HTMLElement, S: any, o: { me: number; col: (i: number) => string; crest: (r: string) => string; raceName: Record<string, string>; goals: (i: number) => { done: number; need: number } | null; glory: (i: number) => number; pas: (i: number) => string }) {
+export function renderPlayers(root: HTMLElement, S: any, o: { me: number; col: (i: number) => string; crest: (r: string) => string; raceName: Record<string, string>; goals: (i: number) => { done: number; need: number; total?: number } | null; glory: (i: number) => number; pas: (i: number) => string }) {
   const g = S.g, n = S.seats.length, mode = modeOf(S), compact = n > 2;
   root.classList.toggle("many", compact);
   root.innerHTML = S.seats.map((s: any, i: number) => {
     const gq = o.goals(i), cur = g.cur === i && S.phase === "play", dead = s?.out || s?.lost, cnt = g.pieces.filter((p: any) => p.o === i).length;
-    const pips = gq ? Array.from({ length: 5 }, (_, k) => `<i class="${k < gq.done ? "on" : ""} ${k === gq.need - 1 ? "need" : ""}"></i>`).join("") : "";
+    const pips = gq ? Array.from({ length: Math.max(gq.total ?? 0, gq.need, 1) }, (_, k) => `<i class="${k < gq.done ? "on" : ""} ${k === gq.need - 1 ? "need" : ""}"></i>`).join("") : "";
     return `<div class="plaque r-${g.races[i]} ${cur ? "active" : ""} ${i === o.me ? "me" : ""} ${dead ? "out" : ""} ${isAway(s) ? "is-away" : ""}" style="--pc:${o.col(i)}">
       <span class="pc-sw"></span>${o.crest(g.races[i])}
-      <div class="pl-b"><b class="nick"></b>${s?.bot ? `<span class="botmark sm" data-tip="Бот · ${esc(botLvName(s))}">${ic("bot")}${esc(botLvName(s))}</span>` : ""}<small>${mode !== "1v1" && mode !== "ffa" ? `<span class="team t${teamOf(S, i)}">${esc(TEAM_NAME[teamOf(S, i)] || "")}</span> · ` : ""}${o.raceName[g.races[i]] || ""}${compact ? "" : ` · ${cnt} фиг.`}</small>
-      ${isAway(s) ? AWAY : ""}${gq ? `<div class="gpips" data-tip="Цели: ${gq.done} из ${gq.need}">${pips}</div>` : ""}${compact ? "" : `<div class="pas-row">${o.pas(i)}</div>`}</div>
+      <div class="pl-b"><b class="nick"></b>${s?.bot ? `<span class="botmark sm" data-tip="Бот · ${esc(botLvName(s))}">${ic("bot")}${esc(botLvName(s))}</span>` : ""}<small>${mode !== "1v1" && mode !== "ffa" ? `<span class="team t${teamOf(S, i)}">${esc(TEAM_NAME[teamOf(S, i)] || "")}</span> · ` : ""}${o.raceName[g.races[i]] || ""}<span class="pcnt" data-tip="Фигур на поле${fogN(S, i, o.me)}"> · ${cnt}&nbsp;фиг.</span></small>
+      ${isAway(s) ? AWAY : ""}${gq ? `<div class="gpips" data-tip="Цели: ${gq.done} из ${gq.need}${gq.total && gq.total !== gq.need ? ` (всего ${gq.total})` : ""}">${pips}</div>` : ""}${compact ? "" : `<div class="pas-row">${o.pas(i)}</div>`}</div>
       ${cur ? `<span class="turnarrow" aria-label="ходит">${ic("play")}</span>` : ""}<span class="pl-g">${ic("glory")}${o.glory(i)}</span></div>`; }).join("");
   root.querySelectorAll<HTMLElement>(".plaque").forEach((el, i) => (el.querySelector(".nick")!.textContent = (i === o.me ? "Вы · " : "") + (S.seats[i]?.nick || "?")));
 }

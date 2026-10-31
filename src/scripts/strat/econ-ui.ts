@@ -302,7 +302,12 @@ function techLinks(dlg: HTMLElement, nodes: TNode[]) {
 /** Уровень фигуры 1..5: сервер может прислать p.lv; иначе — по порогам cfg.econ.xp.lv (длина массива задаёт максимум). */
 export function pieceLevel(p: Piece, cfg: StratCfg): number { const v = (p as any).lv; if (typeof v === "number") return Math.max(1, Math.min(5, v)); const L = cfg.econ.xp.lv || [], x = p.xp || 0; let lv = 1; for (let i = 2; i < Math.min(L.length, 6); i++) if (x >= L[i]) lv = i; return lv; }
 /** Уровень, на котором ждёт выбор (0 — нет). L2 талант, L3 способность, L4 (TBD), L5 ульта — всё карточки «1 из 2». */
-export function pendingTalent(p: Piece, cfg: StratCfg): number { const sv = (p as any).pend; if (typeof sv === "number") return sv; const lv = pieceLevel(p, cfg), n = p.tal?.length || 0; return n + 2 <= lv && (cfg.talents[p.kind] || [])[n] ? n + 2 : 0; }
+export function pendingTalent(p: Piece, cfg: StratCfg): number { const sv = (p as any).pend; if (typeof sv === "number") return sv; const lv = pieceLevel(p, cfg), n = p.tal?.length || 0;
+  if (p.kind === "king") return 0; // t1221: у Вождя навыки — из его древа (сервер присылает pend/popts); cfg.talents.king сервер не примет
+  return n + 2 <= lv && n + 2 <= 3 && talentOptions(p, cfg, n + 2).length ? n + 2 : 0; }
+/** t1221: карты выбора на уровне lv — сервер присылает ровно те, что примет (popts); без сервера — ур. 2 пассивки, ур. 3 умения. */
+export function talentOptions(p: Piece, cfg: StratCfg, lv = pendingTalent(p, cfg)): any[] { const so = (p as any).popts; if (Array.isArray(so) && (p as any).pend === lv) return so;
+  if (p.kind === "king") return []; return lv === 2 ? ((cfg.talents as any)[p.kind]?.[0] || []) : lv === 3 ? ((cfg as any).unitTree?.[p.kind]?.act || []) : []; }
 /** Вид карты таланта: пассив / активная способность / ультимейт. */
 export const talKind = (o: any): "pas" | "act" | "ult" => (o?.type === "ult" || o?.ult ? "ult" : o?.type === "active" || o?.active || o?.cd != null ? "act" : "pas");
 export const TAL_KIND_NAME = { pas: "Талант", act: "Способность", ult: "Ультимейт" };
@@ -324,7 +329,8 @@ export function bindPieceActs(c: Ctx, p: Piece, root: HTMLElement) {
 export const TAL_ICON = (o: any) => (talKind(o) === "ult" ? "ult" : talKind(o) === "act" ? "zap" : o.ap ? "ap" : o.shot ? "target" : o.hp ? "heart" : o.arm ? "shield" : "sword");
 export async function openTalent(c: Ctx, p: Piece) {
   const cfg = cfgOf(c.S), pend = pendingTalent(p, cfg); if (!pend) return;
-  const opts = (cfg.talents[p.kind]?.[pend - 2] || []) as any[], tk = talKind(opts[0]);
+  if (p.kind === "king") return (window as any).__stratChiefTree?.(); // t1221: Вождь — выбор в его древе
+  const opts = talentOptions(p, cfg, pend), tk = talKind(opts[0]);
   const id = await choiceDlg(`${TAL_KIND_NAME[tk]} · ${KIND_NAME[p.kind]} ур. ${pend}`, "Выберите одну из двух карт — вторая сгорит.", opts.map((o) => ({ id: o.id, title: o.name, text: o.eff + (o.cd ? ` · перезарядка ${o.cd} х.` : ""), icon: TAL_ICON(o), attrs: `data-tal="${o.id}" data-pas="${regPassive(talentPassive(o, p.kind))}"` })), "talents");
   if (id) c.send({ type: "act", act: { a: "talent", id: p.id, t: id } });
 }

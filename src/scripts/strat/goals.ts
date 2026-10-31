@@ -41,7 +41,7 @@ export function chiefOf(S: any, G: GameState, side: number, cfg: StratCfg): Chie
   const CL: number[] | null = Array.isArray(c.lv) ? c.lv : null, L: number[] = CL ? [0, ...CL] : c.xp || [0, 0, 3, 7, 12, 18], maxLv = num(c.maxLv, Math.max(1, L.length - 1));
   const xp = num((p as any)?.xp ?? (G as any).chief?.[side]?.xp), lv = num((p as any)?.lv, (() => { let l = 1; for (let i = 2; i <= maxLv; i++) if (xp >= (L[i] ?? Infinity)) l = i; return l; })());
   const skills: any[][] = c.skills || (cfg as any).chiefSkills || (cfg.talents as any).king || [];
-  const took = ((p as any)?.tal || []).length, pend = p && took + 2 <= lv && skills[took] ? took + 2 : 0;
+  const took = ((p as any)?.tal || []).length, pend = p && typeof (p as any).pend === "number" ? (p as any).pend : p && took + 2 <= lv && skills[took] ? took + 2 : 0; // t1221: сервер знает точно (древо Вождя)
   const ec: any = G.ec, rs = num(ec?.chiefRespawn?.[side] ?? (G as any).respawn?.[side] ?? (G as any).chief?.[side]?.respawn, 0);
   return { p, lv, maxLv, xp, prev: L[lv] ?? 0, next: lv < maxLv ? L[lv + 1] : undefined, pend, skills, respawn: p ? 0 : rs };
 }

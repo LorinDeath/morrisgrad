@@ -3,7 +3,7 @@
 import type { Piece, StratCfg } from "../../../server/strat/rules";
 import { ic } from "./icons";
 import { esc } from "./ui-kit";
-import { KIND_NAME, pieceLevel, pendingTalent, talKind, TAL_KIND_NAME, TAL_ICON, cfgOf, type Ctx } from "./econ-ui";
+import { KIND_NAME, pieceLevel, pendingTalent, talentOptions, talKind, TAL_KIND_NAME, TAL_ICON, cfgOf, type Ctx } from "./econ-ui";
 import { regPassive, talentPassive } from "./passives";
 
 const deferred = new Set<string>(), autoSent = new Set<string>(); let deferTurn = -1;
@@ -47,12 +47,14 @@ export function renderLvDock(c: Ctx, root: HTMLElement, onPick?: () => void): bo
   if (G.turn !== deferTurn) { deferred.clear(); deferTurn = G.turn; }
   const mine = G.cur === me && S.phase === "play" ? G.pieces.filter((p) => p.owner === me && pendingTalent(p, cfg) && !deferred.has(p.id + ":" + pendingTalent(p, cfg))) : [];
   if (!mine.length) { root.hidden = true; root.innerHTML = ""; return false; }
-  const p = mine[0], lv = pendingTalent(p, cfg), opts = ((cfg.talents as any)[p.kind]?.[lv - 2] || []) as any[], tk = talKind(opts[0]);
+  const p = mine[0], lv = pendingTalent(p, cfg), opts = talentOptions(p, cfg, lv), tk = talKind(opts[0]);
+  root.classList.remove("picked"); // t1221: «picked» висел навсегда
   if (autoPick() && opts[0]) { if (autoSent.has(p.id + ":" + lv)) { root.hidden = true; return false; } autoSent.add(p.id + ":" + lv); c.send({ type: "act", act: { a: "talent", id: p.id, t: opts[Math.random() < 0.5 ? 0 : Math.min(1, opts.length - 1)].id } }); root.hidden = true; return false; }
   root.hidden = false;
   root.innerHTML = `<div class="lv-h">${ic("xp")}<div><b>${esc(KIND_NAME[p.kind])} · уровень ${lv}</b><small>${tk === "ult" ? "Открыта ульта — выберите одну" : `${TAL_KIND_NAME[tk]}: одна из двух`}${mine.length > 1 ? ` · ещё ${mine.length - 1}` : ""}</small></div></div>
-    <div class="lv-cards">${opts.map((o) => `<button class="lvcard k-${talKind(o)}" data-t="${esc(o.id)}" data-pas="${regPassive(talentPassive(o, p.kind))}"><span class="lc-ic">${ic(TAL_ICON(o))}</span><b></b><small></small>${o.cd ? `<em>перезарядка ${+o.cd} х.</em>` : ""}</button>`).join("")}</div>
-    <div class="lv-f"><button class="btn ghost sm" data-later>${ic("clock")}<span>Позже</span></button><label class="chk sm"><input type="checkbox" data-auto ${autoPick() ? "checked" : ""}/><span>выбирать сам</span></label><button class="btn sm" data-show>${ic("eye")}<span>Где он</span></button></div>`;
+    <div class="lv-cards">${opts.map((o) => `<button class="lvcard k-${talKind(o)}" data-t="${esc(o.id)}" ${p.kind === "king" ? "" : `data-pas="${regPassive(talentPassive(o, p.kind))}"`}><span class="lc-ic">${ic(TAL_ICON(o))}</span><b></b><small></small>${o.cd ? `<em>перезарядка ${+o.cd} х.</em>` : ""}</button>`).join("")}</div>
+    <div class="lv-f"><button class="btn ghost sm" data-later>${ic("clock")}<span>Позже</span></button><label class="chk sm"><input type="checkbox" data-auto ${autoPick() ? "checked" : ""}/><span>выбирать сам</span></label>${p.kind === "king" ? `<button class="btn sm" data-ctree>${ic("crown")}<span>Древо</span></button>` : ""}<button class="btn sm" data-show>${ic("eye")}<span>Где он</span></button></div>`;
+  root.querySelector<HTMLButtonElement>("[data-ctree]")?.addEventListener("click", () => (window as any).__stratChiefTree?.());
   root.querySelectorAll<HTMLButtonElement>(".lvcard").forEach((b, i) => { b.querySelector("b")!.textContent = opts[i].name; b.querySelector("small")!.textContent = opts[i].eff || "";
     b.onclick = () => { c.send({ type: "act", act: { a: "talent", id: p.id, t: opts[i].id } }); root.classList.add("picked"); onPick?.(); }; });
   root.querySelector<HTMLButtonElement>("[data-later]")!.onclick = () => { deferred.add(p.id + ":" + lv); renderLvDock(c, root, onPick); };

@@ -176,7 +176,7 @@ function openMatch() {
     if (m.type === "st") { m.skew = Date.now() - m.now; if (hv?.replay) { hv.back = m; rec.push(m.code, m.g, m.ev || []); return; }
       const viewing = !!hv, prev = liveS || S; S = m; if (S.phase !== "play" && resumeInfo?.code === S.code) resumeInfo = null; /* t1231: завершённая партия — не «незавершённая» */ onState(prev); applyIntent(); rec.push(S.code, S.g, S.ev || []); if (Array.isArray(S.hist)) rec.merge(S.code, framesFrom(S.hist));
       if (viewing && hv) { liveS = S; applyView(); } else renderMoves(); if (S.replay?.id && (!srvMv || hv || S.phase === "over")) askMoves(); }
-    if (m.type === "err") toast(ERR[m.err] || m.err, "bad");
+    if (m.type === "err") { toast(ERR[m.err] || m.err, "bad"); document.getElementById("lvdock")?.classList.remove("picked"); } // t1221: отказ — док снова активен
     if (m.type === "left") { left = true; if (resumeInfo?.code && (resumeInfo.code === S?.code || S?.phase !== "play")) resumeInfo = null; S = null; loadResume().catch(() => {}); /* t1231: меню — свежая карточка «Продолжить» */ curCode = ""; resetMatchUi(); const u = new URL(location.href); u.searchParams.delete("join"); history.replaceState(null, "", u); render(); }
   };
   ws.onclose = (e) => {
@@ -193,7 +193,7 @@ function setStatus(t: string) { for (const id of ["#status", "#lstatus"]) { cons
 let gsCache: { s: any; g: GameState | null } = { s: null, g: null };
 function gs(): GameState | null {
   if (!S?.g) return null; if (gsCache.s === S.g) return gsCache.g; const g = S.g;
-  const G = { ...g, nextId: 0, lastEv: [], pieces: g.pieces.map((p: any) => ({ id: p.id, owner: p.o, kind: p.k, x: p.x, y: p.y, hp: p.hp, maxHp: p.mh, atk: p.atk, arm: p.arm, acted: !!p.a, burn: p.b, chill: p.c, xp: p.xp, tal: p.tl, mv: !!p.mv, cm: p.cm, lv: p.lv, sk: p.sk })) };
+  const G = { ...g, nextId: 0, lastEv: [], pieces: g.pieces.map((p: any) => ({ id: p.id, owner: p.o, kind: p.k, x: p.x, y: p.y, hp: p.hp, maxHp: p.mh, atk: p.atk, arm: p.arm, acted: !!p.a, burn: p.b, chill: p.c, xp: p.xp, tal: p.tl, mv: !!p.mv, cm: p.cm, lv: p.lv, sk: p.sk, ...(g.pdv && p.o === S.you ? { pend: p.pd || 0, popts: p.po || [] } : {}) })) }; // t1221: ждущий уровень и карты — с сервера
   gsCache = { s: S.g, g: G }; return G;
 }
 const raceBase = (side: number) => (RACE_COL[S?.g?.races?.[side] ?? S?.seats?.[side]?.race] || [GOLD])[0];
@@ -834,7 +834,7 @@ function renderHud() {
   { const w2 = document.getElementById("turnwho2"); if (w2) { w2.textContent = $("#turnwho").textContent; w2.classList.toggle("mine", myTurn); } }
   const glP = goalsWithSticky(G, cfg);
   renderPlayers($("#score"), S, { me, col: raceCol, crest, raceName: RACE_NAME, glory: (i) => g.ec?.res?.[i]?.glory ?? 0, pas: racePas,
-    goals: (i) => { const q = glP.sides?.[i]; return q ? { done: q.filter((x: any) => x.done).length, need: glP.need } : null; } });
+    goals: (i) => { const q = glP.sides?.[i]; return q ? { done: q.filter((x: any) => x.done).length, need: glP.need, total: q.length } : null; } });
   { const opp = S.seats.findIndex((s: any, i: number) => i !== me && !allies(S, me, i) && isAway(s) && (s.skips ?? s.missed ?? 0) >= 5); const cl = $("#claim");
     cl.hidden = !(me >= 0 && S.phase === "play" && opp >= 0); }
   renderLvDock(ectx(), $("#lvdock"), () => setTimeout(render, 0)); chatShow(me >= 0 && S.phase !== "lobby", modeOf(S) === "2v2");
@@ -870,6 +870,7 @@ function renderHud() {
   $("#checkwarn").hidden = !(S.phase === "play" && S.check?.[me]);
 }
 
+(window as any).__stratChiefTree = () => openChiefTree(false);
 /** Древо навыков Вождя (как древо технологий, меньше). Уровни — строки, взаимоисключающие узлы через «или». */
 function openChiefTree(auto: boolean) {
   if (!S?.g || S.you < 0) return; const me = S.you, cfg = cfgOf(S), G = gs()!, ch = chiefOf(S, G, me, cfg); if (!ch.p) return;
@@ -888,8 +889,8 @@ function openChiefTree(auto: boolean) {
     sub: (auto ? "Новый уровень! " : `Уровень ${ch.lv} из ${ch.maxLv}. `) + `Очков навыка: ${points}. Выбор навсегда закрывает соседний узел.`, body });
   const nm = document.createElement("p"); nm.className = "ct-name"; nm.textContent = "Вождь " + chiefName(me); m.el.querySelector(".dlg-h div")!.appendChild(nm);
   m.el.querySelectorAll<HTMLButtonElement>("[data-skill]").forEach((b) => (b.onclick = (e) => { if (b.getAttribute("aria-disabled")) return; e.stopPropagation(); const id = b.dataset.skill!;
-    // сейчас сервер принимает выбор как талант Вождя; при появлении отдельного действия навыков (ТЗ §14) — «skill»
-    send({ type: "act", act: (cfg as any).chiefs || (cfg as any).chiefTypes ? { a: "skill", id: ch.p!.id, s: id } : { a: "talent", id: ch.p!.id, t: id } }); m.close(true); }));
+    // t1221: сервер принимает выбор из древа Вождя только как talent (раньше слали «skill» → bad_action, выбор молча пропадал)
+    send({ type: "act", act: { a: "talent", id: ch.p!.id, t: id } }); m.close(true); }));
 }
 
 /** t1202: доход постройки карты — из правил (econ.struct / ruins / obelisk), не из текста. */
