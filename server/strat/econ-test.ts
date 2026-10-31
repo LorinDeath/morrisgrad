@@ -1,7 +1,7 @@
 // Тесты экономики этапа 2 (города, найм, постройки, технологии, таланты, Слава, хук обмена, черновые расы, админ-конфиг):
 //   nice bun server/strat/econ-test.ts
 import { newGame, apply, STRAT_CFG, type GameState, type Piece } from "./rules";
-import { cityRadius, raceCfg, territory, citySlots, canRecruit, canResearch, canEra, canFound, pendingTalent, validateTrade, effArm, effAtk, recruitCells, sz } from "./econ";
+import { cityRadius, raceCfg, territory, citySlots, canRecruit, canResearch, canEra, canFound, pendingTalent, validateTrade, effArm, effAtk, recruitCells, sz, techEra } from "./econ";
 import { techById } from "./econ-cfg";
 import { mergeCfg, sanitizePatch } from "./cfg";
 let fails = 0, n = 0; const ok = (c: any, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -121,6 +121,14 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
   ok(r1 === 2 && r2 === 4, "t1163: «Чаща» не действует на ур. 1 столицы, +1 с ур. 2");
   const w8 = newGame(8, ["water", "ice"], 0), w15 = newGame(15, ["water", "ice"], 0);
   ok((raceCfg(w8, 0, STRAT_CFG).healOwnT || 0) === 0 && raceCfg(w15, 0, STRAT_CFG).healOwnT === 1, "t1163: пассивное лечение Воды выключено только в лиге quick");
+}
+
+// t1163 (раунд 5): «Чаща» в Обычной лиге — с эры IV (econ.league.normal.techEra), в Быстрой — эра III как в дереве
+{
+  const g = newGame(15, ["nature", "ice"], 0), g8 = newGame(8, ["nature", "ice"], 0), t = techById("grove")!;
+  ok(techEra(g, t, STRAT_CFG) === 4 && techEra(g8, t, STRAT_CFG) === 3, "t1163: эра «Чащи» по лиге: normal 4, quick 3");
+  g.ec.era[0] = 3; g.ec.res[0].know = 999; ok(canResearch(g, 0, t, STRAT_CFG) === "need_era", "t1163: в Обычной «Чаща» в эре III закрыта");
+  g.ec.era[0] = 4; ok(canResearch(g, 0, t, STRAT_CFG) === null, "t1163: в Обычной «Чаща» открывается в эре IV");
 }
 
 console.log(fails ? `FAILED ${fails}/${n}` : `ALL OK ${n}`); if (fails) process.exit(1);

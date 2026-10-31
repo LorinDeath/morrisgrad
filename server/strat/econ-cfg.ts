@@ -64,9 +64,9 @@ export const ECON = {
     quick:    { apBase: 1, apTech: 1, apBld: 1, raceCap: 1, onceMax: 1, apMax: 6,  grow: 6, growMin: 5, growMax: 6, capture: 4, found: 8,  respawn: 4, xp: 1.25, research: 0.8,
                 race: { water: { healOwnT: 0 }, fire: { hpMul: 1.0 }, lightning: { chain: 1 } } }, // secondGold: 6 пробовали (H) — перевес первого хода не снизился (61%), не берём
     normal:   { apBase: 2, apTech: 1, apBld: 3, raceCap: 2, onceMax: 1, apMax: 7,  grow: 12, growMin: 10, growMax: 14, capture: 4, found: 10, respawn: 5, xp: 1,    research: 1,
-                race: { lightning: { hpMul: 1.0 } } },
+                race: { lightning: { hpMul: 1.0 } }, techEra: { grove: 4 } }, // t1163: «Чаща» в Обычной — с эры IV (Природа 68% на 15×15)
     tactical: { apBase: 3, apTech: 2, apBld: 4, raceCap: 3, onceMax: 2, apMax: 12, grow: 17, growMin: 15, growMax: 20, capture: 5, found: 12, respawn: 6, xp: 0.8,  research: 1.25 },
-  } as Record<string, { apBase: number; apTech: number; apBld: number; raceCap: number; onceMax: number; apMax: number; grow: number; growMin: number; growMax: number; capture: number; found: number; respawn: number; xp: number; research: number; secondGold?: number; race?: Record<string, Record<string, number>> }>,
+  } as Record<string, { apBase: number; apTech: number; apBld: number; raceCap: number; onceMax: number; apMax: number; grow: number; growMin: number; growMax: number; capture: number; found: number; respawn: number; xp: number; research: number; secondGold?: number; race?: Record<string, Record<string, number>>; techEra?: Record<string, number> }>,
   /** t1143: «Сила стихии» — свой ситуативный прирост ОД у каждой расы (скрытая связь раса↔тактика: игрок видит только «+N ОД: <причина>»).
    *  +1 ОД за каждые per единиц условия, не больше raceCap лиги. Считается в начале хода.
    *  fire  kills — убийства в свой прошлый ход («жар битвы»); ice chilled — обмороженные враги на поле;

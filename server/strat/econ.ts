@@ -748,16 +748,18 @@ export function techState(g: GameState, side: number, t: Tech, cfg: StratCfg): "
   if (t.req?.length && t.req.every((r) => { const rt = techOf(cfg, r); return !rt || techState(g, side, rt, cfg) === "locked"; })) return "locked"; // родитель закрыт → и ветка ниже
   return null;
 }
+/** t1163: эра технологии с поправкой лиги (econ.league[л].techEra) */
+export function techEra(g: GameState, t: Tech, cfg: StratCfg): number { return (lg(g, cfg) as any)?.techEra?.[t.id] ?? t.era; }
 export function canResearch(g: GameState, side: number, t: Tech | undefined, cfg: StratCfg): string | null {
   if (!t) return "bad_tech";
   const ec = g.ec, eras = sz(g, cfg).eras;
   if (eras <= 0) return "no_tech";
   if (t.race && t.race !== g.races[side]) return "wrong_race";
   const st = techState(g, side, t, cfg); if (st === "got") return "already"; if (st === "locked") return "locked";
-  if (t.era > ec.era[side] || t.era > eras) return "need_era";
+  const te = techEra(g, t, cfg); if (te > ec.era[side] || te > eras) return "need_era";
   if (t.req?.length && !t.req.some((r) => ec.techs[side].includes(r))) return "need_req";
   if (ec.rs[side] >= cfg.econ.research.perTurn + tfx(g, side, "research", cfg)) return "research_done";
-  if (ec.res[side].know < rCost(g, cfg, cfg.econ.research.cost[t.era])) return "no_know";
+  if (ec.res[side].know < rCost(g, cfg, cfg.econ.research.cost[te])) return "no_know";
   return null;
 }
 export function canEra(g: GameState, side: number, cfg: StratCfg): string | null {
@@ -836,7 +838,7 @@ export function applyEcon(g: GameState, side: 0 | 1, act: EconAction, cfg: Strat
     case "research": {
       const t = techOf(cfg, String(act.t)); const e = canResearch(g, side, t, cfg); if (e) return no(e);
       const extraGlory = tfx(g, side, "research", cfg) > 0 ? (cfg.econ.research as any).techGlory || 0 : 0;
-      r.know -= rCost(g, cfg, cfg.econ.research.cost[t!.era]); ec.techs[side].push(t!.id); ec.rs[side]++;
+      r.know -= rCost(g, cfg, cfg.econ.research.cost[techEra(g, t!, cfg)]); ec.techs[side].push(t!.id); ec.rs[side]++;
       const kh = t!.fx?.kingHp || 0; if (kh) for (const p of g.pieces) if (p.owner === side && p.kind === "king") { p.maxHp += kh; p.hp += kh; }
       ev.push({ e: "tech", side, t: t!.id }); addGlory(g, side, cfg.econ.glory.tech + extraGlory, "tech", ev); return ok(ev);
     }

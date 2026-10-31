@@ -1,7 +1,7 @@
 // Тесты этапа 4: цели, Вожди (тип, дерево, гибель, возрождение, имя), расовые варианты, пассивки рас.
 //   nice bun server/strat/s4-test.ts
 import { newGame, apply, STRAT_CFG, type GameState, RACES } from "./rules";
-import { apFor, chiefChoices, chiefTypesFor, validateChiefDef, chiefNodeBudget, holdScore, goalCfg, buildView, techView, bp, effArm, effAtk, territory } from "./econ";
+import { apFor, chiefChoices, chiefTypesFor, validateChiefDef, chiefNodeBudget, holdScore, goalCfg, buildView, techView, bp, effArm, effAtk, territory, raceCfg } from "./econ";
 import { techById } from "./econ-cfg";
 import { checkChiefName, cleanName } from "./names";
 let fails = 0, n = 0; const ok = (c: any, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -116,9 +116,12 @@ const killKing = (g: GameState, s: number) => { const k = king(g, s)!; const a =
   const g = newGame(8, ["lightning", "ice"], 0); g.pieces = g.pieces.filter((p) => p.kind === "king" || p.kind === "rook");
   const a = g.pieces.find((p) => p.owner === 0 && p.kind === "rook")!, t1 = g.pieces.find((p) => p.owner === 1 && p.kind === "rook")!;
   const t2 = g.pieces.filter((p) => p.owner === 1 && p.kind === "rook")[1]; a.x = 3; a.y = 3; t1.x = 4; t1.y = 3; t2.x = 4; t2.y = 4; const h2 = t2.hp;
-  const r = apply(g, 0, { a: "attack", id: a.id, x: 4, y: 3 }); ok(r.ok && t2.hp === h2 - C.race.lightning.chain, "Молния: разряд по соседнему врагу");
-  const w = newGame(8, ["water", "ice"], 0), wp = w.pieces.find((p) => p.owner === 0 && p.kind === "pawn")!; wp.hp = 3; endTurn(w); endTurn(w);
-  ok(wp.hp === 4, "Вода: +1 HP на своей земле");
+  const r = apply(g, 0, { a: "attack", id: a.id, x: 4, y: 3 }); ok(r.ok && t2.hp === h2 - (raceCfg(g, 0, C).chain || 0), "Молния: разряд по соседнему врагу (число лиги: 8×8 quick — 1)");
+  // t1163: лечение Воды на своей земле — по лиге (quick 0, normal/tactical 1)
+  for (const size of [8, 15]) {
+    const w = newGame(size, ["water", "ice"], 0), T = territory(w, C), wp = w.pieces.find((p) => p.owner === 0 && p.kind === "pawn" && T[p.y * w.size + p.x] === 0)!, heal = raceCfg(w, 0, C).healOwnT || 0; wp.hp = 3; endTurn(w); endTurn(w);
+    ok(wp.hp === 3 + heal && heal === (size === 8 ? 0 : 1), `Вода ${size}×${size}: +${heal} HP на своей земле`);
+  }
   const nt = newGame(8, ["nature", "ice"], 0), np = nt.pieces.find((p) => p.owner === 0 && p.kind === "pawn")!; np.x = 3; np.y = 1;
   ok(effArm(nt, np, C, territory(nt, C)) === np.arm - 1 || effArm(nt, np, C, territory(nt, C)) === 0, "Природа: −1 БРН вне своей земли (не ниже 0)");
 }
