@@ -90,8 +90,40 @@ export function shake(lv: number) {
 type SX = (x: number) => number;
 const easeOut = (k: number) => 1 - Math.pow(1 - k, 3);
 /** Телеграф: подсветка круга и клеток под прицелом. */
-export function drawAim(ctx: CanvasRenderingContext2D, race: string, x: number, y: number, r: number, n: number, sx: SX, sy: SX, z: number, now: number, ok = true) {
+/** Форма ульты Вождя по расе — зеркало server/strat/ult.ts ultCells + tree-data ULTS (в публичный бандл ULTS не уходят). */
+const AIM_SHAPE: Record<string, { s: "circle" | "square" | "line" | "chain"; r?: number; size?: number; eraSize?: number; len?: number; hops?: number; hop?: number }> = {
+  fire: { s: "circle", r: 2.5 }, lightning: { s: "chain", hops: 3, hop: 3 }, stone: { s: "square", size: 3, eraSize: 5 }, ice: { s: "square", size: 5 }, water: { s: "line", len: 5 }, nature: { s: "square", size: 5 },
+};
+export type AimCtx = { from: [number, number]; era: number; side: number; pieces: { x: number; y: number; o: number; hp: number; id: number }[] };
+/** клетки ульты расы race в цель (x, y) так же, как считает сервер; null — формы нет (способности фигур — круг r) */
+export function ultAimCells(race: string, x: number, y: number, n: number, A: AimCtx): [number, number][] | null {
+  const u = AIM_SHAPE[race]; if (!u) return null; const out: [number, number][] = [], inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n;
+  if (u.s === "circle") { const r = u.r!, R = Math.ceil(r); for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) if (dx * dx + dy * dy <= r * r + 1e-9 && inb(x + dx, y + dy)) out.push([x + dx, y + dy]); }
+  else if (u.s === "square") { const sz = A.era >= 3 && u.eraSize ? u.eraSize : u.size!, h = (sz - 1) >> 1; for (let dy = -h; dy <= h; dy++) for (let dx = -h; dx <= h; dx++) if (inb(x + dx, y + dy)) out.push([x + dx, y + dy]); }
+  else if (u.s === "line") { const [fx, fy] = A.from, sx = Math.sign(x - fx), sy = Math.sign(y - fy); if (!sx && !sy) return out; const px = -sy, py = sx;
+    for (let i = 1; i <= u.len!; i++) for (const w of [-1, 0, 1]) { const cx = fx + sx * i + px * w, cy = fy + sy * i + py * w; if (inb(cx, cy) && !out.some(([a, b]) => a === cx && b === cy)) out.push([cx, cy]); } }
+  else { // цепь: цель — враг в клетке, дальше ближайший непобитый враг в радиусе hop (как castUlt)
+    const foes = A.pieces.filter((q) => q.o !== A.side && q.hp > 0), hit = new Set<number>(); let cur = foes.find((q) => q.x === x && q.y === y);
+    if (!cur) return [[x, y]];
+    for (let i = 0; i < u.hops! + (A.era >= 3 ? 1 : 0) && cur; i++) { hit.add(cur.id); out.push([cur.x, cur.y]); const L: AimCtx["pieces"][number] = cur;
+      cur = foes.filter((q) => !hit.has(q.id) && Math.max(Math.abs(q.x - L.x), Math.abs(q.y - L.y)) <= u.hop!).sort((a, b) => Math.max(Math.abs(a.x - L.x), Math.abs(a.y - L.y)) - Math.max(Math.abs(b.x - L.x), Math.abs(b.y - L.y)) || a.hp - b.hp)[0]; } }
+  return out;
+}
+export function drawAim(ctx: CanvasRenderingContext2D, race: string, x: number, y: number, r: number, n: number, sx: SX, sy: SX, z: number, now: number, ok = true, A?: AimCtx) {
   const d = ULT[race] || ULT.fire, pulse = 0.5 + 0.5 * Math.sin(now / 160);
+  const cells = A ? ultAimCells(race, x, y, n, A) : null;
+  if (cells) { // форма ульты: квадрат / линия / круг клетками / цепь — контур по границе области, пунктир бежит
+    const set = new Set(cells.map(([a, b]) => b * n + a)), chain = AIM_SHAPE[race]?.s === "chain";
+    ctx.save(); ctx.fillStyle = ok ? d.col + "4a" : "#7f211940"; for (const [X, Y] of cells) ctx.fillRect(sx(X) + 1, sy(Y) + 1, z - 2, z - 2);
+    ctx.strokeStyle = ok ? d.col2 : "#e6623f"; ctx.lineWidth = Math.max(2, z * 0.06); ctx.setLineDash([z * 0.25, z * 0.12]); ctx.lineDashOffset = -now / 30; ctx.beginPath();
+    for (const [X, Y] of cells) { const x0 = Math.min(sx(X), sx(X) + z), y0 = Math.min(sy(Y), sy(Y) + z), fl = sx(1) < sx(0) ? -1 : 1, fv = sy(1) < sy(0) ? -1 : 1;
+      const E: [number, number, number, number, number, number][] = [[0, -fv, 0, 0, z, 0], [0, fv, 0, z, z, z], [-fl, 0, 0, 0, 0, z], [fl, 0, z, 0, z, z]];
+      for (const [dx, dy, a1, b1, a2, b2] of E) if (chain || !set.has((Y + dy) * n + X + dx) || X + dx < 0 || X + dx >= n) { ctx.moveTo(x0 + a1, y0 + b1); ctx.lineTo(x0 + a2, y0 + b2); } }
+    ctx.stroke(); ctx.setLineDash([]);
+    if (chain && cells.length > 1) { ctx.globalAlpha = 0.5 + 0.4 * pulse; ctx.lineWidth = Math.max(1.5, z * 0.05); ctx.beginPath(); cells.forEach(([X, Y], i) => { const px = sx(X) + z / 2, py = sy(Y) + z / 2; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke(); ctx.globalAlpha = 1; }
+    const cx = sx(x) + z / 2, cy = sy(y) + z / 2; ctx.fillStyle = d.col2; ctx.beginPath(); ctx.moveTo(cx, cy - z * 0.18); ctx.lineTo(cx + z * 0.12, cy); ctx.lineTo(cx, cy + z * 0.18); ctx.lineTo(cx - z * 0.12, cy); ctx.fill();
+    ctx.restore(); return;
+  }
   ctx.save(); ctx.fillStyle = ok ? d.col + "40" : "#7f211940";
   for (const [X, Y] of discCells(x, y, r, n)) ctx.fillRect(sx(X) + 1, sy(Y) + 1, z - 2, z - 2);
   const cx = sx(x) + z / 2, cy = sy(y) + z / 2, R = (r + 0.5) * z;

@@ -510,6 +510,8 @@ body[data-screen="game"] .gtop { display: none; }
 /* «Вождь <имя> пал»: стиль баннера ульты; появится banner_chief_down в fx-v1 — фоном картинка, текст кодом поверх */
 .ultban.k-chief .ult-title { color: #f4ead2; font-size: clamp(1.8rem, 7vw, 4.2rem); } .ultban.k-chief::before { background: #1a0705; border-color: var(--red-hi); }
 .chiefban { position: fixed; left: 50%; top: 38%; z-index: 60; transform: translate(-50%, -50%); pointer-events: none; width: min(1152px, 90vw); animation: ultIn .35s cubic-bezier(.2, 1.4, .4, 1) both; }
+.chiefban.fxban { width: min(820px, 88vw); top: 34%; text-align: center; }
+.fxban-sub { display: inline-block; margin-top: -0.4rem; padding: 0.25rem 0.9rem; background: #1a1420e6; border: 2px solid var(--gold, #e0b04a); color: #f4ead2; font: 600 clamp(0.8rem, 2.6vw, 1.05rem)/1.2 Oswald, sans-serif; letter-spacing: 0.04em; text-transform: uppercase; }
 .chiefban.out { animation: ultOut .45s ease-in both; } .chiefban .chief-art { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 30px #000a); }
 .ultban.k-growth .ult-title { color: #c8ec8a; } .ultban.k-growth::before { border-color: #6ea83a; }
 .ultban.small { top: 22%; width: min(520px, 90vw); padding: 10px 0; } .ultban.small .ult-title { font-size: clamp(1.6rem, 5vw, 2.6rem); -webkit-text-stroke-width: 2px; text-shadow: 3px 3px 0 var(--black); }

@@ -14,7 +14,7 @@ import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
 import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius, shake } from "./ult-fx";
-import { loadFx, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
+import { loadFx, fxImg, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
 import { openProfile, demoProfile } from "./profile";
@@ -244,12 +244,27 @@ function showWonder(c: any) { const g = S.g, race = g.races[c.owner] || "fire", 
 function resetMatchUi() { resetUlt(); resetFx2(); chatReset(); ultAim = null; aimCell = null; sticky.forEach((x) => x.clear()); lastHit.clear(); resetFell(); prevGoals = null; prevChief = null; endShown = false; introShown = false; cam.n = 0; document.getElementById("endscreen")?.remove(); const lg = $("#log"); if (lg) lg.innerHTML = ""; }
 /** «Вождь <имя> пал» — баннер всем игрокам. Есть арт fx-v1 (banner_chief_fallen_blank: «ВОЖДЬ … ПАЛ» нарисовано) —
  *  имя пишем кодом в его name_field (сжатие по ширине до scale_x_min, потом кегль до min_size); нет — стиль баннера ульты. */
-function chiefBanner(name: string, mine: boolean, who: string) {
-  const el = document.createElement("div"), m = fxMeta("chiefBanner"), sub = mine ? "Ваш Вождь повержен" : who ? `${who}: Вождь повержен` : "Вождь повержен";
+/** Очередь баннеров на весь экран (ульта отдельно): по одному, 2,9 с; при переполнении старые выбрасываются. */
+const banQ: (() => Promise<HTMLElement | null>)[] = []; let banBusy = false;
+function queueBanner(mk: () => Promise<HTMLElement | null>) { if (banQ.length >= 3) banQ.shift(); banQ.push(mk); if (!banBusy) nextBanner(); }
+async function nextBanner() { const mk = banQ.shift(); if (!mk) { banBusy = false; return; } banBusy = true;
+  const el = await mk().catch(() => null); if (!el) { nextBanner(); return; }
+  document.body.appendChild(el); setTimeout(() => el.classList.add("out"), 2300); setTimeout(() => { el.remove(); nextBanner(); }, 2900); }
+/** баннер fx-v1 banner_<key> (ШАХ!/ВЗЯТИЕ!/LEVEL UP!/НОВАЯ ЭПОХА!/НИЧЬЯ — надпись нарисована); нет арта — текстом в стиле баннера ульты */
+function artBanner(key: string, title: string, sub = "") {
+  queueBanner(async () => { const im = await fxImg(key), el = document.createElement("div"); el.setAttribute("role", "status"); el.setAttribute("aria-label", sub ? `${title}. ${sub}` : title);
+    if (im) { el.className = "chiefban fxban"; const i = im.cloneNode() as HTMLImageElement; i.className = "chief-art"; i.alt = ""; el.append(i); if (sub) el.append(Object.assign(document.createElement("div"), { className: "fxban-sub", textContent: sub })); }
+    else { el.className = "ultban k-chief"; const t = document.createElement("div"); t.className = "ult-title"; t.textContent = title; t.dataset.text = title;
+      el.append(Object.assign(document.createElement("i"), { className: "ult-rays" }), t); if (sub) el.append(Object.assign(document.createElement("div"), { className: "ult-sub", textContent: sub })); }
+    return el; });
+}
+function chiefBanner(name: string, mine: boolean, who: string) { queueBanner(async () => { const im = await fxImg("chiefBanner"); return chiefBannerEl(name, mine, who, im); }); }
+function chiefBannerEl(name: string, mine: boolean, who: string, img: HTMLImageElement | null): HTMLElement {
+  const el = document.createElement("div"), m = img ? fxMeta("chiefBanner") : null, sub = mine ? "Ваш Вождь повержен" : who ? `${who}: Вождь повержен` : "Вождь повержен";
   el.setAttribute("role", "status"); el.setAttribute("aria-label", `Вождь ${name} пал. ${sub}`);
   if (m) {
     const nf = m.nameField || {}, c = document.createElement("canvas"); c.width = m.w; c.height = m.h; c.className = "chief-art";
-    const x = c.getContext("2d")!, img = new Image(); img.src = m.src; x.drawImage(img, 0, 0);
+    const x = c.getContext("2d")!; x.drawImage(img!, 0, 0);
     const txt = nf.case === "upper" ? name.toUpperCase() : name, maxW = nf.max_w || nf.w || 276; let fs = nf.size || 60, sc = 1;
     const font = () => `${nf.weight || 700} ${fs}px ${nf.font || "Oswald"}, Impact, sans-serif`; x.font = font();
     let w = x.measureText(txt).width; if (w > maxW) { sc = Math.max(nf.scale_x_min || 0.72, maxW / w); while (w * sc > maxW && fs > (nf.min_size || 38)) { fs -= 2; x.font = font(); w = x.measureText(txt).width; } }
@@ -265,7 +280,7 @@ function chiefBanner(name: string, mine: boolean, who: string) {
     const s2 = document.createElement("div"); s2.className = "ult-sub"; s2.textContent = sub;
     el.append(Object.assign(document.createElement("i"), { className: "ult-rays" }), t, s2);
   }
-  document.body.appendChild(el); setTimeout(() => el.classList.add("out"), 2300); setTimeout(() => el.remove(), 2900);
+  return el;
 }
 function onState(prev: any) {
   if (S.code !== prev?.code) resetMatchUi();
@@ -294,6 +309,12 @@ function onState(prev: any) {
     if (e.e === "heal") { const t = g.pieces.find((q: any) => q.id === e.id); if (t && e.n > 0) { fx.push({ x: t.x, y: t.y, t: now, txt: "+" + e.n, col: "#7fe07a", big: true }); addAnim("heal", t.x, t.y, now); } }
     if (e.e === "shield") { const t = g.pieces.find((q: any) => q.id === e.id) || prev?.g?.pieces.find((q: any) => q.id === e.id);
       if (t) { if (e.n > 0) fx.push({ x: t.x, y: t.y, t: now, txt: "щит −" + e.n, col: "#cfe0ff" }); else fx.push({ x: t.x, y: t.y, t: now, txt: "Щит " + (e.left || ""), col: "#cfe0ff" }); } }
+    if (!hv && S.code === prev?.code) { // баннеры fx-v1 — только на живые события (не при перемотке истории)
+      if (e.e === "capture") artBanner("banner_capture", "ВЗЯТИЕ!", `${S.seats[e.by]?.nick || (e.by === me ? "Вы" : "Соперник")}: ${e.cap ? "столица взята" : "город взят"}`);
+      if (e.e === "era") artBanner("banner_new_era", "НОВАЯ ЭПОХА!", `${e.side === me ? "Вы" : S.seats[e.side]?.nick || "Соперник"}: эпоха ${["", "I", "II", "III", "IV", "V"][e.era] || e.era}`);
+      if (e.e === "lvl") { const t = g.pieces.find((q: any) => q.id === e.id); if (t) { addAnim("levelup", t.x, t.y, now, 1.5); if (t.o === me) artBanner("banner_levelup", "LEVEL UP!", `${KIND_NAME[t.k as Kind] || "Фигура"}: уровень ${e.lvl}`); } }
+    }
+    if (e.e === "tgrow") addAnim("cityGrow", e.x, e.y, now, 1.2);
     if (e.e === "recruit" && e.treant) { const t = g.pieces.find((q: any) => q.id === e.id); if (t) addAnim("spawn", t.x, t.y, now); }
     if (e.e === "chief_down") { chiefBanner(String(e.name || chiefName(e.side)), e.side === me, S.seats[e.side]?.nick || ""); shake(3); logAdd(`Вождь ${e.name || chiefName(e.side)} пал`, e.side === me ? "bad" : "good"); }
     if (e.e === "kill") { const d = prev?.g?.pieces.find((q: any) => q.id === e.id); if (d) { ghosts.push({ p: d, race: g.races[d.o], t: now }); if (d.k !== "king") shake(1);
@@ -907,7 +928,7 @@ function chiefUltBtn(ch: any, me: number): string {
 const ULT_ART: Record<string, string> = { fire: "doom", lightning: "blink", stone: "dome", ice: "blizzard", water: "tide", nature: "grove" }; // аудит п.3: серверные ключи
 function ultIconArt(race: string) { const k = ULT_ART[race]; return k ? `<img class="ult-art" src="/strat/ui2/ult/ult_icon_${k}.png" alt="">` : ic("ult"); }
 function startAim(a: NonNullable<typeof ultAim>) { ultAim = a; aimCell = null; const p = S.g.pieces.find((q: any) => q.id === a.pid); if (p) aimCell = [p.x, p.y];
-  const h = $("#hint"); h.hidden = false; h.textContent = matchMedia("(hover: hover)").matches ? "Наведите круг и нажмите — Esc отменит" : "Коснитесь клетки — круг покажется; второе касание — удар"; draw(); }
+  const h = $("#hint"); h.hidden = false; h.textContent = matchMedia("(hover: hover)").matches ? "Наведите область и нажмите — Esc отменит" : "Коснитесь клетки — область покажется; второе касание — удар"; draw(); }
 function stopAim() { ultAim = null; aimCell = null; renderHint(); draw(); }
 
 // ---------- камера: карты до 100×100 ----------
@@ -1064,7 +1085,8 @@ function drawNow() {
   bursts = bursts.filter((b) => now - b.t < FX_MS);
   for (const b of bursts) { const frs = hitFx(b.race); if (!frs.length) continue; const i = Math.min(frs.length - 1, Math.floor(((now - b.t) / FX_MS) * frs.length)), s2 = z * 1.3; ctx.drawImage(frs[i], sx(b.x) + z / 2 - s2 / 2, sy(b.y) + z / 2 - s2 / 2, s2, s2); }
   const castBusy = drawCasts(ctx, n, sx, sy, z, now), fx2Busy = drawFx2(ctx, sx, sy, z, now) || marksOn;
-  if (ultAim && aimCell) drawAim(ctx, ultAim.race, aimCell[0], aimCell[1], ultAim.r, n, sx, sy, z, now);
+  if (ultAim && aimCell) { const cp = ultAim.chief ? g.pieces.find((q: any) => q.id === ultAim!.pid) : null, side = cp ? cp.o : S.you;
+    drawAim(ctx, ultAim.race, aimCell[0], aimCell[1], ultAim.r, n, sx, sy, z, now, true, ultAim.chief ? { from: cp ? [cp.x, cp.y] : aimCell, era: g.ec?.era?.[side] || 1, side, pieces: g.pieces } : undefined); }
   // числа урона: всплывают, «пружинят», Oswald с чернильной обводкой
   fx = fx.filter((f) => now - f.t < NUM_MS); ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for (const f of fx) { const k = (now - f.t) / NUM_MS, pop = k < 0.15 ? 0.6 + (k / 0.15) * 0.6 : 1.2 - Math.min(0.2, (k - 0.15) * 0.5);
@@ -1506,6 +1528,8 @@ if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" 
 // Хуки только для локального плейтеста (localhost + ?devUser): снимок состояния, камера и клик-план «как игрок».
 if (LOCAL && (qs.get("devUser") || qs.get("demo"))) { (window as any).__stratS = () => S; (window as any).__stratCam = () => ({ ...cam }); (window as any).__stratPerf = (k = 60) => { const t0 = performance.now(); for (let i = 0; i < k; i++) drawNow(); return (performance.now() - t0) / k; }; (window as any).__stratPend = () => pendAct; (window as any).__stratSel = () => ({ sel, selCell, taps: tapN }); (window as any).__stratFace = () => [...facing.entries()].map(([id, f]) => ({ id, dir: f.dir })); }
 // Тест эффектов: подать события сервера в onState (как пришли бы с сокетом). Только dev-сборка (vite вырезает в prod) + localhost + ?fxtest=1.
+if (import.meta.env.DEV && LOCAL && qs.get("fxtest") === "1") (window as any).__stratAim = (race: string | null, x = 0, y = 0) => { // тест: прицел ульты своего Вождя (null — снять)
+  if (!race) { stopAim(); return; } const ch = S.g.pieces.find((q: any) => q.o === S.you && q.k === "king"); ultAim = { id: "ult", pid: ch?.id ?? -1, r: 2, race, chief: true }; aimCell = [x, y]; draw(); };
 if (import.meta.env.DEV && LOCAL && qs.get("fxtest") === "1") (window as any).__stratEvInj = (evs: any[], patch?: (g: any) => void) => {
   const prev = { ...S, g: JSON.parse(JSON.stringify(S.g)) }; if (patch) patch(S.g); S.ev = evs; onState(prev); draw(); return true; };
 // только локально и только в демо-доске: открыть окна для скриншотов (в бою с сервером не существует)

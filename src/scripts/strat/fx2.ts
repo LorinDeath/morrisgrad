@@ -4,7 +4,7 @@
 // Своего «кодового арта» нет (решение Алекса t1177/t1178): нет файла в манифесте — эффект просто пропускается (без запросов и 404).
 // Код рисует только движение: выпад, хит-стоп 60 мс, тряску (выключены при «уменьшить движение»).
 export const FX_ART: Record<string, string> = {
-  zapHit: "fx_discharge", zapArc: "fx_discharge_arc", heal: "fx_heal", spawn: "fx_spawn", levelup: "fx_levelup", ignite: "fx_ignite", slow: "fx_slow",
+  zapHit: "fx_discharge", zapArc: "fx_discharge_arc", heal: "fx_heal", spawn: "fx_spawn", levelup: "fx_levelup", cityGrow: "fx_city_grow", ignite: "fx_ignite", slow: "fx_slow",
   burn: "fx_status_burn", chill: "fx_status_chill", shield: "fx_status_shield", roots: "fx_status_root", heal_st: "fx_status_heal", guard: "fx_status_guard", buff: "fx_status_buff",
   volley: "proj_", ent: "ent_nature_", chiefBanner: "banner_chief_fallen_blank", // volley/ent — префиксы: proj_<раса>, ent_nature_<поза>
   ult_doom: "fx_ult_doom", ult_blink: "fx_ult_blink", ult_dome: "fx_ult_dome", ult_blizzard: "fx_ult_blizzard", ult_tide: "fx_ult_tide", ult_grove: "fx_ult_grove",
@@ -17,17 +17,33 @@ const imgs = new Map<string, HTMLImageElement>();
 /** «Уменьшить движение»: без выпада, хит-стопа и тряски. */
 export const calm = () => typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** Ленивая загрузка: сразу — статусы, удары, снаряды, энт, оверлеи (нужны в каждом ходе); ульты и баннеры — по требованию
+ *  (want) и фоном после старта (requestIdleCallback), чтобы первый кадр ульты не был пустым. */
+const LAZY = /^(fx_ult_|banner_)/;
+let onUpd: () => void = () => {}; const pend = new Set<string>(), waiters = new Map<string, ((i: HTMLImageElement | null) => void)[]>();
+function want(nm: string) {
+  if (imgs.has(nm) || pend.has(nm) || !man[nm]) return; pend.add(nm); const a = man[nm], i = new Image(); i.decoding = "async";
+  const done = (ok: boolean) => { pend.delete(nm); if (ok) imgs.set(nm, i); (waiters.get(nm) || []).forEach((f) => f(ok ? i : null)); waiters.delete(nm); if (ok) onUpd(); };
+  i.onload = () => done(true); i.onerror = () => { console.warn("[strat] эффект не загрузился, пропускаю:", a.src); done(false); }; i.src = a.src;
+}
 export async function loadFx(onUpdate: () => void, url = "/strat/art/fx/fx-manifest.json") {
-  if (off) return;
+  if (off) return; onUpd = onUpdate;
   try { const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) return; man = await r.json(); } catch { return; }
-  for (const [k, a] of Object.entries(man)) { const i = new Image(); i.decoding = "async"; i.onload = () => { imgs.set(k, i); onUpdate(); }; i.onerror = () => console.warn("[strat] эффект не загрузился, пропускаю:", a.src); i.src = a.src; }
+  for (const k of Object.keys(man)) if (!LAZY.test(k)) want(k);
+  const rest = () => { for (const k of Object.keys(man)) want(k); }; const ric = (window as any).requestIdleCallback;
+  if (ric) ric(rest, { timeout: 8000 }); else setTimeout(rest, 3000);
+}
+/** картинка арта (грузит, если ещё нет); null — нет в манифесте / не загрузилась */
+export function fxImg(key: string): Promise<HTMLImageElement | null> {
+  const nm = FX_ART[key] || key; if (!man[nm]) return Promise.resolve(null); const im = imgs.get(nm); if (im) return Promise.resolve(im);
+  return new Promise((res) => { (waiters.get(nm) || waiters.set(nm, []).get(nm)!).push(res); want(nm); if (!pend.has(nm) && !imgs.has(nm)) res(null); });
 }
 /** есть ли загруженный арт для ключа FX_ART */
 export function hasFx(key: string) { const nm = FX_ART[key] || key; return !!(man[nm] && imgs.get(nm)); }
 export function fxDur(key: string) { const a = man[FX_ART[key] || key]; return a ? (a.fr.length / (a.fps || 16)) * 1000 : 0; }
 /** кадр анимации key в момент age (мс), центр якоря — (x, y), высота кадра = size px. false — арта нет / закончилась. */
 export function drawFxArt(ctx: CanvasRenderingContext2D, key: string, x: number, y: number, size: number, age: number, opt: { rot?: number; len?: number; loop?: boolean } = {}): boolean {
-  const nm = FX_ART[key] || key, a = man[nm], im = imgs.get(nm); if (!a || !im || age < 0) return false;
+  const nm = FX_ART[key] || key, a = man[nm], im = imgs.get(nm); if (a && !im) want(nm); if (!a || !im || age < 0) return false;
   let i = Math.floor((age / 1000) * (a.fps || 16));
   if (i >= a.fr.length) { if (!opt.loop) return false; const [l0, l1] = Array.isArray(a.loop) ? a.loop : [1, a.fr.length]; i = l0 - 1 + ((i - l0 + 1) % (l1 - l0 + 1)); }
   const [fx, fy, fw, fh] = a.fr[i], [ax, ay] = a.anchor || [fw / 2, fh / 2], k = size / fh;
@@ -39,7 +55,7 @@ export function drawFxArt(ctx: CanvasRenderingContext2D, key: string, x: number,
 /** URL статичной картинки (баннер) или null */
 export function fxUrl(key: string) { const nm = FX_ART[key] || key; return man[nm] && imgs.get(nm) ? man[nm].src : null; }
 /** метаданные арта (name_field баннера и т.п.) */
-export function fxMeta(key: string): Anim | null { const nm = FX_ART[key] || key; return man[nm] && imgs.get(nm) ? man[nm] : null; }
+export function fxMeta(key: string): Anim | null { const nm = FX_ART[key] || key; return man[nm] || null; } // только манифест; картинка — fxImg
 /** Энт (призыв Природы): арт ent_nature_<поза> (idle — анимация idle_anim), якорь в ногах = (cx, gy). false — арта нет. */
 export function drawEnt(ctx: CanvasRenderingContext2D, pose: string, cx: number, gy: number, cell: number, now: number): boolean {
   const pre = FX_ART.ent; if (!pre) return false; const h = cell * 1.05;
