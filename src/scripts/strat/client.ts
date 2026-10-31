@@ -93,10 +93,14 @@ const fmtMin = (s: number) => (s >= 60 ? `${Math.round(s / 60)} мин` : `${s} 
 const SMALL = 12; // до этого размера доска целиком, без камеры и мини-карты
 
 // ---------- кто я ----------
+let clerkP: Promise<any> | null = null;
+function clerkReady(): Promise<any> {
+  return (clerkP ??= new Promise((res) => { const t0 = Date.now(); const tick = () => { const C = (window as any).Clerk; if (C?.loaded) return res(C); if (Date.now() - t0 > 6000) { clerkP = null; return res(null); } setTimeout(tick, 50); }; tick(); }));
+}
 async function helloMsg(): Promise<any> {
   const dev = qs.get("devUser"); if (LOCAL && dev) return { userId: dev };
-  const C = (window as any).Clerk;
-  try { if (C?.loaded === false && C.load) await C.load(); const t = await C?.session?.getToken?.(); if (t) return { token: t }; } catch {}
+  // t1234: window.Clerk появляется только после асинхронной загрузки clerk-js с CDN; hello уходил раньше → вошедший становился гостем. Ждём до 6 с.
+  try { const C = await clerkReady(); const t = await C?.session?.getToken?.(); if (t) return { token: t }; } catch {}
   let g = localStorage.getItem("strat_guest");
   if (!g) { g = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join(""); localStorage.setItem("strat_guest", g); }
   return { guest: g, nick: localStorage.getItem("strat_nick") || "" };
