@@ -119,9 +119,11 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   ok(inCheck(g, 1) && !inCheck(g, 0), "шах подсвечивается");
   g.pieces[1].hp = 1; apply(g, 0, { a: "attack", id: 1, x: 6, y: 0 });
   ok(g.winner === -1 && g.ec.goals[0].includes("chief") && g.ec.chief[1].dead > 0, "убит Вождь → цель «Цареубийство», партия продолжается (8×8)");
-  g.ec.goals[0].push("treasury", "domain"); apply(g, 0, { a: "end" }); ok(g.winner === -1, "t1208: 3 из 5 — ещё не победа");
-  g.ec.goals[0].push("hold", "wonder"); apply(g, 1, { a: "end" });
-  ok(g.winner === 0 && g.reason === "goals", "5 целей из 5 → победа");
+  g.ec.goals[0].push("treasury", "domain"); apply(g, 0, { a: "end" }); ok(g.winner === -1, "t1208: 3 из 6 — ещё не победа");
+  g.ec.goals[0].push("hold", "wonder"); apply(g, 1, { a: "end" }); ok(g.winner === -1, "t1211: 5 из 6 — ещё не победа");
+  g.ec.res[0].glory = 189; apply(g, 0, { a: "end" }); ok(g.winner === -1 && !g.ec.goals[0].includes("glory"), "t1211: Слава 189 < 190 — цель не засчитана");
+  g.ec.res[0].glory = 190; apply(g, 1, { a: "end" });
+  ok(g.ec.goals[0].includes("glory") && g.winner === 0 && g.reason === "goals", "t1211: Слава 190 → 6-я цель → 6 из 6 → победа (не «glory»)");
   ok(!apply(g, 1, { a: "end" }).ok, "после конца партии действия отклоняются");
 }
 // --- t1135: лимита ходов нет, автоничьи нет

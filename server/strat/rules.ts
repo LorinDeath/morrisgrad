@@ -9,7 +9,7 @@ import { castUlt, canUlt, ultTurnStart, absorb } from "./ult";
 import { BUILD_HP } from "./content-cfg";
 import { GOALS, CHIEF, CHIEFS, CHIEF_NAMES, BUILD_TPL, BUILD_RACE, TECH_NODE_ORDER, TECH_RACE_NAMES, TECH_RACE_FX } from "./content-cfg";
 import { bldStat, bldMaxHp, addGlory, gainXp } from "./econ";
-import { type Econ, type EconAction, ECON_ACTS, initEcon, startTurn, applyEcon, effAtk, effArm, explainAtk, explainArm, mageShot, apFor, burnTurns, burnDmg, chillTurns, onHit, onEnter, hasFree, botEcon, botPawnGoal, botChiefHome, talBonus, chiefDown, chiefBase, chiefFx, goalWinner, goalProgress, territory, tfx, chiefNode, pieceLevel, raceCfg } from "./econ";
+import { type Econ, type EconAction, ECON_ACTS, gloryGoals, initEcon, startTurn, applyEcon, effAtk, effArm, explainAtk, explainArm, mageShot, apFor, burnTurns, burnDmg, chillTurns, onHit, onEnter, hasFree, botEcon, botPawnGoal, botChiefHome, talBonus, chiefDown, chiefBase, chiefFx, goalWinner, goalProgress, territory, tfx, chiefNode, pieceLevel, raceCfg } from "./econ";
 
 export type Race = "fire" | "ice" | "water" | "stone" | "nature" | "lightning";
 export type Kind = "pawn" | "knight" | "mage" | "rook" | "hero" | "king";
@@ -399,7 +399,7 @@ function kill(g: GameState, t: Piece, by: Piece | undefined, ev: Ev[], cfg: Stra
 /** Победа: первый, кто выполнил need целей (TZ §14 «Цели»). Поражение без фигур и городов («разгром»). */
 function checkWin(g: GameState, ev: Ev[], cfg: StratCfg = STRAT_CFG) {
   if (!g.ec) { for (const s of [0, 1] as const) if (!g.pieces.some((p) => p.owner === s && p.kind === "king")) { finish(g, (1 - s) as 0 | 1, "king", ev); return; } return; }
-  const gw = goalWinner(g, cfg); if (gw >= 0) { finish(g, gw as 0 | 1, "goals", ev); return; }
+  gloryGoals(g, ev, cfg); const gw = goalWinner(g, cfg); if (gw >= 0) { finish(g, gw as 0 | 1, "goals", ev); return; }
   for (const s of [0, 1] as const) if (!g.pieces.some((p) => p.owner === s) && !g.ec.cities.some((c) => c.owner === s)) { finish(g, (1 - s) as 0 | 1, "wipe", ev); return; }
 }
 /** t1208: итог на лимите ходов — больше выполненных целей; поровну — больше сумма прогресса (0…1) невыполненных целей; поровну — ничья (2). */

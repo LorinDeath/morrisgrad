@@ -35,6 +35,6 @@ ok(S[8].gold === 150 && S[15].gold === 1000 && S[35].gold === 5000, "Казна 
 ok(S[8].share === 0.56 && S[15].share === 0.33 && S[35].share === 0.33, "Держава без изменений, 35 = 0.33");
 ok(S[8].wonderGold === 18 && S[8].wonderKnow === 6 && S[15].wonderGold === 40 && S[15].wonderKnow === 15 && S[35].wonderGold === 90 && S[35].wonderKnow === 35, "Чудо 18/6, 40/15, 90/35");
 ok(S[8].holdK === 4 && S[8].holdTurns === 5 && S[15].holdK === 8 && S[15].holdTurns === 10 && S[35].holdK === 14 && S[35].holdTurns === 20, "t1208: Твердыня 4/5, 8/10, 14/20");
-ok([8, 15, 35].every((n) => S[n].need === 5 && S[n].list.length === 5), "t1208: победа — все 5 целей");
+ok([8, 15, 35].every((n) => S[n].need === 6 && S[n].list.length === 6 && S[n].list.includes("glory")), "t1211: победа — все 6 целей (Слава — 6-я)");
 ok(C.econ.sizes[8].glory === 190 && C.econ.sizes[15].glory === 375 && C.econ.sizes[35].glory === 750, "Слава 190/375/750");
 console.log(rows.join("\n")); console.log(fails ? `xp-test: FAIL ${fails}` : "xp-test: OK"); if (fails) process.exit(1);

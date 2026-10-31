@@ -1,6 +1,6 @@
 // t1208: лимит ходов по лиге, предупреждения, итог на лимите (цели → прогресс → ничья), Вождь возрождается. Без ботов: только «конец хода».
 import { newGame, apply, limitWinner, STRAT_CFG as C } from "./rules";
-import { goalWinner } from "./econ";
+import { goalWinner, goalProgress, gloryGoals, goalDetails } from "./econ";
 let fails = 0; const ok = (c: any, m: string) => { if (!c) { fails++; console.log("FAIL", m); } };
 ok([8, 15, 35].map((n) => newGame(n, ["fire", "ice"], 0).turnLimit).join() === "50,150,400", "лимит 50/150/400");
 { const g = newGame(8, ["fire", "ice"], 0); const warn: number[] = []; let n = 0;
@@ -15,6 +15,15 @@ ok([8, 15, 35].map((n) => newGame(n, ["fire", "ice"], 0).turnLimit).join() === "
   ec.earned[0] = 600; ok(limitWinner(g, C) === 0, "равные цели — решает прогресс (Казна 600/1000)");
   ec.earned[0] = 0; ok(limitWinner(g, C) === w0, "детерминировано");
   const m = newGame(15, ["fire", "fire"], 0); ok(limitWinner(m, C) === 2 || true, ""); }
-{ const g = newGame(8, ["fire", "ice"], 0); const ec: any = g.ec; ec.goals[0] = ["chief", "hold", "treasury", "domain"]; ok(goalWinner(g, C) === -1, "4 из 5 — ещё не победа");
-  ec.goals[0].push("wonder"); ok(goalWinner(g, C) === 0, "5 из 5 — досрочная победа"); }
+{ const g = newGame(8, ["fire", "ice"], 0); const ec: any = g.ec; ec.goals[0] = ["chief", "hold", "treasury", "domain"]; ok(goalWinner(g, C) === -1, "4 из 6 — ещё не победа");
+  ec.goals[0].push("wonder"); ok(goalWinner(g, C) === -1, "t1211: 5 из 6 — ещё не победа");
+  ec.goals[0].push("glory"); ok(goalWinner(g, C) === 0, "t1211: 6 из 6 — досрочная победа"); }
+// t1211: Слава — прогресс 0…1 для разбора на лимите и засчитывание цели по порогу
+{ const g = newGame(8, ["fire", "ice"], 0); const ec: any = g.ec; ec.res[0].glory = 95; ec.res[1].glory = 0;
+  const P0 = goalProgress(g, 0, C), P1 = goalProgress(g, 1, C); ok(Math.abs(P0.glory - 0.5) < 1e-9 && P1.glory === 0, "прогресс Славы = Слава / порог (190)");
+  ok(limitWinner(g, C) === 0, "на лимите при равных целях прогресс Славы решает");
+  const ev: any[] = []; gloryGoals(g, ev, C); ok(!ec.goals[0].includes("glory"), "ниже порога — цели нет");
+  ec.res[0].glory = 190; gloryGoals(g, ev, C); ok(ec.goals[0].includes("glory") && ev.some((e) => e.e === "goal" && e.goal === "glory"), "порог 190 → цель «Слава»");
+  const g5 = newGame(5, ["fire", "ice"], 0); (g5.ec as any).res[0].glory = 9999; gloryGoals(g5, [], C); ok(!(g5.ec as any).goals[0].includes("glory"), "5×5: Славы как цели нет (need 1)");
+  const D = goalDetails(g, 0, C); ok(D.need === 6 && D.list.length === 6 && D.list[5].id === "glory" && D.list[5].max === 190, "goalDetails: 6 целей, Слава 190"); }
 console.log(fails ? `limit-test: FAIL ${fails}` : "limit-test: OK"); if (fails) process.exit(1);

@@ -10,7 +10,7 @@ const G = (n: number, f: string) => (p: any) => (((p.goals ??= {}).sizes ??= {})
 const lg = (n: number) => leagueOf(n) || "quick";
 /** Поля и границы (t1209): золото 1…100000, доля 0,05…0,9, лимит 10…1000, need 1…5, множители 0,05…5. */
 export const OV_FIELDS: Record<string, F> = {
-  need: { name: "Целей для победы", min: 1, max: 5, int: true, get: (c, n) => c.goals.sizes[n].need, put: (p, n, v) => { G(n, "")(p).need = v; } },
+  need: { name: "Целей для победы", min: 1, max: 6, int: true, get: (c, n) => c.goals.sizes[n].need, put: (p, n, v) => { G(n, "")(p).need = v; } },
   turnLimit: { name: "Лимит ходов", min: 10, max: 1000, int: true, get: (c, n) => c.sizes[n].turnLimit, put: (p, n, v) => { ((p.sizes ??= {})[n] ??= {}).turnLimit = v; } },
   holdK: { name: "Твердыня: очков", min: 1, max: 100, int: true, get: (c, n) => c.goals.sizes[n].holdK, put: (p, n, v) => { G(n, "")(p).holdK = v; } },
   holdTurns: { name: "Твердыня: ходов подряд", min: 1, max: 1000, int: true, get: (c, n) => c.goals.sizes[n].holdTurns, put: (p, n, v) => { G(n, "")(p).holdTurns = v; } },
@@ -18,7 +18,7 @@ export const OV_FIELDS: Record<string, F> = {
   share: { name: "Держава: доля земли", min: 0.05, max: 0.9, get: (c, n) => c.goals.sizes[n].share, put: (p, n, v) => { G(n, "")(p).share = v; } },
   wonderGold: { name: "Чудо: золото", min: 1, max: 100000, int: true, get: (c, n) => c.goals.sizes[n].wonderGold, put: (p, n, v) => { G(n, "")(p).wonderGold = v; } },
   wonderKnow: { name: "Чудо: знания", min: 1, max: 100000, int: true, get: (c, n) => c.goals.sizes[n].wonderKnow, put: (p, n, v) => { G(n, "")(p).wonderKnow = v; } },
-  glory: { name: "Порог Славы", min: 1, max: 100000, int: true, get: (c, n) => c.econ.sizes[n].glory, put: (p, n, v) => { (((p.econ ??= {}).sizes ??= {})[n] ??= {}).glory = v; } },
+  glory: { name: "Слава: порог (6-я цель)", min: 1, max: 100000, int: true, get: (c, n) => c.econ.sizes[n].glory, put: (p, n, v) => { (((p.econ ??= {}).sizes ??= {})[n] ??= {}).glory = v; } },
   xp: { name: "Опыт ×", min: 0.05, max: 5, get: (c, n) => c.econ.league[lg(n)].xp, put: (p, n, v) => { (((p.econ ??= {}).league ??= {})[lg(n)] ??= {}).xp = v; } },
   winA: { name: "Рейтинг победителю: a (K·(a−b·d))", min: 0.05, max: 5, get: (c, n) => c.goals.sizes[n].rate.winA, put: (p, n, v) => { (G(n, "")(p).rate ??= {}).winA = v; } },
   winB: { name: "Рейтинг победителю: b", min: 0, max: 1, get: (c, n) => c.goals.sizes[n].rate.winB, put: (p, n, v) => { (G(n, "")(p).rate ??= {}).winB = v; } },

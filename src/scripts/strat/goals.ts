@@ -1,61 +1,36 @@
-// Цели победы (t1208: все 5; на лимите ходов — по числу целей) и Вождь-герой (опыт, 5 уровней, навыки, возрождение).
+// Цели победы (t1211: все 6, Слава — 6-я; на лимите ходов — по числу целей) и Вождь-герой (опыт, 5 уровней, навыки, возрождение).
 // Формы данных ещё не зафиксированы (ТЗ §14) — читаем защитно: если сервер прислал готовые цели/поля Вождя, берём их;
 // иначе выводим прогресс из текущего снимка. Чистый клиентский код, правил не меняет.
 import type { GameState, Piece, StratCfg } from "../../../server/strat/rules";
-import { TECHS } from "../../../server/strat/econ-cfg";
 import { redacted } from "./fog";
 import { allies } from "./players";
 
-export type GoalId = "chief" | "capital" | "glory" | "wonder" | "tech";
+/** t1211: шесть целей — только из состояния партии (сервер: S.goals[side] = goalDetails). Старой клиентской панели (capital/tech/«Порог Славы») больше нет. */
+export type GoalId = "chief" | "hold" | "treasury" | "domain" | "wonder" | "glory";
 export const GOALS: { id: GoalId; name: string; icon: string; hint: string }[] = [
-  { id: "chief", name: "Чёрный список", icon: "skull", hint: "Сразить первого Вождя каждого соперника (в 2×2 — общий счёт команды). Возрождённые Вожди не в счёт. Нажмите, чтобы открыть список." },
-  { id: "capital", name: "Столица взята", icon: "castle", hint: "Захватить вражескую столицу" },
-  { id: "glory", name: "Порог Славы", icon: "glory", hint: "Набрать Славу до порога" },
-  { id: "wonder", name: "Великое чудо", icon: "crown", hint: "Возвести Великое чудо" },
-  { id: "tech", name: "Вершина знаний", icon: "tech", hint: "Изучить финальную технологию эпохи III" },
+  { id: "chief", name: "Цареубийство", icon: "skull", hint: "Сразить первого Вождя каждого соперника (в 2×2 — общий счёт команды). Возрождённые Вожди не в счёт. Нажмите, чтобы открыть список" },
+  { id: "hold", name: "Твердыня", icon: "castle", hint: "Набрать очки опорных пунктов и держать их нужное число ходов подряд" },
+  { id: "treasury", name: "Казна", icon: "gold", hint: "Заработать за партию заданную сумму золота" },
+  { id: "domain", name: "Держава", icon: "flag", hint: "Владеть долей карты" },
+  { id: "wonder", name: "Великое чудо", icon: "crown", hint: "Возвести Чудо своей расы в столице" },
+  { id: "glory", name: "Слава", icon: "glory", hint: "Набрать за партию порог Славы" },
 ];
-export type Goal = { id: GoalId; done: boolean; v: number; max: number; name?: string; icon?: string; desc?: string; text?: string; unit?: string; parts?: { label: string; cur: number; max: number }[]; turn?: number };
-// id целей нового сервера (balance WIP): chief, hold, treasury, domain, wonder — значки и подсказки по умолчанию
-const SRV_DEF: Record<string, { name: string; icon: string; hint: string }> = {
-  hold: { name: "Твердыня", icon: "castle", hint: "Набрать очки опорных пунктов и держать их нужное число ходов подряд" },
-  treasury: { name: "Казна", icon: "gold", hint: "Накопить золото до порога" },
-  domain: { name: "Держава", icon: "flag", hint: "Владеть нужным числом клеток земли" },
-};
-/** Описание цели: из самой цели (сервер), иначе из локального списка. */
+export type Goal = { id: string; done: boolean; v: number; max: number; name?: string; icon?: string; desc?: string; text?: string; unit?: string; parts?: { label: string; cur: number; max: number }[]; turn?: number };
+/** Описание цели: из самой цели (сервер), иначе из локального списка. Значок сервера — эмодзи, поэтому берём свой. */
 export function goalDef(q: { id: string; name?: string; icon?: string; desc?: string }) {
-  const d: any = GOALS.find((x) => x.id === q.id) || SRV_DEF[q.id] || { name: q.id, icon: "star", hint: "" };
+  const d: any = GOALS.find((x) => x.id === q.id) || { name: q.id, icon: "star", hint: "" };
   return { name: q.name || d.name, icon: q.icon && !/[^a-z_0-9]/.test(q.icon) ? q.icon : d.icon, hint: q.desc || d.hint };
 }
 const num = (v: any, d = 0) => (typeof v === "number" && isFinite(v) ? v : d);
 
-/** Цели обеих сторон: [side][5]. need — сколько нужно для победы (по умолчанию 3). */
+/** Цели всех сторон из состояния партии: S.goals[side] = { need, done, list:[{id,name,icon,desc,done,turn,p,cur,max,unit,text,parts}] }. */
 export function goalsOf(S: any, G: GameState, cfg: StratCfg): { need: number; sides: Goal[][] } {
-  const g: any = G, srv = g.goals ?? S?.goals ?? g.ec?.goals; let need = num(g.goalsNeed ?? S?.goalsNeed ?? (cfg as any).goals?.need, 3);
-  // новый сервер: S.goals[side] = { need, done, list:[{id,name,icon,desc,done,turn,p,cur,max,unit,text,parts}] }
-  if (Array.isArray(srv) && srv.some((r: any) => Array.isArray(r?.list))) {
-    const n = Math.max(srv.length, S?.seats?.length || 2);
-    const sides: Goal[][] = Array.from({ length: n }, (_, side) => (srv[side]?.list || []).map((r: any) => ({ id: r.id, done: !!r.done, v: num(r.cur, r.done ? 1 : 0), max: num(r.max, 1), name: r.name, icon: r.icon, desc: r.desc, text: r.text, unit: r.unit, parts: r.parts, turn: r.turn })));
-    need = num(srv.find((r: any) => r?.need != null)?.need, need); return { need, sides };
-  }
-  const sides: Goal[][] = Array.from({ length: Math.max(2, S?.seats?.length || 2) }, (_, side) => GOALS.map((d) => {
-    const raw = srv?.[side]?.[d.id] ?? (Array.isArray(srv?.[side]) ? srv[side].find((x: any) => x?.id === d.id) : undefined);
-    if (raw != null) { if (typeof raw === "boolean" || typeof raw === "number" && raw <= 1 && !raw.toString().includes(".")) return { id: d.id, done: !!raw, v: raw ? 1 : 0, max: 1 };
-      return { id: d.id, done: !!(raw.done ?? raw.ok), v: num(raw.v ?? raw.prog ?? raw.cur, raw.done ? 1 : 0), max: num(raw.max ?? raw.need, 1) }; }
-    return derive(S, G, side, d.id);
-  }));
-  return { need, sides };
-}
-function derive(S: any, G: GameState, side: number, id: GoalId): Goal {
-  const ec: any = G.ec, foe = 1 - side;
-  switch (id) {
-    case "glory": { const thr = num(S?.g?.glory, 0), v = num(ec?.res?.[side]?.glory); return { id, done: thr > 0 && v >= thr, v, max: thr || 1 }; }
-    case "chief": { const rows = blacklistOf(S, G, side), v = rows.filter((r) => r.dead).length; return { id, done: rows.length > 0 && v >= rows.length, v, max: Math.max(1, rows.length) }; }
-    case "capital": { const c = (ec?.cities || []).some((q: any) => q.cap && q.owner === side && q.orig != null && q.orig === foe) || (S?.result?.reason === "capital" && S.result.winner === side); return { id, done: !!c, v: c ? 1 : 0, max: 1 }; }
-    case "wonder": { const w = (ec?.cities || []).some((q: any) => q.owner === side && (q.bld || []).some((b: string) => /wonder|chudo/i.test(b))); return { id, done: w, v: w ? 1 : 0, max: 1 }; }
-    case "tech": { const have: string[] = ec?.techs?.[side] || [], T = TECHS as any[], anyFinal = T.some((t) => t.final);
-      const got = have.some((h) => { const t = T.find((x) => x.id === h); return !!t && (anyFinal ? !!t.final : t.era >= 3); });
-      return { id, done: got, v: got ? 3 : Math.min(num(ec?.era?.[side], 1), 3) - 1, max: 3 }; }
-  }
+  const g: any = G, srv = g.goals ?? S?.goals, n = Math.max(2, Array.isArray(srv) ? srv.length : 0, S?.seats?.length || 2);
+  let need = num(g.goalsNeed ?? S?.goalsNeed, 0);
+  const sides: Goal[][] = Array.from({ length: n }, (_, side) => (Array.isArray(srv?.[side]?.list) ? srv[side].list : []).map((r: any) => ({ id: String(r.id), done: !!r.done, v: num(r.cur, r.done ? 1 : 0), max: num(r.max, 1), name: r.name, icon: r.icon, desc: r.desc, text: r.text, unit: r.unit, parts: r.parts, turn: r.turn })));
+  if (Array.isArray(srv)) need = num(srv.find((r: any) => r?.need != null)?.need, need);
+  if (!need) need = Math.max(1, sides[0]?.length || 0);
+  void cfg; return { need, sides };
 }
 
 // ---------- Вождь ----------

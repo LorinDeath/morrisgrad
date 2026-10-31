@@ -251,6 +251,7 @@ export function goalProgress(g: GameState, side: number, cfg: StratCfg, T?: Int8
     const cap = G.wonderCap === false || ec.techs[side].some((id) => { const t = techOf(cfg, id); return t && t.era === E && t.br !== "elem"; });
     out.wonder = Math.min(0.95, 0.45 * Math.min(1, (era - 1) / Math.max(1, E - 1)) + (cap ? 0.3 + 0.1 * Math.min(1, ec.res[side].know / Math.max(1, G.wonderKnow)) + 0.1 * Math.min(1, ec.res[side].gold / Math.max(1, G.wonderGold)) : 0)); // знания копятся под Чудо только после «вершины»
   } else out.wonder = has("wonder") ? 1 : 0;
+  { const thr = sz(g, cfg).glory; out.glory = has("glory") ? 1 : G.list.includes("glory") && thr > 0 ? Math.min(0.99, ec.res[side].glory / thr) : 0; }
   return out;
 }
 export const cityRadius = (g: GameState, c: City, cfg: StratCfg) => (c.cap ? cfg.econ.city.capRadius[Math.min(c.lvl, cfg.econ.city.capRadius.length - 1)] + capRBonus(g, c, cfg) : cfg.econ.city.outRadius + tfx(g, c.owner, "outR", cfg));
@@ -453,12 +454,10 @@ export function onHit(g: GameState, a: Piece, t: Piece, killed: boolean, ev: Ev[
 export function addGlory(g: GameState, side: number, n: number, why: string, ev: Ev[]) {
   if (!g.ec || n <= 0) return; g.ec.res[side].glory += n; ev.push({ e: "glory", side, n, why });
 }
-/** Победа Славой: порог из размера поля (5×5 — нет). Сразу, как только набран. */
-export function checkGlory(g: GameState, cfg: StratCfg): 0 | 1 | -1 {
-  const thr = sz(g, cfg).glory; if (!g.ec || thr <= 0) return -1;
-  const a = g.ec.res[0].glory >= thr, b = g.ec.res[1].glory >= thr;
-  if (a && b) return g.ec.res[0].glory >= g.ec.res[1].glory ? 0 : 1;
-  return a ? 0 : b ? 1 : -1;
+/** t1211: Слава — 6-я цель (не отдельная победа): порог econ.sizes[…].glory набран → цель «glory» засчитана навсегда. 5×5 — цели нет. */
+export function gloryGoals(g: GameState, ev: Ev[], cfg: StratCfg) {
+  const thr = sz(g, cfg).glory; if (!g.ec || thr <= 0 || !goalOn(g, "glory", cfg)) return;
+  for (const s of [0, 1]) if (g.ec.res[s].glory >= thr) setGoal(g, s, "glory", ev, cfg);
 }
 
 /** Переход фигуры на клетку: руины (разовая награда), захват города. */
@@ -541,6 +540,7 @@ export function startTurn(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk
   ec.earned[side] += Math.max(0, inc.gold);
   if (GC.gold && ec.earned[side] >= GC.gold) setGoal(g, side, "treasury", ev, cfg);
   if (GC.share && cells / passableCells(g) >= GC.share) setGoal(g, side, "domain", ev, cfg);
+  gloryGoals(g, ev, cfg);
   if (holdScore(g, side, cfg) >= GC.holdK) { ec.hold[side]++; if (ec.hold[side] >= GC.holdTurns) setGoal(g, side, "hold", ev, cfg); } else ec.hold[side] = 0;
   ec.inc[side] = inc;
   ev.push({ e: "inc", side, gold: inc.gold, know: inc.know, glory: inc.glory });
@@ -1077,6 +1077,8 @@ export function goalDetails(g: GameState, side: number, cfg: StratCfg): { need: 
       d.parts = [{ label: "эпоха", cur: Math.min(era, E), max: E }, ...(G.wonderCap === false ? [] : [{ label: "вершина ветки", cur: cap ? 1 : 0, max: 1 }]),
         { label: "золото", cur: Math.min(G.wonderGold, ec.res[side].gold), max: G.wonderGold }, { label: "знания", cur: Math.min(G.wonderKnow, ec.res[side].know), max: G.wonderKnow }];
       d.cur = has(id) ? 1 : 0; d.max = 1; d.unit = "Чудо"; }
+    else if (id === "glory") { const thr = sz(g, cfg).glory; d.desc = `Набрать за партию ${thr} Славы: убийства, технологии, эпохи, новые города, территория, Обелиск, Чудо (траты Славу не уменьшают)`;
+      d.cur = Math.min(thr, ec.res[side].glory); d.max = thr; d.unit = "Славы"; }
     if (d.done) d.p = 1;
     d.text = d.done ? `выполнено на ходу ${d.turn}` : d.parts ? d.parts.map((x) => `${x.label} ${x.cur}/${x.max}`).join(" · ") : `${d.cur}/${d.max} ${d.unit}`;
     out.push(d);

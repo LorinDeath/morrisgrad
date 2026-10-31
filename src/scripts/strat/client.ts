@@ -68,7 +68,7 @@ type PieceStyle = "figures" | "tokens";
 let pieceStyle: PieceStyle = (localStorage.getItem("strat.pieceStyle") as PieceStyle) === "tokens" ? "tokens" : "figures";
 let glyphBadge = localStorage.getItem("strat.glyphBadge") !== "0";
 const RACE_COL: Record<string, [string, string]> = { fire: ["#ff7a3d", "#7a1d08"], ice: ["#7fd6ff", "#123d66"], water: ["#3fa7d6", "#0d3a5c"], stone: ["#c2a27a", "#4a3a2a"], nature: ["#7ccf5a", "#1f4d1a"], lightning: ["#ffe14d", "#4a3d8f"] };
-const REASON: Record<string, string> = { glory: "Достигнут порог Славы", capital: "Столица взята", king: "Вождь пал", forfeit: "Соперник сдался", disconnect: "Соперник не вернулся", limit: "Лимит ходов: больше целей (поровну — больше прогресс к остальным)", goals: "Выполнены все цели" };
+const REASON: Record<string, string> = { glory: "Достигнут порог Славы (старые правила)", capital: "Столица взята", king: "Вождь пал", forfeit: "Соперник сдался", disconnect: "Соперник не вернулся", limit: "Лимит ходов: больше целей (поровну — больше прогресс к остальным)", goals: "Выполнены все цели" };
 const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нельзя", bad_action: "Неверное действие", guest: "Только для вошедших",
   not_your_turn: "Сейчас ход соперника", already_acted: "Эта фигура уже действовала", no_ap: "Очки действий кончились", bad_move: "Туда нельзя",
   bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято", color_taken: "Этот цвет уже у соперника", bad_color: "Нет такого цвета",

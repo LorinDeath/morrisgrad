@@ -90,7 +90,7 @@ const killKing = (g: GameState, s: number) => { const k = king(g, s)!; const a =
 // --- цели
 {
   const g = newGame(8, ["fire", "ice"], 0);
-  ok(goalCfg(g, C).need === 5 && goalCfg(g, C).list.length === 5, "8×8: 5 из 5 (t1208)");
+  ok(goalCfg(g, C).need === 6 && goalCfg(g, C).list.length === 6 && goalCfg(g, C).list.includes("glory"), "8×8: 6 из 6, включая Славу (t1211)");
   ok(goalCfg(newGame(5, ["fire", "ice"], 0), C).need === 1, "5×5: 1 цель (Вождь или Твердыня)");
   g.ec.earned[0] = goalCfg(g, C).gold; endTurn(g); endTurn(g);
   ok(g.ec.goals[0].includes("treasury"), "Казна: заработано ≥ порога");

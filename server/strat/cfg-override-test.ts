@@ -14,7 +14,7 @@ const bad = (s: any, b: any) => { const r = validateOverride(s, b); return r.ok 
 ok(bad(8, { gold: 0 })[0]?.includes("1…100000"), "золото 1…100000");
 ok(bad(8, { gold: 100001 }).length === 1 && bad(15, { share: 0.95 }).length === 1 && bad(15, { share: 0.04 }).length === 1, "доля 0,05…0,9");
 ok(bad(35, { turnLimit: 9 }).length && bad(35, { turnLimit: 1001 }).length && !bad(35, { turnLimit: 10 }).length, "лимит 10…1000");
-ok(bad(8, { need: 0 }).length && bad(8, { need: 6 }).length && bad(8, { need: 2.5 }).length, "need 1…5, целое");
+ok(bad(8, { need: 0 }).length && bad(8, { need: 7 }).length && bad(8, { need: 2.5 }).length && !bad(8, { need: 6 }).length, "t1211: need 1…6, целое");
 ok(bad(8, { xp: 0.04 }).length && bad(8, { xp: 5.1 }).length && !bad(8, { xp: 0.05 }).length, "множители 0,05…5");
 ok(bad(8, { foo: 1 })[0]?.includes("неизвестное"), "неизвестное поле");
 ok(bad(8, { gold: "200" })[0]?.includes("число"), "не число");
