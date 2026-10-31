@@ -41,8 +41,8 @@ for (const [s, id, r] of [["tech", "ambush", "lightning"], ["building", "granary
   const w8 = d("water", 8), w15 = d("water", 15), f8 = d("fire", 8), f15 = d("fire", 15), l15 = d("lightning", 15), l8 = d("lightning", 8);
   const hasHeal = (t: string) => /HP своим фигурам на своей земле/.test(t), hasHp = (t: string) => /% HP всем/.test(t);
   t(!hasHeal(w8) && hasHeal(w15), "t1163 water heal по лиге");
-  t(!hasHp(f8) && hasHp(f15), "t1163 fire HP по лиге");
-  t(!hasHp(l15) && hasHp(l8), "t1163 lightning HP по лиге");
+  t(/\+10% HP всем/.test(f8) && /[−-]10% HP всем/.test(f15), "t1175 fire HP по лиге (+10% quick, −10% normal)");
+  t(/\+10% HP всем/.test(l15) && /[−-]20% HP всем/.test(l8), "t1175 lightning HP по лиге (−20% quick, +10% normal)");
   t(hasHeal(d("water")), "t1163 без размера — общие числа");
 }
 

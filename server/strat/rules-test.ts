@@ -21,8 +21,8 @@ for (const s of [5, 8, 15]) {
   ok(g.apMax === ({ 5: 1, 8: 1, 15: 2 } as any)[s] && g.turnLimit === 0, `${s}×${s}: ОД по лиге (Быстрая 1, Обычная 2), без лимита ходов`);
 }
 ok(newGame(15, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 20, "Огонь: −10% HP (Страж 22 → 20)");
-ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 22, "t1163: Огонь на 8×8 — лига quick без −10% HP (Страж 22)");
-ok(newGame(15, ["lightning", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 22 && newGame(8, ["lightning", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 20, "t1163: Молния — без −10% HP только в лиге normal (15×15)");
+ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 24, "t1175: Огонь на 8×8 — лига quick +10% HP (Страж 24)");
+ok(newGame(15, ["lightning", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 24 && newGame(8, ["lightning", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 18, "t1175: Молния — +10% HP в лиге normal (15×15, Страж 24), −20% в quick (8×8, Страж 18)");
 ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 1 && p.kind === "rook")!.maxHp === 22, "Лёд: HP без штрафа");
 // --- ходы скелета
 {

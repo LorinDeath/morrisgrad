@@ -102,7 +102,7 @@ const endTwice = (g: GameState) => { apply(g, g.cur, { a: "end" }); apply(g, g.c
 {
   for (const r of ["water", "stone", "nature", "lightning"] as const) { const g = newGame(8, [r, "fire"], 0); ok(g.pieces.filter((p) => p.owner === 0).length === g.pieces.filter((p) => p.owner === 1).length && g.ec.cities.length === 2, `раса ${r}: партия создаётся`); }
   const s = newGame(8, ["stone", "fire"], 0), sp = s.pieces.find((p) => p.owner === 0 && p.kind === "pawn")!; ok(effArm(s, sp, C) === sp.arm + 1, "Камень: +1 БРН");
-  const l = newGame(8, ["lightning", "ice"], 0); ok(l.pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === Math.round(C.units.rook.hp * 0.9), "Молния: −10% HP");
+  const l = newGame(8, ["lightning", "ice"], 0); ok(l.pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === Math.round(C.units.rook.hp * 0.8), "t1175: Молния на 8×8: −20% HP");
   const w = newGame(8, ["water", "ice"], 0), wr = w.pieces.find((p) => p.owner === 0 && p.kind === "rook")!; ok(effAtk(w, wr, null, C) === wr.atk - 1, "Вода: Страж −1 АТК");
 }
 // --- админ-конфиг
