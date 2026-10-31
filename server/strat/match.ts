@@ -359,7 +359,7 @@ export class StratMatch extends DurableObject {
     if (TLOG_A.has(act.a) && (A0.x != null || f0)) { // t1221: «мои ходы за этот ход» — путь, цель, действие, потраченные ОД; хранится по месту, отдаётся только владельцу
       const T = ((L as any).tlog ||= []); if (!T[seat] || T[seat].turn !== t0) T[seat] = { turn: t0, items: [] };
       const P1 = P0 ? g.pieces.find((p) => p.id === P0.id) : null;
-      T[seat].items.push({ a: act.a, id: A0.id ?? null, k: P0?.kind ?? null, fx: f0?.[0] ?? null, fy: f0?.[1] ?? null, x: A0.x ?? P1?.x ?? f0?.[0], y: A0.y ?? P1?.y ?? f0?.[1], ap: g.cur === prevCur && g.turn === t0 ? Math.max(0, ap0 - g.ap) : null });
+      T[seat].items.push({ a: act.a, id: A0.id ?? null, k: P0?.kind ?? null, fx: f0?.[0] ?? null, fy: f0?.[1] ?? null, x: A0.x ?? P1?.x ?? f0?.[0], y: A0.y ?? P1?.y ?? f0?.[1], ap: g.cur === prevCur && g.turn === t0 ? Math.max(0, ap0 - g.ap) : ap0 > 0 ? ap0 : null });
       if (T[seat].items.length > 40) T[seat].items.shift(); }
     if (L.st) { for (const e of r.ev as any[]) { if (e.e === "kill" && kingId && e.by === kingId) L.st.ck[seat]++; if (e.e === "ult" && (e.side === 0 || e.side === 1)) L.st.ult[e.side].push(String(e.ult)); }
       if (act.a === "talent") { const p = g.pieces.find((q) => q.id === (act as any).id); const t = p?.tal?.[p.tal.length - 1]; if (t) L.st.tal[seat].push(t); } }
