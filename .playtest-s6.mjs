@@ -328,5 +328,28 @@ if (only === "all" || only === "replay") {
   console.log("saved title", await H.evaluate(() => JSON.parse(localStorage.getItem("strat.lib.v1") || "{}").recs?.find((r) => r.id === "rpH")?.title));
   await noAdmin(H, "replay");
 }
+if (only === "all" || only === "real" || only === "tree") {
+  // r4 (8dbf364+): древо технологий из state.tree НАСТОЯЩЕГО сервера; «Чаща» по эпохе лиги (techEra): Обычная 15×15 → IV, Быстрая 8×8 → III
+  for (const [size, lg, mob] of [["15", "normal", false], ["15", "normal", true], ["8", "quick", false]]) {
+    await sleep(12000); // пауза перед /strat/new: лимит 6 лобби в минуту (429)
+    const P = await player("r4T_" + lg + (mob ? "m" : "") + "_" + T, "", mob); await P.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+    await P.click('.pmode[data-pm="bot"]').catch((e) => errs.push("tree bot: " + e.message)); await P.selectOption("#size", size); await P.click("#create"); await sleep(2200);
+    await P.locator('.racecard[data-race="nature"]').scrollIntoViewIfNeeded().catch(() => {}); await P.click('.racecard[data-race="nature"]').catch((e) => errs.push("tree race: " + e.message)); await sleep(500);
+    await P.locator("#ready").scrollIntoViewIfNeeded().catch(() => {}); await P.click("#ready", { force: true }).catch((e) => errs.push("tree ready: " + e.message)); await sleep(4000);
+    for (let k = 0; k < 2; k++) { await P.locator("#modals .namedlg button", { hasText: /Позже/i }).first().click({ timeout: 1500 }).catch(() => {}); await sleep(400); }
+    await noAdmin(P, "tree " + lg);
+    const tb = P.locator("#techbtn:visible").first(); await tb.click().catch((e) => errs.push("tree techbtn " + lg + ": " + e.message)); await sleep(1200);
+    const info = await P.evaluate(() => { const S = window.__stratDev?.dbg?.().S; const g = document.querySelector('.techscreen [data-node="grove"]'); const cells = [...document.querySelectorAll(".techscreen .tgrid > *")];
+      // ряд эпохи: ближайший предшествующий .te
+      let era = "?"; if (g) { const cell = g.closest(".tcell"); let i = cells.indexOf(cell); while (i >= 0 && !cells[i].classList.contains("te")) i--; if (i >= 0) era = cells[i].querySelector("span")?.textContent; }
+      const srv = S?.tree?.techs?.find((t) => t.id === "grove");
+      return { league: S?.league?.id, srvEra: srv?.era, srvCost: srv?.cost, srvErr: srv?.err, row: era, tip: g?.getAttribute("data-tip"), em: g?.querySelector("em")?.textContent, nodes: document.querySelectorAll(".techscreen .tnode:not(.fog)").length, cell: g ? [...g.closest(".tcell").children].map((x) => x.dataset?.node || x.className).join(" ") : "" }; });
+    console.log("tree", lg, mob ? "phone" : "desk", JSON.stringify(info));
+    const want = lg === "normal" ? "IV" : "III"; if (info.row !== want) errs.push(`tree ${lg}: «Чаща» в ряду ${info.row}, ждали ${want}`);
+    const g = P.locator('.techscreen [data-node="grove"]'); await g.scrollIntoViewIfNeeded().catch(() => {}); await g.hover().catch(() => {});
+    await shot(P, "s6-ui-r-20-tech-" + lg + "-" + size + (mob ? "-phone" : "-desk"), 700);
+    await P.context().close();
+  }
+}
 await br.close();
 console.log(errs.length ? "ERRORS:\n" + [...new Set(errs)].join("\n") : "no errors");

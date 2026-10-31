@@ -4,7 +4,8 @@
 // Древо технологий строится по данным: узлы {era, br, req[], excl[], unlocks{b[],k[]}} — форма дерева любая.
 import { STRAT_CFG, type GameState, type Piece, type Kind, type StratCfg } from "../../../server/strat/rules";
 import { TECHS, BUILD, techSibling, UNLOCK, HERO_ERA, type BuildId, type Tech } from "../../../server/strat/econ-cfg";
-import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, canFound, sz } from "../../../server/strat/econ";
+import { citySlots, territory, canBuild, buildCost, recruitCost, canRecruit, recruitCells, canResearch, canEra, canFound, sz, techEra, rCost } from "../../../server/strat/econ";
+import { leagueOf } from "../../../server/strat/rating";
 import { mergeCfg } from "../../../server/strat/cfg";
 import { ic, BUILD_ICON, BRANCH_ICON, iconImg } from "./icons";
 import { TECH_ICON } from "./tech-icons";
@@ -37,8 +38,9 @@ const RECRUIT: Kind[] = ["pawn", "rook", "knight", "mage", "hero"];
 const KIND_ICON: Record<string, string> = { pawn: "boot", rook: "shield", knight: "horse", mage: "spark", hero: "sword", king: "crown" };
 
 export type Ctx = { S: any; G: GameState; me: number; send: (o: any) => void; redraw: () => void; toast: (t: string, k?: any, i?: string) => void; col: (side: number) => string; refresh: () => void };
-export const ui = { city: null as number | null, recruit: null as { city: number; kind: Kind } | null, tech: false, cfgKey: "", cfg: STRAT_CFG as StratCfg };
-export function cfgOf(S: any): StratCfg { const k = S?.cfgPatch ? JSON.stringify(S.cfgPatch) : ""; if (k !== ui.cfgKey) { ui.cfgKey = k; ui.cfg = k ? mergeCfg(S.cfgPatch) : STRAT_CFG; } return ui.cfg; }
+export const ui = { city: null as number | null, recruit: null as { city: number; kind: Kind } | null, tech: false, cfgKey: "", cfg: STRAT_CFG as StratCfg, tree: null as any[] | null };
+export function cfgOf(S: any): StratCfg { ui.tree = Array.isArray(S?.tree?.techs) ? S.tree.techs : null; // r3: урезанное древо сервера (state.tree, ТЗ §14.F) — в клиентской сборке TECHS пуст
+  const k = S?.cfgPatch ? JSON.stringify(S.cfgPatch) : ""; if (k !== ui.cfgKey) { ui.cfgKey = k; ui.cfg = k ? mergeCfg(S.cfgPatch) : STRAT_CFG; } return ui.cfg; }
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const sg = (n: number) => (n > 0 ? "+" + n : n < 0 ? String(n) : "±0");
 const sizeOf = (G: GameState, cfg: StratCfg) => { try { return sz(G, cfg) || ({} as any); } catch { return {} as any; } };
@@ -69,19 +71,35 @@ const bIcon = (b: string, race: string) => { const a = bIcon64(b); if (a) return
 const arr = (v: any): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
 export type TNode = { id: string; name: string; eff: string; era: number; br: string; req: string[]; excl: string[]; unB: string[]; unK: string[]; icon?: string; raw: Tech; red?: boolean };
 /** Источник узлов: урезанное древо с сервера (G.ec.tree[me] / techTree), иначе общий конфиг. */
-export function techNodes(race: string, srv?: any[] | null): TNode[] {
-  if (Array.isArray(srv)) return srv.filter(Boolean).map((t: any) => { const u = t.unlocks || {}, red = redacted(t);
-    return { id: String(t.id), name: red ? "" : String(t.name), eff: red ? "" : t.eff || "", era: +t.era || 1, br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires),
-      excl: arr(t.excl ?? t.excludes ?? t.locks), unB: red ? [] : arr(u.b ?? u.buildings ?? t.builds), unK: red ? [] : arr(u.k ?? u.units), icon: red ? undefined : t.icon, raw: t, red } as TNode; });
+export function techNodes(race: string, srv?: any[] | null, eraOf?: (t: { id: string; era: number }) => number): TNode[] {
+  const E = (id: string, era: any) => { const e = +era || 1; try { return eraOf ? eraOf({ id, era: e }) || e : e; } catch { return e; } };
+  if (Array.isArray(srv)) { const L = srv.filter(Boolean);
+    return L.map((t: any) => { const u = t.unlocks || {}, red = redacted(t);
+    // соперники по группе (TreeView.grp): взял один — остальные закрыты (как techRivals на сервере)
+    const rivals = !red && t.grp && t.grp !== "root" ? L.filter((o: any) => o !== t && o.grp === t.grp).map((o: any) => String(o.id)) : [];
+    return { id: String(t.id), name: red ? "" : String(t.name), eff: red ? "" : t.eff || "", era: E(String(t.id), t.era), br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires),
+      excl: [...new Set([...arr(t.excl ?? t.excludes ?? t.locks), ...rivals])], unB: red ? [] : arr(u.b ?? u.buildings ?? t.builds ?? t.unlock), unK: red ? [] : arr(u.k ?? u.units), icon: red ? undefined : t.icon, raw: t, red } as TNode; }); }
   return (TECHS as any[]).filter((t0) => !t0.race || t0.race === race).map((t0) => {
     const sib = (() => { try { return techSibling(t0); } catch { return undefined; } })(), t: any = rv(t0, race), u = t.unlocks || {};
     const excl = new Set([...arr(t.excl ?? t.excludes ?? t.locks), ...(sib && !(t.excl || t.excludes) ? [sib.id] : [])]);
-    return { id: t.id, name: t.name, eff: t.eff || "", era: +t.era || 1, br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires),
+    return { id: t.id, name: t.name, eff: t.eff || "", era: E(t.id, t.era), br: t.br || "war", req: arr(t.req ?? t.prereq ?? t.requires),
       excl: [...excl], unB: arr(u.b ?? u.buildings ?? t.builds), unK: arr(u.k ?? u.units), icon: t.icon, raw: t0 } as TNode;
   });
 }
 export type TState = "got" | "can" | "later" | "closed";
-const srvTree = (G: GameState, me: number): any[] | null => { const ec: any = G.ec; const t = ec?.tree?.[me] ?? ec?.techTree?.[me] ?? ec?.tree ?? null; return Array.isArray(t) ? t : null; };
+const srvTree = (G: GameState, me: number): any[] | null => { const ec: any = G.ec; const t = ec?.tree?.[me] ?? ec?.techTree?.[me] ?? ec?.tree ?? ui.tree ?? null; return Array.isArray(t) ? t : null; };
+/** t1163: эпоха технологии с поправкой лиги (econ.league[л].techEra — «Чаща» в Обычной с эпохи IV) */
+export const leagueEra = (G: GameState, cfg: StratCfg) => (t: { id: string; era: number }) => techEra(G, t as any, cfg);
+const LG_NAME: Record<string, string> = { quick: "Быстрая", normal: "Обычная", tactical: "Тактическая" };
+/** стоимость узла в знаниях: по эпохе лиги и множителю лиги (как canResearch/applyEcon на сервере) */
+const techCost = (G: GameState, cfg: StratCfg, era: number): number | "?" => { const v = cfg.econ.research.cost?.[era]; return v == null ? "?" : rCost(G, cfg, v); };
+/** подсказка узла (HTML): эффект + эпоха (с пометкой лиги, если она сдвинута) + цена */
+export function techTip(G: GameState, cfg: StratCfg, n: TNode): string {
+  const base = +(n.raw as any)?.era || n.era, lid = leagueOf(G.size) || "tactical";
+  const era = `Эпоха ${ERA_ROMAN[n.era] || n.era}` + (base !== n.era ? ` — в лиге «${LG_NAME[lid] || lid}» (обычно эпоха ${ERA_ROMAN[base] || base})` : "");
+  const t = String((n.raw as any)?.tip || n.eff || ""); // подсказка вставляется как HTML (ui-kit tipOf) — текст экранируем
+  return (t ? esc(t) + "<br>" : "") + `<b>${esc(era)}</b> · ${techCost(G, cfg, n.era)} знаний`;
+}
 /** Видимость узла древа технологий для игрока (туман знаний). */
 export function techFog(G: GameState, me: number, n: TNode, st: TState): FogView {
   const have: string[] = (G.ec?.techs?.[me] || []) as any;
@@ -99,14 +117,19 @@ export function techState(G: GameState, me: number, n: TNode, all: TNode[], cfg:
     return null;
   };
   const cl = closedBy(n); if (cl) return { st: "closed", why: "Путь закрыт: " + cl };
-  let err: string | null = null; try { err = canResearch(G, me, n.raw, cfg); } catch { err = "bad_tech"; }
+  const R: any = n.raw; let err: string | null = null;
+  if (R && typeof R.state === "string") { // узел из state.tree: решение сервера (в клиентской сборке нет полного дерева для canResearch)
+    if (R.state === "closed") return { st: "closed", why: "Путь закрыт навсегда" };
+    err = R.state === "hidden" ? "need_req" : R.err || null;
+  } else { try { err = canResearch(G, me, n.raw, cfg); } catch { err = "bad_tech"; } }
   if (!err) return { st: "can", why: "" };
+  if (err === "need_era") return { st: "later", why: `Нужна эпоха ${ERA_ROMAN[n.era] || n.era}` };
   const miss = n.req.filter((r) => !have.includes(r)).map((r) => byId.get(r)?.name || r);
   return { st: "later", why: miss.length ? "Сначала: " + miss.join(", ") : ECON_ERR[err] || err };
 }
 /** Технология, открывающая постройку/фигуру (если баланс так задал), и изучена ли она. */
 function gateOf(G: GameState, me: number, kind: "b" | "k", id: string, cfg: StratCfg): { name: string; closed: boolean } | null {
-  const nodes = techNodes(G.races[me], srvTree(G, me)); const direct = kind === "b" ? (BUILD as any)[id]?.tech ?? (BUILD as any)[id]?.req : null;
+  const nodes = techNodes(G.races[me], srvTree(G, me), leagueEra(G, cfg)); const direct = kind === "b" ? (BUILD as any)[id]?.tech ?? (BUILD as any)[id]?.req : null;
   const n = nodes.find((x) => x.id === direct) || nodes.find((x) => (kind === "b" ? x.unB : x.unK).includes(id)); if (!n) return null;
   const s = techState(G, me, n, nodes, cfg); if (s.st === "got") return null;
   return { name: techFog(G, me, n, s.st) === "show" ? n.name : "?", closed: s.st === "closed" };
@@ -205,14 +228,14 @@ export function renderTech(c: Ctx) {
   const { G, S, me } = c, cfg = cfgOf(S), ec = G.ec;
   if (!ui.tech || !ec || S.phase !== "play" || me < 0) { ui.tech = false; persist("techdlg", false, ""); return; }
   const dlg = persist("techdlg", true, "techdlg full")!;
-  const eras = sizeOf(G, cfg).eras || 3, my = G.cur === me, race = G.races[me], nodes = techNodes(race, srvTree(G, me));
+  const eras = sizeOf(G, cfg).eras || 3, my = G.cur === me, race = G.races[me], nodes = techNodes(race, srvTree(G, me), leagueEra(G, cfg));
   const brs = [...new Set(["war", "econ", "elem", ...nodes.map((n) => n.br)])].filter((b) => nodes.some((n) => n.br === b) || b === "elem");
   const maxEra = Math.max(4, eras, ...nodes.map((n) => n.era)); // эпоха IV видна всегда: её узлы скрыты «?», пока сервер их не раскроет
-  const cost = (e: number) => cfg.econ.research.cost?.[e] ?? "?";
+  const cost = (e: number) => techCost(G, cfg, e);
   const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
-    return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
+    return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" data-tip="${esc(techTip(G, cfg, n))}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
       <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
       <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>
       <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + cost(n.era)}</em></button>`; };
