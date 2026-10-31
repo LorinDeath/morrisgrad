@@ -60,6 +60,7 @@ type L = {
 };
 type Att = { pkey?: string; nick?: string; verified?: boolean; url: string; tk: number; at: number; st: number };
 
+const TLOG_A = new Set(["move", "attack", "ability", "ult", "build", "raze", "tower", "claim", "recruit"]);
 export class StratMatch extends DurableObject {
   env: any; L: L | null = null; loaded = false; botTimer: any = null;
   constructor(ctx: any, env: any) { super(ctx, env); this.env = env; }
@@ -353,7 +354,13 @@ export class StratMatch extends DurableObject {
     const L = this.L!, g = L.game!, prevCur = g.cur;
     const hid = hiddenTarget(g, seat, act, this.cfg()); if (hid) return hid; // скрытый узел дерева — как несуществующий
     const kingId = g.pieces.find((p) => p.owner === seat && p.kind === "king")?.id;
+    const A0: any = act, P0 = A0.id != null ? g.pieces.find((p) => p.id === A0.id && p.owner === seat) : null, f0 = P0 ? [P0.x, P0.y] : null, ap0 = g.ap, t0 = g.turn;
     const r = apply(g, seat, act, this.cfg()); if (!r.ok) return r.err;
+    if (TLOG_A.has(act.a) && (A0.x != null || f0)) { // t1221: «мои ходы за этот ход» — путь, цель, действие, потраченные ОД; хранится по месту, отдаётся только владельцу
+      const T = ((L as any).tlog ||= []); if (!T[seat] || T[seat].turn !== t0) T[seat] = { turn: t0, items: [] };
+      const P1 = P0 ? g.pieces.find((p) => p.id === P0.id) : null;
+      T[seat].items.push({ a: act.a, id: A0.id ?? null, k: P0?.kind ?? null, fx: f0?.[0] ?? null, fy: f0?.[1] ?? null, x: A0.x ?? P1?.x ?? f0?.[0], y: A0.y ?? P1?.y ?? f0?.[1], ap: g.cur === prevCur && g.turn === t0 ? Math.max(0, ap0 - g.ap) : null });
+      if (T[seat].items.length > 40) T[seat].items.shift(); }
     if (L.st) { for (const e of r.ev as any[]) { if (e.e === "kill" && kingId && e.by === kingId) L.st.ck[seat]++; if (e.e === "ult" && (e.side === 0 || e.side === 1)) L.st.ult[e.side].push(String(e.ult)); }
       if (act.a === "talent") { const p = g.pieces.find((q) => q.id === (act as any).id); const t = p?.tal?.[p.tal.length - 1]; if (t) L.st.tal[seat].push(t); } }
     if (this.R && L.rid === this.R.id) logAct(this.R, seat, act, auto, g, g.cur !== prevCur);
@@ -522,6 +529,7 @@ export class StratMatch extends DurableObject {
     if (L.result) { out.result = { ...L.result }; const R = this.ratingView(); // клиент UI: result.rating[side] = {league, before, after, delta}
       if (R?.league) out.result.rating = Object.fromEntries(R.seats.map((x: any, i: number) => [i, x.delta == null ? null : { league: ({ quick: "fast", normal: "normal", tactical: "tactic" } as any)[R.league], before: x.rating - x.delta, after: x.rating, delta: x.delta, xp: x.xp, coins: x.coins }])); }
     if (L.game && out.g?.pieces && (seat === 0 || seat === 1) && L.phase === "play") { const g = L.game, C = this.cfg(); out.g.pdv = 1; // t1221: ждущий уровень и карты — только по своим фигурам
+      { const T = (L as any).tlog?.[seat]; if (T) out.tlog = T; } // t1221: только свои действия
       out.g.pieces = out.g.pieces.map((q: any) => { if (q.o !== seat) return q; const P = g.pieces.find((z) => z.id === q.id); const T = P && talentOpts(g, P, C); return T ? { ...q, pd: T.lv, po: T.o } : q; }); }
     return out;
   }

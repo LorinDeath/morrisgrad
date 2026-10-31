@@ -1126,6 +1126,19 @@ let flipping = false;
 
 // ---------- отрисовка ----------
 let raf = 0;
+/** t1221: стрелка/бейдж поверх доски для своих запланированных и выполненных действий */
+function tArrow(ctx: CanvasRenderingContext2D, fx: number, fy: number, x: number, y: number, col: string, al = 1, dash: number[] = []) {
+  const z = cam.z, ax = scrX(fx) + z / 2, ay = scrY(fy) + z / 2, bx = scrX(x) + z / 2, by = scrY(y) + z / 2, d = Math.hypot(bx - ax, by - ay); if (d < 2) return;
+  const ux = (bx - ax) / d, uy = (by - ay) / d, ex = bx - ux * z * 0.3, ey = by - uy * z * 0.3, hw = Math.max(5, z * 0.16);
+  ctx.save(); ctx.globalAlpha = al; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = Math.max(2, z * 0.07); ctx.lineCap = "round"; ctx.setLineDash(dash); ctx.shadowColor = "rgba(0,0,0,.7)"; ctx.shadowBlur = 3;
+  ctx.beginPath(); ctx.moveTo(ax + ux * z * 0.25, ay + uy * z * 0.25); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(ex + ux * hw, ey + uy * hw); ctx.lineTo(ex - uy * hw * 0.7, ey + ux * hw * 0.7); ctx.lineTo(ex + uy * hw * 0.7, ey - ux * hw * 0.7); ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function tBadge(ctx: CanvasRenderingContext2D, x: number, y: number, t: string, col: string, top: boolean, al = 1) {
+  const z = cam.z, fs = Math.max(9, Math.min(13, z * 0.22)); ctx.save(); ctx.globalAlpha = al; ctx.font = `700 ${fs}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const w = ctx.measureText(t).width + 8, X = scrX(x) + z / 2, Y = top ? scrY(y) + z + fs / 2 + 3 : scrY(y) + z - fs / 2 - 2;
+  ctx.fillStyle = "rgba(20,14,8,.88)"; ctx.fillRect(X - w / 2, Y - fs / 2 - 2, w, fs + 4); ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.strokeRect(X - w / 2 + .5, Y - fs / 2 - 1.5, w - 1, fs + 3); ctx.fillStyle = col; ctx.fillText(t, X, Y); ctx.restore();
+}
 function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawNow(); }); }
 function drawNow() {
   if (inHitStop(performance.now())) { setTimeout(draw, hitStopLeft(performance.now())); return; } // хит-стоп: кадр удара держится 60 мс
@@ -1150,7 +1163,15 @@ function drawNow() {
   if (selCell && !mark("mark_select", selCell[0], selCell[1])) { ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.05); ctx.setLineDash([z * 0.12, z * 0.08]); ctx.strokeRect(sx(selCell[0]) + 2, sy(selCell[1]) + 2, z - 4, z - 4); ctx.setLineDash([]); }
   if (pendAct && sel != null && vis(pendAct[0], pendAct[1])) { const X = sx(pendAct[0]), Y = sy(pendAct[1]); ctx.save(); ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(3, z * 0.08); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 4; ctx.strokeRect(X + 2, Y + 2, z - 4, z - 4);
     const fs = Math.max(10, Math.min(15, z * 0.26)); ctx.font = `700 ${fs}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; const tw = ctx.measureText("ещё раз").width + 10;
-    ctx.fillStyle = "rgba(20,14,8,.88)"; ctx.fillRect(X + z / 2 - tw / 2, Y - fs - 4, tw, fs + 6); ctx.fillStyle = "#f3d27a"; ctx.fillText("ещё раз", X + z / 2, Y - fs / 2 - 1); ctx.restore(); }
+    ctx.fillStyle = "rgba(20,14,8,.88)"; ctx.fillRect(X + z / 2 - tw / 2, Y - fs - 4, tw, fs + 6); ctx.fillStyle = "#f3d27a"; ctx.fillText("ещё раз", X + z / 2, Y - fs / 2 - 1); ctx.restore();
+    { const Gp = gs()!, Pp = Gp.pieces.find((q) => q.id === sel); if (Pp && Pp.owner === S.you) { // t1221: запланированное — стрелка от фигуры, действие и цена; тап мимо / Esc — отмена
+      const atk = attackTargets(Gp, Pp).some(([ax, ay]) => ax === pendAct![0] && ay === pendAct![1]); tArrow(ctx, Pp.x, Pp.y, pendAct[0], pendAct[1], atk ? "#e6623f" : "#f3d27a", 1, [z * 0.18, z * 0.1]);
+      tBadge(ctx, pendAct[0], pendAct[1], `${atk ? "Атака" : "Ход"} · 1 ОД`, atk ? "#e6623f" : "#f3d27a", true); } } }
+  { const TL = S.tlog, G1 = gs()!; if (TL && S.you >= 0 && S.phase === "play" && TL.turn >= G1.turn - 1 && Array.isArray(TL.items)) { // t1221: выполненные за ход — путь, цель, действие, ОД (только свои)
+    const mineNow = G1.cur === S.you && TL.turn === G1.turn, al = mineNow ? 0.95 : 0.5;
+    TL.items.forEach((it: any, i: number) => { if (it.x == null || it.y == null) return; const col = it.a === "attack" || it.a === "raze" ? "#e6623f" : it.a === "move" ? "#9fd36b" : "#7fc3ff";
+      if (it.fx != null && (it.fx !== it.x || it.fy !== it.y)) tArrow(ctx, it.fx, it.fy, it.x, it.y, col, al);
+      tBadge(ctx, it.x, it.y, `${i + 1}${it.ap ? ` · −${it.ap} ОД` : ""}`, col, false, al); }); } }
   const G = gs()!, P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
     for (const [x, y] of moveTargets(G, P)) { if (!vis(x, y)) continue; if (mark("mark_move", x, y, "#f3d27a")) continue; ctx.fillStyle = "rgba(243,210,122,.28)"; ctx.fillRect(sx(x) + 2, sy(y) + 2, z - 4, z - 4); ctx.fillStyle = "#f3d27a"; ctx.beginPath(); ctx.arc(sx(x) + z / 2, sy(y) + z / 2, Math.max(2, z * 0.08), 0, 7); ctx.fill(); }
@@ -1393,6 +1414,7 @@ const await0 = <T,>(p: Promise<T>) => p;
 const coarsePtr = matchMedia("(pointer: coarse)").matches;
 let confirmTap = (localStorage.getItem("strat.confirmTap") ?? (coarsePtr ? "1" : "0")) === "1";
 let pendAct: [number, number] | null = null;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && pendAct) { pendAct = null; draw(); } }); // t1221: отмена запланированного
 let tapN = 0;
 function onBoard(px: number, py: number) {
   tapN++;
