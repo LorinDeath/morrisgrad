@@ -8,7 +8,10 @@ export const RATING_CFG = {
   tau: 0.5, minRd: 45, maxRd: 350,
   provisional: 10,                       // первые 10 партий — «?» у рейтинга
   leagues: { quickMax: 9, normalMax: 29, tacticalMax: 100 } as Record<string, number>, // по большей стороне карты
-  margin: { win: { 2: 1.25, 1: 1.0, 0: 0.85 } as Record<number, number>, lose: { 2: 0.85, 1: 1.0, 0: 1.25 } as Record<number, number> }, // по очкам целей проигравшего (3–2 / 3–1 / 3–0)
+  // t1208: множитель изменения рейтинга по разнице целей d = цели победителя − цели проигравшего (1…5; 0 на лимите при равенстве целей → как 1).
+  // Победителю K·(a − b·d): близкая партия (d=1) — много, разгром (d=5) — мало. Проигравшему K·(a + b·d): d=1 — теряет мало, d=5 — много.
+  // Ожидание по рейтингам (Glicko-2) учитывается как прежде; ничья — обычный Glicko со счётом 0,5. Сдача/неявка — проигравшему как при d = abandonD.
+  margin: { win: { a: 1.4, b: 0.2 }, lose: { a: 0.4, b: 0.25 }, dMax: 5, abandonD: 5, min: 0.2, max: 2 },
   early: { none: 5, quarter: 10, mul: 0.25 }, // конец (сдача/неявка) до 5-го хода — без рейтинга и опыта; 5–9 — ×0,25
   idleLoserMul: 0.25,                    // проигравший не сделал ни одного действия — победителю ×0,25
   farmPerDay: 3,                         // одна и та же пара — не больше 3 рейтинговых партий в сутки
@@ -65,9 +68,10 @@ export const isAbandon = (reason: string) => reason === "forfeit" || reason === 
 export function earlyMul(turns: number, reason: string, C = RATING_CFG): number {
   if (!isAbandon(reason)) return 1; if (turns < C.early.none) return 0; return turns < C.early.quarter ? C.early.mul : 1;
 }
-/** множитель отрыва по счёту целей: winner — у победителя 3, loserGoals — у проигравшего (0–2) */
-export function marginMul(won: boolean, loserGoals: number | undefined, C = RATING_CFG): number {
-  if (loserGoals == null) return 1; const k = Math.max(0, Math.min(2, loserGoals)); return won ? C.margin.win[k] : C.margin.lose[k];
+/** t1208: множитель по разнице целей d (победитель − проигравший). d неизвестна → 1. */
+export function marginMul(won: boolean, d: number | undefined, C = RATING_CFG): number {
+  if (d == null || !isFinite(d)) return 1; const M = C.margin, k = Math.max(1, Math.min(M.dMax, Math.round(d)));
+  const v = won ? M.win.a - M.win.b * k : M.lose.a + M.lose.b * k; return Math.max(M.min, Math.min(M.max, Math.round(v * 1000) / 1000));
 }
 /** опыт Полководца с учётом раннего конца и ботов */
 export function xpMul(c: { turns: number; reason: string; bots: number; botGamesToday?: number }, C = RATING_CFG): number {
@@ -88,7 +92,8 @@ export function rateMatch(ps: RPlayer[], turns: number, reason: string, C = RATI
     const res: { opp: { rating: number; rd: number }; score: number }[] = []; let mulSum = 0;
     for (const o of tl) { if (o === t) continue;
       const score = t.place < o.place ? 1 : t.place > o.place ? 0 : 0.5; res.push({ opp: o.avg, score });
-      let m = 1; if (score === 1) { m = marginMul(true, o.goals < 0 ? undefined : o.goals, C); if (o.idle) m *= C.idleLoserMul; } else if (score === 0) m = marginMul(false, t.goals < 0 ? undefined : t.goals, C);
+      const d = t.goals < 0 || o.goals < 0 ? undefined : Math.abs(t.goals - o.goals), ab = isAbandon(reason);
+      let m = 1; if (score === 1) { m = marginMul(true, d, C); if (o.idle) m *= C.idleLoserMul; } else if (score === 0) m = marginMul(false, ab ? C.margin.abandonD : d, C);
       mulSum += m; }
     const mul = em * (res.length ? mulSum / res.length : 1);
     for (const p of t.m) { const n = glicko2(p.r, res, mul, C); out[p.uid] = { ...n, delta: Math.round(n.rating - p.r.rating) }; }

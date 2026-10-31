@@ -3,12 +3,13 @@
 // у всех рас один скелет (те же id, ветки, развилки, эпохи), раса меняет имя/иконку и параметры при равном бюджете силы.
 // Бюджет: 1 HP = 1, 1 АТК = 3, 1 БРН = 4, +1 з/ход = 3, +1 знание/ход = 3, +1 рост/ход = 2, −1 з к цене найма ≈ 1.
 
-/** Пять целей. Партию выигрывает тот, кто первым выполнил need целей (выполненная цель — навсегда, партия идёт дальше). */
+/** Пять целей. t1208: на 8/15/35 нужно все 5 (need = 5) — кто первым выполнил все, побеждает досрочно. На лимите ходов (cfg.sizes[…].turnLimit) — больше целей; поровну — сумма прогресса невыполненных (goalProgress); поровну — ничья.
+ *  Выполненная цель — навсегда; павший Вождь возрождается через chief.respawn ходов (партия идёт дальше), «Цареубийство» засчитывается один раз. */
 export const GOALS = {
   ids: ["chief", "hold", "treasury", "domain", "wonder"] as const,
   info: {
     chief: { name: "Цареубийство", icon: "👑", eff: "пал первый Вождь соперника" },
-    hold: { name: "Твердыня", icon: "🏰", eff: "удерживать опорные пункты несколько ходов подряд" },
+    hold: { name: "Твердыня", icon: "🏰", eff: "набрать очки опорных пунктов (свои города, Стена, взятая столица соперника, свои фигуры на Обелиске/Башне/Месте чуда) и держать их нужное число ходов подряд" },
     treasury: { name: "Казна", icon: "💰", eff: "заработать за партию заданную сумму золота" },
     domain: { name: "Держава", icon: "🗺", eff: "владеть долей карты" },
     wonder: { name: "Великое чудо", icon: "✨", eff: "возвести Чудо своей расы в столице" },
@@ -17,8 +18,9 @@ export const GOALS = {
   sizes: {
     4: { need: 1, list: ["chief", "hold"], holdK: 3, holdTurns: 1, gold: 0, share: 0, wonderGold: 0, wonderKnow: 0 },
     5: { need: 1, list: ["chief", "hold"], holdK: 3, holdTurns: 1, gold: 0, share: 0, wonderGold: 0, wonderKnow: 0 },
-    8: { need: 3, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 3, holdTurns: 3, gold: 80, share: 0.56, wonderGold: 18, wonderKnow: 6, wonderCap: false },
-    15: { need: 3, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 7, holdTurns: 4, gold: 190, share: 0.33, wonderGold: 40, wonderKnow: 15, wonderCap: true },
+    8: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 4, holdTurns: 5, gold: 150, share: 0.56, wonderGold: 18, wonderKnow: 6, wonderCap: false }, // t1207: Казна 80 → 150,
+    15: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 8, holdTurns: 10, gold: 1000, share: 0.33, wonderGold: 40, wonderKnow: 15, wonderCap: true }, // t1207: Казна 190 → 1000
+    35: { need: 5, list: ["chief", "hold", "treasury", "domain", "wonder"], holdK: 14, holdTurns: 20, gold: 5000, share: 0.33, wonderGold: 90, wonderKnow: 35, wonderCap: true }, // t1207: Тактическая (раньше брала значения 15×15)
   } as Record<number, { need: number; list: string[]; holdK: number; holdTurns: number; gold: number; share: number; wonderGold: number; wonderKnow: number; wonderCap?: boolean }>,
   /** очки опорных пунктов (Твердыня): свой город; город со Стеной; взятая столица соперника (сверху); своя фигура на Обелиске/Башне/Месте чуда */
   hold: { city: 1, walled: 1, enemyCap: 2, point: 1, points: "XTO" },
@@ -30,9 +32,10 @@ export type ChiefNode = { id: string; lvl: number; grp: string; req?: string[]; 
   fx: Partial<Record<"atk" | "arm" | "hp" | "ap" | "auraArm" | "auraAtk" | "glory" | "slayer" | "heal" | "summon" | "cd" | "r" | "burn" | "chill" | "xpMul", number>> };
 export type ChiefDef = { id: string; v: number; race: string; name: string; sprite: string; unlock: string; base: { hp: number; atk: number; arm: number }; tree: ChiefNode[] };
 export const CHIEF = {
-  lv: [0, 4, 10, 18, 28], // опыт до уровня 1…5
+  lv: [0, 4, 12, 26, 46], // опыт до ур. 2…5 (t1207: было 4/10/18/28; шаги 4/8/14/20 — каждый следующий дороже; набор × econ.league[…].xp)
   grow: { hp: [0, 3, 6, 10, 14], atk: [0, 0, 1, 1, 2], arm: [0, 0, 0, 1, 1] }, // рост характеристик по уровню (сверх базы)
-  xp: { hit: 1, kill: 3, chiefKill: 6, hold: 1, survive: 1, surviveEvery: 2 },
+  // t1207: пассив медленнее — «стоять на городе/объекте» +1 раз в 2 хода (было каждый ход), «выжил» +1 раз в 3 хода (было в 2). Всё × econ.league[…].xp
+  xp: { hit: 1, kill: 3, chiefKill: 6, hold: 1, holdEvery: 2, survive: 1, surviveEvery: 3 },
   respawn: 5, // своих ходов до нового Вождя
   noChiefAp: 1, // −ОД за ход, пока Вождя нет (не ниже 1)
   killGlory: 8, lateKillGlory: 2, // Слава за первого павшего Вождя соперника / за последующих

@@ -67,7 +67,7 @@ type PieceStyle = "figures" | "tokens";
 let pieceStyle: PieceStyle = (localStorage.getItem("strat.pieceStyle") as PieceStyle) === "tokens" ? "tokens" : "figures";
 let glyphBadge = localStorage.getItem("strat.glyphBadge") !== "0";
 const RACE_COL: Record<string, [string, string]> = { fire: ["#ff7a3d", "#7a1d08"], ice: ["#7fd6ff", "#123d66"], water: ["#3fa7d6", "#0d3a5c"], stone: ["#c2a27a", "#4a3a2a"], nature: ["#7ccf5a", "#1f4d1a"], lightning: ["#ffe14d", "#4a3d8f"] };
-const REASON: Record<string, string> = { glory: "Достигнут порог Славы", capital: "Столица взята", king: "Вождь пал", forfeit: "Соперник сдался", disconnect: "Соперник не вернулся", limit: "Лимит ходов — победа по очкам", goals: "Выполнены 3 цели из 5" };
+const REASON: Record<string, string> = { glory: "Достигнут порог Славы", capital: "Столица взята", king: "Вождь пал", forfeit: "Соперник сдался", disconnect: "Соперник не вернулся", limit: "Лимит ходов: больше целей (поровну — больше прогресс к остальным)", goals: "Выполнены все цели" };
 const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нельзя", bad_action: "Неверное действие", guest: "Только для вошедших",
   not_your_turn: "Сейчас ход соперника", already_acted: "Эта фигура уже действовала", no_ap: "Очки действий кончились", bad_move: "Туда нельзя",
   bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято", color_taken: "Этот цвет уже у соперника", bad_color: "Нет такого цвета",
@@ -319,6 +319,7 @@ function onState(prev: any) {
   for (const e of S.ev || []) {
     if (!g) break;
     { const u = parseUlt(e, g, now, prev?.g); if (u) { addCast(u, g.turn); ultBanner(u, u.side === me, S.seats[u.side]?.nick || ""); draw(); } }
+    if (e.e === "limitwarn") { const t = e.left === 1 ? "Последний ход партии" : `До конца партии ${e.left} ходов`; banner(t, `Лимит ${e.limit}: побеждает тот, у кого больше целей`, "theirs"); toast(t, "bad", "clock"); }
     if (e.e === "timeout" || e.e === "skip") toast(e.side === me ? "Ход пропущен — время вышло" : `${S.seats[e.side]?.nick || "Соперник"}: ход пропущен — время вышло`, e.side === me ? "bad" : "info", "clock");
     if (e.e === "hit") {
       poses.set(e.id, { pose: "attack", until: now + POSE_MS });
@@ -818,7 +819,7 @@ function fitPips(pe: HTMLElement) {
 addEventListener("resize", () => document.querySelectorAll<HTMLElement>(".appips").forEach(fitPips));
 function renderHud() {
   if (!S?.g) return; const g = S.g, me = S.you, myTurn = S.phase === "play" && g.cur === me, cfg = cfgOf(S), G = gs()!;
-  $("#turnno").textContent = String(g.turn); { const tn2 = $("#turnno2"); if (tn2) tn2.textContent = String(g.turn); }
+  const tnTxt = g.turnLimit > 0 ? `${g.turn}/${g.turnLimit}` : String(g.turn); $("#turnno").textContent = tnTxt; { const tn2 = $("#turnno2"); if (tn2) tn2.textContent = tnTxt; } // t1208: «ход N/лимит»
   { const mx = Math.max(g.apMax || 0, g.ap), pips = Array.from({ length: mx }, (_, i) => `<i class="${i < g.ap ? "on" : ""}"></i>`).join(""), tip = apTip(S, G, me);
     for (const [pid, tid] of [["#appips", "#aptxt"], ["#appips2", "#aptxt2"]]) { const pe = document.querySelector<HTMLElement>(pid); if (!pe) continue;
       pe.innerHTML = pips; pe.dataset.n = String(mx); pe.className = "appips" + (mx >= 7 ? " two" : mx >= 5 ? " two-narrow" : ""); pe.style.setProperty("--cols", String(Math.ceil(mx / 2))); const te = document.querySelector<HTMLElement>(tid); if (te) te.textContent = `${g.ap}/${mx}`;

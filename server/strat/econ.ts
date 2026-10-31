@@ -506,7 +506,7 @@ export function startTurn(g: GameState, side: 0 | 1, ev: Ev[], cfg: StratCfg, mk
   if (!king && mk) respawnChief(g, side, ev, cfg, mk);
   else if (king) {
     chs.surv++; if (chs.surv % CH.xp.surviveEvery === 0) gainXp(g, king, CH.xp.survive, ev, cfg);
-    const st = mapStr(g.map, king.x, king.y); if (ec.cities.some((c) => c.x === king.x && c.y === king.y) || (st !== "." && st)) gainXp(g, king, CH.xp.hold, ev, cfg);
+    const st = mapStr(g.map, king.x, king.y); if (ec.cities.some((c) => c.x === king.x && c.y === king.y) || (st !== "." && st)) { const hs = ((chs as any).hs = ((chs as any).hs || 0) + 1); if (hs % (CH.xp.holdEvery || 1) === 0) gainXp(g, king, CH.xp.hold, ev, cfg); }
     inc0.glory += chiefFx(g, king, "glory", cfg);
   }
   terrTick(g, side, ev, cfg, mk);

@@ -18,7 +18,7 @@ for (const s of [5, 8, 15]) {
   ok(new Set(g.pieces.map((p) => p.x + ":" + p.y)).size === g.pieces.length, `${s}×${s}: клетки не пересекаются`);
   const mirror = g.pieces.filter((p) => p.owner === 0).every((p) => g.pieces.some((q) => q.owner === 1 && q.kind === p.kind && q.x === p.x && q.y === s - 1 - p.y));
   ok(mirror, `${s}×${s}: армии зеркальны (честный старт)`);
-  ok(g.apMax === ({ 5: 1, 8: 1, 15: 2 } as any)[s] && g.turnLimit === 0, `${s}×${s}: ОД по лиге (Быстрая 1, Обычная 2), без лимита ходов`);
+  ok(g.apMax === ({ 5: 1, 8: 1, 15: 2 } as any)[s] && g.turnLimit === ({ 5: 0, 8: 50, 15: 150 } as any)[s], `${s}×${s}: ОД по лиге (Быстрая 1, Обычная 2), лимит ходов t1208`);
 }
 ok(newGame(15, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 20, "Огонь: −10% HP (Страж 22 → 20)");
 ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 24, "t1175: Огонь на 8×8 — лига quick +10% HP (Страж 24)");
@@ -119,8 +119,9 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   ok(inCheck(g, 1) && !inCheck(g, 0), "шах подсвечивается");
   g.pieces[1].hp = 1; apply(g, 0, { a: "attack", id: 1, x: 6, y: 0 });
   ok(g.winner === -1 && g.ec.goals[0].includes("chief") && g.ec.chief[1].dead > 0, "убит Вождь → цель «Цареубийство», партия продолжается (8×8)");
-  g.ec.goals[0].push("treasury", "domain"); apply(g, 0, { a: "end" });
-  ok(g.winner === 0 && g.reason === "goals", "3 цели из 5 → победа");
+  g.ec.goals[0].push("treasury", "domain"); apply(g, 0, { a: "end" }); ok(g.winner === -1, "t1208: 3 из 5 — ещё не победа");
+  g.ec.goals[0].push("hold", "wonder"); apply(g, 1, { a: "end" });
+  ok(g.winner === 0 && g.reason === "goals", "5 целей из 5 → победа");
   ok(!apply(g, 1, { a: "end" }).ok, "после конца партии действия отклоняются");
 }
 // --- t1135: лимита ходов нет, автоничьи нет
@@ -128,7 +129,7 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   const g = board(5, ["fire", "fire"], [[0, "king", 2, 4], [1, "king", 2, 0]]);
   for (let i = 0; i < 400 && g.winner === -1; i++) apply(g, g.cur, { a: "end" });
   ok(g.winner === -1 && g.turnLimit === 0, "200 кругов: партия не кончается по ходам и не уходит в автоничью");
-  ok(newGame(8, ["fire", "ice"], 0, STRAT_CFG, 12).turnLimit === 0, "лимит из лобби игнорируется (no_turn_limit)");
+  ok(newGame(8, ["fire", "ice"], 0, STRAT_CFG, 12).turnLimit === 50, "лимит из лобби игнорируется (no_turn_limit) — берётся лимит лиги");
   ok(validTurnLimit(null) === null && [4, 201, -1, 2.5, "10", true].every((v) => validTurnLimit(v) === undefined), "валидатор лимита (совместимость) — отклоняет мусор");
 }
 // --- самопроверка: бот против бота всегда доигрывает, правила не ломаются

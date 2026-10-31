@@ -1,4 +1,4 @@
-// Цели победы (3 из 5) и Вождь-герой (опыт, 5 уровней, навыки, возрождение).
+// Цели победы (t1208: все 5; на лимите ходов — по числу целей) и Вождь-герой (опыт, 5 уровней, навыки, возрождение).
 // Формы данных ещё не зафиксированы (ТЗ §14) — читаем защитно: если сервер прислал готовые цели/поля Вождя, берём их;
 // иначе выводим прогресс из текущего снимка. Чистый клиентский код, правил не меняет.
 import type { GameState, Piece, StratCfg } from "../../../server/strat/rules";
@@ -17,7 +17,7 @@ export const GOALS: { id: GoalId; name: string; icon: string; hint: string }[] =
 export type Goal = { id: GoalId; done: boolean; v: number; max: number; name?: string; icon?: string; desc?: string; text?: string; unit?: string; parts?: { label: string; cur: number; max: number }[]; turn?: number };
 // id целей нового сервера (balance WIP): chief, hold, treasury, domain, wonder — значки и подсказки по умолчанию
 const SRV_DEF: Record<string, { name: string; icon: string; hint: string }> = {
-  hold: { name: "Твердыня", icon: "castle", hint: "Удерживать свою столицу и землю нужное число ходов" },
+  hold: { name: "Твердыня", icon: "castle", hint: "Набрать очки опорных пунктов и держать их нужное число ходов подряд" },
   treasury: { name: "Казна", icon: "gold", hint: "Накопить золото до порога" },
   domain: { name: "Держава", icon: "flag", hint: "Владеть нужным числом клеток земли" },
 };
@@ -62,7 +62,8 @@ function derive(S: any, G: GameState, side: number, id: GoalId): Goal {
 export type ChiefInfo = { p: Piece | null; lv: number; maxLv: number; xp: number; prev: number; next?: number; pend: number; skills: any[][]; respawn: number };
 export function chiefOf(S: any, G: GameState, side: number, cfg: StratCfg): ChiefInfo {
   const p = G.pieces.find((q) => q.owner === side && q.kind === "king") || null, c: any = (cfg as any).chief || {};
-  const L: number[] = c.lv || c.xp || [0, 0, 3, 7, 12, 18], maxLv = num(c.maxLv, Math.max(1, L.length - 1));
+  // cfg.chief.lv — опыт до ур. 2…5 по индексам 1…4 (как pieceLevel на сервере: ур. = i + 1 при xp ≥ L[i])
+  const CL: number[] | null = Array.isArray(c.lv) ? c.lv : null, L: number[] = CL ? [0, ...CL] : c.xp || [0, 0, 3, 7, 12, 18], maxLv = num(c.maxLv, Math.max(1, L.length - 1));
   const xp = num((p as any)?.xp ?? (G as any).chief?.[side]?.xp), lv = num((p as any)?.lv, (() => { let l = 1; for (let i = 2; i <= maxLv; i++) if (xp >= (L[i] ?? Infinity)) l = i; return l; })());
   const skills: any[][] = c.skills || (cfg as any).chiefSkills || (cfg.talents as any).king || [];
   const took = ((p as any)?.tal || []).length, pend = p && took + 2 <= lv && skills[took] ? took + 2 : 0;

@@ -17,15 +17,23 @@ ok(unratedReason({ ...base, creatorOnly: true }) === "test_match", "тестов
 ok(unratedReason({ ...base, reason: "forfeit", turns: 4 }) === "too_early" && unratedReason({ ...base, reason: "goals", turns: 4 }) === null, "сдача до 5-го хода — без рейтинга (победа по целям — считается)");
 ok(unratedReason({ ...base, pairToday: 3 }) === "farm_limit" && unratedReason({ ...base, pairToday: 2 }) === null, "пара — максимум 3 в сутки");
 ok(earlyMul(4, "away") === 0 && earlyMul(5, "away") === 0.25 && earlyMul(9, "forfeit") === 0.25 && earlyMul(10, "forfeit") === 1 && earlyMul(3, "goals") === 1, "множитель раннего конца 0 / ×0,25 / 1");
-ok(marginMul(true, 2) === 1.25 && marginMul(true, 1) === 1 && marginMul(true, 0) === 0.85 && marginMul(false, 2) === 0.85 && marginMul(false, 0) === 1.25, "отрыв по целям 3–2 / 3–1 / 3–0 (и зеркально)");
+ok([1, 2, 3, 4, 5].map((d) => marginMul(true, d)).join() === "1.2,1,0.8,0.6,0.4" && [1, 2, 3, 4, 5].map((d) => marginMul(false, d)).join() === "0.65,0.9,1.15,1.4,1.65", "t1208: K по разнице целей d=1…5 (победа 1,2→0,4; поражение 0,65→1,65)");
+ok(marginMul(true, 0) === 1.2 && marginMul(true, undefined) === 1, "d=0 (лимит, равные цели) — как d=1; без счёта — 1");
 const R0 = () => ({ rating: 1500, rd: 350, vol: 0.06, games: 0 });
-const one = (lg: number, turns = 20, reason = "goals", acts = 5) => rateMatch([{ uid: "a", team: 0, place: 1, goals: 3, actions: 10, r: R0() }, { uid: "b", team: 1, place: 2, goals: lg, actions: acts, r: R0() }], turns, reason);
-const d32 = one(2).a.delta, d31 = one(1).a.delta, d30 = one(0).a.delta;
-ok(d32 > d31 && d31 > d30 && d30 > 0, `победа 3–2 даёт больше, чем 3–1 и 3–0 (${d32}/${d31}/${d30})`);
-ok(one(2).b.delta > one(0).b.delta && one(2).b.delta < 0, "проигравший 3–2 теряет меньше");
+const one = (lg: number, turns = 20, reason = "goals", acts = 5) => rateMatch([{ uid: "a", team: 0, place: 1, goals: 5, actions: 10, r: R0() }, { uid: "b", team: 1, place: 2, goals: lg, actions: acts, r: R0() }], turns, reason);
+const dd = [4, 3, 2, 1, 0].map((lg) => one(lg)), wins = dd.map((x) => x.a.delta), loss = dd.map((x) => x.b.delta);
+console.log("t1208 d=1…5: победитель", wins.join("/"), "проигравший", loss.join("/"));
+ok(wins.every((v, i) => v > 0 && (i === 0 || v < wins[i - 1])), "победителю: чем больше d, тем меньше");
+ok(loss.every((v, i) => v < 0 && (i === 0 || v < loss[i - 1])), "проигравшему: чем больше d, тем больше потеря");
+ok(Math.abs(loss[0]) < wins[0] && Math.abs(loss[4]) > wins[4], "близкая: победитель +много, проигравший −мало; разгром — наоборот");
+const d31 = one(4).a.delta;
+ok(one(4, 20, "surrender").b.delta === one(0).b.delta, "сдача — проигравшему максимум (как d=5)");
+{ const st = rateMatch([{ uid: "a", team: 0, place: 1, goals: 5, actions: 10, r: { rating: 1800, rd: 60, vol: 0.06, games: 50 } }, { uid: "b", team: 1, place: 2, goals: 4, actions: 5, r: { rating: 1400, rd: 60, vol: 0.06, games: 50 } }], 20, "goals");
+  ok(st.a.delta < wins[0] && st.a.delta > 0, "ожидание по рейтингу учитывается (сильный за слабого получает меньше)"); }
+{ const dr = rateMatch([{ uid: "a", team: 0, place: 1, goals: 3, actions: 10, r: R0() }, { uid: "b", team: 1, place: 1, goals: 3, actions: 5, r: R0() }], 20, "limit"); ok(dr.a.delta === 0 && dr.b.delta === 0, "ничья равных — 0"); }
 ok(Object.keys(one(1, 4, "forfeit")).length === 0, "сдача до 5-го хода — никаких изменений");
-ok(near(one(1, 7, "forfeit").a.delta, d31 * 0.25, 2), "ходы 5–9 — ×0,25");
-ok(near(one(1, 20, "goals", 0).a.delta, d31 * 0.25, 2), "проигравший без единого действия — победителю ×0,25");
+ok(near(one(4, 7, "forfeit").a.delta, d31 * 0.25, 2), "ходы 5–9 — ×0,25");
+ok(near(one(4, 20, "goals", 0).a.delta, d31 * 0.25, 2), "проигравший без единого действия — победителю ×0,25");
 // FFA: попарно по месту
 const ffa = rateMatch([1, 2, 3, 4].map((pl) => ({ uid: "p" + pl, team: pl, place: pl, actions: 5, r: R0() })), 30, "goals");
 ok(ffa.p1.delta > ffa.p2.delta && ffa.p2.delta > ffa.p3.delta && ffa.p3.delta > ffa.p4.delta && ffa.p1.delta > 0 && ffa.p4.delta < 0, "FFA: 1-е > 2-е > 3-е > 4-е");

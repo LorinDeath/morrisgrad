@@ -495,7 +495,7 @@ export class StratMatch extends DurableObject {
       race: hideRace && i !== seat ? null : s.race, online: !s.goneAt, rematch: !!(s as any).rematch,
       botLv: s.bot ? s.level || "medium" : undefined, away: L.phase === "play" && s.goneAt != null, skips: L.skips?.[i] || 0, col: typeof s.col === "number" ? s.col : undefined });
     const D = L.draw, raceDraw = this.drawOn() && D ? { commit: D.commit, ...(D.rolls && L.phase !== "lobby" ? { seed: D.seed, rolls: rollsFor(D.rolls, seat), order: D.order, w: D.w } : {}) } : null; // seed — только после старта; чужие любимые расы не уходят (t1175)
-    const out: any = { type: "st", raceDraw, code: L.code, phase: L.phase, size: L.size, pub: L.pub, rated: !!L.rated, ranked: !!L.rated, hiddenHp: !!L.hiddenHp, mode: "1v1", maxSeats: 2, turnSec: L.turnMin != null ? L.turnMin * 60 : null, rating: this.ratingView(), turnLimit: null, you: seat, seats, ev, now: Date.now(),
+    const out: any = { type: "st", raceDraw, code: L.code, phase: L.phase, size: L.size, pub: L.pub, rated: !!L.rated, ranked: !!L.rated, hiddenHp: !!L.hiddenHp, mode: "1v1", maxSeats: 2, turnSec: L.turnMin != null ? L.turnMin * 60 : null, rating: this.ratingView(), turnLimit: L.game?.turnLimit ?? null, you: seat, seats, ev, now: Date.now(),
       mapInfo: { id: L.mapId || "", name: L.mapName || "", status: L.mapStatus || "official", xp: L.xpMap !== false } };
     if (L.phase === "lobby" && L.map) out.lobbyMap = L.map; // предпросмотр
     if (L.game) {

@@ -9,9 +9,9 @@ export const ECON = {
   /** по размеру поля: эпох доступно (0 = без технологий, блиц), застав максимум, слоты столицы по уровню, порог Славы (0 = нет), лимит фигур */
   sizes: {
     5: { eras: 0, outposts: 0, capSlots: [1, 1, 1], glory: 0, pop: 8 },
-    8: { eras: 2, outposts: 1, capSlots: [2, 3, 4], glory: 150, pop: 14 },
-    15: { eras: 4, outposts: 2, capSlots: [2, 3, 4], glory: 300, pop: 22 },
-    35: { eras: 4, outposts: 4, capSlots: [2, 3, 4], glory: 600, pop: 34 }, // t1201: Тактическая (35×35)
+    8: { eras: 2, outposts: 1, capSlots: [2, 3, 4], glory: 190, pop: 14 },
+    15: { eras: 4, outposts: 2, capSlots: [2, 3, 4], glory: 375, pop: 22 },
+    35: { eras: 4, outposts: 4, capSlots: [2, 3, 4], glory: 750, pop: 34 }, // t1201: Тактическая (35×35)
   } as Record<number, { eras: number; outposts: number; capSlots: number[]; glory: number; pop: number }>,
   city: {
     capGold: 2, capKnow: 1, outGold: 1, outKnow: 0, // базовый доход города
@@ -27,7 +27,7 @@ export const ECON = {
   obelisk: { glory: 2 }, // X: за ход, пока на нём стоит своя фигура
   glory: { kill: 3, tech: 5, era: 10, perTerr: 10, found: 5, capture: 10 }, // perTerr: клеток территории на 1 Славу за ход
   research: { cost: [0, 6, 12, 20, 30], eraCost: [0, 0, 14, 26, 40], need: 2, perTurn: 1, maxPaths: 2, techGlory: 3 }, // цена технологии по эпохе; переход в эпоху N
-  xp: { hit: 1, kill: 2, lv: [0, 0, 3, 7, 12, 20], grow: { hp: [0, 0, 1, 2, 5, 7], atk: [0, 0, 0, 0, 1, 1] } }, // опыт фигуры: ур. 2…5 при 3/7/12/20; рост характеристик по уровню (ур. 4 — заметный скачок)
+  xp: { hit: 1, kill: 2, lv: [0, 0, 4, 10, 18, 30], /* t1207: было 3/7/12/20 */ grow: { hp: [0, 0, 1, 2, 5, 7], atk: [0, 0, 0, 0, 1, 1] } }, // опыт фигуры: ур. 2…5 при 4/10/18/30 (× econ.league[…].xp); рост характеристик по уровню (ур. 4 — заметный скачок)
   quiet: { draw: 0 }, // t1135: автоничьи нет (счётчик тихих ходов — только статистика)
   /** t1139: территория. grow — рост «как в Civ»: город раз в N ходов присоединяет 1 соседнюю нейтральную клетку
    *  (N = base[раса] − бонусы построек/технологий, не меньше min; base скрыт от игроков). reach — не дальше радиуса города + reach.
@@ -62,11 +62,11 @@ export const ECON = {
    *  технологий и эпох (темп эпох). t1143: apBase 1/2/3; итог ОД не меньше 1 (без Вождя −1 ОД не опускает ниже 1). */
   league: {
     // t1163 (баланс-сим, набор H): race — правки чисел расы только в этой лиге (поверх cfg.race, см. econ.ts raceCfg); secondGold — компенсация второму игроку в лиге (вместо start.secondGold)
-    quick:    { apBase: 1, apTech: 1, apBld: 1, raceCap: 1, onceMax: 1, apMax: 6,  grow: 6, growMin: 5, growMax: 6, capture: 4, found: 8,  respawn: 4, xp: 1.25, research: 0.8,
+    quick:    { apBase: 1, apTech: 1, apBld: 1, raceCap: 1, onceMax: 1, apMax: 6,  grow: 6, growMin: 5, growMax: 6, capture: 4, found: 8,  respawn: 4, xp: 1.5 /* t1207: опыт по лиге 1,25/1/0,8 → 1,5/0,25/0,08 (xp-test.ts) */, research: 0.8,
                 race: { water: { healOwnT: 0 }, fire: { hpMul: 1.1 }, lightning: { chain: 1, hpMul: 0.8 } } }, // secondGold: 6 (H) и 5 (t1175) пробовали — перевес первого хода не снизился (61% / 60%), не берём; t1175: Огонь HP ×1,0→×1,1, Молния HP ×0,9→×0,8 (8×8: 39%/61%)
-    normal:   { apBase: 2, apTech: 1, apBld: 3, raceCap: 2, onceMax: 1, apMax: 7,  grow: 12, growMin: 10, growMax: 14, capture: 4, found: 10, respawn: 5, xp: 1,    research: 1,
+    normal:   { apBase: 2, apTech: 1, apBld: 3, raceCap: 2, onceMax: 1, apMax: 7,  grow: 12, growMin: 10, growMax: 14, capture: 4, found: 10, respawn: 5, xp: 0.25,  research: 1,
                 race: { lightning: { hpMul: 1.1 }, nature: { hpMul: 0.9 } }, techEra: { grove: 4 } }, // t1163: «Чаща» в Обычной — с эры IV (Природа 68% на 15×15); t1175: Молния HP ×1,0→×1,1 (29% на 15×15; разряд 2→3 пробовали — ~33%, не берём); t1175: Природа HP ×0,9 (64% на 15×15; «Урожай» с эры IV пробовали — бот берёт «Чащу», Природа ~82%, не берём)
-    tactical: { apBase: 3, apTech: 2, apBld: 4, raceCap: 3, onceMax: 2, apMax: 12, grow: 17, growMin: 15, growMax: 20, capture: 5, found: 12, respawn: 6, xp: 0.8,  research: 1.25 },
+    tactical: { apBase: 3, apTech: 2, apBld: 4, raceCap: 3, onceMax: 2, apMax: 12, grow: 17, growMin: 15, growMax: 20, capture: 5, found: 12, respawn: 6, xp: 0.08,  research: 1.25 },
   } as Record<string, { apBase: number; apTech: number; apBld: number; raceCap: number; onceMax: number; apMax: number; grow: number; growMin: number; growMax: number; capture: number; found: number; respawn: number; xp: number; research: number; secondGold?: number; race?: Record<string, Record<string, number>>; techEra?: Record<string, number> }>,
   /** t1143: «Сила стихии» — свой ситуативный прирост ОД у каждой расы (скрытая связь раса↔тактика: игрок видит только «+N ОД: <причина>»).
    *  +1 ОД за каждые per единиц условия, не больше raceCap лиги. Считается в начале хода.

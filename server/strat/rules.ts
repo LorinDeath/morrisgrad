@@ -9,7 +9,7 @@ import { castUlt, canUlt, ultTurnStart, absorb } from "./ult";
 import { BUILD_HP } from "./content-cfg";
 import { GOALS, CHIEF, CHIEFS, CHIEF_NAMES, BUILD_TPL, BUILD_RACE, TECH_NODE_ORDER, TECH_RACE_NAMES, TECH_RACE_FX } from "./content-cfg";
 import { bldStat, bldMaxHp, addGlory, gainXp } from "./econ";
-import { type Econ, type EconAction, ECON_ACTS, initEcon, startTurn, applyEcon, effAtk, effArm, explainAtk, explainArm, mageShot, apFor, burnTurns, burnDmg, chillTurns, onHit, onEnter, hasFree, botEcon, botPawnGoal, botChiefHome, talBonus, chiefDown, chiefBase, chiefFx, goalWinner, territory, tfx, chiefNode, pieceLevel, raceCfg } from "./econ";
+import { type Econ, type EconAction, ECON_ACTS, initEcon, startTurn, applyEcon, effAtk, effArm, explainAtk, explainArm, mageShot, apFor, burnTurns, burnDmg, chillTurns, onHit, onEnter, hasFree, botEcon, botPawnGoal, botChiefHome, talBonus, chiefDown, chiefBase, chiefFx, goalWinner, goalProgress, territory, tfx, chiefNode, pieceLevel, raceCfg } from "./econ";
 
 export type Race = "fire" | "ice" | "water" | "stone" | "nature" | "lightning";
 export type Kind = "pawn" | "knight" | "mage" | "rook" | "hero" | "king";
@@ -46,9 +46,9 @@ export const STRAT_CFG = {
   },
   sizes: {
     5: { size: 5, turnLimit: 0, turnSec: 20, reserveSec: 60, ap: 1, army: [["knight", "king", "rook"]] },
-    8: { size: 8, turnLimit: 0, turnSec: 40, reserveSec: 180, ap: 2, army: [["rook", "knight", "king", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn"]] },
-    15: { size: 15, turnLimit: 0, turnSec: 60, reserveSec: 300, ap: 3, army: [["rook", "mage", "knight", "king", "hero", "knight", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] },
-    35: { size: 35, turnLimit: 0, turnSec: 90, reserveSec: 600, ap: 4, army: [["rook", "knight", "mage", "knight", "hero", "king", "hero", "knight", "mage", "knight", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] }, // t1201: Тактическая
+    8: { size: 8, turnLimit: 50, turnSec: 40, reserveSec: 180, ap: 2, army: [["rook", "knight", "king", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn"]] },
+    15: { size: 15, turnLimit: 150, turnSec: 60, reserveSec: 300, ap: 3, army: [["rook", "mage", "knight", "king", "hero", "knight", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] },
+    35: { size: 35, turnLimit: 400, turnSec: 90, reserveSec: 600, ap: 4, army: [["rook", "knight", "mage", "knight", "hero", "king", "hero", "knight", "mage", "knight", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] }, // t1201: Тактическая
   } as Record<number, SizeCfg>,
   econ: ECON, build: BUILD, talents: TALENTS, // этап 2 (econ-cfg.ts)
   techs: TECHS, // этап 3: дерево тактик (econ-cfg.ts)
@@ -143,7 +143,7 @@ export type GameOpts = { chiefs?: [string | undefined, string | undefined] }; //
 export function newGame(size: number, races: [Race, Race], first: 0 | 1 = 0, cfg: StratCfg = STRAT_CFG, turnLimit?: number | null, map?: MapData, opts?: GameOpts): GameState {
   const sc = cfg.sizes[size]; if (!sc) throw new Error("bad size");
   if (map && map.size !== size) throw new Error("map size");
-  const g = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: 0, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [], map: map || openMap(size) } as unknown as GameState;
+  const g = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: sc.turnLimit || 0, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [], map: map || openMap(size) } as unknown as GameState;
   for (const owner of [0, 1] as const) {
     sc.army.forEach((row, r) => {
       const x0 = Math.floor((size - row.length) / 2);
@@ -402,7 +402,13 @@ function checkWin(g: GameState, ev: Ev[], cfg: StratCfg = STRAT_CFG) {
   const gw = goalWinner(g, cfg); if (gw >= 0) { finish(g, gw as 0 | 1, "goals", ev); return; }
   for (const s of [0, 1] as const) if (!g.pieces.some((p) => p.owner === s) && !g.ec.cities.some((c) => c.owner === s)) { finish(g, (1 - s) as 0 | 1, "wipe", ev); return; }
 }
-/** Итог на лимите ходов: больше целей → больше Славы → больше материала; иначе ничья. */
+/** t1208: итог на лимите ходов — больше выполненных целей; поровну — больше сумма прогресса (0…1) невыполненных целей; поровну — ничья (2). */
+export function limitWinner(g: GameState, cfg: StratCfg = STRAT_CFG): 0 | 1 | 2 {
+  if (!g.ec) return 2; const a = g.ec.goals[0].length, b = g.ec.goals[1].length; if (a !== b) return a > b ? 0 : 1;
+  const T = territory(g, cfg), pr = (s: 0 | 1) => { const P = goalProgress(g, s, cfg, T); return Math.round(Object.entries(P).reduce((t, [id, v]) => t + (g.ec.goals[s].includes(id) ? 0 : v), 0) * 1000); };
+  const pa = pr(0), pb = pr(1); return pa === pb ? 2 : pa > pb ? 0 : 1;
+}
+/** Итог на лимите ходов (справочно, старый): больше целей → больше Славы → больше материала. */
 export function limitRank(g: GameState, side: 0 | 1, cfg: StratCfg = STRAT_CFG): number[] {
   return [g.ec ? g.ec.goals[side].length : 0, g.ec ? g.ec.res[side].glory : 0, Math.round(score(g, side, cfg) * 10)];
 }
@@ -421,8 +427,11 @@ function endTurn(g: GameState, ev: Ev[], cfg: StratCfg) {
   for (const p of g.pieces) if (p.owner === prev) { p.acted = false; if (p.chill > 0) { p.chill--; if (!p.chill) p.cm = 1; } else if (p.cm) p.cm = 0; } // cm: «была обморожена» до конца следующего хода (для «Инея»)
   const next = (1 - prev) as 0 | 1;
   if (next === g.first) g.turn++; // номер хода растёт, когда круг вернулся к первому игроку
-  // Лимита ходов НЕТ (решение Алекса, t1135): партия кончается только целями (need из 5), сдачей, «забрать победу» или разгромом.
-  // Ни ничьей по лимиту, ни подсчёта очков, ни автоничьей «тихих» ходов. Страховочный потолок есть только в симуляторах.
+  // t1208: лимит ходов по лиге (cfg.sizes[…].turnLimit: 50/150/400; 0 — без лимита). Предупреждения за 10 и за 1 ход; по истечении — limitWinner.
+  if (next === g.first && g.turnLimit > 0 && g.ec) {
+    if (g.turn > g.turnLimit) { finish(g, limitWinner(g, cfg), "limit", ev); return; }
+    const left = g.turnLimit - g.turn + 1; if (left === 10 || left === 1) ev.push({ e: "limitwarn", left, limit: g.turnLimit } as any);
+  }
   if (g.ec) g.ec.quiet++;
   g.cur = next; (g as any).zap = 0;
   // Вода: лечение своих фигур на своей земле

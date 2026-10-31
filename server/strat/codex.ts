@@ -19,7 +19,7 @@ const KIND_RU: Record<string, string> = { pawn: "Ополченец", knight: "�
 const KIND_ICON: Record<string, string> = { pawn: "♟", knight: "♞", mage: "✦", rook: "♜", hero: "♛", king: "♚" };
 const ERA_RU = ["", "I", "II", "III", "IV", "V"];
 const clean = (s: string) => String(s || "").replace(/\s*\((этап \d+|goals\.sizes)\)/g, "").trim();
-const LEAGUE_SIZES: Record<string, number[]> = { quick: [5], normal: [8, 15], tactical: [35] };
+const LEAGUE_SIZES: Record<string, number[]> = { quick: [5, 8], normal: [15], tactical: [35] }; // как rating.leagueOf (quickMax 9, normalMax 29)
 
 const cache = new WeakMap<object, { list: CodexEntry[]; map: Map<string, CodexEntry> }>();
 export function codexCatalog(cfg: StratCfg): CodexEntry[] { return codexIndex(cfg).list; }
@@ -86,10 +86,12 @@ export function codexIndex(cfg: StratCfg) {
   const GS = C.goals?.sizes || {}, gAt = (n: number) => { const ks = Object.keys(GS).map(Number).filter((x) => x <= n).sort((a, b) => b - a); return GS[ks[0]]; };
   for (const id of Object.keys(C.goals?.info || {})) { const G = C.goals.info[id];
     const by = Object.entries(LEAGUE_SIZES).filter(([, ss]) => ss.some((s) => gAt(s)?.list?.includes(id))).map(([l]) => LEAGUE_NAME[l as keyof typeof LEAGUE_NAME]);
-    out.push({ k: "goal:" + id, cat: "goal", name: G.name, icon: G.icon, eff: clean(G.eff), league: by.join(", ") || undefined }); }
+    const thr = (S: any) => !S?.list?.includes(id) ? "" : id === "treasury" ? `${S.gold} з за партию` : id === "domain" ? `${Math.round(S.share * 100)}% карты` : id === "wonder" ? `Чудо: ${S.wonderGold} з + ${S.wonderKnow} знаний` : id === "hold" ? `${S.holdK} очк. ${S.holdTurns} ${S.holdTurns >= 5 ? "ходов" : S.holdTurns === 1 ? "ход" : "хода"} подряд` : "";
+    const req = Object.entries(LEAGUE_SIZES).map(([l, ss]) => { const t = thr(gAt(ss[ss.length - 1])); return t && `${LEAGUE_NAME[l as keyof typeof LEAGUE_NAME]}: ${t}`; }).filter(Boolean).join("; ");
+    out.push({ k: "goal:" + id, cat: "goal", name: G.name, icon: G.icon, eff: clean(G.eff), league: by.join(", ") || undefined, ...(req ? { req } : {}) }); }
   for (const [lid, ss] of Object.entries(LEAGUE_SIZES)) { const L = C.econ?.league?.[lid] || {}, G = gAt(ss[ss.length - 1]) || {};
     out.push({ k: "league:" + lid, cat: "league", league: LEAGUE_NAME[lid as keyof typeof LEAGUE_NAME], name: LEAGUE_NAME[lid as keyof typeof LEAGUE_NAME] + " лига", icon: "🏆",
-      eff: `Поле ${ss.map((s) => s + "×" + s).join(", ")}. ОД: база ${L.apBase ?? "—"}, максимум ${L.apMax ?? "—"}. Для победы целей: ${G.need ?? "—"} из ${(G.list || []).length}` }); }
+      eff: `Поле ${ss.map((s) => s + "×" + s).join(", ")}. ОД: база ${L.apBase ?? "—"}, максимум ${L.apMax ?? "—"}. Для победы целей: ${G.need ?? "—"} из ${(G.list || []).length}. Лимит ходов: ${(C as any).sizes?.[ss[ss.length - 1]]?.turnLimit || "нет"} (на лимите — больше целей, затем прогресс, иначе ничья). Порог Славы: ${C.econ?.sizes?.[ss[ss.length - 1]]?.glory ?? "—"}. Опыт ×${L.xp ?? 1}` }); }
   c = { list: out, map: new Map(out.map((e) => [e.k, e])) }; cache.set(cfg as any, c); return c;
 }
 
