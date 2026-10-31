@@ -77,9 +77,19 @@ export function ultBanner(c: UltCast, mine: boolean, who: string) {
   el.className = `ultban k-${c.def.key}${c.small ? " small" : ""}`; el.setAttribute("role", "status");
   const t = document.createElement("div"); t.className = "ult-title"; t.textContent = c.def.title; t.dataset.text = c.def.title;
   const s = document.createElement("div"); s.className = "ult-sub"; s.textContent = (mine ? "Вы: " : who ? who + ": " : "") + c.def.sub;
-  el.append(Object.assign(document.createElement("i"), { className: "ult-rays" }), t, s); host.appendChild(el);
-  setTimeout(() => el.classList.add("out"), c.small ? 1100 : 1900); setTimeout(() => el.remove(), c.small ? 1500 : 2500);
+  el.append(Object.assign(document.createElement("i"), { className: "ult-rays" }), t, s); placeBanner(el); host.appendChild(el);
+  setTimeout(() => el.classList.add("out"), BAN_MS - 300); setTimeout(() => el.remove(), BAN_MS);
   shake(c.small ? 1 : c.def.kind === "doom" ? 3 : 2);
+}
+/** Баннеры не закрывают действие: у верхнего края доски, ~56% её ширины (телефон — до 90% экрана), высота ~17% доски, полупрозрачно, ~1,2 с, без перехвата касаний. */
+export const BAN_MS = 1250;
+export function placeBanner(el: HTMLElement) {
+  const b = document.querySelector<HTMLElement>("#board")?.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
+  const L = Math.max(0, b?.left ?? 0), R = Math.min(vw, b?.right ?? vw), T = Math.max(0, b?.top ?? 0), B = Math.min(vh, b?.bottom ?? vh), bw = Math.max(200, R - L), bh = Math.max(160, B - T);
+  const w = vw <= 520 ? Math.min(vw * 0.9, bw * 0.96) : Math.min(bw * 0.58, 760);
+  el.classList.add("edgeban"); el.style.left = `${(L + R) / 2}px`; el.style.top = `${T + 6}px`; el.style.width = `${w}px`;
+  const h = Math.round(Math.min(Math.max(bh * 0.17, 56), w * 0.36)), tl = el.querySelector(".ult-title")?.textContent?.length || 8;
+  el.style.setProperty("--banh", `${h}px`); el.style.setProperty("--banfs", `${Math.floor(Math.min(h * 0.46, (w * 0.88) / (tl * 0.6)))}px`);
 }
 export function shake(lv: number) {
   const st = document.querySelector<HTMLElement>("#stage"); if (!st || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -194,7 +204,7 @@ export function drawCasts(ctx: CanvasRenderingContext2D, n: number, sx: SX, sy: 
       const L = c.pts.length ? c.pts[c.pts.length - 1] : null, ax = d.kind === "chain" && L ? sx(L[0]) + z / 2 : cx, ay = d.kind === "chain" && L ? sy(L[1]) + z / 2 : cy;
       const bx0 = Math.min(sx(0), sx(n - 1)), by0 = Math.min(sy(0), sy(n - 1)), bx1 = Math.max(sx(0), sx(n - 1)) + z, by1 = Math.max(sy(0), sy(n - 1)) + z;
       ctx.save(); ctx.beginPath(); ctx.rect(bx0, by0, bx1 - bx0, by1 - by0); ctx.clip(); ctx.globalAlpha = age > fd * 0.8 ? Math.max(0, 1 - (age - fd * 0.8) / (fd * 0.2)) : 1;
-      drawFxArt(ctx, "ult_" + d.key, ax, ay, d.kind === "chain" ? z * 2.4 : Math.max(z * 2.4, R * 2.3), age); ctx.restore(); } }
+      drawFxArt(ctx, "ult_" + d.key, ax, ay, d.kind === "chain" ? z * 1.3 : Math.max(z * 2.4, R * 2.3), age); ctx.restore(); } }
     if (d.kind === "doom") { // падение, вспышка, ударная волна, огненный шар, дым
       if (k < 0.18) { const f = k / 0.18; ctx.strokeStyle = d.col2; ctx.lineWidth = z * 0.12 * (1 - f) + 2; ctx.beginPath(); ctx.moveTo(cx, cy - R * 3 * (1 - f)); ctx.lineTo(cx, cy); ctx.stroke(); }
       else { const f = (k - 0.18) / 0.82, e = easeOut(Math.min(1, f * 1.6));
@@ -208,11 +218,13 @@ export function drawCasts(ctx: CanvasRenderingContext2D, n: number, sx: SX, sy: 
           ctx.beginPath(); ctx.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr - f * z * 0.8, z * 0.08 * (1 - f) + 1, 0, 7); ctx.fill(); } } }
     else if (d.kind === "chain") { // рывок: от исходной клетки Вождя по всем целям цепочки (cells по порядку), молния-след и вспышка на каждой
       const pts: [number, number][] = [c.from, ...c.pts], seg = Math.max(1, pts.length - 1), at = Math.min(seg, k * 1.4 * seg);
+      { const bx0 = Math.min(sx(0), sx(n - 1)), by0 = Math.min(sy(0), sy(n - 1)); ctx.beginPath(); ctx.rect(bx0, by0, n * z, n * z); ctx.clip(); } // цепь — строго в пределах доски
       for (let j = 0; j < Math.floor(at) + 1 && j < seg; j++) { const [ax, ay] = pts[j], [bx, by] = pts[j + 1] || pts[j], p = Math.min(1, at - j), A = [sx(ax) + z / 2, sy(ay) + z / 2], B = [sx(bx) + z / 2, sy(by) + z / 2];
         const fade = Math.max(0, 1 - (k - (j / seg) / 1.4) * 1.6); ctx.globalAlpha = fade;
-        for (const [w, col] of [[z * 0.16, d.col], [z * 0.05, d.col2]] as [number, string][]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = "miter"; ctx.beginPath(); ctx.moveTo(A[0], A[1]);
-          for (let s = 1; s <= 6; s++) { const t = (s / 6) * p, jit = s < 6 ? Math.sin(now / 30 + s * 7 + j) * z * 0.18 : 0; ctx.lineTo(A[0] + (B[0] - A[0]) * t + jit, A[1] + (B[1] - A[1]) * t - jit); } ctx.stroke(); }
-        if (p >= 1) { const age = now - c.t0 - ((j + 1) / seg / 1.4) * c.dur; if (!drawFxArt(ctx, "zapHit", B[0], B[1], z * 1.4, age)) { ctx.fillStyle = d.col2; ctx.beginPath(); ctx.arc(B[0], B[1], z * 0.35 * fade, 0, 7); ctx.fill(); }
+        for (const [w, col] of [[z * 0.12, d.col], [z * 0.04, d.col2]] as [number, string][]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = "miter"; ctx.beginPath(); ctx.moveTo(A[0], A[1]);
+          { const dx = B[0] - A[0], dy = B[1] - A[1], ln = Math.hypot(dx, dy) || 1, nx = -dy / ln, ny = dx / ln; // центр клетки → центр клетки, излом поперёк отрезка, концы точно в центрах
+            for (let s = 1; s <= 6; s++) { const t = (s / 6) * p, jit = s < 6 ? Math.sin(now / 30 + s * 7 + j) * z * 0.1 * Math.sin(Math.PI * s / 6) : 0; ctx.lineTo(A[0] + dx * t + nx * jit, A[1] + dy * t + ny * jit); } } ctx.stroke(); }
+        if (p >= 1) { const age = now - c.t0 - ((j + 1) / seg / 1.4) * c.dur; if (!drawFxArt(ctx, "zapHit", B[0], B[1], z * 1.05, age)) { ctx.fillStyle = d.col2; ctx.beginPath(); ctx.arc(B[0], B[1], z * 0.35 * fade, 0, 7); ctx.fill(); }
           ctx.globalAlpha = fade; ctx.strokeStyle = d.col2; ctx.lineWidth = Math.max(2, z * 0.06); const q = z * 0.18; ctx.beginPath(); ctx.moveTo(B[0] - q, B[1] - q); ctx.lineTo(B[0] + q, B[1] + q); ctx.moveTo(B[0] + q, B[1] - q); ctx.lineTo(B[0] - q, B[1] + q); ctx.stroke(); } }
       ctx.globalAlpha = 1; }
     else if (d.kind === "wall") { const e = easeOut(Math.min(1, k * 1.8)); ctx.globalAlpha = 0.5 * (1 - k); fillCells("rgba(194,162,122,.5)"); ctx.globalAlpha = 1;

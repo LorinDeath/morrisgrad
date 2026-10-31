@@ -74,10 +74,8 @@
 .apbox2 { flex-wrap: wrap; justify-content: center; max-width: 100%; font-size: 1rem; }
 .apbox2::before { display: none; }
 .appips { flex-wrap: wrap; max-width: 100%; justify-content: center; }
-.appips.mid { gap: 2px; } .appips.mid i { width: 15px; height: 15px; }
-.appips.many { gap: 1px; max-width: 168px; } .appips.many i { width: 11px; height: 11px; }
+.appips.two { justify-content: center; }
 .apbox2 #aptxt2 { font-variant-numeric: tabular-nums; color: var(--gold-hi); }
-.topbar .appips.many { max-width: 140px; }
 .aptab { margin-top: 6px; border-collapse: collapse; width: 100%; font-size: .8rem; }
 .aptab td { padding: 1px 4px; border-bottom: 1px solid #e0b04a22; } .aptab td + td { text-align: right; font-variant-numeric: tabular-nums; color: var(--good); }
 .aptab td.neg { color: var(--red-hi); } .aptab tr.sum td { border-top: 1px solid var(--gold-dk); border-bottom: 0; font-weight: 700; color: var(--gold-hi); }
@@ -531,9 +529,7 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
   #play .topbar { gap: 6px; row-gap: 2px; padding: 0 2px; }
   #play .topbar .apbox { order: 1; flex: 1 1 0; min-width: 0; justify-content: center; gap: 4px; font-size: .95rem; }
   #play .topbar .apbox .lbl { display: none; }
-  #play .topbar .appips, #play .topbar .appips.mid, #play .topbar .appips.many { flex-wrap: nowrap; max-width: none; gap: 1px; min-width: 0; }
-  #play .topbar .appips.mid i { width: 12px; height: 12px; }
-  #play .topbar .appips.many i { width: 9px; height: 9px; }
+  #play .topbar .appips { flex-wrap: nowrap; max-width: none; gap: 1px; min-width: 0; } #play .topbar .appips.two { gap: 1px 2px; }
   #play .topbar .turnplate { order: 2; } #play .topbar .clock { order: 3; }
   #play .ecbar { order: 5; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
   #play .ecbar::-webkit-scrollbar { display: none; }
@@ -585,7 +581,7 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
   #play .ecbar { min-width: 0; } #play .ecbar .hbtn span { display: none; } #play .ecbar > * { flex: none; }
   #play .hint { left: 6px; right: 58px; top: 6px; transform: none; flex-wrap: wrap; justify-content: space-between; font-size: .8rem; padding: 6px 8px; }
   #play .topbar .apbox .lbl { display: none; }
-  #play .topbar .appips, #play .topbar .appips.many { flex-wrap: nowrap; max-width: none; gap: 1px; } #play .topbar .appips.many i { width: 8px; height: 8px; }
+  #play .topbar .appips { flex-wrap: nowrap; max-width: none; gap: 1px; } #play .topbar .appips.two i { width: var(--pip, 8px); height: var(--pip, 8px); }
   #play .turnplate { height: 34px; border-width: 0 22px; border-image-width: 0 22px; font-size: .9rem; } #play .clock { min-width: 0; font-size: .9rem; } #play .clock small { display: none; }
   #play.game > .lside { grid-column: 1; grid-row: 2; min-height: 0; max-height: none; overflow-y: auto; }
   #play.game > .stagewrap { grid-column: 2; grid-row: 2; min-height: 0; border-width: 8px; border-image-width: 8px; }
@@ -725,4 +721,4 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
 }
 
 /* S7 камера (t1176): журнал поверх доски не перехватывает клики/касания — клетки под ним доступны */
-#stage .log { pointer-events: none; }
+#stage .log { pointer-events: none; } #stage .log.open { pointer-events: auto; }

@@ -201,8 +201,11 @@ body[data-screen="game"] .gtop { display: none; }
 .hbtn:hover { border-color: var(--gold); background: var(--panel-hi); } .hbtn.on { background: var(--gold); color: var(--ink); }
 .hbtn .ic { width: 20px; height: 20px; }
 .apbox { display: flex; align-items: center; gap: 6px; font: 700 1.1rem var(--f-disp); } .apbox .lbl { font-size: .78rem; letter-spacing: .1em; color: var(--gold); }
-.appips { display: flex; gap: 3px; } .appips i { width: 20px; height: 20px; background: url("/strat/ui/icons/icon_res_ap_32.png") center / contain no-repeat; filter: grayscale(1) brightness(.45); transition: filter .25s, transform .25s var(--ease); }
+.appips { display: flex; gap: 3px; } .appips i { width: var(--pip, 20px); height: var(--pip, 20px); background: url("/strat/ui/icons/icon_res_ap_32.png") center / contain no-repeat; filter: grayscale(1) brightness(.45); transition: filter .25s, transform .25s var(--ease); }
 .appips i.on { filter: none; animation: pop .3s var(--ease); }
+/* много ОД: две строки, чтобы не распирать верхнюю панель (7+; на узком экране — с 5) */
+.appips.two { display: grid; grid-template-columns: repeat(var(--cols), auto); gap: 1px 2px; } .appips.two i { width: var(--pip, 13px); height: var(--pip, 13px); }
+@media (max-width: 520px) { .appips.two-narrow { display: grid; grid-template-columns: repeat(var(--cols), auto); gap: 1px 2px; } .appips.two-narrow i, .appips.two i { width: var(--pip, 11px); height: var(--pip, 11px); } }
 .turnplate { display: flex; align-items: center; gap: 8px; height: 44px; border: solid transparent; border-width: 0 36px; border-image: url("/strat/ui/frames/title_plate.png") 0 96 fill / 0 36px; font: 700 1.15rem/1 var(--f-disp); letter-spacing: .1em; text-transform: uppercase; color: var(--gold-hi); white-space: nowrap; }
 .clock { display: flex; align-items: center; gap: 6px; font: 700 1.1rem var(--f-disp); font-variant-numeric: tabular-nums; min-width: 92px; } .clock small { font: 500 .7rem var(--f-disp); color: var(--ivory-3); }
 .clock.low { color: var(--red-hi); animation: pulse 1s infinite; }
@@ -300,8 +303,10 @@ body[data-screen="game"] .gtop { display: none; }
 .minimapbox::before { content: ""; position: absolute; inset: 2px; border: 1px solid var(--gold-dk); pointer-events: none; }
 #minimap { display: block; width: 168px; height: 168px; cursor: crosshair; touch-action: none; image-rendering: pixelated; }
 .log { position: absolute; left: 10px; bottom: 10px; z-index: 3; width: min(380px, 60%); max-height: 104px; overflow: hidden; display: flex; flex-direction: column; gap: 1px; padding: 6px 8px;
-  border: solid transparent; border-width: 12px; border-image: url("/strat/ui/frames/panel_ivory.png") 48 fill / 12px; color: var(--ink); font-size: .8rem; transition: max-height .25s var(--ease-out); pointer-events: auto; }
-.log:empty { display: none; } .log:hover { max-height: 260px; overflow-y: auto; }
+  border: solid transparent; border-width: 12px; border-image: url("/strat/ui/frames/panel_ivory.png") 48 fill / 12px; color: var(--ink); font-size: .8rem; transition: max-height .25s var(--ease-out); pointer-events: none; }
+.log:empty { display: none; } .log.open { max-height: min(260px, 55%); overflow-y: auto; pointer-events: auto; overscroll-behavior: contain; }
+/* журнал не перехватывает касания доски; развернуть — отдельной кнопкой (левый нижний угол) */
+.stage .log { left: 56px; } .logbtn { position: absolute; left: 10px; bottom: 10px; z-index: 3; --bh: 38px; } .log:empty + .logbtn { display: none; } .logbtn[aria-expanded="true"] { outline: 2px solid var(--gold-hi); }
 .log .lg { animation: rise .25s var(--ease-out); } .log .lg:nth-child(n+4) { opacity: .6; } .log .lg.good { color: #3d6410; font-weight: 700; } .log .lg.bad { color: var(--red-lo); font-weight: 700; }
 .maptag { position: absolute; left: 10px; top: 10px; z-index: 3; font: 500 .74rem var(--f-disp); letter-spacing: .08em; text-transform: uppercase; color: var(--ivory-3); background: #100c14cc; padding: 3px 8px; border: 1px solid var(--gold-dk); display: flex; gap: 6px; align-items: center; }
 
@@ -458,7 +463,7 @@ body[data-screen="game"] .gtop { display: none; }
   .stagewrap { border-width: 14px; border-image-width: 14px; } .stage { height: min(100vw - 36px, 66dvh); height: min(calc(100vw - 36px), 66dvh); }
   .side { overflow: visible; padding: 0; } .endzone { position: sticky; bottom: 0; z-index: 7; background: linear-gradient(transparent, var(--black) 30%); padding: 14px 0 6px; order: -1; margin: 0; }
   .endturn { max-width: 240px; }
-  .log { width: 70%; max-height: 64px; font-size: .72rem; border-width: 8px; border-image-width: 8px; } #minimap { width: 120px; height: 120px; }
+  .logbtn { --bh: 34px; } .stage .log { left: 50px; } .log { width: calc(70% - 44px); max-height: 64px; font-size: .72rem; border-width: 8px; border-image-width: 8px; } #minimap { width: 120px; height: 120px; }
   .camctl { gap: 4px; } .camctl .btn.sq { --bh: 34px; }
   .dlg { border-width: 24px; border-image-width: 24px; } .dlg .xbtn { top: -14px; right: -14px; } .dlg-h { margin: -8px -4px 8px; } .dlg-h h3 { font-size: 1.15rem; }
   .dlg-f { margin: 10px -4px -6px; } .choices { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
@@ -516,6 +521,23 @@ body[data-screen="game"] .gtop { display: none; }
 .ultban.k-growth .ult-title { color: #c8ec8a; } .ultban.k-growth::before { border-color: #6ea83a; }
 .ultban.small { top: 22%; width: min(520px, 90vw); padding: 10px 0; } .ultban.small .ult-title { font-size: clamp(1.6rem, 5vw, 2.6rem); -webkit-text-stroke-width: 2px; text-shadow: 3px 3px 0 var(--black); }
 .ultban.small.k-doom .ult-title { font-size: clamp(2.2rem, 7vw, 3.6rem); -webkit-text-stroke-width: 3px; } .ultban.small .ult-rays { display: none; } .ultban.small .ult-sub { font-size: .75rem; }
+/* баннеры у верхнего края доски (placeBanner): не закрывают действие, полупрозрачные, касания проходят насквозь */
+.edgeban { position: fixed; transform: translateX(-50%); pointer-events: none; padding: 0; max-height: var(--banh); opacity: .9; animation: banIn .25s cubic-bezier(.2, 1.3, .4, 1) both; }
+.edgeban.out { animation: banOut .3s ease-in both; }
+.edgeban, .edgeban * { pointer-events: none; }
+.ultban.edgeban { height: var(--banh); padding: 0; }
+.ultban.edgeban::before { inset: 8% 0; }
+.ultban.edgeban .ult-rays { display: none; }
+.ultban.edgeban .ult-title, .ultban.edgeban.k-doom .ult-title { font-size: var(--banfs, calc(var(--banh) * .46)); -webkit-text-stroke-width: 2px; text-shadow: 2px 2px 0 var(--black); line-height: 1; transform: none; white-space: nowrap; }
+.ultban.edgeban .ult-sub { margin-top: 2px; font-size: clamp(.6rem, calc(var(--banh) * .13), .82rem); padding: 1px 10px; letter-spacing: .08em; max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chiefban.edgeban { display: grid; justify-items: center; }
+.chiefban.edgeban .chief-art { width: auto; max-width: 100%; height: auto; max-height: var(--banh); filter: drop-shadow(0 4px 10px #0008); }
+.chiefban.edgeban .fxban-sub { margin-top: calc(var(--banh) * -.12); font-size: clamp(.6rem, calc(var(--banh) * .14), .85rem); padding: 1px 8px; }
+.chiefban.edgeban.fxban { max-height: none; }
+.chiefban .popsheet, .chiefban.edgeban .chief-art.popsheet { width: min(100%, calc(var(--banh, 160px) * 4)); aspect-ratio: 4 / 1; height: auto; max-height: none; background: 0 0 / 800% 100% no-repeat; animation: popf .333s steps(7) forwards; }
+@keyframes popf { to { background-position: 100% 0; } }
+@keyframes banIn { 0% { opacity: 0; transform: translate(-50%, -30%) scale(1.15); } 100% { opacity: .9; transform: translate(-50%, 0) scale(1); } }
+@keyframes banOut { to { opacity: 0; transform: translate(-50%, -25%); } }
 @keyframes ultIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); filter: brightness(3); } 60% { opacity: 1; transform: translate(-50%, -50%) scale(.94); } 100% { transform: translate(-50%, -50%) scale(1); } }
 @keyframes ultOut { to { opacity: 0; transform: translate(-50%, -64%) scale(1.06); } }
 /* тряска камеры */

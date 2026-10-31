@@ -13,7 +13,7 @@ import { fogView, unveilCls, fogNode } from "./fog";
 import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
-import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius, shake } from "./ult-fx";
+import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ULT, ultRadius, shake, placeBanner, BAN_MS } from "./ult-fx";
 import { loadFx, fxImg, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
@@ -244,16 +244,26 @@ function showWonder(c: any) { const g = S.g, race = g.races[c.owner] || "fire", 
 function resetMatchUi() { resetUlt(); resetFx2(); chatReset(); ultAim = null; aimCell = null; sticky.forEach((x) => x.clear()); lastHit.clear(); resetFell(); prevGoals = null; prevChief = null; endShown = false; introShown = false; cam.n = 0; document.getElementById("endscreen")?.remove(); const lg = $("#log"); if (lg) lg.innerHTML = ""; }
 /** «Вождь <имя> пал» — баннер всем игрокам. Есть арт fx-v1 (banner_chief_fallen_blank: «ВОЖДЬ … ПАЛ» нарисовано) —
  *  имя пишем кодом в его name_field (сжатие по ширине до scale_x_min, потом кегль до min_size); нет — стиль баннера ульты. */
-/** Очередь баннеров на весь экран (ульта отдельно): по одному, 2,9 с; при переполнении старые выбрасываются. */
+/** Очередь баннеров у верхнего края доски (ульта отдельно): по одному, ~1,2 с; при переполнении старые выбрасываются. */
 const banQ: (() => Promise<HTMLElement | null>)[] = []; let banBusy = false;
 function queueBanner(mk: () => Promise<HTMLElement | null>) { if (banQ.length >= 3) banQ.shift(); banQ.push(mk); if (!banBusy) nextBanner(); }
 async function nextBanner() { const mk = banQ.shift(); if (!mk) { banBusy = false; return; } banBusy = true;
   const el = await mk().catch(() => null); if (!el) { nextBanner(); return; }
-  document.body.appendChild(el); setTimeout(() => el.classList.add("out"), 2300); setTimeout(() => { el.remove(); nextBanner(); }, 2900); }
+  placeBanner(el); document.body.appendChild(el); setTimeout(() => el.classList.add("out"), BAN_MS - 300); setTimeout(() => { el.remove(); nextBanner(); }, BAN_MS); }
 /** баннер fx-v1 banner_<key> (ШАХ!/ВЗЯТИЕ!/LEVEL UP!/НОВАЯ ЭПОХА!/НИЧЬЯ — надпись нарисована); нет арта — текстом в стиле баннера ульты */
+/** появление баннера: лист <key>_pop.webp (8 кадров, 24 fps, последний = статичный), грузится лениво при первом показе; не успел за 250 мс или «меньше движения» — статичный арт */
+const popCache = new Map<string, Promise<string | null>>();
+function popSheet(key: string): Promise<string | null> {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return Promise.resolve(null);
+  let p = popCache.get(key); if (!p) { const url = `/strat/art/fx/${key}_pop.webp`; p = new Promise((res) => { const i = new Image(); i.onload = () => res(url); i.onerror = () => res(null); i.src = url; }); popCache.set(key, p); }
+  return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), 250))]);
+}
 function artBanner(key: string, title: string, sub = "") {
   queueBanner(async () => { const im = await fxImg(key), el = document.createElement("div"); el.setAttribute("role", "status"); el.setAttribute("aria-label", sub ? `${title}. ${sub}` : title);
-    if (im) { el.className = "chiefban fxban"; const i = im.cloneNode() as HTMLImageElement; i.className = "chief-art"; i.alt = ""; el.append(i); if (sub) el.append(Object.assign(document.createElement("div"), { className: "fxban-sub", textContent: sub })); }
+    const pop = im ? await popSheet(key) : null;
+    if (im) { el.className = "chiefban fxban"; let i: HTMLElement;
+      if (pop) { i = document.createElement("div"); i.className = "chief-art popsheet"; i.style.backgroundImage = `url("${pop}")`; } else { i = im.cloneNode() as HTMLImageElement; (i as HTMLImageElement).alt = ""; i.className = "chief-art"; }
+      el.append(i); if (sub) el.append(Object.assign(document.createElement("div"), { className: "fxban-sub", textContent: sub })); }
     else { el.className = "ultban k-chief"; const t = document.createElement("div"); t.className = "ult-title"; t.textContent = title; t.dataset.text = title;
       el.append(Object.assign(document.createElement("i"), { className: "ult-rays" }), t); if (sub) el.append(Object.assign(document.createElement("div"), { className: "ult-sub", textContent: sub })); }
     return el; });
@@ -291,6 +301,8 @@ function onState(prev: any) {
   if (g?.ec && prev?.g?.ec && !hv && S.code === prev.code) for (const c of g.ec.cities as any[]) { const pc = prev.g.ec.cities.find((q: any) => q.id === c.id);
     if ((c.bld || []).includes("wonder") && pc && !(pc.bld || []).includes("wonder")) showWonder(c); }
   lastHitAt = null; const hasChiefDown = (S.ev || []).some((e: any) => e.e === "chief_down");
+  if (!hv && S.code === prev?.code && S.phase === "play") for (const sd of [0, 1]) if (S.check?.[sd] && !prev?.check?.[sd]) // ШАХ!: сервер шлёт check[side] (inCheck) — баннер при появлении угрозы Вождю
+    artBanner("banner_shah", "ШАХ!", sd === me ? "Ваш Вождь под ударом" : `${S.seats[sd]?.nick || "Соперник"}: Вождь под ударом`);
   for (const e of S.ev || []) {
     if (!g) break;
     { const u = parseUlt(e, g, now, prev?.g); if (u) { addCast(u, g.turn); ultBanner(u, u.side === me, S.seats[u.side]?.nick || ""); draw(); } }
@@ -782,13 +794,22 @@ function skillPassive(id: string, side: number): Passive | null {
     return { key: "chief." + id, name: n.name, icon: "xp", effs: Array.isArray((n as any).effects) ? (n as any).effects : [], note: n.eff }; } }
   return null;
 }
+/** ОД не влезают в свою ячейку панели (узкая панель, много ОД) — уменьшаем значки, а не налезаем на соседние кнопки */
+function fitPips(pe: HTMLElement) {
+  const box = pe.closest<HTMLElement>(".apbox"); if (!box || !pe.offsetParent) return; pe.style.removeProperty("--pip");
+  const eb = box.parentElement?.querySelector<HTMLElement>(":scope > .ecbar"), over = Math.max(box.scrollWidth - box.clientWidth, eb ? eb.scrollWidth - eb.clientWidth : 0);
+  if (over <= 1) return; // соседняя полоса ресурсов (телефон-ландшафт) тоже считается: она не должна уезжать под ОД
+  const n = pe.children.length, cols = getComputedStyle(pe).display === "grid" ? Math.ceil(n / 2) : n, gap = parseFloat(getComputedStyle(pe).columnGap) || 0;
+  pe.style.setProperty("--pip", Math.max(6, Math.min(20, Math.floor((pe.offsetWidth - over - 2) / cols - gap))) + "px");
+}
+addEventListener("resize", () => document.querySelectorAll<HTMLElement>(".appips").forEach(fitPips));
 function renderHud() {
   if (!S?.g) return; const g = S.g, me = S.you, myTurn = S.phase === "play" && g.cur === me, cfg = cfgOf(S), G = gs()!;
   $("#turnno").textContent = String(g.turn); { const tn2 = $("#turnno2"); if (tn2) tn2.textContent = String(g.turn); }
   { const mx = Math.max(g.apMax || 0, g.ap), pips = Array.from({ length: mx }, (_, i) => `<i class="${i < g.ap ? "on" : ""}"></i>`).join(""), tip = apTip(S, G, me);
     for (const [pid, tid] of [["#appips", "#aptxt"], ["#appips2", "#aptxt2"]]) { const pe = document.querySelector<HTMLElement>(pid); if (!pe) continue;
-      pe.innerHTML = pips; pe.dataset.n = String(mx); pe.className = "appips" + (mx > 10 ? " many" : mx > 7 ? " mid" : ""); const te = document.querySelector<HTMLElement>(tid); if (te) te.textContent = `${g.ap}/${mx}`;
-      pe.closest<HTMLElement>(".apbox")?.setAttribute("data-tip", tip); } }
+      pe.innerHTML = pips; pe.dataset.n = String(mx); pe.className = "appips" + (mx >= 7 ? " two" : mx >= 5 ? " two-narrow" : ""); pe.style.setProperty("--cols", String(Math.ceil(mx / 2))); const te = document.querySelector<HTMLElement>(tid); if (te) te.textContent = `${g.ap}/${mx}`;
+      pe.closest<HTMLElement>(".apbox")?.setAttribute("data-tip", tip); fitPips(pe); } }
   $("#turnbox").classList.toggle("mine", myTurn); $("#turnwho").textContent = S.phase === "over" ? "Партия окончена" : myTurn ? "Ваш ход" : me < 0 ? "Ходит " + (S.seats[g.cur]?.nick || "?") : "Ход соперника";
   { const w2 = document.getElementById("turnwho2"); if (w2) { w2.textContent = $("#turnwho").textContent; w2.classList.toggle("mine", myTurn); } }
   const glP = goalsWithSticky(G, cfg);
@@ -963,7 +984,11 @@ function fitCam(force: boolean) {
 function clampCam() {
   const n = cam.n; cam.z = Math.max(cam.fit, Math.min(ZMAX, cam.z));
   const hw = cam.W / 2 / cam.z, hh = cam.H / 2 / cam.z;
-  cam.cx = hw * 2 >= n ? n / 2 : Math.max(hw, Math.min(n - hw, cam.cx)); cam.cy = hh * 2 >= n ? n / 2 : Math.max(hh, Math.min(n - hh, cam.cy));
+  // запас под оверлеи (мини-карта/кнопки камеры справа, журнал слева, мини-карта снизу): крайние клетки можно вытащить из-под них и нажать
+  const ov = (id: string, k: "offsetWidth" | "offsetHeight") => { const e = document.getElementById(id); return e && !e.hidden && e.offsetParent ? (e as any)[k] + 14 : 0; };
+  const mR = big() ? Math.max(ov("minimapbox", "offsetWidth"), ov("camctl", "offsetWidth")) / cam.z : 0, mB = big() ? Math.max(ov("minimapbox", "offsetHeight"), ov("log", "offsetHeight")) / cam.z : 0;
+  const lx = Math.min(hw, n / 2), ux = Math.max(n - hw, n / 2) + mR, ly = Math.min(hh, n / 2), uy = Math.max(n - hh, n / 2) + mB;
+  cam.cx = Math.max(lx, Math.min(ux, cam.cx)); cam.cy = Math.max(ly, Math.min(uy, cam.cy));
 }
 function myAnchor(): [number, number] | null {
   const g = S?.g; if (!g) return null; const me = Math.max(0, S.you);
@@ -1231,6 +1256,7 @@ function bindBoard() {
   // колесо/тачпад: плавный зум к точке курсора (deltaY в пикселях или строках)
   c.addEventListener("wheel", (e) => { if (!big()) return; e.preventDefault(); stopInertia(); const p = local(e), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
     zoomAt(Math.exp(-Math.max(-240, Math.min(240, dy)) * (e.ctrlKey ? 0.01 : 0.0016)), p.x, p.y); }, { passive: false });
+  { const lb = $("#logbtn"); if (lb) lb.onclick = () => { const lg = $("#log"), o = !lg.classList.contains("open"); lg.classList.toggle("open", o); lb.setAttribute("aria-expanded", String(o)); lb.setAttribute("aria-label", o ? "Свернуть журнал" : "Развернуть журнал"); if (!o) lg.scrollTop = 0; }; }
   $("#zin").onclick = () => zoomAt(1.3); $("#zout").onclick = () => zoomAt(1 / 1.3); $("#zfit").onclick = () => { cam.z = cam.fit; clampCam(); draw(); };
   $("#cenking").onclick = () => { const k = S?.g?.pieces.find((p: any) => p.o === Math.max(0, S.you) && p.k === "king"); if (k) { if (cam.z < 40) cam.z = Math.max(cam.fit, 48); centerOn(k.x, k.y); } else toast("Вождя сейчас нет", "bad", "skull"); };
   $("#cencity").onclick = () => { const cs = (S?.g?.ec?.cities || []).filter((q: any) => q.owner === Math.max(0, S.you)); if (!cs.length) return toast("Городов нет", "bad", "castle");
