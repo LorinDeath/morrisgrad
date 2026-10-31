@@ -1,5 +1,5 @@
 // Игроки: режимы 1×1 / 2×2 / все против всех (до 8), команды, цвета, список игроков в HUD и сетка мест в лобби.
-// Сервер пока 1×1; поля читаются защитно (S.mode, S.maxSeats, S.spawns, seat.team, seat.col, seat.online/away).
+// t1219: сервер шлёт mode 1v1/2v2/ffa3…ffa8, maxSeats, seat.team/out; поля читаются защитно (S.mode, S.maxSeats, S.spawns, seat.team, seat.col, seat.online/away).
 // Ники — только textContent.
 import { ic } from "./icons";
 import { esc } from "./ui-kit";
@@ -12,9 +12,9 @@ export const PCOL: { id: string; name: string; c: string; d: string }[] = [
   { id: "plum", name: "Слива", c: "#8d4f9e", d: "#341a3c" }, { id: "teal", name: "Бирюза", c: "#2aa39b", d: "#0c3b38" },
   { id: "bone", name: "Кость", c: "#b9c6cf", d: "#3a4650" }, { id: "copper", name: "Медь", c: "#8e4a26", d: "#3a1806" },
 ];
-export const TEAM_NAME = ["Золотые", "Алые", "Лазурные", "Изумрудные", "Пятые", "Шестые", "Седьмые", "Восьмые"];
+export const TEAM_NAME = ["Алые", "Лазурные", "Изумрудные", "Янтарные", "Пятые", "Шестые", "Седьмые", "Восьмые"]; // по цвету чипа t0…t3 (strat-ui.css)
 export type Mode = "1v1" | "2v2" | "ffa";
-export const modeOf = (S: any): Mode => (S?.mode === "2v2" || S?.mode === "ffa" ? S.mode : (S?.seats?.length || 2) > 2 ? "ffa" : "1v1");
+export const modeOf = (S: any): Mode => (S?.mode === "2v2" ? "2v2" : typeof S?.mode === "string" && S.mode.startsWith("ffa") ? "ffa" : S?.mode === "1v1" ? "1v1" : (S?.seats?.length || 2) > 2 ? "ffa" : "1v1");
 export const seatCount = (S: any) => Math.max(2, Math.min(8, S?.maxSeats ?? S?.seats?.length ?? 2));
 /** Сколько мест позволяет карта (точки появления). */
 export const spawnLimit = (S: any) => Math.max(2, Math.min(8, S?.spawns ?? S?.mapSpawns ?? S?.map?.spawns ?? 2));
@@ -60,15 +60,15 @@ export function renderPlayers(root: HTMLElement, S: any, o: { me: number; col: (
 /** Сетка мест в лобби: до 8, команды, «добавить бота», пресеты режима. */
 export function renderSlots(root: HTMLElement, modesEl: HTMLElement, S: any, o: { me: number; host: boolean; seatHtml: (i: number) => string; send: (m: any) => void; raceCol: (i: number) => string }) {
   const lim = spawnLimit(S), mode = modeOf(S), cnt = seatCount(S);
-  const preset = (id: string, label: string, need: number, m: Mode, seats: number) => `<button class="mode ${mode === m && cnt === seats ? "on" : ""}" data-mode="${m}" data-seats="${seats}" ${!o.host || need > lim ? "disabled" : ""} data-tip="${need > lim ? `Карта рассчитана на ${lim} игроков` : esc(label)}">${esc(id)}</button>`;
+  const preset = (id: string, label: string, need: number, m: Mode, seats: number) => `<button class="mode ${mode === m && cnt === seats ? "on" : ""}" data-mode="${m}" data-seats="${seats}" ${!o.host ? "disabled" : ""} data-tip="${esc(label)}${need > lim ? " — карта сменится на подходящую" : ""}">${esc(id)}</button>`;
   modesEl.innerHTML = `<span class="lbl">Режим</span>` + preset("1×1", "Дуэль", 2, "1v1", 2) + preset("2×2", "Две команды по двое; союзники ходят по очереди и видят ходы друг друга", 4, "2v2", 4)
-    + [3, 4, 6, 8].map((k) => preset(`Все ×${k}`, `Каждый сам за себя, ${k} игроков`, k, "ffa", k)).join("") + `<small class="muted">мест на карте: ${lim}</small>`;
+    + [3, 4, 6, 8].map((k) => preset(`Все ×${k}`, `Каждый сам за себя, ${k} игроков`, k, "ffa", k)).join("") + `<small class="muted">мест: ${cnt}</small>`;
   modesEl.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((b) => (b.onclick = () => o.send({ type: "cfg", mode: b.dataset.mode, seats: +b.dataset.seats! })));
   root.classList.toggle("many", cnt > 2); root.dataset.n = String(cnt);
   let h = ""; for (let i = 0; i < cnt; i++) {
     const s = S.seats[i], t = teamOf(S, i), col = s ? playerCol(S, i, o.raceCol) : PCOL[i % 8].c;
     h += `<div class="slot ${s ? (s.ready ? "is-ready" : "is-filled") : "is-empty"} ${mode === "2v2" ? "team-" + t : ""}" style="--pc:${col}" data-slot="${i}"><span class="slotno">${i + 1}</span>${o.seatHtml(i)}
-      <div class="slot-f">${mode === "2v2" ? `<button class="tchip t${t}" data-team="${i}" ${o.host ? "" : "disabled"} data-tip="Сменить команду">${esc(TEAM_NAME[t])}</button>` : ""}
+      <div class="slot-f">${mode === "2v2" ? `<span class="tchip t${t}" data-tip="Команда по месту: места 1 и 3 — ${esc(TEAM_NAME[0])}, 2 и 4 — ${esc(TEAM_NAME[1])}; ходы A1→B1→A2→B2">${esc(TEAM_NAME[t])}</span>` : ""}
       ${o.host && i > 0 && !s ? `<div class="botadd" role="group" aria-label="Добавить бота"><span class="ba-l">${ic("bot")}Бот</span>${BOT_LV.map(([lv, nm]) => `<button type="button" class="ba-b" data-bot="${i}" data-lv="${lv}">${nm}</button>`).join("")}</div>` : ""}
       ${s?.bot ? `<span class="botmark">${ic("bot")}${esc(botLvName(s))}</span>${o.host ? `<button class="btn sm ghost" data-bot="${i}" data-off="1">${ic("close")}<span>Убрать</span></button>` : ""}` : ""}</div></div>`;
     if (cnt === 2 && i === 0) h += `<span class="vs">VS</span>`;

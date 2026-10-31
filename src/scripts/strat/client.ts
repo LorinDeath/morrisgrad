@@ -19,6 +19,7 @@ import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, 
 import { loadFx, fxImg, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
+import { renderTrade } from "./trade-ui";
 import { openProfile, demoProfile } from "./profile";
 import { lobbyLeagueHtml, profileHtml, openLeaderboard, ratingDelta, leagueOf, leagueName, LEAGUES } from "./rating";
 import { localFell, resetFell, blacklistOf } from "./goals";
@@ -77,7 +78,7 @@ const REASON: Record<string, string> = { glory: "Достигнут порог �
   wipe: "Разгром: у соперника не осталось ни фигур, ни городов", claim: "Соперник не вернулся — победа засчитана", draw: "Ничья", timeout: "Время вышло", surrender: "Соперник сдался" }; // t1231: все коды причин по-русски
 const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нельзя", bad_action: "Неверное действие", guest: "Только для вошедших",
   not_your_turn: "Сейчас ход соперника", already_acted: "Эта фигура уже действовала", no_ap: "Очки действий кончились", bad_move: "Туда нельзя",
-  bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято", color_taken: "Этот цвет уже у соперника", bad_color: "Нет такого цвета",
+  bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", no_mode_map: "Для этого режима нет встроенной карты такого размера — выберите другой размер", map_mode: "Карта рассчитана на другой режим", cant_claim: "В командных режимах победу не забирают: ход ушедшего пропускается, после 5 пропусков он сдаётся", bad_mode: "Нет такого режима", out: "Вы выбыли из партии", no_offer: "Предложение уже снято", not_yours: "Это не ваше предложение", ally_short: "У союзника столько нет", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято", color_taken: "Этот цвет уже у соперника", bad_color: "Нет такого цвета",
   auth_bad: "Вход не подтверждён — обновите страницу", auth_expired: "Сессия истекла — обновите страницу", no_ident: "Нужно войти или играть гостем",
   map_not_approved: "Карта ещё не проверена — играть на ней может только автор", map_hidden: "Карта скрыта модератором", not_admin: "Только для админа",
   reason_required: "Укажите причину отказа", not_found: "Карта не найдена", bad_size: "Такой размер поля сервер пока не поддерживает",
@@ -194,7 +195,7 @@ function openMatch() {
     setStatus("Связь потеряна, переподключение…"); setTimeout(openMatch, Math.min(8000, 800 * 2 ** retry++));
   };
 }
-const send = (o: any) => { if (hv && /^(act|end|ult|surrender|claim)$/.test(o?.type)) return toast(hv.replay ? "Это повтор партии" : "Вы смотрите прошлый ход — нажмите «К игре»", "info", "hist");
+const send = (o: any) => { if (hv && /^(act|end|ult|surrender|claim|trade_reply)$/.test(o?.type)) return toast(hv.replay ? "Это повтор партии" : "Вы смотрите прошлый ход — нажмите «К игре»", "info", "hist");
   if (demo) return toast("Демо-доска: ходы не отправляются"); ws?.readyState === 1 && ws.send(JSON.stringify(o)); };
 function setStatus(t: string) { for (const id of ["#status", "#lstatus"]) { const el = $(id); if (el) el.textContent = t; } }
 
@@ -733,7 +734,8 @@ function renderLobby() {
   if (types.length > 1) { const cur = S.seats[me]?.chief || types[0].id;
     cp.innerHTML = `<h4 class="deco-h">${ic("crown")}<span>Тип Вождя</span></h4><div class="cp-row">${types.map((t) => `<button class="btn ${t.id === cur ? "gold" : ""}" data-chief="${esc(t.id)}"><span>${esc(t.name)}</span></button>`).join("")}</div>`;
     for (const b of cp.querySelectorAll<HTMLButtonElement>("[data-chief]")) b.onclick = () => send({ type: "chief", chief: b.dataset.chief }); }
-  const st = $("#sizes"); if (!st.dataset.built) { st.dataset.built = "1"; st.innerHTML = SIZES.map((n) => `<button class="sizetile" data-size="${n}"><b>${n}×${n}</b><small>${sizeLabel(n)}</small></button>`).join("");
+  const szs: number[] = S.mode && S.mode !== "1v1" && Array.isArray(S.modeSizes) && S.modeSizes.length ? S.modeSizes : SIZES, szKey = szs.join(","); // t1219: в 2×2/«Все» — размеры встроенных карт режима
+  const st = $("#sizes"); if (st.dataset.built !== szKey) { st.dataset.built = szKey; st.innerHTML = szs.map((n) => `<button class="sizetile" data-size="${n}"><b>${n}×${n}</b><small>${sizeLabel(n)}</small></button>`).join("");
     for (const b of st.querySelectorAll<HTMLButtonElement>("[data-size]")) b.onclick = () => send({ type: "cfg", size: +b.dataset.size! }); }
   for (const b of st.querySelectorAll<HTMLButtonElement>("[data-size]")) { b.classList.toggle("on", +b.dataset.size! === S.size); b.disabled = !host; }
   const cs = $<HTMLInputElement>("#csize"); cs.disabled = !host; if (document.activeElement !== cs) cs.value = String(S.size);
@@ -755,15 +757,17 @@ function renderLobby() {
   const rd = $<HTMLButtonElement>("#ready"); rd.querySelector("span")!.textContent = seats[me]?.ready ? "Не готов" : "Готов к бою"; rd.classList.toggle("on", !!seats[me]?.ready);
   rd.disabled = me < 0 || (!S.ranked && !seats[me]?.race);
   $("#hostpanel").classList.toggle("ro", !host);
-  setStatus(me < 0 ? "Лобби заполнено — вы зритель" : !seats[1] ? "Отправьте ссылку или код сопернику" : !S.ranked && !seats[me]?.race ? "Выберите расу — соперник увидит её только на старте" : seats[me]?.ready ? "Ждём готовности соперника" : "Нажмите «Готов к бою»");
+  const free = seats.filter((x: any) => !x).length;
+  setStatus(me < 0 ? "Лобби заполнено — вы зритель" : seats.length > 2 && free ? `Свободных мест: ${free} — позовите игроков по ссылке или добавьте ботов` : !seats[1] ? "Отправьте ссылку или код сопернику" : !S.ranked && !seats[me]?.race ? "Выберите расу — соперник увидит её только на старте" : seats[me]?.ready ? "Ждём готовности соперника" : "Нажмите «Готов к бою»");
 }
-let mapListSize = 0, mapList: any[] = [];
+let mapListSize: number | string = 0, mapList: any[] = [];
 const ST_NAME: Record<string, string> = { pending: "на проверке", rejected: "отклонена", hidden: "скрыта" };
 async function renderLobbyMap(host: boolean) {
   const gal = $("#maps");
-  if (mapListSize !== S.size) {
-    mapListSize = S.size; gal.innerHTML = `<div class="empty">Загрузка карт…</div>`;
-    const r = await hubReq("map_list", { size: S.size }); if (r.err) { mapListSize = 0; if (r.err === "offline") setTimeout(render, 700); return; } mapList = r.list || [];
+  const mlKey = `${S.size}|${S.mode || "1v1"}`; // t1219: список карт — по размеру и режиму
+  if (mapListSize !== mlKey) {
+    mapListSize = mlKey; gal.innerHTML = `<div class="empty">Загрузка карт…</div>`;
+    const r = await hubReq("map_list", { size: S.size, mode: S.mode || "1v1" }); if (r.err) { mapListSize = 0; if (r.err === "offline") setTimeout(render, 700); return; } mapList = r.list || [];
     gal.innerHTML = "";
     for (const m of mapList) {
       const b = document.createElement("button"); b.className = "mapcard"; b.dataset.map = m.id;
@@ -856,11 +860,12 @@ function renderHud() {
     for (const [pid, tid] of [["#appips", "#aptxt"], ["#appips2", "#aptxt2"]]) { const pe = document.querySelector<HTMLElement>(pid); if (!pe) continue;
       pe.innerHTML = pips; pe.dataset.n = String(mx); pe.className = "appips" + (mx >= 7 ? " two" : mx >= 5 ? " two-narrow" : ""); pe.style.setProperty("--cols", String(Math.ceil(mx / 2))); const te = document.querySelector<HTMLElement>(tid); if (te) te.textContent = `${g.ap}/${mx}`;
       pe.closest<HTMLElement>(".apbox")?.setAttribute("data-tip", tip); fitPips(pe); } }
-  $("#turnbox").classList.toggle("mine", myTurn); $("#turnwho").textContent = S.phase === "over" ? "Партия окончена" : myTurn ? "Ваш ход" : me < 0 ? "Ходит " + (S.seats[g.cur]?.nick || "?") : "Ход соперника";
+  $("#turnbox").classList.toggle("mine", myTurn); $("#turnwho").textContent = S.phase === "over" ? "Партия окончена" : myTurn ? "Ваш ход" : me < 0 || S.seats.length > 2 ? (allies(S, me, g.cur) ? "Ход союзника: " : "Ходит ") + (S.seats[g.cur]?.nick || "?") : "Ход соперника";
   { const w2 = document.getElementById("turnwho2"); if (w2) { w2.textContent = $("#turnwho").textContent; w2.classList.toggle("mine", myTurn); } }
   const glP = goalsWithSticky(G, cfg);
   renderPlayers($("#score"), S, { me, col: raceCol, crest, raceName: RACE_NAME, glory: (i) => g.ec?.res?.[i]?.glory ?? 0, pas: racePas,
     goals: (i) => { const q = glP.sides?.[i]; return q ? { done: q.filter((x: any) => x.done).length, need: glP.need, total: q.length } : null; } });
+  renderTrade($("#score"), S, send); // t1219: обмен 2×2
   { const opp = S.seats.findIndex((s: any, i: number) => i !== me && !allies(S, me, i) && isAway(s) && (s.skips ?? s.missed ?? 0) >= 5); const cl = $("#claim");
     cl.hidden = !(me >= 0 && S.phase === "play" && opp >= 0); }
   renderLvDock(ectx(), $("#lvdock"), () => setTimeout(render, 0));

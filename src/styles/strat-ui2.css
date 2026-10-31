@@ -933,3 +933,17 @@ body.me-open { overflow: hidden; }
   .modrow2 { grid-template-columns: 84px minmax(0, 1fr); } .modrow2 canvas { width: 84px !important; height: 84px !important; }
   .modt th:nth-child(3), .modt td:nth-child(3), .modt th:nth-child(4), .modt td:nth-child(4) { display: none; }
 }
+
+/* t1219: обмен 2×2 — панель под списком игроков и окно предложения */
+.tradedock { margin-top: 6px; padding: 6px 8px; background: rgba(12, 10, 8, .72); border: 1px solid rgba(224, 176, 74, .45); display: grid; gap: 5px; font: 600 .78rem var(--f-disp); color: var(--ivory-2); }
+.tradedock .td-h { display: flex; align-items: center; gap: 6px; } .tradedock .td-h > span { flex: 1; letter-spacing: .06em; text-transform: uppercase; color: var(--ivory); }
+.tradedock .td-o { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 4px 6px; border-left: 3px solid #3e9a58; background: rgba(62, 154, 88, .12); }
+.tradedock .td-o.outg { border-left-color: #b9c6cf; background: rgba(185, 198, 207, .08); } .tradedock .td-o > span { flex: 1 1 100%; }
+.tradedock .ic, .trade .ic { width: 16px; height: 16px; vertical-align: -3px; }
+.trade .tr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .trade .tr-grid > div { display: grid; gap: 6px; }
+.trade .tr-in { display: flex; align-items: center; gap: 6px; } .trade .tr-in input { width: 80px; padding: 4px 6px; font: 600 1rem var(--f-disp); background: #15110c; color: var(--ivory); border: 1px solid rgba(224, 176, 74, .5); }
+.trade .tr-err { margin-top: 8px; min-height: 2.4em; } .trade .tr-err.bad { color: #e86a5a; }
+@media (max-width: 560px) { .trade .tr-grid { grid-template-columns: 1fr; } .tradedock { font-size: .72rem; } }
+/* чип команды: если арт team_chip_white не загрузился — чистый CSS (белая «плашка» × цвет команды) */
+.tchip { color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, .55); border-radius: 3px; }
+.me-mode { display: inline-flex; align-items: center; gap: 4px; } .me-mode select { padding: 6px; background: #15110c; color: var(--ivory); border: 1px solid rgba(224, 176, 74, .45); font: 600 .8rem var(--f-disp); } .me-mode .ic { width: 16px; height: 16px; }

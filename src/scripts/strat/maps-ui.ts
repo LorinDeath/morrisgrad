@@ -1,7 +1,7 @@
 // t1217: редактор карт игроков, хаб карт (лайки/избранное/комментарии) и модерация (только Алекс).
 // Карта — строки t/s size×size (server/strat/terrain.ts); проверки те же, что на сервере (validateMap + точки спавна).
 // Доска редактора рисуется кусками 16×16 клеток (кэш, правка сбрасывает только свои куски) и только видимая часть; мини-карта — 1 px на клетку.
-import { TERRAIN, STRUCT, validateMap, unreachableCells, spawnsOf, isMapSize, MAP_MIN, MAP_MAX, SPAWN_MAX, type MapData } from "../../../server/strat/terrain";
+import { TERRAIN, STRUCT, validateMap, unreachableCells, spawnsOf, isMapSize, MAP_MIN, MAP_MAX, SPAWN_MAX, MODE_SEATS, type MapData } from "../../../server/strat/terrain";
 import { STRAT_CFG, ensureSize } from "../../../server/strat/rules";
 import { drawTerrainCell, drawStructArt, drawStruct, terrainLayer, GOLD, INK, RED } from "./terrain-draw";
 import { artVer } from "./art";
@@ -24,7 +24,7 @@ export const MAP_ERR: Record<string, string> = {
   not_admin: "Только для администратора", offline: "Нет связи с сервером", db: "Ошибка базы",
   too_blocked: "Больше 25% клеток непроходимо", too_many_res: "Слишком много ресурсов", unreachable: "Есть недостижимые клетки (подсвечены)", army_blocked: "Армии некуда встать",
   spawns_few: "Нужно минимум 2 точки спавна", spawns_many: `Не больше ${SPAWN_MAX} точек спавна`, spawn_half: "Точки спавна: нужна хотя бы одна снизу и одна сверху", spawn_space: "У точки спавна мало места для армии",
-  spawn_blocked: "Точка спавна на непроходимой клетке", not_symmetric: "Карта несимметрична — баланс сторон под вопросом", spawns_extra: "Игра пока 1×1: используются нижняя и верхняя точки",
+  spawn_blocked: "Точка спавна на непроходимой клетке", not_symmetric: "Карта несимметрична — баланс сторон под вопросом", spawns_extra: "Лишние точки спавна для выбранного режима", spawns_count: "Число точек спавна не совпадает с режимом карты (1×1 — 2, 2×2 — 4, «Все ×N» — N)", map_mode: "Карта рассчитана на другой режим",
 };
 const errText = (e: string) => MAP_ERR[e] || MAP_ERR[e.replace(/^invalid:/, "").split(",")[0]] || e;
 
@@ -32,9 +32,13 @@ const errText = (e: string) => MAP_ERR[e] || MAP_ERR[e.replace(/^invalid:/, "").
 export function checkLocal(m: MapData) {
   const army = ensureSize(STRAT_CFG, m.size).army, v = validateMap(m, { armyRows: 0, armyCols: [], army });
   const n = spawnsOf(m).length; if (n < 2) v.errors.push("spawns_few"); if (n > SPAWN_MAX) v.errors.push("spawns_many");
+  if (m.mode && MODE_SEATS[m.mode] && n >= 2 && n !== MODE_SEATS[m.mode]) v.errors.push("spawns_count"); // t1219: режим карты = число точек
   return v;
 }
 
+/** t1219: режимы карты в редакторе ("" — по числу точек: 2 → 1×1, 4 → 2×2/«Все ×4», 3/6/8 → «Все ×N»). */
+const modeLbl = (x: any) => ((x?.modes || []) as string[]).map((k) => MODE_OPTS.find((o) => o[0] === k)?.[1]).filter(Boolean).join(" / ");
+const MODE_OPTS: [string, string][] = [["", "Режим: по точкам"], ["1v1", "1×1"], ["2v2", "2×2"], ["ffa3", "Все ×3"], ["ffa4", "Все ×4"], ["ffa6", "Все ×6"], ["ffa8", "Все ×8"]];
 // ---------------------------------------------------------------- редактор
 type Tool = "paint" | "fill" | "erase" | "pan";
 type Sym = "none" | "rot" | "mirror";
@@ -55,6 +59,7 @@ export function openEditor(ctx: MapsCtx, src?: { map: MapData; descr?: string; s
       <button class="btn sq ghost" data-c="close" aria-label="Закрыть" data-tip="Закрыть редактор">${ic("close")}</button>
       <input class="me-name" maxlength="40" placeholder="Название карты" aria-label="Название карты">
       <label class="me-size" data-tip="Размер стороны: ${MAP_MIN}…${MAP_MAX}"><input type="number" min="${MAP_MIN}" max="${MAP_MAX}" aria-label="Размер"><span>клеток</span></label>
+      <label class="me-mode" data-tip="Режим карты: лобби показывает карту только в своём режиме. Число точек спавна должно совпадать">${ic("flag")}<select aria-label="Режим">${MODE_OPTS.map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select></label>
       <span class="me-lg"></span>
       <span class="me-sp"></span>
       <button class="btn sq ghost" data-c="undo" aria-label="Отменить" data-tip="Отменить (Ctrl+Z)">↶</button>
@@ -102,6 +107,8 @@ export function openEditor(ctx: MapsCtx, src?: { map: MapData; descr?: string; s
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => el.querySelector<T>(s)!;
   const cv = $<HTMLCanvasElement>(".me-cv"), g = cv.getContext("2d")!, mini = $<HTMLCanvasElement>(".me-mini canvas"), stage = $(".me-stage");
   const nameIn = $<HTMLInputElement>(".me-name"), sizeIn = $<HTMLInputElement>(".me-size input"), descrIn = $<HTMLTextAreaElement>(".me-descr");
+  const modeIn = $<HTMLSelectElement>(".me-mode select"); modeIn.value = m.mode && MODE_SEATS[m.mode] ? m.mode : "";
+  modeIn.onchange = () => { m = { ...m, mode: modeIn.value || undefined } as MapData; if (!modeIn.value) delete (m as any).mode; afterEdit(); saveDraft(); };
   nameIn.value = m.name === "Новая карта" && !src ? "" : m.name; sizeIn.value = String(m.size); descrIn.value = descr;
   // палитра
   for (const k of ["t", "s"] as const) {
@@ -230,7 +237,7 @@ export function openEditor(ctx: MapsCtx, src?: { map: MapData; descr?: string; s
     m.name = nameIn.value.trim(); if (!m.name) { ctx.toast(MAP_ERR.bad_name, "bad"); nameIn.focus(); return null; }
     if (ctx.isGuest()) { ctx.toast(MAP_ERR.login_required, "bad"); return null; }
     recheck(); if (checks.errors.length) { ctx.toast("Исправьте: " + errText(checks.errors[0]), "bad"); el.classList.add("me-show-side"); return null; }
-    const r = await ctx.req("map_save", { map: { id: srcId || undefined, name: m.name, size: m.size, t: m.t, s: m.s, descr: descrIn.value.trim() } });
+    const r = await ctx.req("map_save", { map: { id: srcId || undefined, name: m.name, size: m.size, t: m.t, s: m.s, descr: descrIn.value.trim(), mode: m.mode || "" } });
     if (r.err) { ctx.toast(errText(r.err), "bad"); return null; }
     srcId = r.id; m.id = r.id; saveDraft(); status = "pending"; renderChecks(); ctx.toast("Сохранено — карта на рассмотрении. Играть на ней можно уже сейчас (без опыта и рейтинга).", "good"); return r.id;
   }
@@ -329,7 +336,7 @@ export function openMapsHub(ctx: MapsCtx) {
         <div class="mhc-tags"><span class="tag">${x.size}×${x.size}</span><span class="tag l-${x.league}">${LEAGUE[leagueOfSize(x.size)][0]}</span>${x.rated ? `<span class="tag gold">рейтинговая</span>` : ""}${x.showcase ? `<span class="tag">витрина</span>` : ""}${x.status !== "approved" ? `<span class="tag red">${ST_RU[x.status] || x.status}</span><span class="tag red">без опыта и рейтинга</span>` : ""}</div>
         <div class="mhc-st"><span data-tip="Сыграно партий">${ic("sword")}${x.plays}</span><button class="lk ${x.liked ? "on" : ""}" data-a="like" aria-label="Нравится" ${x.status !== "approved" ? "disabled" : ""}>♥ <i>${x.likes}</i></button><button class="fv ${x.faved ? "on" : ""}" data-a="fav" aria-label="В избранное" ${x.status !== "approved" ? "disabled" : ""}>★ <i>${x.favs}</i></button><button data-a="open" aria-label="Комментарии">${ic("chat")}<i>${x.comments}</i></button></div>
         <div class="mhc-act"><button class="btn sm gold" data-a="play"><span>Играть</span></button><button class="btn sm ghost" data-a="open"><span>Подробнее</span></button>${x.mine ? `<button class="btn sm ghost" data-a="edit"><span>Изменить</span></button>` : ""}</div></div>`;
-      card.querySelector(".mhc-n")!.textContent = x.name; card.querySelector(".mhc-a")!.textContent = "автор: " + (x.author || "—");
+      card.querySelector(".mhc-n")!.textContent = x.name; card.querySelector(".mhc-a")!.textContent = (modeLbl(x) ? modeLbl(x) + " · " : "") + "автор: " + (x.author || "—");
       card.querySelector(".mhc-pv")!.appendChild(thumbCanvas(x)); grid.appendChild(card);
     }
   }
@@ -349,7 +356,7 @@ export function openMapsHub(ctx: MapsCtx) {
 }
 
 async function openDetail(ctx: MapsCtx, x: any, reload: () => void) {
-  const md = modal({ id: "mapdet", title: x.name, sub: `${x.size}×${x.size} · ${LEAGUE[leagueOfSize(x.size)][0]} лига · автор: ${esc(x.author || "—")}`, icon: "map", cls: "mapdet", body: `
+  const md = modal({ id: "mapdet", title: x.name, sub: `${x.size}×${x.size}${modeLbl(x) ? " · " + esc(modeLbl(x)) : ""} · ${LEAGUE[leagueOfSize(x.size)][0]} лига · автор: ${esc(x.author || "—")}`, icon: "map", cls: "mapdet", body: `
     <div class="md-grid"><div class="md-pv"><canvas></canvas></div><div class="md-info"><p class="md-descr"></p>
       ${x.status !== "approved" ? `<p class="xpbadge">Без опыта и рейтинга — ${esc(ST_RU[x.status] || x.status)}</p>` : x.rated ? `<p class="muted">Карта в рейтинговом пуле.</p>` : `<p class="muted">Одобрена. Опыт за партии начисляется; в рейтинговые партии её добавляет администратор.</p>`}
       <p class="md-reason muted" hidden></p>
