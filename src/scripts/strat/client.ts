@@ -67,7 +67,7 @@ const RACE_COL: Record<string, [string, string]> = { fire: ["#ff7a3d", "#7a1d08"
 const REASON: Record<string, string> = { glory: "Достигнут порог Славы", capital: "Столица взята", king: "Вождь пал", forfeit: "Соперник сдался", disconnect: "Соперник не вернулся", limit: "Лимит ходов — победа по очкам", goals: "Выполнены 3 цели из 5" };
 const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нельзя", bad_action: "Неверное действие", guest: "Только для вошедших",
   not_your_turn: "Сейчас ход соперника", already_acted: "Эта фигура уже действовала", no_ap: "Очки действий кончились", bad_move: "Туда нельзя",
-  bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято",
+  bad_attack: "Эту цель не достать", bad_turn_limit: "Лимит ходов: от 5 до 200 или без лимита", not_host: "Настройки меняет хост", pick_race: "Сначала выберите расу", seat_taken: "Место занято", color_taken: "Этот цвет уже у соперника", bad_color: "Нет такого цвета",
   auth_bad: "Вход не подтверждён — обновите страницу", auth_expired: "Сессия истекла — обновите страницу", no_ident: "Нужно войти или играть гостем",
   map_not_approved: "Карта ещё не проверена — играть на ней может только автор", map_hidden: "Карта скрыта модератором", not_admin: "Только для админа",
   reason_required: "Укажите причину отказа", not_found: "Карта не найдена", bad_size: "Такой размер поля сервер пока не поддерживает",
@@ -599,7 +599,7 @@ function showEnd() {
     <span class="es-n">${ic("glory")}${g.ec?.res?.[i]?.glory ?? 0} · ${ic("sword")}${g.pieces.filter((p: any) => p.o === i).length}</span></div>`;
   const m = modal({ id: "endscreen", title, icon: win ? "crown" : draw_ ? "scales" : "skull", cls: "endscreen " + (win || me < 0 ? "win" : draw_ ? "draw" : "lose"), dismiss: true,
     sub: esc(endReason(win, draw_, me)),
-    body: `<div class="es-hero"><img src="${unitArt(race, "king")}" alt="" onerror="this.remove()"></div>
+    body: `<div class="es-hero"><img src="${unitArt(race, "king")}" alt="" data-rmerr></div>
       <p class="es-chief"></p><div class="es-sides">${stat(0)}<span class="vs">VS</span>${stat(1)}</div>
       <div class="es-foot"><div class="es-score" data-tip="Выполнено целей"><small>Цели</small><b>${gl.sides[Math.max(0, me)].filter((q) => q.done).length}–${gl.sides[me === 1 ? 0 : 1].filter((q) => q.done).length}</b></div>${me >= 0 ? ratingDelta(myRating(me)) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>`,
     acts: [{ label: "В меню", cls: "ghost", val: "menu", icon: "back" }, { label: "К доске", cls: "", val: "board", icon: "eye" }, ...(rec.frames.length > 1 ? [{ label: "Повтор", cls: "", val: "replay", icon: "hist" }] : []), ...(me >= 0 ? [{ label: S.seats[me]?.rematch ? "Ждём соперника…" : "Реванш", cls: "gold", val: "rematch", icon: "refresh", id: "es-rematch" }] : [])] });
@@ -612,7 +612,7 @@ function showEnd() {
 function openBlacklist(side: number) {
   if (!S?.g) return; const g = S.g, rows = blacklistOf(S, g, side), mine = side === S.you, nm = (i: number) => S.seats[i]?.nick || "?";
   const m = modal({ id: "blacklist", title: "Чёрный список", icon: "skull", cls: "blacklist", sub: `${mine ? "Ваши цели" : "Цели: " + esc(nm(side))} · ${rows.filter((r) => r.dead).length}/${rows.length}`,
-    body: `<div class="bl-list">${rows.map((r) => `<div class="bl-row ${r.dead ? "dead" : "alive"}" style="--pc:${raceCol(r.side)}"><span class="bl-port"><img src="${unitArt(g.races[r.side], "king")}" alt="" onerror="this.remove()"></span>
+    body: `<div class="bl-list">${rows.map((r) => `<div class="bl-row ${r.dead ? "dead" : "alive"}" style="--pc:${raceCol(r.side)}"><span class="bl-port"><img src="${unitArt(g.races[r.side], "king")}" alt="" data-rmerr></span>
       <span class="bl-crest">${crest(g.races[r.side])}</span><div class="bl-b"><b class="bl-name"></b><small class="bl-who"></small><span class="bl-st"></span></div>${r.dead ? `<span class="bl-x" aria-hidden="true"></span>` : `<span class="bl-tag">${ic("eye")}В строю</span>`}</div>`).join("")}</div>
       <p class="bl-note">${ic("warn")}<span>В счёт идёт только <b>первый</b> Вождь каждого соперника. Вожди, возрождённые после гибели, в список не попадают.${modeOf(S) === "2v2" ? " Счёт общий у команды: убить может любой союзник." : ""}</span></p>` });
   m.el.querySelectorAll<HTMLElement>(".bl-row").forEach((el, k) => { const r = rows[k];
@@ -677,7 +677,7 @@ function renderLobby() {
   $("#racesub").textContent = drawL ? "Рейтинговая партия: выбора расы нет, жребий у всех одновременно на старте." : "Соперник увидит вашу расу только на старте партии.";
   if (drawL) { const h = lobbyDrawHtml(S, raceD(), isGuest); if (rdv.dataset.h !== h) { rdv.dataset.h = h; rdv.innerHTML = h; const fe = rdv.querySelector<HTMLButtonElement>("[data-favedit]"); if (fe) fe.onclick = () => openFavDlg(); } }
   if (rc.dataset.built !== String(raceSize())) { rc.dataset.built = String(raceSize()); rc.innerHTML = RACES.map((r) => `<button class="racecard r-${r}" data-race="${r}">
-      <span class="rc-art"><img class="cr" src="/strat/ui/crests/crest_${r}.png" alt=""><img class="k" src="${unitArt(r, "king")}" alt="" onerror="this.remove()"><img class="a" src="${unitArt(r, "knight")}" alt="" onerror="this.remove()"><img class="b" src="${unitArt(r, "mage")}" alt="" onerror="this.remove()"></span>
+      <span class="rc-art"><img class="cr" src="/strat/ui/crests/crest_${r}.png" alt=""><img class="k" src="${unitArt(r, "king")}" alt="" data-rmerr><img class="a" src="${unitArt(r, "knight")}" alt="" data-rmerr><img class="b" src="${unitArt(r, "mage")}" alt="" data-rmerr></span>
       <span class="rc-name"><b>${RACE_NAME[r]}</b></span><span class="rc-word">${RACE_WORD[r] || ""}</span><ul class="rc-tr"></ul><span class="rc-pas pas-row">${racePassives(cfgOf(S), r, null, 0, raceSize()).map(pasIcon).join("")}</span><span class="rc-pick">${ic("check")}Выбрано</span></button>`).join("");
     for (const b of rc.querySelectorAll<HTMLButtonElement>("[data-race]")) b.onclick = () => send({ type: "race", race: b.dataset.race }); }
   for (const b of rc.querySelectorAll<HTMLButtonElement>("[data-race]")) { b.classList.toggle("on", seats[me]?.race === b.dataset.race); b.disabled = me < 0;
@@ -832,11 +832,11 @@ function renderHud() {
         return `<button type="button" class="goal ${q.done ? "done" : ""}" style="--p:${q.done ? 1 : pct}" data-tip="${tip}" aria-label="${esc(d.name)}">${ic(d.icon)}</button>`; }).join("")}<b class="gl-n">${done}/${gl.need}</b></div>`; }).join(""); }
   const cb = $("#chief");
   if (me < 0) { cb.hidden = true; } else { cb.hidden = false; const ch = chiefOf(S, G, me, cfg), race = g.races[me];
-    if (!ch.p) { cb.className = "chief dead"; cb.innerHTML = `<span class="ch-port"><img src="${unitArt(race, "king")}" alt="" onerror="this.remove()">${ic("skull", "ch-skull")}</span>
+    if (!ch.p) { cb.className = "chief dead"; cb.innerHTML = `<span class="ch-port"><img src="${unitArt(race, "king")}" alt="" data-rmerr>${ic("skull", "ch-skull")}</span>
         <div class="ch-b"><b>Вождь пал</b><small class="ch-rs">${ch.respawn ? `Новый Вождь через ${ch.respawn} ${plural(ch.respawn, "ход", "хода", "ходов")}` : "Ожидает возрождения"}</small><span class="ch-pen">${ic("apoff")}−1 ОД, пока нет Вождя</span></div>`; }
     else { cb.className = "chief" + (ch.pend ? " pend" : "") + (S.check?.[me] ? " danger" : ""); const pct = ch.next ? Math.min(100, ((ch.xp - ch.prev) / Math.max(1, ch.next - ch.prev)) * 100) : 100;
       const pas = chiefSkillsOf(G.pieces.find((q) => q.id === ch.p!.id)).map((id) => pasIcon(skillPassive(id, me))).join("");
-      cb.innerHTML = `<span class="ch-port" data-tip="Переименовать Вождя"><img src="${unitArt(race, "king")}" alt="" onerror="this.remove()"><em class="ch-lv">${ch.lv}</em></span>
+      cb.innerHTML = `<span class="ch-port" data-tip="Переименовать Вождя"><img src="${unitArt(race, "king")}" alt="" data-rmerr><em class="ch-lv">${ch.lv}</em></span>
         <div class="ch-b"><b class="ch-name"></b><small>Ур. ${ch.lv} из ${ch.maxLv} · ${ic("heart")}${ch.p.hp}/${ch.p.maxHp}</small><div class="meter xp" data-tip="Опыт ${ch.xp}${ch.next ? " / " + ch.next : ""}"><i style="width:${pct}%"></i></div>${pas ? `<div class="pas-row">${pas}</div>` : ""}</div>
         <button class="btn sq ${ch.pend ? "gold pulse" : ""}" id="chieftree" data-tip="Навыки Вождя">${ic("xp")}</button>${chiefUltBtn(ch, me)}`;
       cb.querySelector(".ch-name")!.textContent = chiefName(me); cb.querySelector<HTMLButtonElement>("#chieftree")!.onclick = () => openChiefTree(false);
@@ -882,7 +882,7 @@ function renderInfo() {
   if (p) { const race = g.races[p.o], P = gs()!.pieces.find((q) => q.id === p.id)!, lv = pieceLv(ectx(), P);
     const nm = p.k === "king" ? "Вождь" : KIND_NAME[p.k as Kind];
     const pas = [...(P.tal || []).map((t) => { const raw = ((cfg.talents as any)[P.kind] || []).flat().find((x: any) => x.id === t); return raw ? pasIcon(talentPassive(raw, P.kind)) : ""; }), racePas(p.o)].join("");
-    h += `<div class="uc-h"><span class="uc-port r-${race}"><img src="${unitArt(race, p.k)}" alt="" onerror="this.remove()"></span><div><b class="uc-name">${nm}</b><small class="uc-sub"></small>
+    h += `<div class="uc-h"><span class="uc-port r-${race}"><img src="${unitArt(race, p.k)}" alt="" data-rmerr></span><div><b class="uc-name">${nm}</b><small class="uc-sub"></small>
         ${p.hp == null && p.hs ? `<div class="hsbar hs-${p.hs}" data-tip="Скрытое здоровье: видна только ступень">${ic("hs_" + p.hs)}<img src="/strat/ui2/frames/hp_bar_enemy_${esc(p.hs)}.png" alt=""><span>${HS_NAME[p.hs] || "?"}</span></div>` : `<div class="meter hp"><i style="width:${(p.hp / p.mh) * 100}%"></i><span>${p.hp} / ${p.mh}</span></div>`}</div></div>
       <div class="uc-stats"><span data-tip="Атака с учётом бонусов">${ic("sword")}<b>${p.ea ?? p.atk}</b></span><span data-tip="Броня с учётом бонусов">${ic("shield")}<b>${p.er ?? p.arm}</b></span><span data-tip="Уровень">${ic("xp")}<b>${lv.lv}</b></span>${p.b ? `<span class="neg" data-tip="Горит ещё ${p.b} ${plural(p.b, "ход", "хода", "ходов")}">${ic("burn")}<b>${p.b}</b></span>` : ""}${p.c ? `<span class="cold" data-tip="Обморожен">${ic("chill")}</span>` : ""}${p.a ? `<span class="muted" data-tip="Уже действовал">${ic("check")}</span>` : ""}</div>
       ${lv.next ? `<div class="meter xp sm" data-tip="Опыт ${lv.xp} / ${lv.next}"><i style="width:${Math.min(100, ((lv.xp - lv.prev) / Math.max(1, lv.next - lv.prev)) * 100)}%"></i></div>` : ""}
@@ -895,9 +895,11 @@ function renderInfo() {
     const tp = terrainPassive(t, tn), sp = st !== "." ? structPassive(st, (STRUCT as any)[st]) : null;
     h += `<div class="cellinfo"><span class="ci-t">${ic(t === "f" ? "leaf" : t === "w" ? "wave" : t === "m" ? "mountain" : t === "#" ? "wall" : "map")}<b>${esc(tn)}</b>${pasIcon(tp)}</span>${terrEff(t) ? `<small>${terrEff(t)}</small>` : ""}
       ${sp ? `<span class="ci-t">${ic("castle")}<b>${esc(sp.name)}</b>${pasIcon(sp)}</span><small>${esc((STRUCT as any)[st]?.eff || "")}</small>` : ""}</div>`; }
-  h = `<button type="button" class="info-x" data-infox aria-label="Снять выбор">${ic("close")}</button>` + h;
+  h = `<button type="button" class="info-x" data-infox aria-label="Снять выбор">${ic("close")}</button><button type="button" class="info-min" data-infomin aria-label="Свернуть карточку" aria-pressed="${document.body.classList.contains("infomin")}">${ic("chevron")}</button>` + h;
   box.className = "info" + (p && S.phase === "play" && p.o === S.you ? " mine" : ""); box.innerHTML = h;
   box.querySelector<HTMLElement>("[data-infox]")!.onclick = () => { sel = null; selCell = null; renderInfo(); draw(); };
+  box.querySelector<HTMLElement>("[data-infomin]")!.onclick = (e) => { const on = document.body.classList.toggle("infomin"); localStorage.setItem("strat.infomin", on ? "1" : ""); (e.currentTarget as HTMLElement).setAttribute("aria-pressed", String(on)); requestAnimationFrame(liftForSheet); };
+  requestAnimationFrame(liftForSheet);
   if (p) { const sub = box.querySelector(".uc-sub"); if (sub) sub.textContent = (p.o === S.you ? "Ваш" : "Враг") + (p.k === "king" ? " · " + chiefName(p.o) : " · " + (RACE_NAME[g.races[p.o]] || ""));
     const P = gs()!.pieces.find((q) => q.id === p.id)!; bindPieceActs(ectx(), P, box); bindChiefActs(P, box);
     box.querySelectorAll<HTMLButtonElement>("[data-raze]").forEach((b) => (b.onclick = () => send({ type: "act", act: { a: "raze", id: P.id, city: +b.dataset.raze!, b: b.dataset.b } })));
@@ -955,6 +957,24 @@ function stopAim() { ultAim = null; aimCell = null; renderHint(); draw(); }
 // ---------- камера: карты до 100×100 ----------
 // cx, cy — центр экрана в координатах вида (клетки, уже с разворотом для стороны 1), z — px на клетку.
 const cam = { cx: 0, cy: 0, z: 40, n: 0, W: 0, H: 0, fit: 40 };
+// t1195: телефон (портрет) — карточка выбранного внизу шторкой; камера приподнимается на camLift клеток, чтобы фигура и её цели были над шторкой
+let camLift = 0;
+const sheetMode = () => matchMedia("(max-width: 820px) and (orientation: portrait)").matches;
+function liftForSheet() {
+  if (camLift) { cam.cy -= camLift; camLift = 0; clampCam(); }
+  const box = document.getElementById("info"), st = document.getElementById("stage"), G = S?.g ? gs() : null;
+  const P = G && sel != null ? G.pieces.find((q) => q.id === sel) : null;
+  if (P && G && box && st && sheetMode() && document.body.classList.contains("selinfo") && !box.classList.contains("idle") && cam.W) {
+    const top = innerHeight - (parseFloat(getComputedStyle(box).bottom) || 0) - box.offsetHeight - st.getBoundingClientRect().top - 8; // верх шторки в координатах сцены (без transform анимации появления)
+    const cells: number[][] = [[P.x, P.y]]; if (S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) cells.push(...moveTargets(G, P), ...attackTargets(G, P));
+    // журнал (последняя запись) и кнопка истории лежат поверх низа доски — клетки под ними тоже считаем закрытыми
+    const sr = st.getBoundingClientRect(); let lim = top; const lg = document.getElementById("log");
+    if (lg && lg.offsetParent && lg.offsetHeight) { const r = lg.getBoundingClientRect(); if (cells.some(([x]) => scrX(x) + cam.z > r.left - sr.left && scrX(x) < r.right - sr.left)) lim = Math.min(lim, r.top - sr.top - 4); }
+    const bot = Math.max(...cells.map(([, y]) => scrY(y) + cam.z)), room = scrY(P.y) - cam.z * 0.7; // фигура выше клетки на ~0.7 — её голову не прячем под шапку
+    const d = Math.min(bot - lim, room); if (d > 1) { camLift = d / cam.z; cam.cy += camLift; clampCam(); }
+  }
+  draw();
+}
 const TAP_SLOP = 8, PINCH_GUARD = 250, ZMAX = 120;
 // инерция прокрутки после броска пальцем; касание во время неё — только остановка, не ход
 let inert = 0;
@@ -974,7 +994,7 @@ function fitCam(force: boolean) {
   const n = S.g.size, pad = big() ? 0 : 18, fit = Math.max(4, Math.min((W - pad * 2) / n, (H - pad * 2) / n));
   const sizeChanged = W !== cam.W || H !== cam.H, newMap = cam.n !== n;
   cam.W = W; cam.H = H; cam.fit = fit;
-  if (newMap || force || !big()) { cam.n = n; cam.z = fit; cam.cx = n / 2; cam.cy = n / 2;
+  if (newMap || force || !big()) { cam.n = n; cam.z = fit; cam.cx = n / 2; cam.cy = n / 2 + (newMap ? (camLift = 0) : camLift);
     if (big() && newMap) { cam.z = Math.max(fit, 44); const a = myAnchor(); if (a) centerOn(a[0], a[1]); } }
   else if (sizeChanged) clampCam();
   const c = cv(), dpr = devicePixelRatio || 1; c.style.width = W + "px"; c.style.height = H + "px";
@@ -987,7 +1007,7 @@ function clampCam() {
   // запас под оверлеи (мини-карта/кнопки камеры справа, журнал слева, мини-карта снизу): крайние клетки можно вытащить из-под них и нажать
   const ov = (id: string, k: "offsetWidth" | "offsetHeight") => { const e = document.getElementById(id); return e && !e.hidden && e.offsetParent ? (e as any)[k] + 14 : 0; };
   const mR = big() ? Math.max(ov("minimapbox", "offsetWidth"), ov("camctl", "offsetWidth")) / cam.z : 0, mB = big() ? Math.max(ov("minimapbox", "offsetHeight"), ov("log", "offsetHeight")) / cam.z : 0;
-  const lx = Math.min(hw, n / 2), ux = Math.max(n - hw, n / 2) + mR, ly = Math.min(hh, n / 2), uy = Math.max(n - hh, n / 2) + mB;
+  const lx = Math.min(hw, n / 2), ux = Math.max(n - hw, n / 2) + mR, ly = Math.min(hh, n / 2), uy = Math.max(n - hh, n / 2) + mB + camLift;
   cam.cx = Math.max(lx, Math.min(ux, cam.cx)); cam.cy = Math.max(ly, Math.min(uy, cam.cy));
 }
 function myAnchor(): [number, number] | null {
@@ -1124,6 +1144,9 @@ function drawNow() {
   if (busy) draw(); else if (zs.length && !zoneT) zoneT = setTimeout(() => { zoneT = 0; draw(); }, 110) as any;
 }
 let isGuest = false;
+if (localStorage.getItem("strat.infomin")) document.body.classList.add("infomin");
+// CSP (script-src-attr 'none') режет inline onerror — битые картинки с data-rmerr снимаем одним делегированным слушателем.
+document.addEventListener("error", (e) => { const t = e.target as HTMLElement; if (t instanceof HTMLImageElement && t.hasAttribute("data-rmerr")) t.remove(); }, true);
 let rubble: { x: number; y: number; t: number }[] = [];
 let zoneT = 0, hoverPid = -1, hideHp = localStorage.getItem("strat.hideHp") === "1";
 /** Фигура. «Фигуры»: спрайт (по умолчанию смотрит вправо), отражается по face (−1…1, плавный поворот). «Фишки» — без поворота. */
@@ -1388,7 +1411,8 @@ function applyPrefs(pr: any) {
   if (typeof pr.glyphBadge === "boolean") { glyphBadge = pr.glyphBadge; localStorage.setItem("strat.glyphBadge", glyphBadge ? "1" : "0"); }
   (window as any).__syncPs?.(); draw();
 }
-function savePrefs() { hub?.readyState === 1 && hub.send(JSON.stringify({ type: "pref_set", pieceStyle: pieceStyle === "tokens" ? "tok" : "fig", glyphBadge })); }
+// t1194: гость — вид фигур хранится только локально (localStorage); сервер на pref_set отвечает err:"guest", и тост «Только для вошедших» выглядел так, будто гостям не дают фигуры.
+function savePrefs() { if (isGuest) return; hub?.readyState === 1 && hub.send(JSON.stringify({ type: "pref_set", pieceStyle: pieceStyle === "tokens" ? "tok" : "fig", glyphBadge })); }
 
 // ---------- меню партии (свои кнопки, без data-act) ----------
 function openMenu() {

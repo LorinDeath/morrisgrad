@@ -186,7 +186,7 @@ export function renderCity(c: Ctx) {
     const cost = recruitCost(G, city, k, cfg), u = cfg.units[k];
     const st = err === "locked" || gate ? "locked" : err ? "off" : "can";
     return `<button class="ucard rframe ${st} ${ui.recruit?.kind === k ? "on" : ""}" data-k="${k}" ${!my || err ? 'aria-disabled="true"' : ""} style="--rf:url('${RECRUIT_FRAME}')">
-      <span class="u-art"><img src="${unitArt(race, k)}" alt="" onerror="this.remove()"></span>
+      <span class="u-art"><img src="${unitArt(race, k)}" alt="" data-rmerr></span>
       <span class="u-st">${ic("heart")}${u?.hp ?? "?"} ${ic("sword")}${u?.atk ?? "?"} ${ic("shield")}${u?.arm ?? "?"}</span>
       <b>${KIND_NAME[k]}</b>${why ? lock(why) : ""}<em class="${R.gold < cost ? "neg" : ""}">${cost}</em></button>`;
   }).join("");

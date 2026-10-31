@@ -629,6 +629,20 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
   body[data-msheet="players"] .side > #info, body[data-msheet="goals"] .side > #info, body[data-msheet="moves"] .side > #info, body[data-msheet="view"] .side > #info { display: none !important; }
   .side > #info.idle { display: none; }
 }
+/* t1195 · телефон: карточка выбранного — компактная сворачиваемая шторка (≤30% экрана); камера поднимает фигуру над ней (liftForSheet) */
+.info-min { display: none; }
+@media (max-width: 820px) and (orientation: portrait) {
+  body.selinfo .side > #info:not(.idle) { max-height: 30dvh; padding: 6px 104px 8px 8px; gap: 4px; overscroll-behavior: contain; }
+  body.selinfo .side > #info .uc-h { grid-template-columns: 40px 1fr; gap: 8px; } body.selinfo .side > #info .uc-port { width: 40px; height: 40px; }
+  body.selinfo .side > #info .uc-h .meter { margin-top: 2px; }
+  body.selinfo .side > #info .info-min { display: grid; place-items: center; position: absolute; top: 6px; right: 54px; width: 44px; height: 44px; padding: 0; background: var(--panel); color: var(--ivory-2); border: 2px solid var(--gold-dk); cursor: pointer; }
+  body.selinfo .side > #info .info-min .ic { width: 18px; height: 18px; transform: rotate(90deg); transition: transform .15s; }
+  body.infomin.selinfo .side > #info .info-min .ic { transform: rotate(-90deg); }
+  /* свёрнуто: только заголовок и действия (без статов, пассивок и описания клетки) */
+  body.infomin.selinfo .side > #info:not(.idle) > :not(.uc-h):not(.uc-acts):not(.abilbar):not(.info-x):not(.info-min) { display: none; }
+  body.infomin.selinfo .side > #info:not(.idle) { max-height: 22dvh; }
+  body.infomin.selinfo .side > #info:not(:has(.uc-h)) > .cellinfo { display: block; }
+}
 /* узкие диалоги: крестик не наезжает на ресурсы в шапке (город, древо, Вождь) */
 @media (max-width: 900px) {
   .dlg-h { padding-right: 34px; flex-wrap: wrap; row-gap: 4px; } .dlg-h .dlg-res { gap: 8px; font-size: .95rem; }
