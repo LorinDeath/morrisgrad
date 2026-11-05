@@ -11,6 +11,7 @@ const dimTxt = (o: any, n?: number) => { const N = o?.size || n || 8; return `${
 import { ensureSize } from "../../../server/strat/rules";
 import { moveTargets, attackTargets, attackLanding, attackKind, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
 import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
+import { watchTips } from "./tips";
 import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips, openSheet } from "./ui-kit";
 import { GOALS, goalDef, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, chiefTreeFromView, type Goal, type CNode } from "./goals";
 import { fogView, unveilCls, fogNode } from "./fog";
@@ -1752,7 +1753,7 @@ export function boot() {
       if (e.key === " ") { e.preventDefault(); togglePlay(); return; } if (e.key === "Escape") { goLive(); return; } }
 if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" && !document.querySelector("#modals .dlg")) { eui.recruit = null; sel = null; renderHint(); renderInfo(); draw(); }
     if (e.key === " " && S?.phase === "play" && !(e.target as HTMLElement).closest("input,textarea") && !document.querySelector("#modals .dlg")) { e.preventDefault(); endTurn(); } });
-  bindBoard(); bindTips();
+  bindBoard(); bindTips(); watchTips();
   new ResizeObserver(() => { if (S?.g) { fitCam(false); draw(); } }).observe($("#stage"));
   setInterval(tick, 250);
   connectHub(); loadOpen(); render(); loadArt(draw); loadFx(draw); loadWalls(draw); t2OnLoad(() => { mmKey = ""; draw(); }); injectIcons();
@@ -1761,7 +1762,8 @@ if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" 
 }
 
 // Хуки только для локального плейтеста (localhost + ?devUser): снимок состояния, камера и клик-план «как игрок».
-if (LOCAL && (qs.get("devUser") || qs.get("demo"))) { (window as any).__stratS = () => S; (window as any).__stratSend = (o: any) => send(o); (window as any).__stratCam = () => ({ ...cam }); (window as any).__stratPerf = (k = 60) => { const t0 = performance.now(); for (let i = 0; i < k; i++) drawNow(); return (performance.now() - t0) / k; }; (window as any).__stratPend = () => pendAct; (window as any).__stratSel = () => ({ sel, selCell, taps: tapN }); (window as any).__stratFace = () => [...facing.entries()].map(([id, f]) => ({ id, dir: f.dir })); }
+if (LOCAL && (qs.get("devUser") || qs.get("demo"))) { (window as any).__stratS = () => S; (window as any).__stratSend = (o: any) => send(o); (window as any).__stratCam = () => ({ ...cam }); (window as any).__stratPerf = (k = 60) => { const t0 = performance.now(); for (let i = 0; i < k; i++) drawNow(); return (performance.now() - t0) / k; }; (window as any).__stratPend = () => pendAct; (window as any).__stratSel = () => ({ sel, selCell, taps: tapN }); (window as any).__stratCellPx = (x: number, y: number) => { const f = flipped(), X = f ? gW() - 1 - x : x, Y = f ? gH() - 1 - y : y, r = $("#board").getBoundingClientRect(); // QA: клетка → экранная точка
+    return { x: r.left + (X + 0.5 + offX() - cam.cx) * cam.z + cam.W / 2, y: r.top + (Y + 0.5 + offY() - cam.cy) * cam.z + cam.H / 2 }; }; (window as any).__stratFace = () => [...facing.entries()].map(([id, f]) => ({ id, dir: f.dir })); }
 // Тест эффектов: подать события сервера в onState (как пришли бы с сокетом). Только dev-сборка (vite вырезает в prod) + localhost + ?fxtest=1.
 if (import.meta.env.DEV && LOCAL && qs.get("fxtest") === "1") (window as any).__stratAim = (race: string | null, x = 0, y = 0) => { // тест: прицел ульты своего Вождя (null — снять)
   if (!race) { stopAim(); return; } const ch = S.g.pieces.find((q: any) => q.o === S.you && q.k === "king"); ultAim = { id: "ult", pid: ch?.id ?? -1, r: 2, race, chief: true }; aimCell = [x, y]; draw(); };

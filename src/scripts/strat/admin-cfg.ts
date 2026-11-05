@@ -6,6 +6,8 @@ type D = { p: string; sec: string; g: string; l: string; before: any; after: any
 type St = { me: string; rev: number; sections: { id: string; name: string; hint: string }[]; fields: F[]; over: Record<string, any>; legacy: Record<string, any>; stale: string[];
   log: { id: number; key: string; before: any; after: any; by: string; at: number; rev: number | null }[]; revs: { rev: number; at: number; by: string; who: string | null; note: string | null; n: number }[] };
 
+import { bindTips } from "./ui-kit";
+import { watchTips } from "./tips";
 const PROD = "https://morris-multiplayer.alexseylyou.workers.dev";
 const qs = new URLSearchParams(location.search);
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
@@ -254,6 +256,6 @@ async function reload() {
   render(); return true;
 }
 export async function bootAdmin() {
-  draft = loadDraft(); wire();
+  draft = loadDraft(); wire(); bindTips(); watchTips(); // t1249: подсказки и в админке
   if (await reload() && Object.keys(draft).length) toast(`Восстановлен черновик: ${Object.keys(draft).length} правок (не сохранён).`);
 }
