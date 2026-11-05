@@ -1,6 +1,6 @@
 ---
 // «Боевые шахматы» — отдельная мини-игра. Логика: server/chess, клиент: src/scripts/chess/client.ts.
-// Поле: B_artdeco из chess-combat-set-v1 (выбор Алекса). Без слова «шах» — только мат / угроза.
+// Поле: чистовик B + волна 2 (bg/props/ui) из chess-combat-set-v1. Без слова «шах» — только мат / угроза.
 import SeoHead from '../../components/seo/SeoHead.astro';
 import '../../styles/chess.css';
 const title = 'Боевые шахматы | Моррис Град';
@@ -24,7 +24,7 @@ const title = 'Боевые шахматы | Моррис Град';
 
   <section id="sc-home" class="cc-screen">
     <div class="cc-hero">
-      <p class="tag">Убей короля — это мат. ОД растут каждые 15 твоих ходов. Поле — арт-деко MorrisGrad.</p>
+      <p class="tag">Убей короля — это мат. ОД растут каждые 15 твоих ходов. Поле — чистовик B · зал MorrisGrad.</p>
     </div>
     <div class="cc-grid">
       <div class="cc-panel">
@@ -77,7 +77,7 @@ const title = 'Боевые шахматы | Моррис Град';
   </section>
 
   <section id="sc-results" class="cc-screen">
-    <div class="cc-panel cc-results">
+    <div class="cc-panel cc-results win">
       <h2>Итоги партии</h2>
       <div id="res-body"></div>
       <button class="btn gold big" id="btn-again" type="button">Ещё раз с ботом</button>

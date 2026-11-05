@@ -12,3 +12,7 @@
 
 Онлайн-лобби: каркас DO готов; вертикаль сейчас — бот на клиенте.
 Кампания: каркас `/games/chess-combat-admin` (localStorage).
+
+## Арт (чистовик B + волна 2)
+
+Ассеты: `public/chess/{board,bg,props,ui}/` из `/workspace/art/chess-combat-set-v1/` (без `_archive/`). Клиент: фон `hall` по умолчанию, пропы/special с карты, UI 9-slice.

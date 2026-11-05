@@ -1,0 +1,1512 @@
+{
+ "pack": "chess-combat-set-v1",
+ "variant": "B_artdeco",
+ "stage": "wave2_v2",
+ "style": "арт-деко MorrisGrad: слоновая кость, оникс, золото",
+ "highlight_threat": "клетка короля под ударом",
+ "cell_sizes": [
+  64,
+  48,
+  40
+ ],
+ "anchor_prop": [
+  32,
+  60
+ ],
+ "board_safe": {
+  "hall_landscape": {
+   "rect": [
+    202,
+    88,
+    556,
+    378
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    101,
+    44,
+    278,
+    189
+   ]
+  },
+  "hall_landscape_hd": {
+   "rect": [
+    404,
+    176,
+    1112,
+    756
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    101,
+    44,
+    278,
+    189
+   ]
+  },
+  "hall_portrait": {
+   "rect": [
+    60,
+    216,
+    420,
+    528
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    30,
+    108,
+    210,
+    264
+   ]
+  },
+  "hall_portrait_hd": {
+   "rect": [
+    120,
+    432,
+    840,
+    1056
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    30,
+    108,
+    210,
+    264
+   ]
+  },
+  "terrace_landscape": {
+   "rect": [
+    202,
+    114,
+    556,
+    334
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    101,
+    57,
+    278,
+    167
+   ]
+  },
+  "terrace_landscape_hd": {
+   "rect": [
+    404,
+    228,
+    1112,
+    668
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    101,
+    57,
+    278,
+    167
+   ]
+  },
+  "terrace_portrait": {
+   "rect": [
+    48,
+    270,
+    442,
+    460
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    24,
+    135,
+    221,
+    230
+   ]
+  },
+  "terrace_portrait_hd": {
+   "rect": [
+    96,
+    540,
+    884,
+    920
+   ],
+   "note": "спокойная зона под доску [x,y,w,h]",
+   "source_lo": [
+    24,
+    135,
+    221,
+    230
+   ]
+  }
+ },
+ "nine_slice": {
+  "lobby_frame": {
+   "w": 176,
+   "h": 128,
+   "slice": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "note": "9-slice [L,T,R,B]; текст не вшит"
+  },
+  "result_win": {
+   "w": 176,
+   "h": 104,
+   "slice": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "note": "9-slice [L,T,R,B]; текст не вшит"
+  },
+  "result_lose": {
+   "w": 176,
+   "h": 104,
+   "slice": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "note": "9-slice [L,T,R,B]; текст не вшит"
+  },
+  "turn_plate": {
+   "w": 140,
+   "h": 44,
+   "slice": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "note": "9-slice [L,T,R,B]; текст не вшит"
+  },
+  "button": {
+   "w": 104,
+   "h": 36,
+   "slice": [
+    10,
+    10,
+    10,
+    10
+   ],
+   "states": [
+    "normal",
+    "hover",
+    "pressed",
+    "disabled"
+   ]
+  }
+ },
+ "props": {
+  "rock": {
+   "anchor": [
+    32,
+    60
+   ],
+   "animated": false,
+   "frames": 1
+  },
+  "column_rubble": {
+   "anchor": [
+    32,
+    60
+   ],
+   "animated": false,
+   "frames": 1
+  },
+  "ruins_arch": {
+   "anchor": [
+    32,
+    60
+   ],
+   "animated": false,
+   "frames": 1
+  },
+  "portal": {
+   "anchor": [
+    32,
+    60
+   ],
+   "animated": true,
+   "frames": 8
+  },
+  "lamp": {
+   "anchor": [
+    32,
+    60
+   ],
+   "animated": true,
+   "frames": 8
+  },
+  "crystal": {
+   "anchor": [
+    32,
+    60
+   ],
+   "animated": true,
+   "frames": 4
+  }
+ },
+ "files": [
+  {
+   "file": "board/tiles/light_00_64.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 0,
+   "size": 64
+  },
+  {
+   "file": "board/tiles/light_00_48.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 0,
+   "size": 48
+  },
+  {
+   "file": "board/tiles/light_00_40.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 0,
+   "size": 40
+  },
+  {
+   "file": "board/tiles/light_01_64.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 1,
+   "size": 64
+  },
+  {
+   "file": "board/tiles/light_01_48.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 1,
+   "size": 48
+  },
+  {
+   "file": "board/tiles/light_01_40.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 1,
+   "size": 40
+  },
+  {
+   "file": "board/tiles/light_02_64.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 2,
+   "size": 64
+  },
+  {
+   "file": "board/tiles/light_02_48.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 2,
+   "size": 48
+  },
+  {
+   "file": "board/tiles/light_02_40.png",
+   "kind": "tile",
+   "shade": "light",
+   "var": 2,
+   "size": 40
+  },
+  {
+   "file": "board/tiles/dark_00_64.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 0,
+   "size": 64
+  },
+  {
+   "file": "board/tiles/dark_00_48.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 0,
+   "size": 48
+  },
+  {
+   "file": "board/tiles/dark_00_40.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 0,
+   "size": 40
+  },
+  {
+   "file": "board/tiles/dark_01_64.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 1,
+   "size": 64
+  },
+  {
+   "file": "board/tiles/dark_01_48.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 1,
+   "size": 48
+  },
+  {
+   "file": "board/tiles/dark_01_40.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 1,
+   "size": 40
+  },
+  {
+   "file": "board/tiles/dark_02_64.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 2,
+   "size": 64
+  },
+  {
+   "file": "board/tiles/dark_02_48.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 2,
+   "size": 48
+  },
+  {
+   "file": "board/tiles/dark_02_40.png",
+   "kind": "tile",
+   "shade": "dark",
+   "var": 2,
+   "size": 40
+  },
+  {
+   "file": "board/highlights/highlight_selected_64.png",
+   "kind": "highlight",
+   "highlight": "selected",
+   "size": 64
+  },
+  {
+   "file": "board/highlights/highlight_selected_48.png",
+   "kind": "highlight",
+   "highlight": "selected",
+   "size": 48
+  },
+  {
+   "file": "board/highlights/highlight_selected_40.png",
+   "kind": "highlight",
+   "highlight": "selected",
+   "size": 40
+  },
+  {
+   "file": "board/highlights/highlight_move_64.png",
+   "kind": "highlight",
+   "highlight": "move",
+   "size": 64
+  },
+  {
+   "file": "board/highlights/highlight_move_48.png",
+   "kind": "highlight",
+   "highlight": "move",
+   "size": 48
+  },
+  {
+   "file": "board/highlights/highlight_move_40.png",
+   "kind": "highlight",
+   "highlight": "move",
+   "size": 40
+  },
+  {
+   "file": "board/highlights/highlight_attack_64.png",
+   "kind": "highlight",
+   "highlight": "attack",
+   "size": 64
+  },
+  {
+   "file": "board/highlights/highlight_attack_48.png",
+   "kind": "highlight",
+   "highlight": "attack",
+   "size": 48
+  },
+  {
+   "file": "board/highlights/highlight_attack_40.png",
+   "kind": "highlight",
+   "highlight": "attack",
+   "size": 40
+  },
+  {
+   "file": "board/highlights/highlight_threat_64.png",
+   "kind": "highlight",
+   "highlight": "threat",
+   "size": 64
+  },
+  {
+   "file": "board/highlights/highlight_threat_48.png",
+   "kind": "highlight",
+   "highlight": "threat",
+   "size": 48
+  },
+  {
+   "file": "board/highlights/highlight_threat_40.png",
+   "kind": "highlight",
+   "highlight": "threat",
+   "size": 40
+  },
+  {
+   "file": "board/frame/corner_nw_64.png",
+   "kind": "frame",
+   "part": "corner_nw",
+   "size": 64
+  },
+  {
+   "file": "board/frame/corner_ne_64.png",
+   "kind": "frame",
+   "part": "corner_ne",
+   "size": 64
+  },
+  {
+   "file": "board/frame/corner_sw_64.png",
+   "kind": "frame",
+   "part": "corner_sw",
+   "size": 64
+  },
+  {
+   "file": "board/frame/corner_se_64.png",
+   "kind": "frame",
+   "part": "corner_se",
+   "size": 64
+  },
+  {
+   "file": "board/frame/edge_n_64.png",
+   "kind": "frame",
+   "part": "edge_n",
+   "size": 64
+  },
+  {
+   "file": "board/frame/edge_s_64.png",
+   "kind": "frame",
+   "part": "edge_s",
+   "size": 64
+  },
+  {
+   "file": "board/frame/edge_e_64.png",
+   "kind": "frame",
+   "part": "edge_e",
+   "size": 64
+  },
+  {
+   "file": "board/frame/edge_w_64.png",
+   "kind": "frame",
+   "part": "edge_w",
+   "size": 64
+  },
+  {
+   "file": "board/frame/coords_files_64.png",
+   "kind": "coords",
+   "axis": "files",
+   "size": 64
+  },
+  {
+   "file": "board/frame/coords_ranks_64.png",
+   "kind": "coords",
+   "axis": "ranks",
+   "size": 64
+  },
+  {
+   "file": "board/board_full_64.png",
+   "kind": "board",
+   "labels": true,
+   "size": 64
+  },
+  {
+   "file": "board/board_full_64_nolabels.png",
+   "kind": "board",
+   "labels": false,
+   "size": 64
+  },
+  {
+   "file": "board/frame/corner_nw_48.png",
+   "kind": "frame",
+   "part": "corner_nw",
+   "size": 48
+  },
+  {
+   "file": "board/frame/corner_ne_48.png",
+   "kind": "frame",
+   "part": "corner_ne",
+   "size": 48
+  },
+  {
+   "file": "board/frame/corner_sw_48.png",
+   "kind": "frame",
+   "part": "corner_sw",
+   "size": 48
+  },
+  {
+   "file": "board/frame/corner_se_48.png",
+   "kind": "frame",
+   "part": "corner_se",
+   "size": 48
+  },
+  {
+   "file": "board/frame/edge_n_48.png",
+   "kind": "frame",
+   "part": "edge_n",
+   "size": 48
+  },
+  {
+   "file": "board/frame/edge_s_48.png",
+   "kind": "frame",
+   "part": "edge_s",
+   "size": 48
+  },
+  {
+   "file": "board/frame/edge_e_48.png",
+   "kind": "frame",
+   "part": "edge_e",
+   "size": 48
+  },
+  {
+   "file": "board/frame/edge_w_48.png",
+   "kind": "frame",
+   "part": "edge_w",
+   "size": 48
+  },
+  {
+   "file": "board/frame/coords_files_48.png",
+   "kind": "coords",
+   "axis": "files",
+   "size": 48
+  },
+  {
+   "file": "board/frame/coords_ranks_48.png",
+   "kind": "coords",
+   "axis": "ranks",
+   "size": 48
+  },
+  {
+   "file": "board/board_full_48.png",
+   "kind": "board",
+   "labels": true,
+   "size": 48
+  },
+  {
+   "file": "board/board_full_48_nolabels.png",
+   "kind": "board",
+   "labels": false,
+   "size": 48
+  },
+  {
+   "file": "board/frame/corner_nw_40.png",
+   "kind": "frame",
+   "part": "corner_nw",
+   "size": 40
+  },
+  {
+   "file": "board/frame/corner_ne_40.png",
+   "kind": "frame",
+   "part": "corner_ne",
+   "size": 40
+  },
+  {
+   "file": "board/frame/corner_sw_40.png",
+   "kind": "frame",
+   "part": "corner_sw",
+   "size": 40
+  },
+  {
+   "file": "board/frame/corner_se_40.png",
+   "kind": "frame",
+   "part": "corner_se",
+   "size": 40
+  },
+  {
+   "file": "board/frame/edge_n_40.png",
+   "kind": "frame",
+   "part": "edge_n",
+   "size": 40
+  },
+  {
+   "file": "board/frame/edge_s_40.png",
+   "kind": "frame",
+   "part": "edge_s",
+   "size": 40
+  },
+  {
+   "file": "board/frame/edge_e_40.png",
+   "kind": "frame",
+   "part": "edge_e",
+   "size": 40
+  },
+  {
+   "file": "board/frame/edge_w_40.png",
+   "kind": "frame",
+   "part": "edge_w",
+   "size": 40
+  },
+  {
+   "file": "board/frame/coords_files_40.png",
+   "kind": "coords",
+   "axis": "files",
+   "size": 40
+  },
+  {
+   "file": "board/frame/coords_ranks_40.png",
+   "kind": "coords",
+   "axis": "ranks",
+   "size": 40
+  },
+  {
+   "file": "board/board_full_40.png",
+   "kind": "board",
+   "labels": true,
+   "size": 40
+  },
+  {
+   "file": "board/board_full_40_nolabels.png",
+   "kind": "board",
+   "labels": false,
+   "size": 40
+  },
+  {
+   "file": "board/special/danger_ph0_64.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 0,
+   "size": 64
+  },
+  {
+   "file": "board/special/danger_ph0_48.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 0,
+   "size": 48
+  },
+  {
+   "file": "board/special/danger_ph0_40.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 0,
+   "size": 40
+  },
+  {
+   "file": "board/special/danger_ph1_64.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 1,
+   "size": 64
+  },
+  {
+   "file": "board/special/danger_ph1_48.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 1,
+   "size": 48
+  },
+  {
+   "file": "board/special/danger_ph1_40.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 1,
+   "size": 40
+  },
+  {
+   "file": "board/special/danger_ph2_64.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 2,
+   "size": 64
+  },
+  {
+   "file": "board/special/danger_ph2_48.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 2,
+   "size": 48
+  },
+  {
+   "file": "board/special/danger_ph2_40.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 2,
+   "size": 40
+  },
+  {
+   "file": "board/special/danger_ph3_64.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 3,
+   "size": 64
+  },
+  {
+   "file": "board/special/danger_ph3_48.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 3,
+   "size": 48
+  },
+  {
+   "file": "board/special/danger_ph3_40.png",
+   "kind": "special",
+   "special": "danger",
+   "phase": 3,
+   "size": 40
+  },
+  {
+   "file": "board/special/boost_ph0_64.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 0,
+   "size": 64
+  },
+  {
+   "file": "board/special/boost_ph0_48.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 0,
+   "size": 48
+  },
+  {
+   "file": "board/special/boost_ph0_40.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 0,
+   "size": 40
+  },
+  {
+   "file": "board/special/boost_ph1_64.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 1,
+   "size": 64
+  },
+  {
+   "file": "board/special/boost_ph1_48.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 1,
+   "size": 48
+  },
+  {
+   "file": "board/special/boost_ph1_40.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 1,
+   "size": 40
+  },
+  {
+   "file": "board/special/boost_ph2_64.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 2,
+   "size": 64
+  },
+  {
+   "file": "board/special/boost_ph2_48.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 2,
+   "size": 48
+  },
+  {
+   "file": "board/special/boost_ph2_40.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 2,
+   "size": 40
+  },
+  {
+   "file": "board/special/boost_ph3_64.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 3,
+   "size": 64
+  },
+  {
+   "file": "board/special/boost_ph3_48.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 3,
+   "size": 48
+  },
+  {
+   "file": "board/special/boost_ph3_40.png",
+   "kind": "special",
+   "special": "boost",
+   "phase": 3,
+   "size": 40
+  },
+  {
+   "file": "bg/hall_landscape.png",
+   "kind": "bg",
+   "name": "hall",
+   "orient": "landscape",
+   "size": [
+    960,
+    540
+   ],
+   "source_px": [
+    480,
+    270
+   ]
+  },
+  {
+   "file": "bg/hall_landscape_hd.png",
+   "kind": "bg",
+   "name": "hall",
+   "orient": "landscape_hd",
+   "size": [
+    1920,
+    1080
+   ],
+   "source_px": [
+    480,
+    270
+   ]
+  },
+  {
+   "file": "bg/hall_portrait.png",
+   "kind": "bg",
+   "name": "hall",
+   "orient": "portrait",
+   "size": [
+    540,
+    960
+   ],
+   "source_px": [
+    270,
+    480
+   ]
+  },
+  {
+   "file": "bg/hall_portrait_hd.png",
+   "kind": "bg",
+   "name": "hall",
+   "orient": "portrait_hd",
+   "size": [
+    1080,
+    1920
+   ],
+   "source_px": [
+    270,
+    480
+   ]
+  },
+  {
+   "file": "bg/terrace_landscape.png",
+   "kind": "bg",
+   "name": "terrace",
+   "orient": "landscape",
+   "size": [
+    960,
+    540
+   ],
+   "source_px": [
+    480,
+    270
+   ]
+  },
+  {
+   "file": "bg/terrace_landscape_hd.png",
+   "kind": "bg",
+   "name": "terrace",
+   "orient": "landscape_hd",
+   "size": [
+    1920,
+    1080
+   ],
+   "source_px": [
+    480,
+    270
+   ]
+  },
+  {
+   "file": "bg/terrace_portrait.png",
+   "kind": "bg",
+   "name": "terrace",
+   "orient": "portrait",
+   "size": [
+    540,
+    960
+   ],
+   "source_px": [
+    270,
+    480
+   ]
+  },
+  {
+   "file": "bg/terrace_portrait_hd.png",
+   "kind": "bg",
+   "name": "terrace",
+   "orient": "portrait_hd",
+   "size": [
+    1080,
+    1920
+   ],
+   "source_px": [
+    270,
+    480
+   ]
+  },
+  {
+   "file": "props/rock_64.png",
+   "kind": "prop",
+   "prop": "rock",
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/rock_48.png",
+   "kind": "prop",
+   "prop": "rock",
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/column_rubble_64.png",
+   "kind": "prop",
+   "prop": "column_rubble",
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/column_rubble_48.png",
+   "kind": "prop",
+   "prop": "column_rubble",
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/ruins_arch_64.png",
+   "kind": "prop",
+   "prop": "ruins_arch",
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/ruins_arch_48.png",
+   "kind": "prop",
+   "prop": "ruins_arch",
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph0_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 0,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph0_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 0,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph1_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 1,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph1_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 1,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph2_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 2,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph2_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 2,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph3_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 3,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph3_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 3,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph4_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 4,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph4_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 4,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph5_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 5,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph5_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 5,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph6_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 6,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph6_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 6,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/portal_ph7_64.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 7,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/portal_ph7_48.png",
+   "kind": "prop",
+   "prop": "portal",
+   "phase": 7,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph0_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 0,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph0_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 0,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph1_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 1,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph1_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 1,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph2_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 2,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph2_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 2,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph3_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 3,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph3_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 3,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph4_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 4,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph4_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 4,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph5_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 5,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph5_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 5,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph6_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 6,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph6_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 6,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/lamp_ph7_64.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 7,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/lamp_ph7_48.png",
+   "kind": "prop",
+   "prop": "lamp",
+   "phase": 7,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/crystal_ph0_64.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 0,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/crystal_ph0_48.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 0,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/crystal_ph1_64.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 1,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/crystal_ph1_48.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 1,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/crystal_ph2_64.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 2,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/crystal_ph2_48.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 2,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "props/crystal_ph3_64.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 3,
+   "size": 64,
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  {
+   "file": "props/crystal_ph3_48.png",
+   "kind": "prop",
+   "prop": "crystal",
+   "phase": 3,
+   "size": 48,
+   "anchor": [
+    24,
+    45
+   ]
+  },
+  {
+   "file": "ui/lobby_frame.png",
+   "kind": "ui",
+   "ui": "lobby_frame"
+  },
+  {
+   "file": "ui/result_win.png",
+   "kind": "ui",
+   "ui": "result_win"
+  },
+  {
+   "file": "ui/result_lose.png",
+   "kind": "ui",
+   "ui": "result_lose"
+  },
+  {
+   "file": "ui/turn_plate.png",
+   "kind": "ui",
+   "ui": "turn_plate"
+  },
+  {
+   "file": "ui/button_normal.png",
+   "kind": "ui",
+   "ui": "button",
+   "state": "normal"
+  },
+  {
+   "file": "ui/button_hover.png",
+   "kind": "ui",
+   "ui": "button",
+   "state": "hover"
+  },
+  {
+   "file": "ui/button_pressed.png",
+   "kind": "ui",
+   "ui": "button",
+   "state": "pressed"
+  },
+  {
+   "file": "ui/button_disabled.png",
+   "kind": "ui",
+   "ui": "button",
+   "state": "disabled"
+  },
+  {
+   "file": "previews/final_B_scene.png",
+   "kind": "preview"
+  },
+  {
+   "file": "previews/final_B_phone.png",
+   "kind": "preview"
+  },
+  {
+   "file": "previews/props_ui_collage.png",
+   "kind": "preview"
+  },
+  {
+   "file": "previews/portal_lamp.gif",
+   "kind": "preview"
+  }
+ ],
+ "archive": {
+  "_archive/sketches/A_stone": "набросок A",
+  "_archive/sketches/C_magic": "набросок C",
+  "_archive/wave2_v1": "сырая вторая волна bg/props/ui",
+  "B_artdeco": "ранний набросок B"
+ }
+}
