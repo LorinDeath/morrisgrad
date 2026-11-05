@@ -10,7 +10,7 @@ import { aimOfUlt, type AimDef } from "./ult-fx";
 const deferred = new Set<string>(), autoSent = new Set<string>(); let deferTurn = -1;
 /** t1221: подсказка «Доступно → новый уровень» снимает «Позже», чтобы док снова показался */
 export function undeferLv() { deferred.clear(); }
-export const autoPick = () => localStorage.getItem("strat.autoPick") === "1";
+export const autoPick = () => false; // t1289: уровень даёт только очко — навык выбирает игрок кликом (автовыбор убран)
 const talDef = (cfg: StratCfg, k: string, id: string): any => { for (const lv of (cfg.talents as any)[k] || []) for (const o of lv) if (o.id === id) return o; return null; };
 
 /** Значок уровня на фигуре/фишке (ромб с цифрой), рисуется на холсте. */
@@ -81,12 +81,11 @@ export function renderLvDock(c: Ctx, root: HTMLElement, onPick?: () => void): bo
   root.hidden = false;
   root.innerHTML = `<div class="lv-h">${ic("xp")}<div><b>${esc(KIND_NAME[p.kind])} · уровень ${lv}</b><small>${tk === "ult" ? "Открыта ульта — выберите одну" : `${TAL_KIND_NAME[tk]}: одна из двух`}${mine.length > 1 ? ` · ещё ${mine.length - 1}` : ""}</small></div></div>
     <div class="lv-cards">${opts.map((o) => `<button class="lvcard k-${talKind(o)}" data-t="${esc(o.id)}" ${p.kind === "king" ? "" : `data-pas="${regPassive(talentPassive(o, p.kind))}"`}><span class="lc-ic">${ic(TAL_ICON(o))}</span><b></b><small></small>${o.cd ? `<em>перезарядка ${+o.cd} х.</em>` : ""}</button>`).join("")}</div>
-    <div class="lv-f"><button class="btn ghost sm" data-later>${ic("clock")}<span>Позже</span></button><label class="chk sm"><input type="checkbox" data-auto ${autoPick() ? "checked" : ""}/><span>выбирать сам</span></label>${p.kind === "king" ? `<button class="btn sm" data-ctree>${ic("crown")}<span>Древо</span></button>` : ""}<button class="btn sm" data-show>${ic("eye")}<span>Где он</span></button></div>`;
+    <div class="lv-f"><button class="btn ghost sm" data-later>${ic("clock")}<span>Позже</span></button>${p.kind === "king" ? `<button class="btn sm" data-ctree>${ic("crown")}<span>Древо</span></button>` : ""}<button class="btn sm" data-show>${ic("eye")}<span>Где он</span></button></div>`;
   root.querySelector<HTMLButtonElement>("[data-ctree]")?.addEventListener("click", () => (window as any).__stratChiefTree?.());
   root.querySelectorAll<HTMLButtonElement>(".lvcard").forEach((b, i) => { b.querySelector("b")!.textContent = opts[i].name; b.querySelector("small")!.textContent = opts[i].eff || "";
     b.onclick = () => { c.send({ type: "act", act: { a: "talent", id: p.id, t: opts[i].id } }); root.classList.add("picked"); onPick?.(); }; });
   root.querySelector<HTMLButtonElement>("[data-later]")!.onclick = () => { deferred.add(p.id + ":" + lv); renderLvDock(c, root, onPick); };
-  root.querySelector<HTMLInputElement>("[data-auto]")!.onchange = (e) => { localStorage.setItem("strat.autoPick", (e.target as HTMLInputElement).checked ? "1" : "0"); renderLvDock(c, root, onPick); };
   root.querySelector<HTMLButtonElement>("[data-show]")!.onclick = () => (window as any).__stratFocus?.(p.id);
   return true;
 }

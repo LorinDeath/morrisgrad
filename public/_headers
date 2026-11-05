@@ -15,6 +15,13 @@
   Cache-Control: no-cache
 /mc-sw.js
   Cache-Control: no-cache
+# «Чёрные короли»: индекс кэша и воркер — всегда свежие; арт — день + фоновая проверка (основной кэш — strat-sw.js по хешам).
+/strat/precache.json
+  Cache-Control: no-cache
+/strat-sw.js
+  Cache-Control: no-cache
+/strat/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 # Лоропедия: арты (имена стабильные, меняются только при переимпорте) — неделя; индекс поиска — час.
 /loropedia/img/*
   Cache-Control: public, max-age=604800
