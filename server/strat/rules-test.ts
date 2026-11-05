@@ -59,12 +59,15 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   const g2 = board(8, ["ice", "ice"], [[0, "pawn", 3, 4], [1, "hero", 4, 3], [1, "king", 7, 0], [0, "king", 0, 7]]);
   g2.pieces[1].arm = 9; ok(damage(g2, g2.pieces[0], g2.pieces[1]) === 1, "урон минимум 1");
 }
-// --- взятие: ближний встаёт на клетку
+// --- взятие: t1247 — Конь бьёт издалека и остаётся на месте; Пешка (вплотную) встаёт на клетку
 {
   const g = board(8, ["fire", "ice"], [[0, "knight", 3, 4], [1, "pawn", 4, 2], [1, "king", 7, 0], [0, "king", 0, 7]]);
   g.pieces[1].hp = 2;
   const r = apply(g, 0, { a: "attack", id: 1, x: 4, y: 2 });
-  ok(r.ok && !g.pieces.some((p) => p.id === 2) && at(g, 4, 2)?.id === 1, "убийство ближним: фигура встаёт на клетку");
+  ok(r.ok && !g.pieces.some((p) => p.id === 2) && at(g, 3, 4)?.id === 1 && !at(g, 4, 2), "убийство Конём: Конь остаётся на месте (дальний бой)");
+  const gp = board(8, ["fire", "ice"], [[0, "pawn", 3, 4], [1, "pawn", 4, 3], [1, "king", 7, 0], [0, "king", 0, 7]]);
+  gp.pieces[1].hp = 1; const rp = apply(gp, 0, { a: "attack", id: 1, x: 4, y: 3 });
+  ok(rp.ok && at(gp, 4, 3)?.id === 1, "убийство Пешкой: Пешка встаёт на клетку");
 }
 // --- очередь, ОД, повтор фигуры
 {

@@ -9,6 +9,7 @@ export function parseAct(a: any): Action | null {
   if ((a.a === "move" || a.a === "attack") && Number.isInteger(a.id) && int(a.x) && int(a.y)) {
     const o: any = { a: a.a, id: a.id, x: a.x, y: a.y };
     if (a.a === "move" && ["knight", "mage", "rook"].includes(a.promo)) o.promo = a.promo as Kind;
+    if (a.a === "attack" && int(a.lx) && int(a.ly)) { o.lx = a.lx; o.ly = a.ly; } // t1247: клетка подхода
     return o;
   }
   if (a.a === "ult") return Number.isInteger(a.id) && int(a.x) && int(a.y) ? { a: "ult", id: a.id, x: a.x, y: a.y } as any : null; // t1223: ульты Вождя и фигур — раньше не проходили разбор → bad_action

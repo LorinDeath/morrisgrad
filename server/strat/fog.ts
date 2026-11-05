@@ -52,3 +52,8 @@ export function fogRedact(out: any, g: GameState, viewer: number, sameTeam: (a: 
   out.fog = { vis: toHex(vis), seen: toHex(seen) };
   return out;
 }
+/** t1247: в тумане бить можно только видимую команде цель (иначе подход Ладьи/Ферзя «на ощупь» раскрывал бы скрытые фигуры). */
+export function fogAttackOk(g: GameState, seat: number, act: { a: string; x?: number; y?: number }, sameTeam: (a: number, b: number) => boolean, cfg: StratCfg): boolean {
+  if (act.a !== "attack") return true; const x = act.x! | 0, y = act.y! | 0; if (x < 0 || y < 0 || x >= g.size || y >= g.size) return false;
+  return visMask(g, seat, sameTeam, cfg)[y * g.size + x] === 1;
+}

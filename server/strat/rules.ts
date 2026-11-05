@@ -118,7 +118,7 @@ export type Action =
   | { a: "surrender"; why?: string } // t1219: вне очереди; 1×1 — поражение, 2×2/«Все» — место выбывает (econ.team)
   | { a: "trade_reply"; id: number; ok: boolean } // t1219: ответ союзника на предложение обмена (вне очереди)
   | { a: "move"; id: number; x: number; y: number; promo?: Kind }
-  | { a: "attack"; id: number; x: number; y: number }
+  | { a: "attack"; id: number; x: number; y: number; lx?: number; ly?: number } // t1247: lx/ly — клетка подхода (Ладья/Ферзь), по желанию игрока
   | { a: "end" }
   | { a: "raze"; id: number; city: number; b: string } // удар по постройке вражеского города (t1136)
   | { a: "ult"; id: number; x: number; y: number } // ультимейт (Вождь ур. 5 / фигура ур. 5), ult.ts
@@ -226,22 +226,51 @@ export function moveTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): 
   return out;
 }
 
-/** Клетки с вражескими фигурами, которые можно атаковать. */
-export function attackTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): [number, number][] {
-  return hitCells(g, p, cfg).filter(([x, y]) => { const t = inB(g, x, y) && at(g, x, y); return !!t && foe(g, t.owner, p.owner); });
+/** t1247: виды атаки. Дальний бой (бьют издалека и остаются на месте): Конь, Маг. Подход+удар одним действием: Ладья, Ферзь (hero) —
+ *  идут своим ходом (в пределах дальности хода) на свободную клетку рядом с целью и бьют; цель, если выжила, остаётся на месте.
+ *  Пешка и Вождь (king) — только вплотную, без подхода (Пешка сначала ходит, бьёт соседнего врага следующим действием). */
+export const RANGED: readonly Kind[] = ["knight", "mage"];
+export const APPROACH: readonly Kind[] = ["rook", "hero"];
+export const attackKind = (k: Kind): "ranged" | "approach" | "melee" => (RANGED.includes(k) ? "ranged" : APPROACH.includes(k) ? "approach" : "melee");
+const hits = (g: GameState, p: Piece, ox: number, oy: number, x: number, y: number, cfg: StratCfg) => hitCells(g, p, cfg, ox, oy).some(([a, b]) => a === x && b === y);
+/** Все клетки, с которых фигура может ударить по (x, y) в этом действии: своя клетка (если достаёт с места) и — для Ладьи/Ферзя — клетки хода.
+ *  Порядок: своя клетка первой, затем ближние (по числу шагов, потом y, x) — первая и есть клетка по умолчанию. */
+export function attackLandings(g: GameState, p: Piece, x: number, y: number, cfg: StratCfg = STRAT_CFG): [number, number][] {
+  const out: [number, number][] = [];
+  if (hits(g, p, p.x, p.y, x, y, cfg)) out.push([p.x, p.y]);
+  if (APPROACH.includes(p.kind)) {
+    const mv = moveTargets(g, p, cfg).filter(([a, b]) => hits(g, p, a, b, x, y, cfg));
+    mv.sort((A, B) => Math.max(Math.abs(A[0] - p.x), Math.abs(A[1] - p.y)) - Math.max(Math.abs(B[0] - p.x), Math.abs(B[1] - p.y)) || A[1] - B[1] || A[0] - B[0]);
+    out.push(...mv);
+  }
+  return out;
 }
-/** Клетки, по которым фигура может ударить (геометрия удара без учёта цели). */
-export function hitCells(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): [number, number][] {
+/** Клетка, с которой будет удар: (lx, ly), если это допустимая клетка подхода, иначе — по умолчанию (своя / ближайшая). null — не достать. */
+export function attackLanding(g: GameState, p: Piece, x: number, y: number, cfg: StratCfg = STRAT_CFG, lx?: number, ly?: number): [number, number] | null {
+  const L = attackLandings(g, p, x, y, cfg); if (!L.length) return null;
+  if (lx != null && ly != null) { const f = L.find(([a, b]) => a === lx && b === ly); if (f) return f; }
+  return L[0]!;
+}
+/** Клетки с вражескими фигурами, которые можно атаковать этим действием (с места или — Ладья/Ферзь — с подходом). */
+export function attackTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): [number, number][] {
+  const isFoe = (x: number, y: number) => { const t = inB(g, x, y) && at(g, x, y); return !!t && foe(g, t.owner, p.owner); };
+  const out = hitCells(g, p, cfg).filter(([x, y]) => isFoe(x, y));
+  if (APPROACH.includes(p.kind)) { const seen = new Set(out.map(([x, y]) => y * g.size + x));
+    for (const [mx, my] of moveTargets(g, p, cfg)) for (const [x, y] of hitCells(g, p, cfg, mx, my)) { const k = y * g.size + x; if (!seen.has(k) && isFoe(x, y)) { seen.add(k); out.push([x, y]); } } }
+  return out;
+}
+/** Клетки, по которым фигура может ударить с клетки (ox, oy) (по умолчанию — со своей; геометрия удара без учёта цели). */
+export function hitCells(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG, ox = p.x, oy = p.y): [number, number][] {
   const cells: [number, number][] = [];
   switch (p.kind) {
-    case "pawn": cells.push([p.x + 1, p.y + fwd(p.owner)], [p.x - 1, p.y + fwd(p.owner)]); break;
-    case "knight": for (const [dx, dy] of KN) cells.push([p.x + dx, p.y + dy]); break;
+    case "pawn": cells.push([ox + 1, oy + fwd(p.owner)], [ox - 1, oy + fwd(p.owner)]); break;
+    case "knight": for (const [dx, dy] of KN) cells.push([ox + dx, oy + dy]); break;
     case "mage": for (const [dx, dy] of DD) for (let s = 1, R = mageShot(g, p, cfg); s <= R; s++) {
-      const x = p.x + dx * s, y = p.y + dy * s; cells.push([x, y]);
+      const x = ox + dx * s, y = oy + dy * s; cells.push([x, y]);
       if (!inB(g, x, y) || blocksShot(g.map, x, y)) break; // обстрел закрывают стены и горы
     } break;
-    case "rook": for (const [dx, dy] of D4) cells.push([p.x + dx, p.y + dy]); break;
-    case "hero": case "king": for (const [dx, dy] of D8) cells.push([p.x + dx, p.y + dy]); break;
+    case "rook": for (const [dx, dy] of D4) cells.push([ox + dx, oy + dy]); break;
+    case "hero": case "king": for (const [dx, dy] of D8) cells.push([ox + dx, oy + dy]); break;
   }
   return cells.filter(([x, y]) => inB(g, x, y));
 }
@@ -321,8 +350,10 @@ export function apply(g: GameState, side: number, act: Action, cfg: StratCfg = S
     p.x = x; p.y = y; ev.push({ e: "move", id: p.id, x, y });
     promote(g, p, act.promo, ev, cfg); onEnter(g, p, ev, cfg);
   } else if (act.a === "attack") {
-    if (!attackTargets(g, p, cfg).some(([a, b]) => a === x && b === y)) return { ok: false, err: "bad_attack" };
-    const t = at(g, x, y)!;
+    const t0 = inB(g, x, y) ? at(g, x, y) : undefined; if (!t0 || !foe(g, t0.owner, side)) return { ok: false, err: "bad_attack" };
+    const land = attackLanding(g, p, x, y, cfg, (act as any).lx, (act as any).ly); if (!land) return { ok: false, err: "bad_attack" };
+    if (land[0] !== p.x || land[1] !== p.y) { p.x = land[0]; p.y = land[1]; ev.push({ e: "move", id: p.id, x: p.x, y: p.y, approach: 1 } as any); onEnter(g, p, ev, cfg); } // t1247: подход Ладьи/Ферзя
+    const t = t0;
     const pow = (p as any).pow || 0, dmg = damage(g, p, t, cfg) + pow; delete (p as any).pow; // «Выпад»/«Сшибка»: следующий удар сильнее
     const xp = hitExplain(g, p, t, cfg, pow, dmg); // t1156: разбор урона для подсказки (до изменения состояния)
     const dealt = absorb(t, dmg, ev); t.hp -= dealt; xp.shield = dmg - dealt; // щит (купол) съедает урон первым
@@ -346,7 +377,7 @@ export function apply(g: GameState, side: number, act: Action, cfg: StratCfg = S
     }
     if (t.hp <= 0) {
       kill(g, t, p, ev, cfg);
-      if (p.kind !== "mage") { p.x = x; p.y = y; ev.push({ e: "move", id: p.id, x, y }); promote(g, p, undefined, ev, cfg); onEnter(g, p, ev, cfg); } // ближний встаёт на клетку
+      if (attackKind(p.kind) === "melee") { p.x = x; p.y = y; ev.push({ e: "move", id: p.id, x, y }); promote(g, p, undefined, ev, cfg); onEnter(g, p, ev, cfg); } // t1247: на клетку убитого встают только Пешка и Вождь; Конь/Маг (дальний бой) и Ладья/Ферзь (подход) остаются рядом
     }
   } else return { ok: false, err: "bad_action" };
   p.acted = true; g.ap -= 1;

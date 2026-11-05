@@ -18,7 +18,7 @@ function turnsTo(size: number, king: boolean, mode: "passive" | "typical", maxT 
   while (out.length < 3) out.push(Infinity); return out;
 }
 const rows: string[] = [];
-for (const [lname, size] of [["quick", 8], ["normal", 15], ["tactical", 35]] as const) {
+for (const [lname, size] of [["quick", 8], ["normal", 15], ["normal", 35]] as const) { // t1247: 35×35 — Обычная лига (Тактическая — карты игроков 36…100)
   const g = newGame(size, ["fire", "ice"], 0) as any; const m = lg(g, C)?.xp ?? 1;
   const kp = turnsTo(size, true, "passive"), kt = turnsTo(size, true, "typical"), pt = turnsTo(size, false, "typical");
   rows.push(`${lname} ${size}×${size} xp×${m}: Вождь обычно ур.2/3/4 на ходу ${kt.join("/")}; Вождь пассив ${kp.join("/")}; фигура обычно ${pt.join("/")}`);

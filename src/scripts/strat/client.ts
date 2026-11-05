@@ -7,7 +7,7 @@ import { terrainLayer, drawStructIcon, GOLD, INK } from "./terrain-draw";
 import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick, drawEcon, econFx, econToast, techLabel, cfgOf, ui as eui, KIND_NAME, ECON_ERR, territoryCached, pieceLv, talName, unitArt, type Ctx } from "./econ-ui";
 import { TERRAIN, STRUCT, TER_RULES, openMap, type MapData } from "../../../server/strat/terrain";
 import { ensureSize } from "../../../server/strat/rules";
-import { moveTargets, attackTargets, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
+import { moveTargets, attackTargets, attackLanding, attackKind, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
 import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
 import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips, openSheet } from "./ui-kit";
 import { GOALS, goalDef, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, chiefTreeFromView, type Goal, type CNode } from "./goals";
@@ -1175,6 +1175,15 @@ function tBadge(ctx: CanvasRenderingContext2D, x: number, y: number, t: string, 
   const w = ctx.measureText(t).width + 8, X = scrX(x) + z / 2, Y = top ? scrY(y) + z + fs / 2 + 3 : scrY(y) + z - fs / 2 - 2;
   ctx.fillStyle = "rgba(20,14,8,.88)"; ctx.fillRect(X - w / 2, Y - fs / 2 - 2, w, fs + 4); ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.strokeRect(X - w / 2 + .5, Y - fs / 2 - 1.5, w - 1, fs + 3); ctx.fillStyle = col; ctx.fillText(t, X, Y); ctx.restore();
 }
+/** t1247: предпросмотр атаки — Ладья/Ферзь: пунктир пути до клетки подхода, контур «встанет сюда», стрелка удара; Конь/Маг — стрелка удара издалека. */
+function atkPreview(ctx: CanvasRenderingContext2D, G: GameState, P: any, tx: number, ty: number, al = 1, badge = true) {
+  const L = attackLanding(G, P, tx, ty, cfgOf(S)); if (!L) return; const z = cam.z, kind = attackKind(P.kind), moved = L[0] !== P.x || L[1] !== P.y;
+  if (moved) { tArrow(ctx, P.x, P.y, L[0], L[1], "#f3d27a", al, [z * 0.14, z * 0.08]);
+    ctx.save(); ctx.globalAlpha = 0.85 * al; ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = Math.max(2, z * 0.06); ctx.setLineDash([z * 0.1, z * 0.06]); ctx.strokeRect(scrX(L[0]) + 4, scrY(L[1]) + 4, z - 8, z - 8); ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(243,210,122,.22)"; ctx.fillRect(scrX(L[0]) + 4, scrY(L[1]) + 4, z - 8, z - 8); ctx.restore(); }
+  tArrow(ctx, L[0], L[1], tx, ty, "#e6623f", al);
+  if (badge) tBadge(ctx, tx, ty, `${moved ? "Подход и удар" : kind === "ranged" ? "Удар издалека" : "Удар"} · 1 ОД`, "#e6623f", true, al);
+}
 function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawNow(); }); }
 function drawNow() {
   if (inHitStop(performance.now())) { setTimeout(draw, hitStopLeft(performance.now())); return; } // хит-стоп: кадр удара держится 60 мс
@@ -1201,8 +1210,9 @@ function drawNow() {
     const fs = Math.max(10, Math.min(15, z * 0.26)); ctx.font = `700 ${fs}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; const tw = ctx.measureText("ещё раз").width + 10;
     ctx.fillStyle = "rgba(20,14,8,.88)"; ctx.fillRect(X + z / 2 - tw / 2, Y - fs - 4, tw, fs + 6); ctx.fillStyle = "#f3d27a"; ctx.fillText("ещё раз", X + z / 2, Y - fs / 2 - 1); ctx.restore();
     { const Gp = gs()!, Pp = Gp.pieces.find((q) => q.id === sel); if (Pp && Pp.owner === S.you) { // t1221: запланированное — стрелка от фигуры, действие и цена; тап мимо / Esc — отмена
-      const atk = attackTargets(Gp, Pp).some(([ax, ay]) => ax === pendAct![0] && ay === pendAct![1]); tArrow(ctx, Pp.x, Pp.y, pendAct[0], pendAct[1], atk ? "#e6623f" : "#f3d27a", 1, [z * 0.18, z * 0.1]);
-      tBadge(ctx, pendAct[0], pendAct[1], `${atk ? "Атака" : "Ход"} · 1 ОД`, atk ? "#e6623f" : "#f3d27a", true); } } }
+      const atk = attackTargets(Gp, Pp).some(([ax, ay]) => ax === pendAct![0] && ay === pendAct![1]);
+      if (atk) atkPreview(ctx, Gp, Pp, pendAct[0], pendAct[1]); // t1247: путь подхода и клетка, где встанет
+      else { tArrow(ctx, Pp.x, Pp.y, pendAct[0], pendAct[1], "#f3d27a", 1, [z * 0.18, z * 0.1]); tBadge(ctx, pendAct[0], pendAct[1], "Ход · 1 ОД", "#f3d27a", true); } } } }
   { const TL = S.tlog, G1 = gs()!; if (TL && S.you >= 0 && S.phase === "play" && TL.turn >= G1.turn - 1 && Array.isArray(TL.items)) { // t1221: выполненные за ход — путь, цель, действие, ОД (только свои)
     const mineNow = G1.cur === S.you && TL.turn === G1.turn, al = mineNow ? 0.95 : 0.5;
     TL.items.forEach((it: any, i: number) => { if (it.x == null || it.y == null) return; const col = it.a === "attack" || it.a === "raze" ? "#e6623f" : it.a === "move" ? "#9fd36b" : "#7fc3ff";
@@ -1217,7 +1227,8 @@ function drawNow() {
   const G = gs()!, P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
     for (const [x, y] of moveTargets(G, P)) { if (!vis(x, y)) continue; if (mark("mark_move", x, y, "#f3d27a")) continue; ctx.fillStyle = "rgba(243,210,122,.28)"; ctx.fillRect(sx(x) + 2, sy(y) + 2, z - 4, z - 4); ctx.fillStyle = "#f3d27a"; ctx.beginPath(); ctx.arc(sx(x) + z / 2, sy(y) + z / 2, Math.max(2, z * 0.08), 0, 7); ctx.fill(); }
-    ctx.strokeStyle = "#e6623f"; ctx.lineWidth = Math.max(2, z * 0.07); for (const [x, y] of attackTargets(G, P)) if (vis(x, y) && !mark("mark_attack", x, y)) ctx.strokeRect(sx(x) + 3, sy(y) + 3, z - 6, z - 6);
+    ctx.strokeStyle = "#e6623f"; ctx.lineWidth = Math.max(2, z * 0.07); const AT = attackTargets(G, P); for (const [x, y] of AT) if (vis(x, y) && !mark("mark_attack", x, y)) ctx.strokeRect(sx(x) + 3, sy(y) + 3, z - 6, z - 6);
+    if (P.owner === S.you && hoverCell && !pendAct && AT.some(([a, b]) => a === hoverCell![0] && b === hoverCell![1])) atkPreview(ctx, G, P, hoverCell[0], hoverCell[1], 0.8); // t1247: наведение на цель — где встанет и откуда ударит
     if (P.owner === S.you) { ctx.setLineDash([z * 0.1, z * 0.06]); for (const t of razeTargets(S, G, P)) if (vis(t.x, t.y)) { ctx.strokeRect(sx(t.x) + 5, sy(t.y) + 5, z - 10, z - 10); const im = iconImg("target", draw); if (im) ctx.drawImage(im, sx(t.x) + z * 0.36, sy(t.y) + z * 0.36, z * 0.28, z * 0.28); } ctx.setLineDash([]); }
   }
   const now = performance.now(); flipping = false;
@@ -1498,7 +1509,7 @@ function onBoard(px: number, py: number) {
   if (here && here.owner === S.you) { sel = here.id === sel ? null : here.id; renderInfo(); return draw(); }
   const P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && G.cur === S.you) {
-    if (here && attackTargets(G, P).some(([a, b]) => a === x && b === y)) { if (!confirmed()) return; faceAt(P.id, x, y); send({ type: "act", act: { a: "attack", id: P.id, x, y } }); }
+    if (here && attackTargets(G, P).some(([a, b]) => a === x && b === y)) { if (!confirmed()) return; faceAt(P.id, x, y); const L = attackLanding(G, P, x, y, cfgOf(S)); send({ type: "act", act: { a: "attack", id: P.id, x, y, ...(L && (L[0] !== P.x || L[1] !== P.y) ? { lx: L[0], ly: L[1] } : {}) } }); }
     else if (!here && moveTargets(G, P).some(([a, b]) => a === x && b === y)) { if (!confirmed()) return;
       const last = P.owner === 0 ? 0 : G.size - 1;
       if (P.kind === "pawn" && y === last) { choiceDlg("Повышение", "Ополченец дошёл до края поля. Кем он станет?",

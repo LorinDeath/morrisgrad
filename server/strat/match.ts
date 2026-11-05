@@ -13,7 +13,7 @@ import { newGame, makeMap, apply, view, botAction, inCheck, RACES, SIZES, STRAT_
 import { loadStratCfg } from "./cfg";
 import { ECON_ACTS, talentOpts, goalDetails, bldMaxHp, growEvery, claimCost, claimCells, raceAp, apFor } from "./econ";
 import { redactHp, setTowerMax } from "./hidehp";
-import { visMask, fogRedact, mergeSeen, fromHex } from "./fog";
+import { visMask, fogRedact, mergeSeen, fromHex, fogAttackOk } from "./fog";
 import { startLog, logAct, logEnd, moveList, FrameCache, redactX, type RLog } from "./replay";
 import { putReplay, pruneReplays, replayCfg, revealFrame } from "./replay-db";
 import { drawRaces, newSeed, commitOf, cleanFav, rollsFor } from "./racedraw";
@@ -294,6 +294,7 @@ export class StratMatch extends DurableObject {
       case "act": {
         if (L.phase !== "play" || !L.game) return "bad_phase";
         const act = parseAct(m.act); if (!act) return "bad_action";
+        if (L.fog && !fogAttackOk(L.game, seat, act as any, (a, b) => teamOf(L.game!, a) === teamOf(L.game!, b), this.cfg())) return "bad_attack"; // t1247: цель в тумане
         const r = this.doAct(seat, act); if (r) return r;
         break;
       }

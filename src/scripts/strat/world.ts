@@ -10,7 +10,7 @@
 //   ДОГАДКИ (нет в сервере): S.apSrc [{label,n}] — готовый разбор ОД; cfg {hiddenHp} в лобби; S.raze[pieceId] — цели по постройкам.
 import { cellWalls } from "./wall-edges";
 import type { GameState, Piece, StratCfg } from "../../../server/strat/rules";
-import { attackTargets } from "../../../server/strat/rules";
+import { hitCells } from "../../../server/strat/rules";
 import { BUILD, TECHS, type BuildId } from "../../../server/strat/econ-cfg";
 import { canBuild, buildCost } from "../../../server/strat/econ";
 import { openMap, passable } from "../../../server/strat/terrain";
@@ -319,8 +319,7 @@ export function razeTargets(S: any, G: GameState, P: Piece): { city: number; x: 
   const srv = S?.raze?.[P.id]; if (Array.isArray(srv)) return srv;
   if (!G.ec) return []; const out: any[] = [];
   const test = (x: number, y: number, owner: number) => { if (G.pieces.some((q) => q.x === x && q.y === y && q.owner === owner)) return false;
-    const dummy: any = { id: -99, owner, kind: "pawn", x, y, hp: 1, maxHp: 1, atk: 0, arm: 0 };
-    return attackTargets({ ...G, pieces: [...G.pieces.filter((q) => !(q.x === x && q.y === y)), dummy] } as any, P).some(([a, b]) => a === x && b === y); };
+    return hitCells(G, P).some(([a, b]) => a === x && b === y); }; // t1247: постройки бьют с места (без подхода), как server razeTargets
   for (const c of G.ec.cities as any[]) if (c.owner !== P.owner && c.bld?.length && test(c.x, c.y, c.owner)) out.push({ city: c.id, x: c.x, y: c.y, b: [...new Set<string>(c.bld)] });
   for (const t of towersOf(G)) if (t.owner !== P.owner && test(t.x, t.y, t.owner)) out.push({ city: t.id, x: t.x, y: t.y, b: ["watchtower"], tower: true });
   return out;
