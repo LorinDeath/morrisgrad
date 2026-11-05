@@ -4,7 +4,9 @@ const m = readFileSync(new URL("./match.ts", import.meta.url), "utf8"), c = read
 let n = 0; const ok = (b: any, s: string) => { if (!b) { console.error("FAIL", s); process.exit(1); } n++; };
 ok(/T\[seat\]\.turn !== t0\) T\[seat\] = \{ turn: t0, items: \[\] \}/.test(m), "сброс на новом ходу");
 ok(/const T = \(L as any\)\.tlog\?\.\[seat\]; if \(T\) out\.tlog = T;/.test(m), "отдаётся только своему месту");
-ok(/\(seat === 0 \|\| seat === 1\) && L\.phase === "play"\) \{[^\n]*\n\s*\{ const T = \(L as any\)\.tlog/.test(m), "внутри блока своего места и фазы play");
+ok(/seat >= 0 && seat < L\.seats\.length && L\.phase === "play"\) \{[^\n]*\n\s*\{ const T = \(L as any\)\.tlog/.test(m), "внутри блока своего места (до 8) и фазы play");
+ok(/this\.multi\(\)\) \{ const al = TA\.map\(\(T, i\) => \(T && i !== seat && ally\(g, i, seat\)/.test(m), "союзнику — ходы команды (не соперникам)");
+ok(/S\.tlogAlly/.test(c), "клиент рисует ходы союзника");
 ok(/ap: g\.cur === prevCur && g\.turn === t0 \? Math\.max\(0, ap0 - g\.ap\) : ap0 > 0 \? ap0 : null/.test(m), "ОД = разница до/после");
 ok(/S\.tlog/.test(c) && /tArrow\(ctx, it\.fx/.test(c), "клиент рисует путь");
 ok(/e\.key === "Escape" && pendAct/.test(c), "Esc отменяет запланированное");

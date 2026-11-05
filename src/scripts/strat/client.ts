@@ -1203,7 +1203,13 @@ function drawNow() {
     const mineNow = G1.cur === S.you && TL.turn === G1.turn, al = mineNow ? 0.95 : 0.5;
     TL.items.forEach((it: any, i: number) => { if (it.x == null || it.y == null) return; const col = it.a === "attack" || it.a === "raze" ? "#e6623f" : it.a === "move" ? "#9fd36b" : "#7fc3ff";
       if (it.fx != null && (it.fx !== it.x || it.fy !== it.y)) tArrow(ctx, it.fx, it.fy, it.x, it.y, col, al);
-      tBadge(ctx, it.x, it.y, `${i + 1}${it.ap ? ` · −${it.ap} ОД` : ""}`, col, false, al); }); } }
+      tBadge(ctx, it.x, it.y, `${i + 1}${it.ap ? ` · −${it.ap} ОД` : ""}`, col, false, al); }); }
+    // t1243: командные режимы — ходы союзника (его цвет, бледнее; бейдж «С» + номер)
+    if (Array.isArray(S.tlogAlly) && S.you >= 0 && S.phase === "play") for (const TA of S.tlogAlly) { if (!TA || TA.turn < G1.turn - 1 || !Array.isArray(TA.items)) continue;
+      const col = raceCol(TA.seat) || "#c9b8ff", al = TA.turn === G1.turn ? 0.8 : 0.4;
+      TA.items.forEach((it: any, i: number) => { if (it.x == null || it.y == null || !vis(it.x, it.y)) return;
+        if (it.fx != null && (it.fx !== it.x || it.fy !== it.y)) tArrow(ctx, it.fx, it.fy, it.x, it.y, col, al, [z * 0.12, z * 0.08]);
+        tBadge(ctx, it.x, it.y, `С${i + 1}${it.ap ? ` · −${it.ap}` : ""}`, col, false, al); }); } }
   const G = gs()!, P = sel != null ? G.pieces.find((q) => q.id === sel) : null;
   if (P && S.phase === "play" && G.cur === S.you && !P.acted && G.ap > 0) {
     for (const [x, y] of moveTargets(G, P)) { if (!vis(x, y)) continue; if (mark("mark_move", x, y, "#f3d27a")) continue; ctx.fillStyle = "rgba(243,210,122,.28)"; ctx.fillRect(sx(x) + 2, sy(y) + 2, z - 4, z - 4); ctx.fillStyle = "#f3d27a"; ctx.beginPath(); ctx.arc(sx(x) + z / 2, sy(y) + z / 2, Math.max(2, z * 0.08), 0, 7); ctx.fill(); }

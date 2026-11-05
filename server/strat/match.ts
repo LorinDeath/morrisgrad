@@ -6,7 +6,7 @@ import { admitMessage, originAllowed, isLocalRequest, isDevRequest, MSG_BURST } 
 import { identify, type Ident } from "./ident";
 import { resolveLobbyMap, isStratAdmin, countPlay } from "./maps";
 import { isMapSize, mapFits } from "./terrain";
-import { MODES, isMode, teamsFor, teamOf, isOut, isDraw, seatWon, alliesOf, type ModeId } from "./seats";
+import { MODES, isMode, teamsFor, teamOf, isOut, isDraw, seatWon, alliesOf, ally, type ModeId } from "./seats";
 import { showcaseAll } from "./showcase";
 import { type MapData } from "./terrain";
 import { newGame, makeMap, apply, view, botAction, inCheck, RACES, SIZES, STRAT_CFG, type GameState, type Race, type Action, type Ev, type Kind, type StratCfg } from "./rules";
@@ -633,8 +633,9 @@ export class StratMatch extends DurableObject {
     if (L.result && L.sum) out.sum = L.sum; // t1236: «Итоги партии»
     if (L.result) { out.result = { ...L.result }; const R = this.ratingView(); // клиент UI: result.rating[side] = {league, before, after, delta}
       if (R?.league) out.result.rating = Object.fromEntries(R.seats.map((x: any, i: number) => [i, x.delta == null ? null : { league: ({ quick: "fast", normal: "normal", tactical: "tactic" } as any)[R.league], before: x.rating - x.delta, after: x.rating, delta: x.delta, xp: x.xp, coins: x.coins }])); }
-    if (L.game && out.g?.pieces && (seat === 0 || seat === 1) && L.phase === "play") { const g = L.game, C = this.cfg(); out.g.pdv = 1; // t1221: ждущий уровень и карты — только по своим фигурам
+    if (L.game && out.g?.pieces && seat >= 0 && seat < L.seats.length && L.phase === "play") { const g = L.game, C = this.cfg(); out.g.pdv = 1; // t1221: ждущий уровень и карты — только по своим фигурам (все места до 8)
       { const T = (L as any).tlog?.[seat]; if (T) out.tlog = T; } // t1221: только свои действия
+      { const TA = (L as any).tlog as any[] | undefined; if (TA && this.multi()) { const al = TA.map((T, i) => (T && i !== seat && ally(g, i, seat) ? { seat: i, ...T } : null)).filter(Boolean); if (al.length) out.tlogAlly = al; } } // t1243: командные режимы — ходы союзника видны команде
       out.g.pieces = out.g.pieces.map((q: any) => { if (q.o !== seat) return q; const P = g.pieces.find((z) => z.id === q.id); const T = P && talentOpts(g, P, C); return T ? { ...q, pd: T.lv, po: T.o } : q; }); }
     return out;
   }
