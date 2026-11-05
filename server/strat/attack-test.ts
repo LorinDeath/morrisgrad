@@ -41,6 +41,20 @@ ok(attackKind("knight") === "ranged" && attackKind("mage") === "ranged" && attac
   ok(r4.ok && P(g4, 1).x === d4![0] && P(g4, 1).y === d4![1], "неверная клетка подхода → клетка по умолчанию");
   ok(JSON.stringify(parseAct({ a: "attack", id: 1, x: 5, y: 5, lx: 4, ly: 6 })) === JSON.stringify({ a: "attack", id: 1, x: 5, y: 5, lx: 4, ly: 6 }) && !("lx" in (parseAct({ a: "attack", id: 1, x: 5, y: 5, lx: -1, ly: 2 }) as any)), "parseAct пропускает lx/ly (0…127)");
 }
+// --- t1303: Ладья не бьёт по диагонали (подход + удар за угол запрещён), только ряд/столбец
+{ const g = board(12, [[0, "rook", 2, 8], [1, "pawn", 3, 6], [1, "pawn", 5, 9], [1, "pawn", 1, 7], [1, "king", 11, 0], [0, "king", 0, 11]]);
+  const T = attackTargets(g, P(g, 1));
+  ok(!has(T, 3, 6) && !has(T, 1, 7) && !apply(g, 0, { a: "attack", id: 1, x: 3, y: 6 }).ok, "Ладья: цели по диагонали/вбок от линии — недоступны");
+  const g2 = board(12, [[0, "rook", 2, 8], [1, "pawn", 5, 8], [1, "pawn", 2, 5], [1, "king", 11, 0], [0, "king", 0, 11]]);
+  const T2 = attackTargets(g2, P(g2, 1)); ok(has(T2, 5, 8) && has(T2, 2, 5) && T2.every(([x, y]) => x === 2 || y === 8), "Ладья: цели только по ряду/столбцу");
+  const g3 = board(12, [[0, "rook", 4, 4], [1, "pawn", 5, 5], [1, "king", 11, 0], [0, "king", 0, 11]]);
+  ok(!has(attackTargets(g3, P(g3, 1)), 5, 5), "Ладья: соседняя по диагонали — нельзя");
+  for (let i = 0; i < 40; i++) { const gr = newGame(15, ["stone", "ice"] as any); gr.pieces.forEach((q, j) => { if (j % 3 === i % 3) { q.x = (q.x + i) % 15; } }); for (const r of gr.pieces.filter((q) => q.kind === "rook")) ok(attackTargets(gr, r).every(([x, y]) => x === r.x || y === r.y), `seed ${i}: Ладья ${r.id} — ряд/столбец`); }
+}
+{ const g = board(12, [[0, "rook", 4, 4], [1, "pawn", 4, 3], [1, "pawn", 4, 1], [1, "king", 11, 0], [0, "king", 0, 11]]);
+  const T = attackTargets(g, P(g, 1)); ok(!has(T, 4, 3) && !apply(g, 0, { a: "attack", id: 1, x: 4, y: 3 }).ok, "t1304: смежная по прямой — без удара с места");
+  const g2 = board(12, [[0, "rook", 4, 6], [1, "pawn", 4, 3], [1, "king", 11, 0], [0, "king", 0, 11]]);
+  const r = apply(g2, 0, { a: "attack", id: 1, x: 4, y: 3 }); ok(r.ok && P(g2, 1).y === 4 && (r.ev[0] as any).approach === 1, "t1304: рывок 2 клетки + удар"); }
 // --- путь закрыт: стена / своя фигура / лес останавливает
 { const g = board(12, [[0, "rook", 2, 8], [1, "pawn", 2, 4], [1, "king", 11, 0], [0, "king", 0, 11]], { "2,6": "#" });
   ok(!has(attackTargets(g, P(g, 1)), 2, 4) && !apply(g, 0, { a: "attack", id: 1, x: 2, y: 4 }).ok, "стена на пути — подход невозможен (bad_attack)");
@@ -54,7 +68,7 @@ ok(attackKind("knight") === "ranged" && attackKind("mage") === "ranged" && attac
 // --- нет свободной клетки рядом
 { const g = board(12, [[0, "rook", 5, 9], [1, "pawn", 5, 5], [1, "rook", 5, 6], [1, "rook", 4, 5], [1, "rook", 6, 5], [1, "king", 11, 0], [0, "king", 0, 11]]);
   ok(!has(attackTargets(g, P(g, 1)), 5, 5), "цель окружена — с подходом не достать");
-  ok(has(attackTargets(g, P(g, 1)), 5, 6), "но ближнего соседа (5,6) — можно");
+  ok(has(attackTargets(g, P(g, 1)), 5, 6), "но (5,6) рывком — можно");
 }
 // --- обморозка: подход максимум на 1 клетку; корни — без подхода
 { const g = board(12, [[0, "rook", 2, 8], [1, "pawn", 2, 5], [1, "king", 11, 0], [0, "king", 0, 11]]); P(g, 1).chill = 2;

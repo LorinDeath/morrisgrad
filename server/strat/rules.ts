@@ -235,14 +235,16 @@ export function moveTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): 
 export const RANGED: readonly Kind[] = ["knight", "mage"];
 export const APPROACH: readonly Kind[] = ["rook", "hero"];
 export const attackKind = (k: Kind): "ranged" | "approach" | "melee" => (RANGED.includes(k) ? "ranged" : APPROACH.includes(k) ? "approach" : "melee");
+/** t1303: Ладья бьёт только по своей линии (ряд/столбец), как в шахматах: клетка подхода и цель — на той же прямой от Ладьи, без «поворота» за угол (по диагонали от исходной клетки). */
+const lineOk = (p: Piece, a: number, b: number, x: number, y: number) => p.kind !== "rook" || (a === p.x && x === p.x) || (b === p.y && y === p.y);
 const hits = (g: GameState, p: Piece, ox: number, oy: number, x: number, y: number, cfg: StratCfg) => hitCells(g, p, cfg, ox, oy).some(([a, b]) => a === x && b === y);
 /** Все клетки, с которых фигура может ударить по (x, y) в этом действии: своя клетка (если достаёт с места) и — для Ладьи/Ферзя — клетки хода.
  *  Порядок: своя клетка первой, затем ближние (по числу шагов, потом y, x) — первая и есть клетка по умолчанию. */
 export function attackLandings(g: GameState, p: Piece, x: number, y: number, cfg: StratCfg = STRAT_CFG): [number, number][] {
   const out: [number, number][] = [];
-  if (hits(g, p, p.x, p.y, x, y, cfg)) out.push([p.x, p.y]);
+  if (p.kind !== "rook" && hits(g, p, p.x, p.y, x, y, cfg)) out.push([p.x, p.y]); // t1304: Ладья не бьёт с места — только рывок (подход ≥1 клетки + удар)
   if (APPROACH.includes(p.kind)) {
-    const mv = moveTargets(g, p, cfg).filter(([a, b]) => hits(g, p, a, b, x, y, cfg));
+    const mv = moveTargets(g, p, cfg).filter(([a, b]) => lineOk(p, a, b, x, y) && hits(g, p, a, b, x, y, cfg));
     mv.sort((A, B) => Math.max(Math.abs(A[0] - p.x), Math.abs(A[1] - p.y)) - Math.max(Math.abs(B[0] - p.x), Math.abs(B[1] - p.y)) || A[1] - B[1] || A[0] - B[0]);
     out.push(...mv);
   }
@@ -257,9 +259,9 @@ export function attackLanding(g: GameState, p: Piece, x: number, y: number, cfg:
 /** Клетки с вражескими фигурами, которые можно атаковать этим действием (с места или — Ладья/Ферзь — с подходом). */
 export function attackTargets(g: GameState, p: Piece, cfg: StratCfg = STRAT_CFG): [number, number][] {
   const isFoe = (x: number, y: number) => { const t = inB(g, x, y) && at(g, x, y); return !!t && foe(g, t.owner, p.owner); };
-  const out = hitCells(g, p, cfg).filter(([x, y]) => isFoe(x, y));
+  const out = p.kind === "rook" ? [] : hitCells(g, p, cfg).filter(([x, y]) => isFoe(x, y)); // t1304: Ладья — только рывок
   if (APPROACH.includes(p.kind)) { const seen = new Set(out.map(([x, y]) => y * g.size + x));
-    for (const [mx, my] of moveTargets(g, p, cfg)) for (const [x, y] of hitCells(g, p, cfg, mx, my)) { const k = y * g.size + x; if (!seen.has(k) && isFoe(x, y)) { seen.add(k); out.push([x, y]); } } }
+    for (const [mx, my] of moveTargets(g, p, cfg)) for (const [x, y] of hitCells(g, p, cfg, mx, my)) { const k = y * g.size + x; if (!seen.has(k) && lineOk(p, mx, my, x, y) && isFoe(x, y)) { seen.add(k); out.push([x, y]); } } }
   return out;
 }
 /** Клетки, по которым фигура может ударить с клетки (ox, oy) (по умолчанию — со своей; геометрия удара без учёта цели). */
