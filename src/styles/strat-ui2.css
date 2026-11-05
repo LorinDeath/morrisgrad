@@ -742,13 +742,13 @@ body[data-screen="home"], body[data-screen="lobby"] { background-image: none; }
 @media (max-width: 820px) and (orientation: portrait) {
   body[data-screen="game"] .app { padding-top: 4px; padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
   #play.game { gap: 4px; }
-  #play .topbar { flex-wrap: nowrap; min-height: 0; height: 44px; gap: 6px; padding: 0 2px; border-width: 4px 8px; border-image-width: 4px 8px; }
+  #play .topbar { flex-wrap: nowrap; min-height: 0; height: 44px; gap: 6px; padding: 0 2px; overflow: hidden; border-width: 4px 8px; border-image-width: 4px 8px; }
   #play .topbar #menubtn { --bh: 34px; min-width: 34px; min-height: 34px; width: 34px; height: 34px; flex: none; }
-  #play .topbar .apbox { order: 1; flex: none; font-size: .85rem; }
+  #play .topbar .apbox { order: 1; flex: 0 1 auto; min-width: 0; overflow: hidden; font-size: .85rem; }
   #play .topbar .appips i { --pip: 7px; }
   #play .topbar .turnplate { order: 2; flex: none; height: 30px; border-width: 0 14px; border-image-width: 0 14px; font-size: .85rem; } #play .topbar .turnplate > span { display: none; }
   #play .topbar .clock { order: 3; flex: none; font-size: .8rem; min-width: 0; } #play .topbar .clock small { display: none; }
-  #play .ecbar { order: 4; flex: 1 1 0; min-width: 0; height: 36px; align-items: center; gap: 6px; }
+  #play .ecbar { order: 4; flex: 1 1 0; min-width: 96px; height: 36px; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
   #play .ecbar > * { flex: none; } #play .ecbar .hbtn { min-width: 36px; height: 34px; } #play .ecbar .hbtn span { display: none; }
   #play .ecbar .ctr .ic { width: 18px; height: 18px; }
   .stagewrap { border-width: 6px; border-image-width: 6px; }
