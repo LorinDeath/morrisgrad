@@ -653,7 +653,7 @@ function showEnd() {
 function openSum() {
   const R = hv?.replay, s: Sum | undefined = R?.sum; if (!R || !s?.sides) return; const me = R.you ?? -1, w = s.winner, dr = sumDraw(s), mw = me >= 0 && sumWon(s, me);
   const wn = s.sides.map((_, i) => i).filter((i) => sumWon(s, i)).map((i) => R.nicks[i] || s.nicks?.[i] || "?").join(" и ") || "?";
-  const reason = me >= 0 && !mw && !dr && s.reason === "goals" ? "Соперник выполнил все цели" : REASON[s.reason] || s.reason || "";
+  const reason = me >= 0 && !mw && !dr && s.reason === "goals" ? "Соперник выполнил все цели" : me >= 0 && !mw && !dr && s.reason === "forfeit" && (s.sides.length <= 2 || (s.sides[me] as any)?.out) ? "Вы сдались" /* t1243: в «Все»/2×2 сдавшийся не видит «Соперник сдался» */ : REASON[s.reason] || s.reason || "";
   modal({ id: "sumdlg", title: dr ? "Ничья" : me < 0 ? `Победил ${wn}` : mw ? "Победа" : "Поражение", icon: "scales", cls: "sumdlg",
     sub: esc(new Date(R.at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })), body: resultsHtml(s, { me, reason, rating: s.rating, nick: (i) => R.nicks[i] || s.nicks?.[i] || "?" }), acts: [{ label: "Закрыть", val: null }] });
 }
@@ -1597,7 +1597,7 @@ function openMenu() {
   q("leave2")!.onclick = () => { m.close(null); leaveMatch(); };
 }
 function showRules() { const src = document.getElementById("rulestext"); modal({ id: "rulesdlg", title: "Правила", icon: "book", cls: "rulesdlg", body: src ? src.innerHTML : "" }); }
-async function surrender() { if (await confirmDlg("Сдаться?", "Победа уйдёт сопернику. Это нельзя отменить.", "Сдаться", { danger: true, icon: "flag" })) send({ type: "forfeit" }); }
+async function surrender() { if (await confirmDlg("Сдаться?", (S.mode === "2v2" ? "Ваши фигуры и постройки перейдут союзнику — команда играет дальше." : S.mode === "ffa" ? "Ваши фигуры уйдут с поля, вы займёте последнее место среди выбывших." : "Победа уйдёт сопернику.") + " Это нельзя отменить.", "Сдаться", { danger: true, icon: "flag" })) send({ type: "forfeit" }); }
 async function endTurn() {
   if (!S?.g || S.g.cur !== S.you) return; const G = gs()!;
   if (S.check?.[S.you] && !(await confirmDlg("Вождь в опасности!", "Вражеские фигуры могут ударить вашего Вождя в следующем ходу. Всё равно завершить ход?", "Завершить ход", { danger: true, icon: "warn" }))) return;
