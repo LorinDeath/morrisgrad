@@ -741,7 +741,17 @@ function draw() {
   if (abBtn) { abBtn.disabled = !sel || !abs.length || G.side !== mySide; abBtn.textContent = uiMode === "ab" ? "Отмена способности" : "Способность"; }
   const endBtn = $("#btn-end") as HTMLButtonElement;
   if (endBtn) endBtn.disabled = G.side !== mySide || !!G.winner;
-  const log = $("#log"); if (log) log.innerHTML = G.log.slice(0, 24).map((l) => `<div>${l}</div>`).join("");
+  const log = $("#log");
+  if (log) {
+    const cls = (l: string) => {
+      if (/поги|Мат|♛/.test(l)) return "die";
+      if (/★|Щит|Прорыв|Вспыш|Добиван|Отталк/.test(l)) return "skill";
+      if (/→|: \d|удар/.test(l)) return "hit";
+      if (/ходит|ОД →/.test(l)) return "move";
+      return "misc";
+    };
+    log.innerHTML = G.log.slice(0, 28).map((l) => `<div class="cc-ll ${cls(l)}">${esc(l)}</div>`).join("");
+  }
 }
 
 // ───────────────────────── рендер доски (canvas, rAF) ─────────────────────────

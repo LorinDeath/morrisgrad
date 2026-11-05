@@ -106,10 +106,10 @@ function trigShield(G: Game, att: Piece, tgt: Piece): "push" | void {
   const def = tgt.s; if (G.shield[def]) return;
   const R = G.pieces.find((r) => r.t === "R" && r.s === def && r.cd === 0 && Math.max(Math.abs(r.x - tgt.x), Math.abs(r.y - tgt.y)) <= SHIELD_R);
   if (!R) return;
-  G.shield[def] = { x: R.x, y: R.y, hp: 100 }; R.cd = 5; L(G, "Ладья ставит щит 3×3");
+  G.shield[def] = { x: R.x, y: R.y, hp: 100 }; R.cd = 5; L(G, "Щит ладьи 3×3");
   if (Math.max(Math.abs(att.x - R.x), Math.abs(att.y - R.y)) === 1) {
     const nx = att.x + Math.sign(att.x - R.x), ny = att.y + Math.sign(att.y - R.y);
-    if (inb(nx, ny) && !at(G, nx, ny)) { att.x = nx; att.y = ny; L(G, "…и отталкивает врага"); return "push"; }
+    if (inb(nx, ny) && !at(G, nx, ny)) { att.x = nx; att.y = ny; L(G, "Отталкивание"); return "push"; }
   }
 }
 
@@ -122,20 +122,20 @@ export function hit(G: Game, att: Piece, q: Piece, dmg: number, ranged?: boolean
   const pushed = trigShield(G, att, q);
   if (inShield(G, q)) {
     const s = G.shield[q.s]!;
-    if (ranged) { L(G, "Щит уничтожил снаряд"); s.hp -= dmg; dmg = 0; }
+    if (ranged) { L(G, "Щит: снаряд сбит"); s.hp -= dmg; dmg = 0; }
     else { const a = Math.min(s.hp, dmg); s.hp -= a; dmg -= a; }
     if (s.hp <= 0) { G.shield[q.s] = null; L(G, "Щит разбит"); }
     if (ranged || pushed) return false;
   }
   if (pushed) return false;
   // Конь: добивание, если цель < 70% и CD готов — авто при обычном ударе
-  if (att.t === "N" && att.cd === 0 && q.hp < 0.7 * q.mh) { dmg = 999; att.cd = 5; L(G, "Добивание коня!"); }
+  if (att.t === "N" && att.cd === 0 && q.hp < 0.7 * q.mh) { dmg = 999; att.cd = 5; L(G, "★ Добивание!"); }
   q.hp -= dmg; L(G, `${STATS[att.t].name} → ${STATS[q.t].name}: ${dmg}`);
   if (q.hp <= 0) {
     G.pieces = G.pieces.filter((z) => z !== q);
     const fem = q.t === "P" || q.t === "R";
     L(G, `${STATS[q.t].name} ${fem ? "погибла" : "погиб"}`);
-    if (q.t === "K") { G.winner = att.s; G.side = "x"; L(G, att.s === "w" ? "Мат! Светлые победили" : "Мат! Тёмные победили"); }
+    if (q.t === "K") { G.winner = att.s; G.side = "x"; L(G, att.s === "w" ? "♛ Мат — светлые" : "♛ Мат — тёмные"); }
     return true;
   }
   return false;
@@ -173,7 +173,7 @@ export function abilities(G: Game, p: Piece): AbilityTarget[] {
   }
   if (p.t === "B") {
     const es = G.pieces.filter((q) => en(p, q) && Math.abs(q.x - p.x) <= 1 && Math.abs(q.y - p.y) <= 1);
-    return es.length > 2 ? [{ x: p.x, y: p.y, run: (g) => { L(g, "Вспышка 3×3!"); es.forEach((q) => hit(g, p, q, 100, false)); p.cd = 4; return "ok"; } }] : [];
+    return es.length > 2 ? [{ x: p.x, y: p.y, run: (g) => { L(g, "★ Вспышка 3×3"); es.forEach((q) => hit(g, p, q, 100, false)); p.cd = 4; return "ok"; } }] : [];
   }
   if (p.t === "Q") {
     return ALL.map(([dx, dy]) => {
@@ -183,14 +183,14 @@ export function abilities(G: Game, p: Piece): AbilityTarget[] {
           if (inShield(g, h.q)) {
             p.hp -= 45; const s = g.shield[h.q.s]!; s.hp -= 45;
             if (s.hp <= 0) g.shield[h.q.s] = null;
-            L(g, "Ферзь врезался в щит: −45/−45");
+            L(g, "★ Прорыв в щит −45/−45");
             if (p.hp <= 0) { g.pieces = g.pieces.filter((z) => z !== p); if (p.t === "K") { g.winner = h.q.s; g.side = "x"; } }
             p.cd = 4; return "ok";
           }
           let x = h.x + dx, y = h.y + dy; const second = inb(x, y) ? at(g, x, y) : null;
           let lx = x, ly = y; if (second) { lx = x + dx; ly = y + dy; }
-          if (!inb(lx, ly) || at(g, lx, ly)) { L(g, "Стена за целью — прорыв невозможен"); return "no"; }
-          L(g, "Прорыв!");
+          if (!inb(lx, ly) || at(g, lx, ly)) { L(g, "Прорыв: стена"); return "no"; }
+          L(g, "★ Прорыв");
           hit(g, p, h.q, 90, false);
           if (second && en(p, second)) hit(g, p, second, 45, false);
           p.x = lx; p.y = ly; p.cd = 4; return "ok";
@@ -217,7 +217,7 @@ export function endTurn(G: Game) {
   const s = G.side;
   G.pieces.filter((p) => p.s === s && p.cd > 0).forEach((p) => p.cd--);
   G.turnsDone[s]++;
-  if (G.turnsDone[s] % AP_EVERY === 0) { G.apMax[s]++; L(G, `ОД стороны выросли до ${G.apMax[s]}`); }
+  if (G.turnsDone[s] % AP_EVERY === 0) { G.apMax[s]++; L(G, `ОД → ${G.apMax[s]}`); }
   const next: Side = s === "w" ? "b" : "w";
   if (G.shield[next]) G.shield[next] = null; // щит живёт до начала своего хода
   G.side = next;

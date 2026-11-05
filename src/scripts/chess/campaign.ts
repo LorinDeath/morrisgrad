@@ -78,7 +78,7 @@ function showDeny(msg: string) {
     <div class="cc-panel">
       <h2>Доступ закрыт</h2>
       <p>${esc(msg)}</p>
-      <p class="muted">Админка «Боевые шахматы» — только для <b>Lorin Death</b> (роль admin + имя или сид-uid).</p>
+      <p class="muted">Админка «Боевые шахматы» — только для <b>Lorin Death</b> (по Clerk id аккаунта, не по нику).</p>
       <a class="btn gold" href="/games/chess-combat">← К игре</a>
     </div>
   </div>`;

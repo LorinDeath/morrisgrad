@@ -17,8 +17,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
   let uid = sessionUserId(locals) || "";
   const qDev = url.searchParams.get("devUser") || "";
-  // Явный seed только на localhost (как strat ?devUser); чужой uid не принимаем.
-  if (!uid && isLocal && qDev === LORIN_UID) uid = LORIN_UID;
+  // localhost: любой ?devUser=… имитирует Clerk uid (для плейтеста allow/deny по id).
+  // На проде sessionUserId — единственный источник; query игнорируется.
+  if (!uid && isLocal && qDev) uid = qDev.slice(0, 64);
 
   if (!uid) {
     return Response.json({ ok: false, err: "auth", msg: "Нужен вход на сайт." }, { status: 401, headers: hdrs });
@@ -31,19 +32,17 @@ export const GET: APIRoute = async ({ request, locals }) => {
   if (!db) {
     if (!(isLocal && uid === LORIN_UID)) {
       return Response.json(
-        { ok: false, err: "forbidden", msg: "Админка «Боевые шахматы» — только для Lorin Death." },
+        { ok: false, err: "forbidden", msg: "Админка «Боевые шахматы» — только для Lorin Death (по id аккаунта, не по нику)." },
         { status: 403, headers: hdrs },
       );
     }
     return Response.json({ ok: true, uid, who: LORIN_NAME }, { headers: hdrs });
   }
 
-  const nick = url.searchParams.get("nick") || "";
+  // nick из query намеренно не читаем — доступ только по Clerk uid.
   const g = await decideChessAdminGate({
     env: { ...env, GAME_DB: db, PROFILES_DB: db },
     uid,
-    nickHint: nick,
-    localSeedOnly: false,
   });
   // Локальный seed без роли в пустой D1: если DB есть, но роли нет — всё равно пустить seed на localhost.
   if (!g.ok && isLocal && uid === LORIN_UID) {

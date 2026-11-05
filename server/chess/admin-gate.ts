@@ -1,72 +1,38 @@
-// Gate админки «Боевые шахматы»: только Lorin Death.
-// Зеркало stratAdminAuth + проверка display name «Lorin Death» (без регистра)
-// и/или точного uid из миграции 0008. Клиент: /games/chess-combat-admin.
+// Gate админки «Боевые шахматы»: только Lorin Death по Clerk user id.
+// Ник «Lorin Death» / смена display name доступа не даёт. Клиент: /games/chess-combat-admin.
 import { verifyClerkTokenEx, DEFAULT_CLERK_ISSUER } from "../meta/auth";
 import { isDevRequest, isLocalRequest, originAllowed } from "../limits";
-import { Roles } from "../meta/roles";
 
-/** Сид-админ из server/migrations/0008_roles.sql */
+/** Сид-админ из server/migrations/0008_roles.sql — единственный ключ доступа. */
 export const LORIN_UID = "user_38QeREOr606p1c96P4f14YFsLp7";
+/** Только для подписи в UI; НЕ используется в решении gate. */
 export const LORIN_NAME = "Lorin Death";
-
-const norm = (s: string) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
-export const isLorinName = (s: string) => norm(s) === norm(LORIN_NAME);
-
-async function lookupUsername(env: any, uid: string): Promise<string> {
-  const db = env?.GAME_DB || env?.PROFILES_DB;
-  if (!db || !uid) return "";
-  try {
-    const row: any = await db.prepare("SELECT username FROM users WHERE id = ? LIMIT 1").bind(uid).first();
-    return row?.username ? String(row.username) : "";
-  } catch { return ""; }
-}
-
-async function isSiteAdmin(env: any, uid: string): Promise<boolean> {
-  const db = env?.GAME_DB || env?.PROFILES_DB;
-  if (!db || !uid) return false;
-  try {
-    const roles = new Roles(db);
-    await roles.ensure();
-    return roles.isAdmin({ pkey: "uid:" + uid, verified: true });
-  } catch { return false; }
-}
 
 export type GateOk = { ok: true; uid: string; who: string };
 export type GateFail = { ok: false; status: number; err: string; msg: string };
 
 /**
- * Доступ: (роль admin И (имя Lorin Death ИЛИ точный LORIN_UID)).
- * localSeedOnly: Astro vite без D1 — только localhost + точный seed uid.
- * MC_DEV_TRUST + seed: локальный worker-плейтест без строки роли в пустой D1.
+ * Доступ строго по Clerk uid === LORIN_UID.
+ * Display name / nickHint игнорируются — нельзя войти, поставив ник «Lorin Death».
+ * localSeedOnly — localhost без D1 (плейтесты).
  */
 export async function decideChessAdminGate(opts: {
   env: any;
   uid: string;
-  nickHint?: string;
+  nickHint?: string; // игнорируется
   localSeedOnly?: boolean;
 }): Promise<GateOk | GateFail> {
   const uid = String(opts.uid || "").slice(0, 64);
   if (!uid) return { ok: false, status: 401, err: "auth", msg: "Нужен вход на сайт." };
-
-  const seed = uid === LORIN_UID;
-
-  if (opts.localSeedOnly) {
-    if (!seed) return { ok: false, status: 403, err: "forbidden", msg: "Админка «Боевые шахматы» — только для Lorin Death." };
-    return { ok: true, uid, who: LORIN_NAME };
+  if (uid !== LORIN_UID) {
+    return {
+      ok: false,
+      status: 403,
+      err: "forbidden",
+      msg: "Админка «Боевые шахматы» — только для Lorin Death (по id аккаунта, не по нику).",
+    };
   }
-
-  const trustSeed = seed && opts.env?.MC_DEV_TRUST_USERID === "1";
-  const admin = trustSeed || (await isSiteAdmin(opts.env, uid));
-  if (!admin) {
-    return { ok: false, status: 403, err: "forbidden", msg: "Раздел только для администратора сайта." };
-  }
-
-  const uname = (await lookupUsername(opts.env, uid)) || String(opts.nickHint || "");
-  if (!seed && !isLorinName(uname)) {
-    return { ok: false, status: 403, err: "forbidden", msg: "Админка «Боевые шахматы» — только для Lorin Death." };
-  }
-  const who = isLorinName(uname) ? (uname.trim() || LORIN_NAME) : (seed ? LORIN_NAME : (uname.trim() || uid.slice(-6)));
-  return { ok: true, uid, who };
+  return { ok: true, uid, who: LORIN_NAME };
 }
 
 /** HTTP handler для worker `/chess/admin/gate` (и OPTIONS). */
@@ -100,8 +66,7 @@ export async function chessAdminGateHttp(request: Request, env: any): Promise<Re
     const dev = new URL(request.url).searchParams.get("devUser");
     if (dev && isDevRequest(env, request)) uid = dev.slice(0, 64);
   }
-  const nick = new URL(request.url).searchParams.get("nick") || "";
-  const g = await decideChessAdminGate({ env, uid, nickHint: nick, localSeedOnly: false });
+  const g = await decideChessAdminGate({ env, uid });
   if (!g.ok) return J({ ok: false, err: g.err, msg: g.msg }, g.status);
   return J({ ok: true, uid: g.uid, who: g.who });
 }
