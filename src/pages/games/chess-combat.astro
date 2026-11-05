@@ -24,6 +24,8 @@ const title = 'Боевые шахматы | Моррис Град';
 
   <section id="sc-home" class="cc-screen">
     <div class="cc-hero">
+      <div class="cc-title"><span class="dia"></span><h2>Боевые шахматы</h2><span class="dia"></span></div>
+      <canvas id="hero-army" class="cc-army" aria-hidden="true"></canvas>
       <p class="tag">Убей короля — это мат. ОД растут каждые 15 твоих ходов. Поле — чистовик B · зал MorrisGrad.</p>
     </div>
     <div class="cc-grid">
@@ -58,8 +60,10 @@ const title = 'Боевые шахматы | Моррис Град';
       <div class="cc-board-wrap">
         <div class="cc-hud">
           <div class="cc-side" id="turn-label">Ход</div>
-          <div class="cc-ap" title="Очки действия">ОД <span id="ap-num">2/2</span>
+          <div class="cc-ap" title="Очки действия: старт 2, +1 каждые 15 своих ходов">
+            <span class="lbl">ОД</span> <span id="ap-num">2/2</span>
             <span class="pips" id="ap-pips"></span>
+            <small id="ap-hint"></small>
           </div>
         </div>
         <div class="cc-threat" id="threat"></div>
@@ -67,6 +71,7 @@ const title = 'Боевые шахматы | Моррис Град';
       </div>
       <aside class="cc-panel cc-sidepanel">
         <div class="info" id="info">Выбери фигуру</div>
+        <div class="cc-legend"><span><i class="lg w"></i>светлые — вы</span><span><i class="lg b"></i>тёмные — бот</span></div>
         <div class="cc-acts">
           <button class="btn" id="btn-ab" type="button" disabled>Способность</button>
           <button class="btn gold" id="btn-end" type="button">Конец хода</button>
@@ -88,6 +93,8 @@ const title = 'Боевые шахматы | Моррис Град';
 <script>
   // Clerk stub hook — тот же CDN-паттерн сайта подключится на выкладке
 </script>
-<script type="module" src="../../scripts/chess/client.ts"></script>
+<script>
+  import '../../scripts/chess/client';
+</script>
 </body>
 </html>

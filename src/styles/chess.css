@@ -165,3 +165,53 @@ html, body { margin: 0; padding: 0; background: var(--cc-bg); color: var(--cc-te
 .cc-admin .list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .cc-admin .list .row { display: flex; gap: 8px; align-items: center; justify-content: space-between;
   padding: 8px; background: #100d16; border-radius: 6px; }
+
+/* ── полиш: заголовок лобби, армия, HUD ── */
+.cc-title { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.cc-title h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: .08em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff3c4, #e2b65a 55%, #a7792e); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 3px #000c); }
+.cc-title .dia { width: 10px; height: 10px; background: var(--cc-gold); transform: rotate(45deg); box-shadow: 0 0 8px #d4af5a88; }
+.cc-army { display: block; margin: 6px auto 0; image-rendering: pixelated; max-width: 100%; }
+.cc-board {
+  border: 2px solid #8a6a2c; border-radius: 2px;
+  box-shadow: 0 0 0 1px #2a2010, 0 0 0 5px #15100c, 0 0 0 6px #6b5226, 0 18px 50px rgba(0,0,0,.65), 0 0 60px rgba(212,175,90,.12);
+}
+.cc-side { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.15; transition: filter .2s; }
+.cc-side small { font-size: .72rem; color: var(--cc-muted); }
+.cc-side .opp { color: #e89090; font-weight: 700; }
+.cc-side.mine { filter: drop-shadow(0 0 6px #d4af5a66); }
+.cc-ap { flex-wrap: wrap; }
+.cc-ap .lbl { letter-spacing: .1em; }
+.cc-ap small { width: 100%; font-size: .68rem; color: var(--cc-muted); font-weight: 500; text-align: right; }
+.cc-ap .pips i { width: 14px; height: 14px; transform: rotate(45deg); border-radius: 2px; transition: background .2s, box-shadow .2s; }
+.cc-ap .pips i.on { box-shadow: 0 0 8px #e0c060aa, inset 0 0 0 2px #fff3c455; }
+.cc-ap .pips.bump i { animation: ccPip .35s ease-out; }
+@keyframes ccPip { 0% { transform: rotate(45deg) scale(1.35); } 100% { transform: rotate(45deg) scale(1); } }
+.cc-threat { animation: ccThreat 1s ease-in-out infinite; }
+@keyframes ccThreat { 50% { opacity: .55; } }
+.cc-sidepanel .info { color: var(--cc-text); }
+.pc-name { font-family: Georgia, serif; color: var(--cc-gold); font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+.pc-name .side { font-family: system-ui, sans-serif; font-size: .7rem; padding: 1px 6px; border-radius: 8px; color: #120c08; }
+.pc-name .side.w { background: #f2dca0; } .pc-name .side.b { background: #e0505e; color: #fff; }
+.pc-hp { height: 6px; background: #2a1414; margin: 6px 0 4px; border: 1px solid #000; }
+.pc-hp i { display: block; height: 100%; background: linear-gradient(90deg, #5bd16a, #9be27a); }
+.pc-meta { font-size: .78rem; color: var(--cc-muted); }
+.cc-legend { display: flex; gap: 12px; font-size: .74rem; color: var(--cc-muted); margin: 4px 0 10px; }
+.cc-legend .lg { display: inline-block; width: 14px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: middle; border: 2px solid; }
+.cc-legend .lg.w { border-color: #f6dc96; } .cc-legend .lg.b { border-color: #eb465a; }
+.cc-log div:first-child { color: var(--cc-text); }
+.cc-screen.on { animation: ccIn .28s ease-out; }
+@keyframes ccIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* results: карта result_* — целая картинка, не 9-slice */
+.cc-results.win, .cc-results.lose {
+  border: 0; border-image: none; image-rendering: pixelated;
+  background: url("/chess/ui/result_win.png") center / 100% 100% no-repeat;
+  padding: 150px 34px 30px; box-shadow: 0 20px 60px #000c;
+}
+.cc-results.lose { background-image: url("/chess/ui/result_lose.png"); }
+.cc-results > * { position: relative; }
+.cc-results h2 { text-shadow: 0 2px 0 #000, 0 0 12px #000; }
+#res-body { margin-bottom: 14px; background: rgba(16,11,7,.78); border-radius: 6px; padding: 6px 10px; }
