@@ -823,6 +823,14 @@ body[data-screen="game"] .gtop { display: none; }
 .rs-tab th.me, .rs-tab td.me { background: #e0b04a12; } .rs-tab thead th.me { box-shadow: inset 0 -2px 0 var(--gold); }
 .rs-tab td { font: 700 .95rem var(--f-disp); color: var(--ivory-2); } .rs-tab td.best { color: var(--gold-hi); }
 .rs-tab tbody tr:hover td { background: #ffffff08; }
+/* t1243: 2×2 и «Все ×3…×8» — больше столбцов: прокрутка по горизонтали, первый столбец закреплён */
+.rs-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.rs-tab.many { table-layout: auto; min-width: 100%; } .rs-tab.many th:first-child, .rs-tab.many td:first-child { width: auto; min-width: 128px; position: sticky; left: 0; background: var(--panel); z-index: 1; }
+.rs-tab.many th:not(:first-child), .rs-tab.many td:not(:first-child) { min-width: 64px; } .rs-tab.many thead th span { max-width: 96px; }
+.rs-tab .rs-team { display: block; font: 600 .66rem var(--f-body, inherit); letter-spacing: .04em; color: var(--ivory-3); text-transform: none; }
+.rs-tab th.ally, .rs-tab td.ally { background: #7fb2ff10; } .rs-tab .rs-place td:not(:first-child) { font-size: .84rem; }
+.es-sides.many { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; } .es-sides.many .vs { display: none; } .es-sides.many .es-side.out { opacity: .55; }
+.es-side .es-pl { display: block; font: 700 .72rem var(--f-disp); letter-spacing: .06em; color: var(--gold); }
 .rs-gl { display: inline-flex; gap: 2px; vertical-align: middle; } .rs-gl i { width: 17px; height: 17px; display: grid; place-items: center; background: var(--ink); border: 1px solid var(--gold-dk); transform: rotate(45deg) scale(.82); }
 .rs-gl i .ic { transform: rotate(-45deg); width: 10px; height: 10px; color: var(--grey-lo); } .rs-gl i.on { background: var(--gold); } .rs-gl i.on .ic { color: var(--ink); }
 .rs-goals small { display: block; font: 700 .72rem var(--f-disp); color: var(--ivory-3); margin-top: 1px; }

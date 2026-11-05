@@ -19,6 +19,12 @@ export const seatCount = (S: any) => Math.max(2, Math.min(8, S?.maxSeats ?? S?.s
 /** Сколько мест позволяет карта (точки появления). */
 export const spawnLimit = (S: any) => Math.max(2, Math.min(8, S?.spawns ?? S?.mapSpawns ?? S?.map?.spawns ?? 2));
 export const teamOf = (S: any, i: number): number => { const t = S?.seats?.[i]?.team; if (typeof t === "number") return t; return modeOf(S) === "2v2" ? i % 2 : i; };
+/** t1243: winner — номер команды; ничья: ≤2 команд — 2, «Все» — 100 (server/strat/seats drawCode) */
+export const drawW = (S: any) => (modeOf(S) === "ffa" && (S?.seats?.length || 2) > 2 ? 100 : 2);
+export const isDrawW = (S: any, w: any) => w == null || w === drawW(S);
+export const wonW = (S: any, i: number, w: any) => i >= 0 && !isDrawW(S, w) && w >= 0 && teamOf(S, i) === w;
+/** ники победившей команды («А и Б» в 2×2) */
+export const winnerNick = (S: any, w: number) => (S?.seats || []).map((s: any, i: number) => (teamOf(S, i) === w ? s?.nick || "?" : null)).filter(Boolean).join(" и ") || "?";
 export const allies = (S: any, a: number, b: number) => a !== b && modeOf(S) !== "ffa" && modeOf(S) !== "1v1" && teamOf(S, a) === teamOf(S, b);
 /** Цвет игрока: сервер может назначить seat.col (индекс 0..7); иначе — по месту. В 1×1 с разными расами — цвет расы. */
 export function playerCol(S: any, i: number, raceCol: (i: number) => string): string {

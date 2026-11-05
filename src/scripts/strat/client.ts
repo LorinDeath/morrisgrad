@@ -18,7 +18,7 @@ import { setTipResolver } from "./ui-kit";
 import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ultAimOk, aimShape, ULT, ultRadius, shake, placeBanner, BAN_MS } from "./ult-fx";
 import { loadFx, fxImg, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
-import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies } from "./players";
+import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies, isDrawW, wonW, winnerNick } from "./players";
 import { renderTrade } from "./trade-ui";
 import { openProfile, demoProfile } from "./profile";
 import { lobbyLeagueHtml, profileHtml, openLeaderboard, ratingDelta, leagueOf, leagueName, LEAGUES } from "./rating";
@@ -33,7 +33,7 @@ import { raceNums, raceEffects, describeEffects } from "../../../server/strat/ef
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, itemFrom, libFrom, winNicks, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
 import { codexGot, openCodex } from "./codex-ui";
-import { resultsHtml, type Sum } from "./results";
+import { resultsHtml, sumDraw, sumWon, type Sum } from "./results";
 import { hpBarArt, unitHpArt, HS_STEP } from "./ui2art";
 import { openMapsHub as mapsHub, openEditor, openModeration, type MapsCtx } from "./maps-ui";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
@@ -624,34 +624,37 @@ function patchEndRating() {
 /** t1236: «Итоги партии» — разбор рейтинга, опыт и статистика (S.sum считает сервер при конце партии). */
 function endResults(me: number): string {
   const s: Sum | undefined = S?.sum; if (!s?.sides?.length) return "";
-  const w = S.result?.winner, win = me >= 0 && w === me, draw_ = w === 2 || w == null;
+  const w = S.result?.winner, win = wonW(S, me, w), draw_ = isDrawW(S, w);
   return resultsHtml(s, { me, reason: endReason(win, draw_, me), rating: S.rating, nick: (i) => S.seats?.[i]?.nick || s.nicks?.[i] || "?" }).replace('<section class="rs"', `<section class="rs" data-k="${esc(JSON.stringify(S.rating || null))}"`);
 }
 const endReason = (win: boolean, draw_: boolean, me: number) => { const r = S.result?.reason; if (me >= 0 && !win && !draw_ && r === "forfeit") return "Вы сдались"; if (me >= 0 && !win && !draw_ && (r === "disconnect" || r === "claim")) return "Вы не вернулись вовремя"; if (me >= 0 && !win && !draw_ && r === "wipe") return "Разгром: у вас не осталось ни фигур, ни городов"; if (me >= 0 && !win && !draw_ && r === "goals") return "Соперник выполнил все цели"; if (me >= 0 && !win && !draw_ && r === "king") return "Ваш Вождь пал"; return REASON[r] || r || ""; };
 function showEnd() {
   if (!S?.g || S.phase !== "over") return; const me = S.you, w = S.result?.winner, g = S.g;
-  const win = me >= 0 && w === me, draw_ = w === 2 || w == null, title = draw_ ? "Ничья" : me < 0 ? `Победил ${S.seats[w]?.nick || "?"}` : win ? "Победа" : "Поражение";
-  const race = g.races[draw_ ? Math.max(0, me) : w] || "fire", G = gs()!, cfg = cfgOf(S), gl = goalsWithSticky(G, cfg);
+  const win = wonW(S, me, w), draw_ = isDrawW(S, w), many = S.seats.length > 2, wSeat = draw_ ? -1 : Math.max(0, S.seats.findIndex((_: any, i: number) => teamOf(S, i) === w));
+  const title = draw_ ? "Ничья" : me < 0 ? `${many && modeOf(S) === "2v2" ? "Победили" : "Победил"} ${winnerNick(S, w)}` : win ? "Победа" : "Поражение";
+  const race = g.races[draw_ ? Math.max(0, me) : wSeat] || "fire", G = gs()!, cfg = cfgOf(S), gl = goalsWithSticky(G, cfg);
   const gDone = (i: number) => S.sum?.sides?.[i]?.goals?.length ?? gl.sides[i].filter((q) => q.done).length; // t1236: счёт из итогов сервера
-  const stat = (i: number) => `<div class="es-side ${i === me ? "me" : ""}">${crest(g.races[i])}
+  const pl = (i: number) => S.sum?.sides?.[i]?.place, sideOrder = many ? S.seats.map((_: any, i: number) => i).sort((a: number, b: number) => (pl(a) ?? 9) - (pl(b) ?? 9) || (a === me ? -1 : b === me ? 1 : a - b)) : [0, 1];
+  const stat = (i: number) => `<div class="es-side ${i === me ? "me" : ""} ${S.sum?.sides?.[i]?.out ? "out" : ""}" data-i="${i}">${crest(g.races[i])}${many && pl(i) ? `<span class="es-pl">${modeOf(S) === "2v2" ? (pl(i) === 1 ? "победа" : "") : pl(i) + "-е место"}</span>` : ""}
     <b class="nick"></b><small class="cname"></small><div class="es-goals">${gl.sides[i].map((q) => { const d = goalDef(q); return `<i class="${q.done ? "on" : ""}" data-tip="${esc(d.name)}">${ic(d.icon)}</i>`; }).join("")}</div>
     <span class="es-n">${ic("glory")}${S.sum?.sides?.[i]?.glory ?? g.ec?.res?.[i]?.glory ?? 0} · ${ic("sword")}${g.pieces.filter((p: any) => p.o === i).length}</span></div>`;
   const m = modal({ id: "endscreen", title, icon: win ? "crown" : draw_ ? "scales" : "skull", cls: "endscreen " + (win || me < 0 ? "win" : draw_ ? "draw" : "lose") + (S.sum ? " has-rs" : ""), dismiss: true,
     sub: esc(endReason(win, draw_, me)),
     body: `<div class="es-hero"><img src="${unitArt(race, "king")}" alt="" data-rmerr></div>
-      <p class="es-chief"></p><div class="es-sides">${stat(0)}<span class="vs">VS</span>${stat(1)}</div>
-      <div class="es-foot"><div class="es-score" data-tip="Выполнено целей"><small>Цели</small><b>${gDone(Math.max(0, me))}–${gDone(me === 1 ? 0 : 1)}</b></div>${me >= 0 ? ratingDelta(myRating(me)) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>${endResults(me)}`,
+      <p class="es-chief"></p><div class="es-sides ${many ? "many" : ""}">${many ? sideOrder.map(stat).join("") : `${stat(0)}<span class="vs">VS</span>${stat(1)}`}</div>
+      <div class="es-foot"><div class="es-score" data-tip="${many ? "Место в партии" : "Выполнено целей"}"><small>${many ? "Место" : "Цели"}</small><b>${many ? (me >= 0 && pl(me) ? `${pl(me)} из ${new Set(S.seats.map((_: any, i: number) => teamOf(S, i))).size}` : "—") : `${gDone(Math.max(0, me))}–${gDone(me === 1 ? 0 : 1)}`}</b></div>${me >= 0 ? ratingDelta(myRating(me)) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>${endResults(me)}`,
     acts: [{ label: "В меню", cls: "ghost", val: "menu", icon: "back" }, { label: "К доске", cls: "", val: "board", icon: "eye" }, ...(rec.frames.length > 1 ? [{ label: "Повтор", cls: "", val: "replay", icon: "hist" }] : []), ...(me >= 0 ? [{ label: S.seats[me]?.rematch ? "Ждём соперника…" : "Реванш", cls: "gold", val: "rematch", icon: "refresh", id: "es-rematch" }] : [])] });
-  m.el.querySelectorAll<HTMLElement>(".es-side").forEach((el, i) => { el.querySelector(".nick")!.textContent = S.seats[i]?.nick || "?"; el.querySelector(".cname")!.textContent = "Вождь " + chiefName(i); });
-  m.el.querySelector(".es-chief")!.textContent = draw_ ? "" : `Вождь ${chiefName(w)} ведёт ${RACE_NAME[g.races[w]] || ""} к победе`;
+  m.el.querySelectorAll<HTMLElement>(".es-side").forEach((el) => { const i = Number(el.dataset.i); el.querySelector(".nick")!.textContent = S.seats[i]?.nick || "?"; el.querySelector(".cname")!.textContent = "Вождь " + chiefName(i); });
+  m.el.querySelector(".es-chief")!.textContent = draw_ ? "" : many && modeOf(S) === "2v2" ? `Команда ${winnerNick(S, w)} — победа` : `Вождь ${chiefName(wSeat)} ведёт ${RACE_NAME[g.races[wSeat]] || ""} к победе`;
   keepRecent();
   m.done.then((v: any) => { if (v === "rematch") send({ type: "rematch" }); if (v === "menu") leaveMatch(); if (v === "replay") { const r = curRec(false); if (r) histOpen(0, r); } });
 }
 /** t1236: «Итоги партии» из повтора (библиотека / «Недавние»). */
 function openSum() {
-  const R = hv?.replay, s: Sum | undefined = R?.sum; if (!R || !s?.sides) return; const me = R.you ?? -1, w = s.winner;
-  const reason = me >= 0 && w !== me && w !== 2 && s.reason === "goals" ? "Соперник выполнил все цели" : REASON[s.reason] || s.reason || "";
-  modal({ id: "sumdlg", title: w === 2 || w == null ? "Ничья" : me < 0 ? `Победил ${R.nicks[w] || s.nicks?.[w] || "?"}` : w === me ? "Победа" : "Поражение", icon: "scales", cls: "sumdlg",
+  const R = hv?.replay, s: Sum | undefined = R?.sum; if (!R || !s?.sides) return; const me = R.you ?? -1, w = s.winner, dr = sumDraw(s), mw = me >= 0 && sumWon(s, me);
+  const wn = s.sides.map((_, i) => i).filter((i) => sumWon(s, i)).map((i) => R.nicks[i] || s.nicks?.[i] || "?").join(" и ") || "?";
+  const reason = me >= 0 && !mw && !dr && s.reason === "goals" ? "Соперник выполнил все цели" : REASON[s.reason] || s.reason || "";
+  modal({ id: "sumdlg", title: dr ? "Ничья" : me < 0 ? `Победил ${wn}` : mw ? "Победа" : "Поражение", icon: "scales", cls: "sumdlg",
     sub: esc(new Date(R.at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })), body: resultsHtml(s, { me, reason, rating: s.rating, nick: (i) => R.nicks[i] || s.nicks?.[i] || "?" }), acts: [{ label: "Закрыть", val: null }] });
 }
 /** «Чёрный список»: первые Вожди соперников стороны side. */

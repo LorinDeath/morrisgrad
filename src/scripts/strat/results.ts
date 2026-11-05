@@ -25,21 +25,28 @@ const f = (v: number, k = 2) => String(Math.round(v * 10 ** k) / 10 ** k).replac
 const sg = (v: number) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(Math.round(v));
 const minTxt = (m: number) => `${m} мин`;
 
-export type SumSide = { goals: string[]; kills: number; lost: number; chiefKills?: number; cities: number; cells: number; goldIn: number; goldOut: number; techs: number; wonders: number; glory: number; ults: number; units?: number; acts?: number; activeMin?: number };
-export type Sum = { mid?: string; winner: number; reason: string; turns: number; turnLimit?: number; size: number; need?: number; list?: string[] | null; mode?: string; nicks?: string[]; bots?: boolean[]; durMs?: number; sides: SumSide[]; rating?: any };
+export type SumSide = { goals: string[]; kills: number; lost: number; chiefKills?: number; cities: number; cells: number; goldIn: number; goldOut: number; techs: number; wonders: number; glory: number; ults: number; units?: number; acts?: number; activeMin?: number; team?: number; place?: number | null; out?: boolean };
+export type Sum = { mid?: string; winner: number; reason: string; turns: number; turnLimit?: number; size: number; need?: number; list?: string[] | null; mode?: string; nicks?: string[]; bots?: boolean[]; durMs?: number; sides: SumSide[]; rating?: any; gmode?: string; teams?: number[] };
+/** t1243: команды/ничья в итогах (winner — номер команды; ничья: ≤2 команд — 2, «Все» — 100, как server/strat/seats drawCode) */
+export const sumTeam = (s: Sum, i: number) => s.teams?.[i] ?? s.sides[i]?.team ?? i;
+export const sumDraw = (s: Sum, w = s.winner) => w == null || w === (new Set(s.sides.map((_, i) => sumTeam(s, i))).size > 2 ? 100 : 2);
+export const sumWon = (s: Sum, i: number, w = s.winner) => !sumDraw(s, w) && w >= 0 && sumTeam(s, i) === w;
+const isFfa = (s: Sum) => new Set(s.sides.map((_, i) => sumTeam(s, i))).size > 2;
 
 /** Разбор изменения рейтинга одного игрока: base × K × ранний × бездействие = итог. */
 function rateCard(R: any, me: number, s: Sum): string {
-  const opp = me === 1 ? 0 : 1;
+  const T = (i: number) => sumTeam(s, i), mine = s.sides.map((_, i) => i).filter((i) => T(i) === T(me)), foes = s.sides.map((_, i) => i).filter((i) => T(i) !== T(me));
+  const gN = (L: number[]) => Math.max(0, ...L.map((i) => s.sides[i]?.goals.length ?? 0)), ffa = isFfa(s), nT = new Set(s.sides.map((_, i) => T(i))).size;
   if (!R || (!R.league && !R.unrated)) return `<div class="rs-card rs-rate wait"><h5>${ic("scales")}Рейтинг</h5><p class="rs-note">Считаем рейтинг…</p></div>`;
   if (R.unrated || !R.league) { const [t, h] = UNRATED[R.unrated] || ["Без рейтинга", ""];
     return `<div class="rs-card rs-rate off"><h5>${ic("scales")}Рейтинг</h5><div class="rs-big none"><b>—</b><span>Без рейтинга</span></div><p class="rs-why"><b>${esc(t)}.</b> ${esc(h)}</p></div>`; }
   const c = R.seats?.[me]; if (!c || c.delta == null) return `<div class="rs-card rs-rate off"><h5>${ic("scales")}Рейтинг</h5><p class="rs-note">Наблюдатель — рейтинг игроков в таблице ниже.</p></div>`;
-  const b = c.bd || {}, d = num(c.delta), before = num(c.before, num(c.rating) - d), after = num(c.rating), myG = s.sides[me]?.goals.length ?? 0, opG = s.sides[opp]?.goals.length ?? 0;
+  const b = c.bd || {}, d = num(c.delta), before = num(c.before, num(c.rating) - d), after = num(c.rating), myG = gN(mine), opG = gN(foes), pl = s.sides[me]?.place;
   const won = b.score > 0.5, lost = b.score < 0.5, rows: [string, string, string?][] = [];
-  if (b.exp != null) rows.push(["Ожидание по рейтингам", `${Math.round(b.exp * 100)}% на победу`, "Glicko-2: чем сильнее соперник, тем больше даёт победа и меньше отнимает поражение"]);
+  if (b.exp != null) rows.push([ffa ? "Ожидание по рейтингам (в среднем по соперникам)" : "Ожидание по рейтингам", `${Math.round(b.exp * 100)}% на победу`, ffa ? "«Все»: Elo по местам — с каждым соперником как отдельная партия (выше место — победа, ниже — поражение), среднее по парам" : "Glicko-2: чем сильнее соперник, тем больше даёт победа и меньше отнимает поражение"]);
+  if (ffa && pl) rows.push(["Место в партии", `${pl} из ${nT}`, "Победитель — 1; дальше — по порядку выбывания (позже выбыл — выше), сдавшийся — последний"]);
   if (b.base != null) rows.push([won ? "Победа — базовый сдвиг" : lost ? "Поражение — базовый сдвиг" : "Ничья — базовый сдвиг", sg(b.base), "Сдвиг Glicko-2 без множителей: результат против ожидания"]);
-  if (b.K != null && b.score !== 0.5) { const dTxt = b.abandon ? `сдача/неявка — как d=${b.d}` : `цели ${myG}–${opG}, d=${b.d ?? "?"}`;
+  if (b.K != null && b.score !== 0.5) { const dTxt = b.abandon ? `сдача/неявка — как d=${b.d}` : `цели ${myG}–${opG}${mine.length > 1 ? " у команд" : ""}, d=${b.d ?? "?"}`;
     rows.push([`Разница целей (${dTxt})`, `× ${f(b.K)}`, won ? `K = ${f(b.a)} − ${f(b.b)}·d: чем крупнее победа, тем меньше прибавка (разгром слабого не накручивает рейтинг)` : `K = ${f(b.a)} + ${f(b.b)}·d: чем крупнее поражение, тем больше потеря`]); }
   if (b.early != null && b.early !== 1) rows.push(["Ранний конец (до 10-го хода)", `× ${f(b.early)}`]);
   if (b.idle != null && b.idle !== 1) rows.push(["Соперник ничего не делал", `× ${f(b.idle)}`]);
@@ -78,17 +85,23 @@ function statTable(s: Sum, me: number, nick: (i: number) => string): string {
     ["Ультимейтов", "ult", (x) => String(x.ults)],
     ["Действий", "ap", (x) => String(x.acts ?? 0)],
   ];
-  const A = s.sides[0], B = s.sides[1], cls = (i: number, cmp?: (a: SumSide, b: SumSide) => number) => { if (!cmp || !A || !B) return ""; const v = i === 0 ? cmp(A, B) : cmp(B, A); return v > 0 ? "best" : ""; };
-  const th = (i: number) => `<th class="${i === me ? "me" : ""} ${s.winner === i ? "win" : ""}">${s.winner === i ? ic("crown") : ""}<span>${esc(nick(i))}</span></th>`;
-  return `<table class="rs-tab"><thead><tr><th></th>${th(0)}${th(1)}</tr></thead><tbody>
-    <tr class="rs-goals"><td>${ic("target")}Цели</td><td class="${me === 0 ? "me" : ""}">${dia(0)}</td><td class="${me === 1 ? "me" : ""}">${dia(1)}</td></tr>
-    ${R.map(([l, icon, v, cmp]) => `<tr><td>${ic(icon)}${esc(l)}</td>${[0, 1].map((i) => `<td class="${i === me ? "me" : ""} ${cls(i, cmp)}">${esc(s.sides[i] ? v(s.sides[i]) : "—")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  // t1243: все места (2×2 / «Все ×3…×8»): сначала вы, потом союзник, потом соперники (в «Все» — по месту); «лучший» — строго лучше всех остальных
+  const T = (i: number) => sumTeam(s, i), ffa = isFfa(s), team = !ffa && s.sides.length > 2, me0 = me >= 0 ? me : 0;
+  const cols = s.sides.map((_, i) => i).sort((x, y) => (x === me ? -1 : y === me ? 1 : (T(x) === T(me0)) !== (T(y) === T(me0)) ? (T(x) === T(me0) ? -1 : 1) : ffa ? (s.sides[x]?.place ?? 99) - (s.sides[y]?.place ?? 99) || x - y : T(x) - T(y) || x - y));
+  const cls = (i: number, cmp?: (a: SumSide, b: SumSide) => number) => { const A = s.sides[i]; if (!cmp || !A || cols.length < 2) return ""; return cols.every((j) => j === i || !s.sides[j] || cmp(A, s.sides[j]) > 0) ? "best" : ""; };
+  const won = (i: number) => sumWon(s, i), td = (i: number, h: string, c = "") => `<td class="${i === me ? "me" : ""} ${team && T(i) === T(me0) && i !== me ? "ally" : ""} ${c}">${h}</td>`;
+  const tag = (i: number) => (team ? `<small class="rs-team">${me >= 0 && i !== me && T(i) === T(me) ? "союзник" : `команда ${T(i) + 1}`}</small>` : "");
+  const th = (i: number) => `<th class="${i === me ? "me" : ""} ${won(i) ? "win" : ""}">${won(i) ? ic("crown") : ""}<span>${esc(nick(i))}</span>${tag(i)}</th>`;
+  const place = ffa ? `<tr class="rs-place"><td>${ic("flag")}Место</td>${cols.map((i) => td(i, s.sides[i]?.place ? `${s.sides[i]!.place}${s.sides[i]!.out ? " · выбыл" : ""}` : "—")).join("")}</tr>` : "";
+  return `<div class="rs-scroll"><table class="rs-tab ${cols.length > 2 ? "many" : ""}"><thead><tr><th></th>${cols.map(th).join("")}</tr></thead><tbody>${place}
+    <tr class="rs-goals"><td>${ic("target")}Цели</td>${cols.map((i) => td(i, dia(i))).join("")}</tr>
+    ${R.map(([l, icon, v, cmp]) => `<tr><td>${ic(icon)}${esc(l)}</td>${cols.map((i) => td(i, esc(s.sides[i] ? v(s.sides[i]) : "—"), cls(i, cmp))).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 export function resultsHtml(s: Sum, o: { me: number; reason: string; nick: (i: number) => string; rating?: any }): string {
   const R = o.rating ?? s.rating, me = o.me >= 0 ? o.me : 0, mins = s.durMs ? Math.max(1, Math.round(s.durMs / 60000)) : 0;
   const lim = s.turnLimit ? ` из ${s.turnLimit}` : "";
   return `<section class="rs" aria-label="Итоги партии"><h4 class="deco-h rs-h">Итоги партии</h4>
-    <p class="rs-out">${ic(s.winner === 2 ? "scales" : "flag")}<span><b>${esc(o.reason)}</b> · ход ${s.turns}${lim}${mins ? ` · ${minTxt(mins)}` : ""}${s.mode === "ranked" ? " · рейтинговая" : " · обычная"}</span></p>
+    <p class="rs-out">${ic(sumDraw(s) ? "scales" : "flag")}<span><b>${esc(o.reason)}</b> · ход ${s.turns}${lim}${mins ? ` · ${minTxt(mins)}` : ""}${s.mode === "ranked" ? " · рейтинговая" : " · обычная"}${s.sides.length > 2 ? ` · ${isFfa(s) ? `все против всех ×${s.sides.length}` : "2×2"}` : ""}</span></p>
     <div class="rs-cards">${o.me >= 0 ? rateCard(R, me, s) + xpCard(R, me) : rateCard(R, -1, s)}</div>
     ${statTable(s, o.me, o.nick)}</section>`;
 }

@@ -31,7 +31,7 @@ export async function myPlace(env: any, uid: string, league: string) {
 }
 /** карта в рейтинговом пуле: официальные витринные — всегда; карта игрока — если одобрена и хэш совпал со снимком */
 export async function mapInPool(env: any, map: { id?: string; size: number; t: string; s: string } | null | undefined, status?: string): Promise<boolean> {
-  if (!map?.id) return false; if (/^o/.test(map.id)) return true; if (!/^[us]/.test(map.id) || status !== "approved") return false; // u — игроков, s — витрина Лорендеса: в пуле, только если Алекс добавил
+  if (!map?.id) return false; if (/^o/.test(map.id)) return true; if (!/^[usm]/.test(map.id) || status !== "approved") return false; // t1243: m — витрина 2×2/«Все» (как s). u — игроков, s — витрина Лорендеса: в пуле, только если Алекс добавил
   const r: any = await env.GAME_DB.prepare("SELECT version_hash FROM strat_rated_maps WHERE map_id = ?").bind(map.id).first();
   return !!r && r.version_hash === (await mapHash(map));
 }

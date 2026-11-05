@@ -61,6 +61,7 @@ type L = {
   chat?: ChatMsg[]; chatId?: number; mutes?: Record<string, string[]>; reports?: { at: number; by: string; msg: number; who: string; text: string }[];
   turnMin?: number | null; skips?: number[]; // лимит хода хоста (мин; null — по размеру) и подряд авто-пропусков (away.ts)
   activeMs?: number[]; // активное время своих ходов (для опыта Полководца; авто-пропуск = 0)
+  ratedOffMap?: boolean; // t1243: рейтинговую сняли из-за неодобренной карты — в «Итогах» причина «карта не в пуле», а не «обычная партия»
   rated?: boolean; // «Рейтинговая»: стандартные настройки; рейтинг — только на карте из пула (rating.ts)
   acts?: number[]; // действия игроков за партию (проигравший без действий → победителю ×0,25)
   rating?: any; // итог рейтинга для окна конца партии: {league, changes} или {unrated}
@@ -368,10 +369,11 @@ export class StratMatch extends DurableObject {
     const L = this.L!;
     const md = this.mode(), dflt = () => { if (md === "1v1") this.setMap(null); else { const d = this.modeMap(md, L.size) || this.modeMap(md)!; L.size = d.size; this.setMap({ map: d, xp: true, status: "approved" }); } };
     if (!L.map || L.map.size !== L.size || !mapFits(L.map, md)) dflt();
+    L.ratedOffMap = false;
     if (L.mapId && /^[usm]/.test(L.mapId)) { // статус могли поменять в админке, пока ждали соперника
       const r = await resolveLobbyMap(this.env, L.mapId, L.size, L.seats[0]!.pkey, await this.hostAdmin(), md);
       if (r.err || !r.map) dflt(); else this.setMap({ map: r.map, xp: r.xp, status: r.status });
-      if (L.xpMap === false) L.rated = false;
+      if (L.xpMap === false && L.rated) { L.rated = false; L.ratedOffMap = true; }
     }
     L.mid = L.code + ":" + Date.now(); L.rating = undefined; L.sum = undefined; // t1236: новая партия — новый id (жребий, рейтинг, монеты, профиль) и чистые итоги
     const N = L.seats.length, rnd = crypto.getRandomValues(new Uint8Array(1))[0];
@@ -420,7 +422,7 @@ export class StratMatch extends DurableObject {
     if (L.st) { const S = L.st, z = () => L.seats.map(() => 0); S.kl ||= z(); S.ls ||= z(); S.gi ||= z(); S.go ||= z();
       for (const e of r.ev as any[]) { if (e.e === "kill" && kingId && e.by === kingId) S.ck[seat]++; if (e.e === "ult" && Number.isInteger(e.side) && S.ult[e.side]) S.ult[e.side].push(String(e.ult));
         if (e.e === "kill" && Number.isInteger(e.o) && e.o >= 0 && e.o < L.seats.length) { const kp = g.pieces.find((q) => q.id === e.by), ko = kp ? kp.owner : seat; S.ls[e.o] = (S.ls[e.o] || 0) + 1; if (ko !== e.o) S.kl[ko] = (S.kl[ko] || 0) + 1; } }
-      if (gold0 && g.ec) gold0.forEach((v0, i) => { const d = g.ec!.res[i].gold - v0; if (d > 0) S.gi[i] = (S.gi[i] || 0) + d; else if (d < 0) S.go[i] = (S.go[i] || 0) - d; });
+      if (gold0 && g.ec) { const gi = S.gi!, go = S.go!; gold0.forEach((v0, i) => { const d = g.ec!.res[i].gold - v0; if (d > 0) gi[i] = (gi[i] || 0) + d; else if (d < 0) go[i] = (go[i] || 0) - d; }); }
       if (act.a === "talent") { const p = g.pieces.find((q) => q.id === (act as any).id); const t = p?.tal?.[p.tal.length - 1]; if (t) L.st.tal[seat].push(t); } }
     if (this.R && L.rid === this.R.id) logAct(this.R, seat, act, auto, g, g.cur !== prevCur);
     this.lastEv = r.ev; if (act.a !== "end" && act.a !== "trade_reply" && act.a !== "surrender") { const A = (L.acts ||= L.seats.map(() => 0)); A[seat] = (A[seat] || 0) + 1; }
@@ -483,7 +485,8 @@ export class StratMatch extends DurableObject {
     const L = this.L!, g = L.game!, env = this.env; if (!env.GAME_DB) return;
     if (L.rating?.mid === mid) return; // t1236: по этой партии уже посчитано (повторный вызов — без второго начисления)
     const seats = L.seats as SeatS[], bots = seats.filter((s) => s?.bot).length, guests = seats.filter((s) => s && !s.bot && !s.verified).length;
-    const ctx = { rated: !!L.rated && this.xpAllowed(), standard: L.turnMin == null && !L.devTurnMs, mapInPool: this.xpAllowed() && (await mapInPool(env, L.map as any, L.mapStatus || (L.mapId && /^o/.test(L.mapId) ? "official" : ""))),
+    const ctx = { rated: !!L.rated || !!L.ratedOffMap, // неодобренная карта → mapInPool=false → «map_not_in_pool» (не «not_rated_mode»)
+      standard: L.turnMin == null && !L.devTurnMs, mapInPool: this.xpAllowed() && (await mapInPool(env, L.map as any, L.mapStatus || (L.mapId && /^o/.test(L.mapId) ? "official" : ""))),
       humans: seats.filter((s) => s && !s.bot).length, guests, bots, turns: g.turn, reason: g.reason };
     const N = seats.length, IX = seats.map((_, i) => i), goals = IX.map((i) => g.ec?.goals?.[i]?.length);
     const res = (i: number) => (isDraw(g) ? "draw" : seatWon(g, i) ? "win" : "loss") as "draw" | "win" | "loss";
