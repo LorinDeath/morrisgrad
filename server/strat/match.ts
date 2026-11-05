@@ -167,6 +167,7 @@ export class StratMatch extends DurableObject {
       if (p && typeof msg.xp === "number") p.xp = Math.max(0, msg.xp | 0); if (p && Array.isArray(msg.tal)) p.tal = msg.tal.map(String).slice(0, 8); if (p && msg.cds === null) p.cds = {};
       if (p && msg.pos && typeof msg.pos.x === "number" && typeof msg.pos.y === "number") { const W = g.w || g.size, H = g.h || g.size, x = msg.pos.x | 0, y = msg.pos.y | 0; if (x < 0 || y < 0 || x >= W || y >= H || g.pieces.some((q) => q !== p && q.x === x && q.y === y) || !passable(g.map, x, y, g.races[seat])) return this.send(ws, { type: "err", err: "dev_pos" }); p.x = x; p.y = y; }
       if (p && msg.fresh) { p.acted = false; p.mv = false; }
+      if (p && typeof msg.kind === "string" && ["pawn","knight","mage","rook","hero","king"].includes(msg.kind) && msg.kind !== "king") p.kind = msg.kind as any; // только localhost QA
       if (typeof msg.ap === "number" && g.cur === seat) g.ap = Math.max(0, Math.min(99, msg.ap | 0));
       if (g.ec && msg.res && typeof msg.res === "object") { const r: any = (g.ec as any).res?.[seat]; if (r) for (const k of Object.keys(msg.res)) if (typeof r[k] === "number") r[k] = Math.max(0, msg.res[k] | 0); }
       await this.save(); return this.broadcast();
