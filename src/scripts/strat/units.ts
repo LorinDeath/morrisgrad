@@ -51,7 +51,7 @@ export function abilitiesOf(c: Ctx, P: Piece, pv: any): Abil[] {
   if (P.kind !== "king" && lv >= 5 && UT?.ult) { const u: any = UT.u || (cfg as any).unitUlts?.[UT.ult];
     if (u) { const aim = aimOfUlt(u), eff = ultEff(u), how = u.shape === "line" ? "Нажмите, затем укажите направление — клетку рядом с фигурой." : u.shape === "chain" ? `Нажмите, затем выберите врага в радиусе ${u.range ?? 1}.` : `Нажмите, затем выберите центр области в радиусе ${u.range ?? 1}.`;
       out.push({ id: "ult", name: u.name || "Ульта", eff, kind: "ult", cd: cdOf("ult"), max: +u.cd || 6, r: +u.range || 1, target: true, ap: +u.ap || 1, aim, how,
-        tip: `Ульта фигуры «${u.name}» (ур. 5): ${u.eff ? u.eff + ". " : ""}${eff}. Форма: ${SHAPE_RU[aim.s]}. Цена ${+u.ap || 1} ОД, перезарядка ${+u.cd || 6} х.; после неё фигура в этот ход уже не действует. ${how}` }); } }
+        tip: `Ульта фигуры «${u.name}» (ур. 5): ${u.eff || eff}. Форма: ${SHAPE_RU[aim.s]}. Цена ${+u.ap || 1} ОД, перезарядка ${+u.cd || 6} х.; после неё фигура в этот ход уже не действует. ${how}` }); } }
   void race; return out;
 }
 export function abilityBar(c: Ctx, P: Piece, pv: any): string {

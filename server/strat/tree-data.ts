@@ -198,7 +198,7 @@ export const UNIT_TREE: Record<string, { act: [UnitAct, UnitAct]; up: { pow: num
 export const UNIT_ULTS: Record<string, UltDef> = {
   shieldwall: { name: "Стена щитов", eff: "щит 4 своим в области 3×3 на 2 хода", shape: "square", ap: 1, cd: 6, range: 1, size: 3, shield: 4, shieldTurns: 2, chiefMul: 0.5 },
   trample: { name: "Топот", eff: "рывок-волна на 3 клетки шириной 3: урон 4 и отброс", shape: "line", ap: 1, cd: 6, range: 1, len: 3, dmg: 4, push: 1, chiefMul: 0.5 },
-  fireball: { name: "Огненный шар", eff: "взрыв ⌀3 (9 клеток… круг r 1,5) в радиусе 3: урон 4", shape: "circle", ap: 1, cd: 6, range: 3, r: 1.5, dmg: 4, chiefMul: 0.5 },
+  fireball: { name: "Огненный шар", eff: "взрыв: круг радиусом 1,5 (до 9 клеток), центр не дальше 3 кл.; урон 4", shape: "circle", ap: 1, cd: 6, range: 3, r: 1.5, dmg: 4, chiefMul: 0.5 },
   quake: { name: "Сотрясение", eff: "3×3 вокруг клетки рядом: урон 3 и замедление", shape: "square", ap: 1, cd: 7, range: 1, size: 3, dmg: 3, chill: 1, chiefMul: 0.5 },
   heroic: { name: "Подвиг", eff: "сокрушительный удар по одному врагу в радиусе 2: урон 9", shape: "chain", ap: 1, cd: 6, range: 2, hops: 1, hop: 0, dmg: 9, chiefMul: 0.5 },
 };
