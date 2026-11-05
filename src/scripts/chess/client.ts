@@ -58,7 +58,7 @@ let mySide: Side = "w";
 let vsBot = true;
 let sel: Piece | null = null;
 let uiMode: "move" | "ab" = "move";
-let screen: "home" | "play" | "results" = "home";
+let screen: "home" | "wait" | "play" | "results" = "home";
 let spr: Record<string, SheetSet> = {};
 let tileIm: Record<string, HTMLImageElement> = {};
 let hlIm: Record<string, HTMLImageElement> = {};
@@ -167,6 +167,7 @@ function setMode(m: Mode) {
   playMode = m;
   document.querySelectorAll(".cc-mode").forEach((el) => el.classList.toggle("on", (el as HTMLElement).dataset.pm === m));
   const join = $("#joinrow"); if (join) join.hidden = m !== "join";
+  const pw = $("#lob-private-wrap"); if (pw) pw.hidden = m !== "host";
 }
 
 let homeMenu: HomeMenu = DEFAULT_HOME;
@@ -271,35 +272,187 @@ async function refreshOpen() {
     const j: any = r.ok ? await r.json() : { list: [] };
     const list = j.list || [];
     box.innerHTML = list.length
-      ? list.map((l: any) => `<div class="row"><span><b>${l.code}</b> · ${l.host || "хост"}</span><button class="btn sm" data-join="${l.code}">Войти</button></div>`).join("")
+      ? list.map((l: any) => `<div class="row"><span><b>${l.code}</b> · ${esc(l.host || "хост")}</span><button class="btn sm" data-join="${l.code}">Войти</button></div>`).join("")
       : `<div class="empty">Пока пусто — создай лобби или сыграй с ботом</div>`;
     box.querySelectorAll("[data-join]").forEach((b) => b.addEventListener("click", () => {
       ($("#joincode") as HTMLInputElement).value = (b as HTMLElement).dataset.join || "";
-      setMode("join"); joinLobby();
+      setMode("join"); joinLobby((b as HTMLElement).dataset.join);
     }));
   } catch {
     box.innerHTML = `<div class="empty">Сервер лобби недоступен — можно играть с ботом</div>`;
   }
 }
 
-async function createLobby() {
-  if (playMode === "bot") { startBot(false); return; }
-  try {
-    const r = await fetch(HTTP + "/chess/new", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pub: true }) });
-    const j: any = await r.json();
-    if (!j.code) throw new Error(j.err || "fail");
-    alert("Код лобби: " + j.code + "\nОнлайн-матч через WS — в следующей итерации; сейчас вертикаль — бот.");
-    startBot(false);
-  } catch {
-    startBot(false);
+// ───────────────────────── онлайн 1×1 (ChessMatch DO, ходы авторитетны на сервере) ─────────────────────────
+const WSB = HTTP.replace(/^http/, "ws");
+type SeatV = { nick: string; side: Side; rated: boolean; rating: number | null; online: boolean };
+type ResV = { winner: Side; reason: "mate" | "resign" | "forfeit"; turns: number; ap: Record<Side, number>; unrated: string | null;
+  seats: { nick: string; side: Side; rating: { before: number; after: number; delta: number; provisional: boolean } | null }[] };
+let net: WebSocket | null = null;
+let online = false;
+let netCode = "";
+let netSeats: SeatV[] = [];
+let netRated = false;
+let netRetry = 0;
+let netClosedByMe = false;
+
+async function helloIdent(): Promise<Record<string, string>> {
+  if (LOCAL && qs.get("devUser")) return { userId: qs.get("devUser")!, nick: nick() };
+  try { const C = await clerkReady(); const t = await C?.session?.getToken?.(); if (t) return { token: t, nick: nick() }; } catch { /* гость */ }
+  let g = localStorage.getItem("chess_guest");
+  if (!g) { g = crypto.randomUUID().replace(/-/g, ""); localStorage.setItem("chess_guest", g); }
+  return { guest: g, nick: nick() };
+}
+async function authQuery(): Promise<{ q: string; h: Record<string, string> } | null> {
+  if (LOCAL && qs.get("devUser")) return { q: "?devUser=" + encodeURIComponent(qs.get("devUser")!), h: {} };
+  try { const C = await clerkReady(); const t = await C?.session?.getToken?.(); if (t) return { q: "", h: { Authorization: "Bearer " + t } }; } catch {}
+  return null;
+}
+
+function waitScreen(code: string, msg: string) {
+  show("wait");
+  const c = $("#wait-code"); if (c) c.textContent = code || "······";
+  const m = $("#wait-msg"); if (m) m.textContent = msg;
+  renderSeats();
+}
+function renderSeats() {
+  const box = $("#wait-seats"); if (!box) return;
+  const seat = (s: Side) => netSeats.find((x) => x.side === s);
+  box.innerHTML = (["w", "b"] as Side[]).map((sd) => {
+    const x = seat(sd);
+    return `<div class="seat ${sd}${x ? "" : " empty"}"><i class="lg ${sd}"></i><b>${x ? esc(x.nick) : "ждём соперника…"}</b>
+      <small>${sd === "w" ? "светлые" : "тёмные"}${x ? (x.rated ? ` · ${x.rating ?? 1500}` : " · гость, без рейтинга") : ""}</small></div>`;
+  }).join(`<span class="vs">против</span>`);
+}
+const esc = (t: string) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+function netSend(o: any) { if (net && net.readyState === 1) net.send(JSON.stringify(o)); }
+function netClose() { netClosedByMe = true; try { net?.close(); } catch {} net = null; online = false; }
+
+async function connectOnline(code: string) {
+  netClose(); netClosedByMe = false;
+  netCode = code; online = true; netSeats = [];
+  const ws = new WebSocket(`${WSB}/chess/m/${code}`); net = ws;
+  const ident = await helloIdent();
+  ws.addEventListener("open", () => { netRetry = 0; ws.send(JSON.stringify({ type: "hello", ...ident })); });
+  ws.addEventListener("message", (e) => { if (net === ws) onNet(JSON.parse(String(e.data))); });
+  ws.addEventListener("close", () => {
+    if (net !== ws || netClosedByMe) return;
+    if (G && !G.winner && netRetry < 6) { netRetry++; toast("Связь потеряна — переподключаюсь…"); setTimeout(() => { if (net === ws) reconnect(); }, 600 * netRetry); }
+  });
+}
+async function reconnect() { const c = netCode; const keepG = G; await connectOnline(c); G = keepG; online = true; }
+
+function onNet(m: any) {
+  if (m.type === "err") {
+    if (m.err === "full") { netClose(); toast("Лобби уже занято"); show("home"); refreshOpen(); }
+    else if (m.err?.startsWith?.("auth")) toast("Сессия не подтвердилась — войди заново");
+    else if (m.err !== "illegal") toast("Сервер: " + m.err);
+    return;
+  }
+  if (m.type === "hello_ok") { mySide = m.you.side; netRated = !!m.you.rated; return; }
+  if (m.type === "lobby") {
+    netSeats = m.lobby.seats || [];
+    if (screen === "wait") renderSeats();
+    if (screen === "play") draw();
+    return;
+  }
+  if (m.type === "state") {
+    const st = m.state as Game;
+    if (!G || m.start || screen !== "play") { beginOnline(st); return; }
+    const before = G.pieces.map((q) => ({ ...q }));
+    const shB = { w: G.shield.w ? { ...G.shield.w } : null, b: G.shield.b ? { ...G.shield.b } : null };
+    G = { ...st, nextId: 0 } as Game;
+    if (sel) sel = byId(G, sel.id) || null;
+    const L = m.last;
+    if (L && L.kind !== "end") juice(before, shB, L.kind, L.id, L.tgt, !!L.ranged);
+    afterAct();
+    return;
+  }
+  if (m.type === "result") {
+    const r = m.result as ResV;
+    setTimeout(() => finishOnline(r), screen === "play" ? Math.max(1700, busyUntil - now() + 1500) : 0);
   }
 }
 
-async function joinLobby() {
-  const code = (($("#joincode") as HTMLInputElement).value || "").trim().toUpperCase();
-  if (!code) { alert("Введи код"); return; }
-  alert("Вход по коду " + code + " — онлайн подключится после выкладки worker. Сейчас — партия с ботом.");
-  startBot(false);
+function beginOnline(st: Game) {
+  vsBot = false; G = { ...st, nextId: 0 } as Game; sel = null; uiMode = "move"; resultInfo = null;
+  tweens.clear(); atks.clear(); punches.clear(); hpView.clear(); fxs = [];
+  applyMap({ bg: "hall", props: [], special: [] }); // онлайн-классика — только фигуры
+  lastSide = G.side; lastAp = G.ap;
+  show("play"); draw();
+  const opp = netSeats.find((s) => s.side !== mySide);
+  fxs.push({ k: "banner", t0: now() + 150, dur: 1300, text: G.side === mySide ? "Ваш ход" : "Ход соперника", sub: `вы — ${mySide === "w" ? "светлые" : "тёмные"}${opp ? " · против " + opp.nick : ""}` });
+}
+
+async function createLobby() {
+  if (playMode === "bot") { startBot(false); return; }
+  waitScreen("", "Создаю лобби…");
+  try {
+    const r = await fetch(HTTP + "/chess/new", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pub: !(($("#lob-private") as HTMLInputElement)?.checked) }) });
+    const j: any = await r.json();
+    if (!j.code) throw new Error(j.err || "fail");
+    waitScreen(j.code, "Отправь код другу или жди — лобби видно в списке «Ждут соперника».");
+    await connectOnline(j.code);
+  } catch {
+    show("home"); toast("Сервер лобби недоступен — можно сыграть с ботом");
+  }
+}
+
+async function joinLobby(codeArg?: string) {
+  const code = (codeArg || ($("#joincode") as HTMLInputElement)?.value || "").trim().toUpperCase();
+  if (!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) { toast("Код — 6 символов, например K7QX2M"); return; }
+  waitScreen(code, "Подключаюсь…");
+  await connectOnline(code);
+}
+
+let toastT = 0;
+function toast(t: string) {
+  let el = $("#cc-toast");
+  if (!el) { el = document.createElement("div"); el.id = "cc-toast"; el.className = "cc-toast"; document.body.appendChild(el); }
+  el.textContent = t; el.classList.add("on"); clearTimeout(toastT);
+  toastT = window.setTimeout(() => el!.classList.remove("on"), 2600);
+}
+
+function finishOnline(r: ResV) {
+  const won = r.winner === mySide;
+  resultInfo = { winner: r.winner, delta: null };
+  const why = r.reason === "mate" ? "ставят <b>мат</b> — король пал" : r.reason === "resign" ? "побеждают — соперник сдался" : "побеждают — соперник не вернулся";
+  const unr: Record<string, string> = { guest: "гость в партии — рейтинг не считается", too_early: "слишком короткая партия — без рейтинга", self: "сам с собой — без рейтинга", no_db: "рейтинг недоступен", db_error: "ошибка записи рейтинга" };
+  const rows = (["w", "b"] as Side[]).map((sd) => {
+    const x = r.seats.find((q) => q.side === sd); if (!x) return "";
+    const d = x.rating;
+    return `<div class="rr ${sd}${sd === mySide ? " me" : ""}"><i class="lg ${sd}"></i><b>${esc(x.nick)}${sd === mySide ? " (вы)" : ""}</b>
+      <span class="ap">ОД ${r.ap[sd]}</span>
+      ${d ? `<span class="rt">${d.before} → <b>${d.after}</b> <em class="${d.delta >= 0 ? "up" : "down"}">${d.delta >= 0 ? "+" : ""}${d.delta}</em>${d.provisional ? ' <small title="меньше 10 партий">пред.</small>' : ""}</span>` : `<span class="rt muted">—</span>`}</div>`;
+  }).join("");
+  const box = $("#res-body");
+  if (box) box.innerHTML = `<p class="big">${won ? "Победа!" : "Поражение."}</p>
+    <p>${r.winner === "w" ? "Светлые" : "Тёмные"} ${why}. Ходов: ${r.turns}.</p>
+    <div class="cc-rtable">${rows}</div>
+    ${r.unrated ? `<p class="cc-note">${unr[r.unrated] || "без рейтинга"}</p>` : `<p class="cc-note">Рейтинг «Боевых шахмат» · Glicko-2 · отдельный пул</p>`}`;
+  const panel = document.querySelector(".cc-results");
+  panel?.classList.toggle("win", won); panel?.classList.toggle("lose", !won);
+  const again = $("#btn-again"); if (again) again.textContent = "Новое онлайн-лобби";
+  netClose(); online = false; resultInfo = { winner: r.winner, delta: null };
+  show("results");
+  refreshMe();
+}
+
+async function refreshMe() {
+  const box = $("#my-rating"); if (!box) return;
+  const a = await authQuery();
+  if (!a) { box.innerHTML = `<div class="empty">Войди на сайт, чтобы попасть в рейтинг. Гости и бот не рейтингуются.</div>`; return; }
+  try {
+    const [me, top]: any[] = await Promise.all([
+      fetch(HTTP + "/chess/me" + a.q, { headers: a.h }).then((r) => r.json()),
+      fetch(HTTP + "/chess/top").then((r) => r.json()).catch(() => ({ top: [] })),
+    ]);
+    const R = me?.rating;
+    box.innerHTML = R ? `<div class="me-r"><b>${R.rating}</b><span>${R.provisional ? "предварительный · " : ""}партий ${R.games} · ${R.wins}П / ${R.losses}П·</span></div>`
+      .replace("П·", "П") + (top.top?.length ? `<div class="top">${top.top.slice(0, 5).map((x: any) => `<div class="row"><span>${x.place}. ${esc(x.nick || "Игрок")}</span><b>${x.rating}</b></div>`).join("")}</div>` : `<div class="empty">Топ появится после 10 партий у игроков</div>`)
+      : `<div class="empty">Рейтинг недоступен</div>`;
+  } catch { box.innerHTML = `<div class="empty">Сервер рейтинга недоступен</div>`; }
 }
 
 // ───────────────────────── партия: состояние анимаций / «сок» ─────────────────────────
@@ -431,6 +584,7 @@ function juice(before: Piece[], shieldBefore: Game["shield"], kind: "move" | "at
 /** Действие игрока или бота с эффектами. */
 function act(kind: "move" | "attack" | "ability", p: Piece, run: () => boolean, tgt: [number, number] | null, ranged = false) {
   if (!G) return false;
+  if (online) { netAct?.(kind, p, tgt); return true; }
   const before = G.pieces.map((q) => ({ ...q }));
   const shB = { w: G.shield.w ? { ...G.shield.w } : null, b: G.shield.b ? { ...G.shield.b } : null };
   const ok = run();
@@ -438,14 +592,21 @@ function act(kind: "move" | "attack" | "ability", p: Piece, run: () => boolean, 
   afterAct();
   return ok;
 }
-const actMove = (p: Piece, x: number, y: number) => act("move", p, () => doMove(G!, p, x, y), [x, y]);
-const actAttack = (p: Piece, a: Attack) => { const q = byId(G!, a.qId); return act("attack", p, () => doAttack(G!, p, a), q ? [q.x, q.y] : null, !!a.ranged); };
+let netAct: ((kind: string, p: Piece, tgt: [number, number] | null) => void) | null = null;
+let pendingNet: any = null;
+const actMove = (p: Piece, x: number, y: number) => { pendingNet = { act: "move", id: p.id, x, y }; return act("move", p, () => doMove(G!, p, x, y), [x, y]); };
+const actAttack = (p: Piece, a: Attack) => { pendingNet = { act: "attack", id: p.id, qId: a.qId }; const q = byId(G!, a.qId); return act("attack", p, () => doAttack(G!, p, a), q ? [q.x, q.y] : null, !!a.ranged); };
 const actAbility = (p: Piece, t: { qId?: number; x?: number; y?: number; run: any }) => {
+  pendingNet = t.qId != null ? { act: "ability", id: p.id, qId: t.qId } : { act: "ability", id: p.id, x: t.x, y: t.y };
   const q = t.qId != null ? byId(G!, t.qId) : null;
   return act("ability", p, () => doAbility(G!, p, t as any), q ? [q.x, q.y] : (t.x != null ? [t.x, t.y!] : null), false);
 };
 
+netAct = () => { if (pendingNet) netSend({ type: "act", ...pendingNet }); pendingNet = null; };
+
 function startBot(withDemo = false) {
+  netClose();
+  const again = $("#btn-again"); if (again) again.textContent = "Ещё раз с ботом";
   vsBot = true; mySide = "w";
   G = newGame(); sel = null; uiMode = "move"; resultInfo = null;
   tweens.clear(); atks.clear(); punches.clear(); hpView.clear(); fxs = [];
@@ -490,7 +651,7 @@ function afterAct() {
   if (G.side !== "x" && G.ap < lastAp && G.side === lastSide) bumpAp();
   lastSide = G.side; lastAp = G.ap;
   draw();
-  if (G.winner) { const w = G.winner; setTimeout(() => finish(w), Math.max(1700, busyUntil - now() + 1500)); return; }
+  if (G.winner) { if (online) return; const w = G.winner; setTimeout(() => finish(w), Math.max(1700, busyUntil - now() + 1500)); return; }
   if (vsBot && G.side !== mySide && G.side !== "x") setTimeout(botAct, Math.max(520, busyUntil - now() + 260));
 }
 
@@ -534,6 +695,16 @@ function draw() {
       : `<span class="opp">Ход ${G.side === "w" ? "светлых" : "тёмных"}</span><small>ход ${G.turn}</small>`;
     turnEl.classList.toggle("mine", G.side === mySide);
   }
+  const leg = $("#legend");
+  if (leg) {
+    if (vsBot) leg.innerHTML = `<span><i class="lg w"></i>светлые — вы</span><span><i class="lg b"></i>тёмные — бот</span>`;
+    else {
+      const me = netSeats.find((x) => x.side === mySide), op = netSeats.find((x) => x.side !== mySide);
+      const tag = (x?: SeatV) => x ? `${esc(x.nick)}${x.rated ? ` · ${x.rating ?? 1500}` : " · гость"}${x.online ? "" : ' <em class="off">нет связи</em>'}` : "—";
+      leg.innerHTML = `<span><i class="lg ${mySide}"></i>вы: ${tag(me)}</span><span><i class="lg ${mySide === "w" ? "b" : "w"}"></i>${tag(op)}</span>`;
+    }
+  }
+  const rs = $("#btn-resign") as HTMLButtonElement | null; if (rs) { rs.hidden = vsBot; rs.disabled = !!G.winner; }
   const th = $("#threat");
   if (th) th.textContent = v.threat[mySide] ? "⚠ Король под угрозой — защити его" : "";
   const info = $("#info");
@@ -967,16 +1138,20 @@ function bind() {
     else if (playMode === "join") joinLobby();
     else createLobby();
   });
-  $("#joinbtn")?.addEventListener("click", joinLobby);
+  $("#joinbtn")?.addEventListener("click", () => joinLobby());
+  $("#joincode")?.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") joinLobby(); });
+  $("#wait-cancel")?.addEventListener("click", () => { netClose(); show("home"); refreshOpen(); });
+  $("#wait-copy")?.addEventListener("click", () => { navigator.clipboard?.writeText(netCode).then(() => toast("Код скопирован"), () => {}); });
+  $("#btn-resign")?.addEventListener("click", () => { if (online && G && !G.winner && confirm("Сдаться? Соперник получит победу.")) netSend({ type: "resign" }); });
   $("#refresh")?.addEventListener("click", refreshOpen);
   const board = $("#board");
   board?.addEventListener("click", onBoardClick);
   board?.addEventListener("mousemove", (e) => { hover = cellFromEvent(e as MouseEvent); });
   board?.addEventListener("mouseleave", () => { hover = null; });
   $("#btn-ab")?.addEventListener("click", () => { if (!sel) return; uiMode = uiMode === "ab" ? "move" : "ab"; draw(); });
-  $("#btn-end")?.addEventListener("click", () => { if (!G || G.side !== mySide) return; endTurn(G); sel = null; afterAct(); });
-  $("#btn-home")?.addEventListener("click", () => { G = null; show("home"); renderHomeMenu(); refreshOpen(); });
-  $("#btn-again")?.addEventListener("click", () => startBot(false));
+  $("#btn-end")?.addEventListener("click", () => { if (!G || G.side !== mySide) return; sel = null; if (online) { netSend({ type: "act", act: "end" }); return; } endTurn(G); afterAct(); });
+  $("#btn-home")?.addEventListener("click", () => { netClose(); G = null; show("home"); renderHomeMenu(); refreshOpen(); refreshMe(); });
+  $("#btn-again")?.addEventListener("click", () => { if (resultInfo && !vsBot) { setMode("host"); createLobby(); } else startBot(false); });
   window.addEventListener("resize", () => setBg(mapDecor.bg));
   requestAnimationFrame(loop);
 }
@@ -988,7 +1163,9 @@ function bind() {
   setMode("bot");
   show("home");
   renderHomeMenu();
-  refreshOpen();
+  refreshOpen(); refreshMe();
+  setInterval(() => { if (screen === "home") refreshOpen(); }, 5000);
+  const qj = qs.get("join"); if (qj) joinLobby(qj);
   const me = $("#me"); if (me) me.textContent = nick();
   if (qs.get("bot") === "1" || qs.get("play") === "bot") startBot(qs.get("demo") === "1");
   else if (qs.get("demo") === "1") startBot(true);
@@ -1003,6 +1180,7 @@ if (LOCAL) {
   (window as any).__chessApplyMap = applyMap;
   (window as any).__chessSel = (x: number, y: number) => { if (G) { sel = at(G, x, y) || null; draw(); } };
   (window as any).__chessHover = (x: number, y: number) => { hover = [x, y]; };
-  (window as any).__chessAct = { move: actMove, attack: actAttack, ability: actAbility, attacks: (p: Piece) => attacks(G!, p), at: (x: number, y: number) => G && at(G, x, y) };
+  (window as any).__chessAct = { move: actMove, attack: actAttack, ability: actAbility, attacks: (p: Piece) => attacks(G!, p), moves: (p: Piece) => moves(G!, p), at: (x: number, y: number) => G && at(G, x, y) };
   (window as any).__chessBotOff = () => { vsBot = false; };
+  (window as any).__chessNet = { create: () => { setMode("host"); return createLobby(); }, join: (c: string) => joinLobby(c), code: () => netCode, side: () => mySide, online: () => online, send: netSend };
 }

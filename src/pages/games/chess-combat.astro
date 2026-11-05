@@ -40,6 +40,7 @@ const title = 'Боевые шахматы | Моррис Град';
           <button class="btn" id="joinbtn" type="button">Войти</button>
         </div>
         <button class="btn gold big" id="create" type="button">Начать</button>
+        <label class="chk" id="lob-private-wrap"><input type="checkbox" id="lob-private" /> <span>закрытое лобби (только по коду)</span></label>
         <p class="cc-note">ОД: старт 2, +1 каждые 15 своих ходов. За 1 ОД — ход, удар или способность.</p>
       </div>
       <div class="cc-panel">
@@ -49,8 +50,19 @@ const title = 'Боевые шахматы | Моррис Град';
         <p class="cc-note">Одиночные главы и карты из редактора. Админка — только для Lorin Death.</p>
         <div id="camp-play" class="openlist"></div>
         <h3>Рейтинг</h3>
-        <p class="cc-note">Отдельный пул (не Чёрные короли). Пока локально / после выкладки — D1 <code>chess_ratings</code>.</p>
+        <div id="my-rating" class="openlist cc-myr"><div class="empty">Загрузка…</div></div>
+        <p class="cc-note">Glicko-2, отдельный пул (не Чёрные короли). Считаются только партии онлайн между вошедшими игроками.</p>
       </div>
+    </div>
+  </section>
+
+  <section id="sc-wait" class="cc-screen">
+    <div class="cc-panel cc-wait">
+      <h2>Онлайн-лобби</h2>
+      <div class="wait-code"><span>Код</span><b id="wait-code">······</b><button class="btn ghost" id="wait-copy" type="button">Копировать</button></div>
+      <p class="cc-note" id="wait-msg"></p>
+      <div class="wait-seats" id="wait-seats"></div>
+      <button class="btn ghost big" id="wait-cancel" type="button">Отмена</button>
     </div>
   </section>
 
@@ -70,10 +82,11 @@ const title = 'Боевые шахматы | Моррис Град';
       </div>
       <aside class="cc-panel cc-sidepanel">
         <div class="info" id="info">Выбери фигуру</div>
-        <div class="cc-legend"><span><i class="lg w"></i>светлые — вы</span><span><i class="lg b"></i>тёмные — бот</span></div>
+        <div class="cc-legend" id="legend"><span><i class="lg w"></i>светлые — вы</span><span><i class="lg b"></i>тёмные — бот</span></div>
         <div class="cc-acts">
           <button class="btn" id="btn-ab" type="button" disabled>Способность</button>
           <button class="btn gold" id="btn-end" type="button">Конец хода</button>
+          <button class="btn ghost" id="btn-resign" type="button" hidden>Сдаться</button>
         </div>
         <div class="cc-log" id="log"></div>
       </aside>

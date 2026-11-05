@@ -7,6 +7,7 @@ import { codexHttp } from "./strat/codex-http";
 import { adminGoalsHttp } from "./strat/admin-http";
 import { adminCfgHttp } from "./strat/admin-cfg-http";
 import { chessAdminGateHttp } from "./chess/admin-gate";
+import { chessHttp } from "./chess/http";
 import type { Env } from "./types";
 import { fetchRoom } from "./meta/doRetry";
 
@@ -24,6 +25,7 @@ export default {
       if (path.startsWith("/chess/")) {
         const e: any = env;
         if (path === "/chess/admin/gate") return await chessAdminGateHttp(request, env);
+        if (path === "/chess/me" || path === "/chess/top") return await chessHttp(request, env, path);
         if (!e.CHESS_MATCH || !e.CHESS_INDEX) return new Response("not found", { status: 404 });
         const cm = CHESS_MATCH_PATH.exec(path);
         if (cm) return await fetchRoom(() => e.CHESS_MATCH.get(e.CHESS_MATCH.idFromName(cm[1])), request);
