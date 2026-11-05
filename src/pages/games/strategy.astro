@@ -274,6 +274,8 @@ const title = 'Партия Чёрных королей | Моррис Град'
 <div id="modals"></div>
 <script>
   import { boot } from '../../scripts/strat/client';
+  import { startAssetCache } from '../../scripts/strat/asset-cache';
+  startAssetCache(); // t1290: прогрев кэша спрайтов/тайлов/иконок
   boot();
 </script>
 </body>

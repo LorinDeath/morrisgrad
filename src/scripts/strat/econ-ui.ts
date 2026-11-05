@@ -41,7 +41,15 @@ const KIND_ICON: Record<string, string> = { pawn: "boot", rook: "shield", knight
 export type Ctx = { S: any; G: GameState; me: number; send: (o: any) => void; redraw: () => void; toast: (t: string, k?: any, i?: string) => void; col: (side: number) => string; refresh: () => void };
 export const ui = { city: null as number | null, recruit: null as { city: number; kind: Kind } | null, tech: false, fresh: "" as string, pend: "" as string, cfgKey: "", cfg: STRAT_CFG as StratCfg, tree: null as any[] | null };
 export function cfgOf(S: any): StratCfg { ui.tree = Array.isArray(S?.tree?.techs) ? S.tree.techs : null; // r3: урезанное древо сервера (state.tree, ТЗ §14.F) — в клиентской сборке TECHS пуст
-  const k = S?.cfgPatch ? JSON.stringify(S.cfgPatch) : ""; if (k !== ui.cfgKey) { ui.cfgKey = k; ui.cfg = k ? mergeCfg(S.cfgPatch) : STRAT_CFG; } return ui.cfg; }
+  const k = S?.cfgPatch ? JSON.stringify(S.cfgPatch) : ""; if (k !== ui.cfgKey) { ui.cfgKey = k; ui.cfg = k ? mergeCfg(S.cfgPatch) : STRAT_CFG; tcMemo.src = null; }
+  // t1288: в клиентской сборке TECHS пуст → eraTechs/canEra/canResearch видели 0 технологий («0 из 2» при изученной, кнопка эпохи закрыта).
+  // Подставляем узлы урезанного древа сервера (id/эпоха лиги/группа/req) — подсчёт эпохи совпадает с сервером.
+  if (!ui.tree) return ui.cfg;
+  if (tcMemo.src !== ui.tree || tcMemo.base !== ui.cfg) { tcMemo.src = ui.tree; tcMemo.base = ui.cfg;
+    tcMemo.cfg = { ...ui.cfg, techs: ui.tree.filter(Boolean).map((n: any) => n.name ? { id: n.id, br: n.br, era: n.era, grp: n.grp, ...(n.req ? { req: n.req } : {}), name: n.name, eff: n.tip || n.eff, ...(n.unlock ? { unlock: n.unlock } : {}), fx: n.fx || {} }
+      : { id: n.id, br: n.br, era: n.era, grp: n.id, req: ["?"], name: "?", eff: "", fx: {} }) } as any; }
+  return tcMemo.cfg!; }
+const tcMemo: { src: any[] | null; base: StratCfg | null; cfg: StratCfg | null } = { src: null, base: null, cfg: null };
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const sg = (n: number) => (n > 0 ? "+" + n : n < 0 ? String(n) : "±0");
 const sizeOf = (G: GameState, cfg: StratCfg) => { try { return sz(G, cfg) || ({} as any); } catch { return {} as any; } };
@@ -283,6 +291,21 @@ function eraLine(G: GameState, me: number, cfg: StratCfg, err: string | null, co
   if (err) return esc(ECON_ERR[err] || err);
   return t + kn + ` · +${cfg.econ.glory.era} Славы`;
 }
+/** t1288: полоса прогресса эпохи — какие технологии засчитаны (по именам), знания, направления; однозначно «N из 2». */
+function techProgress(G: GameState, me: number, cfg: StratCfg, nodes: TNode[], err: string | null, cost: number | null, rootsGot: number, maxP: number, rootsN: number): string {
+  const ec: any = G.ec, need = cfg.econ.research.need, e = ec.era[me], k = ec.res[me].know, eras = sizeOf(G, cfg).eras || 3;
+  const have: string[] = ec.techs?.[me] || [], cur = nodes.filter((n) => have.includes(n.id) && n.era === e), n = eraTechs(G, me, cfg);
+  const slots = Array.from({ length: Math.max(need, cur.length) }, (_, i) => cur[i]
+    ? `<span class="tp-slot got">${ic("check")}<b>${esc(cur[i].name)}</b></span>`
+    : `<span class="tp-slot empty">${ic("tech")}<b>пусто — выберите узел эпохи ${ERA_ROMAN[e] || e}</b></span>`).join("");
+  const kn = cost != null ? Math.min(100, Math.round((k / Math.max(1, cost)) * 100)) : 100, ready = e < eras && !err;
+  const st = e >= eras ? "Последняя эпоха" : ready ? `Готово: можно перейти в эпоху ${ERA_ROMAN[e + 1]}` : err === "need_techs" ? `Нужно ещё ${need - n} ${need - n === 1 ? "технология" : "технологии"} эпохи ${ERA_ROMAN[e] || e}` : err === "no_know" ? `Не хватает знаний: ${k} из ${cost}` : err ? (ECON_ERR[err] || err) : "";
+  return `<div class="tprog ${ready ? "ready" : ""}">
+    <div class="tp-col"><span class="tp-l">Технологии эпохи ${ERA_ROMAN[e] || e} <b>${n} из ${need}</b>${n >= need ? " ✓" : ""}</span><div class="tp-slots">${slots}</div></div>
+    ${e < eras ? `<div class="tp-col"><span class="tp-l">${ic("know")}Знания на эпоху ${ERA_ROMAN[e + 1]} <b>${k} из ${cost ?? "?"}</b>${cost != null && k >= cost ? " ✓" : ""}</span><div class="tp-bar"><i style="width:${kn}%"></i></div></div>` : ""}
+    <div class="tp-col tp-sm"><span class="tp-l">Направления <b>${rootsGot} из ${maxP}</b></span><small>корни веток: можно взять ${maxP} из ${rootsN}, остальные закроются</small></div>
+    <div class="tp-st">${ready ? ic("era") : ""}${esc(st)}</div></div>`;
+}
 export function renderTech(c: Ctx) {
   const { G, S, me } = c, cfg = cfgOf(S), ec = G.ec;
   if (!ui.tech || !ec || S.phase !== "play" || me < 0) { ui.tech = false; persist("techdlg", false, ""); return; }
@@ -295,13 +318,13 @@ export function renderTech(c: Ctx) {
   const have: string[] = (ec.techs?.[me] || []) as any, maxP = +(cfg.econ.research as any).maxPaths || 2;
   const isRoot = (n: TNode) => (n.raw as any)?.grp === "root", roots = nodes.filter((n) => isRoot(n) && !n.red);
   const rootsGot = roots.filter((n) => have.includes(n.id)).length, rootsN = new Set(nodes.filter((n) => n.br !== "elem" && n.era === 1).map((n) => n.br)).size || roots.length;
-  const pathTag = (n: TNode, st: TState) => !isRoot(n) ? "" : `<span class="xor paths">${ic("tech")}${st === "got" ? `тактика ${rootsGot} из ${maxP}`
-    : st === "closed" ? `уже выбрано ${maxP} тактики` : rootsGot >= maxP - 1 ? `последняя тактика: остальные закроются` : `можно взять ${maxP} тактики из ${rootsN}`}</span>`;
+  const pathTag = (n: TNode, st: TState) => !isRoot(n) ? "" : `<span class="xor paths">${ic("tech")}${st === "got" ? `направление ${rootsGot} из ${maxP}`
+    : st === "closed" ? `уже ${maxP} направления` : rootsGot >= maxP - 1 ? `последнее направление: другие закроются` : `направлений ${maxP} из ${rootsN}`}</span>`;
   const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
     return `<button class="tnode ${st}${uv}${ui.fresh === n.id ? " fresh" : ""}${ui.pend === n.id && st !== "got" ? " pend" : ""}" data-t="${n.id}" data-node="${n.id}" data-tip="${esc(techTip(G, cfg, n))}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
-      <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
+      <span class="tn-st">${st === "got" ? "Изучено" : st === "can" ? (my ? "Можно изучить" : "Доступно") : st === "closed" ? "Закрыто" : "Позже"}</span><span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
       <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>${pathTag(n, st)}${n.excl?.length ? `<span class="xor" data-xor="${esc(n.excl.join(" "))}">${ic("close")}${st === "closed" ? "закрыто выбором" : st === "got" ? "закрыло" : "закроет"} «${esc(n.excl.map(xName).filter(Boolean).join("», «"))}»</span>` : ""}
       <em>${st === "got" ? (ui.fresh === n.id ? ic("check") + "Изучено только что" : ic("check") + "Изучено") : ui.pend === n.id ? "Изучаем…" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + nodeCost(G, cfg, n)}</em></button>`; };
   const cell = (br: string, era: number) => {
@@ -320,9 +343,10 @@ export function renderTech(c: Ctx) {
   const legend = `<div class="tlegend"><span class="lg can"></span>можно изучить<span class="lg got"></span>изучено<span class="lg later"></span>пока недоступно<span class="lg closed"></span>путь закрыт навсегда<span class="lg fog">?</span>ещё не открыто</div>`;
   const keepScroll = dlg.querySelector(".tscroll")?.scrollTop || 0;
   dlg.innerHTML = `<div class="dlg deco techscreen">
-    <div class="dlg-h"><span class="dlg-ic">${ic("tech")}</span><div><h3>Древо технологий</h3><p class="dlg-sub">Одно исследование за ход. Тактик можно взять ${maxP} из ${rootsN}. Где стоит «или», выбор навсегда закрывает соседний узел.</p></div>
+    <div class="dlg-h"><span class="dlg-ic">${ic("tech")}</span><div><h3>Древо технологий</h3><p class="dlg-sub">Одно исследование за ход · для новой эпохи нужно ${cfg.econ.research.need} технологии текущей эпохи и знания · «или» — выбор навсегда закрывает соседний узел</p></div>
       <div class="dlg-res"><span data-tip="Знания">${ic("know")}<b>${ec.res[me].know}</b></span><span>${ic("era")}<b>${ERA_NAME(ec.era[me])}</b></span></div>
       <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
+    ${techProgress(G, me, cfg, nodes, eraErr, eraCost, rootsGot, maxP, rootsN)}
     <div class="tscroll">${body}</div>
     <div class="dlg-f">${legend}${nextEra <= eras ? `<button class="btn gold big" id="erabtn" ${!my || eraErr ? `aria-disabled="true"` : ""} data-tip="${esc(`Новая эпоха ${ERA_ROMAN[nextEra]}: откроет следующий ряд технологий и построек. Цена — ${eraCost ?? "?"} знаний.${!my ? " Сейчас ход соперника." : eraErr ? " Пока недоступно — условие указано рядом." : ""}`)}">${ic("era")}<span>Новая эпоха: ${ERA_ROMAN[nextEra]} · ${ic("know")}${eraCost ?? "?"}</span></button><span class="muted">${eraLine(G, me, cfg, eraErr, eraCost)}</span>` : ""}</div></div>`;
   const sc = dlg.querySelector<HTMLElement>(".tscroll")!; sc.scrollTop = keepScroll;

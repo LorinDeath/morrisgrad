@@ -851,3 +851,25 @@ body[data-screen="game"] .gtop { display: none; }
 @keyframes tnpend { from { filter: brightness(1); } to { filter: brightness(1.35); } }
 @keyframes tnfresh { 0% { transform: scale(1); box-shadow: 0 0 0 0 #8fe08aaa; } 50% { transform: scale(1.05); box-shadow: 0 0 16px 4px #8fe08a88; } 100% { transform: scale(1); box-shadow: 0 0 0 0 #8fe08a00; } }
 @media (prefers-reduced-motion: reduce) { .tnode.pend, .tnode.fresh { animation: none; } }
+/* t1288: древо технологий — полоса прогресса эпохи, бейджи состояния, «или», телефон */
+.tprog { display: grid; grid-template-columns: 1.4fr 1fr .9fr; gap: 10px 16px; align-items: start; margin: 0 0 10px; padding: 10px 12px; background: linear-gradient(180deg, #2a2133, #1d1724); border: 2px solid var(--gold-dk); }
+.tprog.ready { border-color: #6fbf6a; box-shadow: 0 0 16px #6fbf6a44; }
+.tp-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tp-l { display: flex; align-items: center; gap: 5px; font: 600 .8rem var(--f-disp, inherit); color: var(--ivory-2); } .tp-l b { color: var(--gold-hi); font-size: .95rem; } .tp-l .ic { width: 14px; height: 14px; }
+.tp-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.tp-slot { display: flex; align-items: center; gap: 5px; padding: 4px 8px; font-size: .76rem; border: 2px dashed #6e4f22; color: var(--ivory-3); min-width: 0; }
+.tp-slot b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tp-slot .ic { width: 13px; height: 13px; flex: none; }
+.tp-slot.got { border: 2px solid #6fbf6a; background: #1f3320; color: #bff0b8; }
+.tp-bar { height: 10px; background: #120e16; border: 1px solid var(--gold-dk); } .tp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #7a5ac8, #b48cff); transition: width .4s; }
+.tprog.ready .tp-bar i { background: linear-gradient(90deg, #4f9b4a, #8fe08a); }
+.tp-sm small { font-size: .7rem; color: var(--ivory-3); line-height: 1.2; }
+.tp-st { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; font: 700 .82rem var(--f-disp, inherit); color: var(--gold-hi); } .tprog.ready .tp-st { color: #8fe08a; } .tp-st .ic { width: 15px; height: 15px; }
+.tn-st { align-self: flex-start; padding: 1px 6px; font: 700 .6rem var(--f-disp, inherit); letter-spacing: .06em; text-transform: uppercase; background: #00000055; color: var(--ivory-3); }
+.tnode.can .tn-st { background: var(--gold); color: #1a1410; } .tnode.got .tn-st { background: #4f9b4a; color: #fff; } .tnode.closed .tn-st { background: #5a2a22; color: #f0b0a0; }
+.tcell .or i { font: 800 .72rem var(--f-disp, inherit); padding: 2px 7px; background: #a3321f; color: #fff; border: 2px solid #000; font-style: normal; letter-spacing: .05em; }
+@media (max-width: 720px) {
+  .tprog { grid-template-columns: 1fr; padding: 8px; gap: 8px; }
+  .tgrid { grid-template-columns: 34px repeat(var(--cols), minmax(150px, 1fr)); gap: 6px; }
+  .tnode { padding: 6px 7px; } .tnode small { font-size: .7rem; }
+  .dlg.techscreen .dlg-sub { font-size: .7rem; }
+}

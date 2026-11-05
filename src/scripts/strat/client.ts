@@ -2,6 +2,7 @@
 // тем же движком (server/strat/rules.ts). Экран игры: доска с камерой (панорама/масштаб/мини-карта) для карт до 100×100,
 // HUD вокруг, игровые окна вместо prompt/confirm, баннер хода, тосты, анимации.
 import { mountAdminGoals } from "./admin-goals";
+import { warmRaces } from "./asset-cache";
 import { loadArt, unitSprite, hitFx, spriteBox, type Pose } from "./art";
 import { terrainLayer, drawLayerFit, drawStructIcon, GOLD, INK } from "./terrain-draw";
 import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick, drawEcon, econFx, econToast, techLabel, cfgOf, ui as eui, KIND_NAME, ECON_ERR, territoryCached, pieceLv, talName, unitArt, type Ctx } from "./econ-ui";
@@ -326,6 +327,7 @@ function chiefBannerEl(name: string, mine: boolean, who: string, img: HTMLImageE
 function onState(prev: any) {
   if (S?.size && !(STRAT_CFG.sizes as any)[S.size]) ensureSize(STRAT_CFG, S.size); // t1217: любые размеры 4…100 — правила по шаблону лиги, как на сервере
   if (S.code !== prev?.code) resetMatchUi();
+  if (S.g?.races && S.code !== prev?.code) warmRaces(S.g.races); // t1290: арт рас партии — в кэш заранее
   if (S.phase !== "play") sel = null;
   if (S.g && prev?.g && S.g.cur !== prev.g.cur) sel = null;
   const now = performance.now(), g = S.g, me = S.you;
