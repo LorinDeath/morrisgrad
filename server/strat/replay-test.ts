@@ -69,6 +69,9 @@ t(`разбор залпа и ульты есть и сходится (залп 
 { const ev: any[] = [{ e: "hit", id: 1, t: 2, dmg: 7, hp: 1, ult: 1, why: { via: "ult", ult: "doom", atk: [{ k: "ult", n: 4, src: "base", side: 1 }, { k: "ultPow", n: 2, src: "tech", side: 1 }, { k: "wonderUlt", n: 1, src: "bld", side: 1 }], arm: [], cover: 0, mul: 1, el: ["fire", "ice"], pow: 0, dmg: 7, min1: false, shield: 0, on: [] } }];
   const r0 = redactX(ev, 0, false) as any[], r1 = redactX(ev, 1, false) as any[];
   t("redactX ульты: чужое усиление (технология/Чудо) скрыто, сумма та же", r0[0].why.atk.some((q: any) => q.k === "hidden" && q.n === 3) && !r0[0].why.atk.some((q: any) => q.k === "ultPow") && r0[0].why.atk.reduce((s: number, q: any) => s + q.n, 0) === 7);
+  { const g2 = [{ e: "glory", side: 0, n: 2, why: "tech" }, { e: "hit", id: 1, t: 2, dmg: 1, hp: 0, why: { atk: [{ k: "tech", n: 1, src: "tech", side: 1 }] } }] as any[]; let ok2 = true, r2: any[] = [];
+    try { r2 = redactX(g2, 0, false) as any[]; } catch { ok2 = false; }
+    t("redactX: why-строка (glory) не роняет рассылку; atk без arm — тоже", ok2 && r2[0].why === "tech" && r2[1].why.atk[0].k === "hidden" && r2[1].why.arm === undefined); }
   t("redactX ульты: своё видно", r1[0].why.atk.some((q: any) => q.k === "ultPow")); }
 
 // разбор удара: прямой случай с технологией

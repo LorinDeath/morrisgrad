@@ -109,9 +109,9 @@ export class FrameCache {
 /** Разбор удара (hit.why) для конкретного зрителя: чужие технологии/таланты Вождя/постройки не раскрываются —
  *  складываются в одну часть { k: "hidden", src: "hidden" } (сумма сохраняется). reveal — после конца партии (всё видно). */
 export function redactX(ev: Ev[], seat: number, reveal: boolean): Ev[] {
-  if (reveal || !ev?.some((e: any) => e.why)) return ev;
-  const fold = (P: any[]) => { const out: any[] = [], h = new Map<number, number>();
+  if (reveal || !ev?.some((e: any) => e.why && typeof e.why === "object")) return ev; // t1105: у glory/прочих why — строка
+  const fold = (P: any) => { if (!Array.isArray(P)) return P; const out: any[] = [], h = new Map<number, number>();
     for (const q of P) if (q.side !== seat && (q.src === "tech" || q.src === "chief" || q.src === "bld")) h.set(q.side, (h.get(q.side) || 0) + q.n); else out.push(q);
     for (const [side, n] of h) if (n) out.push({ k: "hidden", n, src: "hidden", side }); return out; };
-  return ev.map((e: any) => e.why ? { ...e, why: { ...e.why, atk: fold(e.why.atk), arm: fold(e.why.arm) } } : e);
+  return ev.map((e: any) => e.why && typeof e.why === "object" ? { ...e, why: { ...e.why, atk: fold(e.why.atk), arm: fold(e.why.arm) } } : e);
 }
