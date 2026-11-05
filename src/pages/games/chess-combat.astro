@@ -1,6 +1,6 @@
 ---
 // «Боевые шахматы» — отдельная мини-игра. Логика: server/chess, клиент: src/scripts/chess/client.ts.
-// Поле: чистовик B + волна 2 (bg/props/ui) из chess-combat-set-v1. Без слова «шах» — только мат / угроза.
+// Поле: чистовик B + волна 2 (bg/props/ui). Без слова «шах» — только мат / угроза.
 import SeoHead from '../../components/seo/SeoHead.astro';
 import '../../styles/chess.css';
 const title = 'Боевые шахматы | Моррис Град';
@@ -24,33 +24,32 @@ const title = 'Боевые шахматы | Моррис Град';
 
   <section id="sc-home" class="cc-screen">
     <div class="cc-hero">
-      <div class="cc-title"><span class="dia"></span><h2>Боевые шахматы</h2><span class="dia"></span></div>
+      <div class="cc-title"><span class="dia"></span><h2 id="home-title">Боевые шахматы</h2><span class="dia"></span></div>
       <canvas id="hero-army" class="cc-army" aria-hidden="true"></canvas>
-      <p class="tag">Убей короля — это мат. ОД растут каждые 15 твоих ходов. Поле — чистовик B · зал MorrisGrad.</p>
+      <p class="tag" id="home-tag">Убей короля — это мат. ОД растут каждые 15 твоих ходов. Поле — чистовик B · зал MorrisGrad.</p>
     </div>
     <div class="cc-grid">
       <div class="cc-panel">
         <h2>Играть</h2>
-        <div class="cc-modes" role="radiogroup">
-          <button type="button" class="btn cc-mode on" data-pm="bot"><b>С ботом</b><small>сразу за стол, рейтинг не считается</small></button>
-          <button type="button" class="btn cc-mode" data-pm="host"><b>Создать лобби</b><small>код для друга · 8×8</small></button>
-          <button type="button" class="btn cc-mode" data-pm="join"><b>Войти по коду</b><small>онлайн 1×1</small></button>
+        <div class="cc-modes" id="home-buttons" role="radiogroup">
+          <!-- кнопки из меню админки (localStorage) или дефолт -->
         </div>
-        <label class="fld"><span>Имя гостя</span><input id="nick" maxlength="24" placeholder="необязательно" autocomplete="nickname" /></label>
-        <div class="joinrow">
+        <label class="fld" id="nick-wrap"><span>Имя гостя</span><input id="nick" maxlength="24" placeholder="необязательно" autocomplete="nickname" /></label>
+        <div class="joinrow" id="joinrow" hidden>
           <input id="joincode" maxlength="6" placeholder="КОД" autocomplete="off" spellcheck="false" />
           <button class="btn" id="joinbtn" type="button">Войти</button>
         </div>
         <button class="btn gold big" id="create" type="button">Начать</button>
-        <p style="font-size:.8rem;color:var(--cc-muted);margin-top:10px">ОД: старт 2, +1 каждые 15 своих ходов. За 1 ОД — ход, удар или способность.</p>
+        <p class="cc-note">ОД: старт 2, +1 каждые 15 своих ходов. За 1 ОД — ход, удар или способность.</p>
       </div>
       <div class="cc-panel">
         <h2>Ждут соперника <button class="btn ghost" id="refresh" type="button" aria-label="Обновить">↻</button></h2>
         <div id="open" class="openlist"><div class="empty">Загрузка…</div></div>
         <h3>Кампания</h3>
-        <p style="font-size:.85rem;color:var(--cc-muted)">Редактор карт и новеллы — в каркасе админки. <a href="/games/chess-combat-admin" style="color:var(--cc-gold)">Открыть</a></p>
+        <p class="cc-note">Одиночные главы и карты из редактора. Админка — только для Lorin Death.</p>
+        <div id="camp-play" class="openlist"></div>
         <h3>Рейтинг</h3>
-        <p style="font-size:.85rem;color:var(--cc-muted)">Отдельный пул (не Чёрные короли). Пока локально / после выкладки — D1 <code>chess_ratings</code>.</p>
+        <p class="cc-note">Отдельный пул (не Чёрные короли). Пока локально / после выкладки — D1 <code>chess_ratings</code>.</p>
       </div>
     </div>
   </section>
@@ -90,9 +89,6 @@ const title = 'Боевые шахматы | Моррис Град';
     </div>
   </section>
 </div>
-<script>
-  // Clerk stub hook — тот же CDN-паттерн сайта подключится на выкладке
-</script>
 <script>
   import '../../scripts/chess/client';
 </script>

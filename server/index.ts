@@ -6,6 +6,7 @@ import { ChessIndex } from "./chess/hub";
 import { codexHttp } from "./strat/codex-http";
 import { adminGoalsHttp } from "./strat/admin-http";
 import { adminCfgHttp } from "./strat/admin-cfg-http";
+import { chessAdminGateHttp } from "./chess/admin-gate";
 import type { Env } from "./types";
 import { fetchRoom } from "./meta/doRetry";
 
@@ -22,6 +23,7 @@ export default {
       // «Боевые шахматы»: отдельные DO ChessMatch / ChessIndex. Strat и GameRoom не затрагиваются.
       if (path.startsWith("/chess/")) {
         const e: any = env;
+        if (path === "/chess/admin/gate") return await chessAdminGateHttp(request, env);
         if (!e.CHESS_MATCH || !e.CHESS_INDEX) return new Response("not found", { status: 404 });
         const cm = CHESS_MATCH_PATH.exec(path);
         if (cm) return await fetchRoom(() => e.CHESS_MATCH.get(e.CHESS_MATCH.idFromName(cm[1])), request);

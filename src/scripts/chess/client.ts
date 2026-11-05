@@ -6,6 +6,7 @@ import {
 } from "../../../server/chess/rules";
 import { localApply } from "../../../server/chess/rating";
 import { anim, frame, frameAt, dirTo, type SheetSet, type Dir, type Rect } from "./sprites";
+import { loadHomeMenu, loadCampaigns, DEFAULT_HOME, type HomeMenu, type MenuBtn } from "./storage";
 
 const qs = new URLSearchParams(location.search);
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
@@ -119,12 +120,43 @@ function show(sc: typeof screen) {
   document.body.dataset.screen = sc;
 }
 
+let clerkUser: { id: string; name: string } | null = null;
+let clerkP: Promise<any> | null = null;
+const clerkReady = () => (clerkP ??= new Promise((res) => {
+  const t0 = Date.now();
+  const tick = () => {
+    const C = (window as any).Clerk;
+    if (C?.loaded) return res(C);
+    if (Date.now() - t0 > 6000) { clerkP = null; return res(null); }
+    setTimeout(tick, 50);
+  };
+  tick();
+}));
+
+async function identifyClerk() {
+  if (LOCAL && qs.get("devUser")) {
+    const id = qs.get("devUser")!;
+    clerkUser = { id, name: id === "user_38QeREOr606p1c96P4f14YFsLp7" ? "Lorin Death" : ("Игрок-" + id.slice(-4)) };
+    return;
+  }
+  try {
+    const C = await clerkReady();
+    const u = C?.user;
+    if (u?.id) {
+      const name = (u.username || u.firstName || u.fullName || "").trim() || ("Игрок-" + u.id.slice(-4));
+      clerkUser = { id: u.id, name };
+    }
+  } catch { /* guest */ }
+}
+
 function nick(): string {
+  if (clerkUser?.name) return clerkUser.name;
   const n = ($("#nick") as HTMLInputElement)?.value?.trim();
-  return n || (LOCAL && qs.get("devUser") ? "Игрок-" + qs.get("devUser")!.slice(-4) : "Гость");
+  return n || "Гость";
 }
 
 function playerKey(): string {
+  if (clerkUser?.id) return clerkUser.id;
   if (LOCAL && qs.get("devUser")) return qs.get("devUser")!;
   let g = localStorage.getItem("chess_guest");
   if (!g) { g = crypto.randomUUID().replace(/-/g, ""); localStorage.setItem("chess_guest", g); }
@@ -134,7 +166,103 @@ function playerKey(): string {
 function setMode(m: Mode) {
   playMode = m;
   document.querySelectorAll(".cc-mode").forEach((el) => el.classList.toggle("on", (el as HTMLElement).dataset.pm === m));
+  const join = $("#joinrow"); if (join) join.hidden = m !== "join";
 }
+
+let homeMenu: HomeMenu = DEFAULT_HOME;
+let pendingAction: MenuBtn | null = null;
+
+function findMapById(id: string) {
+  for (const c of loadCampaigns()) for (const ch of c.chapters) for (const m of ch.maps) if (m.id === id) return m;
+  return null;
+}
+
+function startFromMenu(b: MenuBtn) {
+  pendingAction = b;
+  if (b.action === "bot") { setMode("bot"); startBot(false); return; }
+  if (b.action === "host") { setMode("host"); createLobby(); return; }
+  if (b.action === "join") { setMode("join"); const jr = $("#joinrow"); if (jr) jr.hidden = false; return; }
+  if (b.action === "url" && b.targetId) { location.href = b.targetId; return; }
+  if (b.action === "map" && b.targetId) {
+    const m = findMapById(b.targetId);
+    if (!m) { alert("Карта не найдена — открой админку и сохрани её."); return; }
+    startBot(false);
+    const units = m.payload?.units || [];
+    // декор с карты (кампания может иметь пропы); классика меню — без
+    applyMap({
+      bg: (m.payload?.bg === "terrace" ? "terrace" : "hall"),
+      props: m.payload?.props || [],
+      special: m.payload?.special || [],
+    });
+    if (G && units.length) {
+      // пересобрать фигуры с карты
+      G.pieces = [];
+      let nid = 1;
+      for (const u of units) {
+        const hp = u.hp != null ? u.hp : (STATS as any)[u.type]?.hp || 10;
+        G.pieces.push({ id: nid++, t: u.type as any, s: u.side as Side, x: u.x, y: u.y, hp, mh: hp, cd: 0 });
+      }
+      G.nextId = nid;
+      draw();
+    }
+    return;
+  }
+  if (b.action === "campaign" && b.targetId) {
+    const c = loadCampaigns().find((x) => x.id === b.targetId);
+    const m = c?.chapters[0]?.maps[0];
+    if (!m) { alert("В кампании пока нет карт."); return; }
+    startFromMenu({ ...b, action: "map", targetId: m.id });
+    return;
+  }
+}
+
+function renderHomeMenu() {
+  homeMenu = loadHomeMenu();
+  const title = $("#home-title"); if (title) title.textContent = homeMenu.title;
+  const tag = $("#home-tag"); if (tag) tag.textContent = homeMenu.tag;
+  setBg(homeMenu.bg);
+  const box = $("#home-buttons");
+  if (box) {
+    const btns = homeMenu.buttons.length ? homeMenu.buttons : DEFAULT_HOME.buttons;
+    box.innerHTML = btns.map((b) => {
+      const pm = b.action === "bot" || b.action === "host" || b.action === "join" ? ` data-pm="${b.action}"` : "";
+      const cls = `btn cc-mode ${b.style === "gold" ? "gold" : ""} ${b.style === "ghost" ? "ghost" : ""}${b.action === playMode ? " on" : ""}`;
+      return `<button type="button" class="${cls}" data-bid="${b.id}"${pm}><b>${b.label}</b><small>${
+        b.action === "bot" ? "сразу за стол, рейтинг не считается"
+        : b.action === "host" ? "код для друга · 8×8"
+        : b.action === "join" ? "онлайн 1×1"
+        : b.action === "campaign" ? "глава кампании"
+        : b.action === "map" ? "карта из редактора"
+        : b.action === "url" ? "ссылка"
+        : ""
+      }</small></button>`;
+    }).join("");
+    box.querySelectorAll("[data-bid]").forEach((el) => el.addEventListener("click", () => {
+      const id = (el as HTMLElement).dataset.bid!;
+      const b = (homeMenu.buttons.length ? homeMenu.buttons : DEFAULT_HOME.buttons).find((x) => x.id === id);
+      if (!b) return;
+      if (b.action === "bot" || b.action === "host" || b.action === "join") setMode(b.action);
+      else startFromMenu(b);
+    }));
+  }
+  const campBox = $("#camp-play");
+  if (campBox) {
+    const camps = loadCampaigns();
+    campBox.innerHTML = camps.length
+      ? camps.map((c) => {
+          const first = c.chapters[0]?.maps[0];
+          return `<div class="row"><span><b>${c.title}</b> · ${c.chapters.reduce((n, ch) => n + ch.maps.length, 0)} карт</span>
+            <button class="btn sm" data-camp="${c.id}" ${first ? "" : "disabled"}>Играть</button></div>`;
+        }).join("")
+      : `<div class="empty">Кампаний пока нет</div>`;
+    campBox.querySelectorAll("[data-camp]").forEach((b) => b.addEventListener("click", () => {
+      startFromMenu({ id: "c", label: "", style: "gold", action: "campaign", targetId: (b as HTMLElement).dataset.camp! });
+    }));
+  }
+  const nickWrap = $("#nick-wrap");
+  if (nickWrap) nickWrap.hidden = !!clerkUser;
+}
+
 
 async function refreshOpen() {
   const box = $("#open"); if (!box) return;
@@ -155,15 +283,15 @@ async function refreshOpen() {
 }
 
 async function createLobby() {
-  if (playMode === "bot") { startBot(); return; }
+  if (playMode === "bot") { startBot(false); return; }
   try {
     const r = await fetch(HTTP + "/chess/new", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pub: true }) });
     const j: any = await r.json();
     if (!j.code) throw new Error(j.err || "fail");
     alert("Код лобби: " + j.code + "\nОнлайн-матч через WS — в следующей итерации; сейчас вертикаль — бот.");
-    startBot();
+    startBot(false);
   } catch {
-    startBot();
+    startBot(false);
   }
 }
 
@@ -171,7 +299,7 @@ async function joinLobby() {
   const code = (($("#joincode") as HTMLInputElement).value || "").trim().toUpperCase();
   if (!code) { alert("Введи код"); return; }
   alert("Вход по коду " + code + " — онлайн подключится после выкладки worker. Сейчас — партия с ботом.");
-  startBot();
+  startBot(false);
 }
 
 // ───────────────────────── партия: состояние анимаций / «сок» ─────────────────────────
@@ -317,10 +445,11 @@ const actAbility = (p: Piece, t: { qId?: number; x?: number; y?: number; run: an
   return act("ability", p, () => doAbility(G!, p, t as any), q ? [q.x, q.y] : (t.x != null ? [t.x, t.y!] : null), false);
 };
 
-function startBot(withDemo = true) {
+function startBot(withDemo = false) {
   vsBot = true; mySide = "w";
   G = newGame(); sel = null; uiMode = "move"; resultInfo = null;
   tweens.clear(); atks.clear(); punches.clear(); hpView.clear(); fxs = [];
+  // Классика с ботом — только фигуры (без пропов/порталов/башен). DEMO_MAP — для кампаний/превью.
   applyMap(withDemo ? DEMO_MAP : { bg: "hall", props: [], special: [] });
   lastSide = G.side; lastAp = G.ap;
   show("play"); draw();
@@ -832,8 +961,12 @@ function onBoardClick(e: MouseEvent) {
 }
 
 function bind() {
-  document.querySelectorAll(".cc-mode").forEach((el) => el.addEventListener("click", () => setMode((el as HTMLElement).dataset.pm as Mode)));
-  $("#create")?.addEventListener("click", createLobby);
+  // режимы кнопками меню биндятся в renderHomeMenu
+  $("#create")?.addEventListener("click", () => {
+    if (playMode === "bot") startBot(false);
+    else if (playMode === "join") joinLobby();
+    else createLobby();
+  });
   $("#joinbtn")?.addEventListener("click", joinLobby);
   $("#refresh")?.addEventListener("click", refreshOpen);
   const board = $("#board");
@@ -842,21 +975,23 @@ function bind() {
   board?.addEventListener("mouseleave", () => { hover = null; });
   $("#btn-ab")?.addEventListener("click", () => { if (!sel) return; uiMode = uiMode === "ab" ? "move" : "ab"; draw(); });
   $("#btn-end")?.addEventListener("click", () => { if (!G || G.side !== mySide) return; endTurn(G); sel = null; afterAct(); });
-  $("#btn-home")?.addEventListener("click", () => { G = null; setBg("hall"); show("home"); refreshOpen(); });
-  $("#btn-again")?.addEventListener("click", () => startBot(true));
+  $("#btn-home")?.addEventListener("click", () => { G = null; show("home"); renderHomeMenu(); refreshOpen(); });
+  $("#btn-again")?.addEventListener("click", () => startBot(false));
   window.addEventListener("resize", () => setBg(mapDecor.bg));
   requestAnimationFrame(loop);
 }
 
 (async () => {
   await preload();
+  await identifyClerk();
   bind();
   setMode("bot");
-  setBg("hall");
   show("home");
+  renderHomeMenu();
   refreshOpen();
   const me = $("#me"); if (me) me.textContent = nick();
-  if (qs.get("bot") === "1" || qs.get("play") === "bot") startBot(true);
+  if (qs.get("bot") === "1" || qs.get("play") === "bot") startBot(qs.get("demo") === "1");
+  else if (qs.get("demo") === "1") startBot(true);
   if (qs.get("bg") === "terrace") setBg("terrace");
 })();
 
