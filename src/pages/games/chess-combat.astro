@@ -37,6 +37,7 @@ const title = 'Боевые шахматы | Моррис Град';
   <header class="cc-top">
     <a href="/games">← Мини-игры</a>
     <h1>Боевые шахматы</h1>
+    <a id="admin-link" class="cc-admin-link" href="/games/chess-combat-admin" hidden>Админка</a>
     <span id="me" class="cc-who"></span>
   </header>
 
@@ -82,7 +83,8 @@ const title = 'Боевые шахматы | Моррис Град';
         <h2>Ждут соперника <button class="btn ghost" id="refresh" type="button" aria-label="Обновить">↻</button></h2>
         <div id="open" class="openlist"><div class="empty">Загрузка…</div></div>
         <h3>Кампания</h3>
-        <p class="cc-note">Одиночные главы и карты из редактора. Админка — только для Lorin Death.</p>
+        <p class="cc-note">Одиночные главы и карты из редактора. Админка — только для Lorin Death (по id аккаунта).</p>
+        <a id="admin-link-btn" class="btn gold" href="/games/chess-combat-admin" hidden style="display:none;margin:8px 0 12px">Админка</a>
         <div id="camp-play" class="openlist"></div>
         <h3>Рейтинг</h3>
         <div id="my-rating" class="openlist cc-myr"><div class="empty">Загрузка…</div></div>

@@ -591,3 +591,12 @@ html, body { margin: 0; padding: 0; background: var(--cc-bg); color: var(--cc-te
   color: var(--cc-muted);
   letter-spacing: .03em;
 }
+
+.cc-admin-link {
+  color: var(--cc-gold); text-decoration: none; font-weight: 700; font-size: .85rem;
+  padding: 4px 10px; border: 1px solid rgba(212,175,90,.45);
+  background: rgba(22,18,28,.7); letter-spacing: .04em;
+}
+.cc-admin-link:hover { background: rgba(212,175,90,.12); }
+.cc-admin-link[hidden], #admin-link-btn[hidden] { display: none !important; }
+#admin-link-btn:not([hidden]) { display: inline-block !important; }

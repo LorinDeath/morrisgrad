@@ -300,6 +300,34 @@ function renderHomeMenu() {
 }
 
 
+
+/** Ссылка «Админка» только после успешного /api/chess/admin-gate по Clerk uid (не по нику). */
+async function refreshAdminLink() {
+  const els = [document.getElementById("admin-link"), document.getElementById("admin-link-btn")].filter(Boolean) as HTMLElement[];
+  for (const el of els) { el.hidden = true; el.setAttribute("hidden", ""); }
+  try {
+    let url = "/api/chess/admin-gate";
+    const h: Record<string, string> = {};
+    if (LOCAL && qs.get("devUser")) {
+      url += "?devUser=" + encodeURIComponent(qs.get("devUser")!);
+    } else {
+      try {
+        const C = await clerkReady();
+        const tok = await C?.session?.getToken?.();
+        if (tok) h.Authorization = "Bearer " + tok;
+      } catch { /* guest */ }
+    }
+    const r = await fetch(url, { headers: h, cache: "no-store", credentials: "same-origin" });
+    if (r.status === 401 || r.status === 403) return;
+    const j: any = await r.json().catch(() => ({}));
+    if (!(r.ok && j.ok)) return;
+    for (const el of els) {
+      el.hidden = false;
+      el.removeAttribute("hidden");
+    }
+  } catch { /* нет ссылки */ }
+}
+
 async function refreshOpen() {
   const box = $("#open"); if (!box) return;
   try {
@@ -1238,6 +1266,7 @@ function bind() {
   show("home");
   renderHomeMenu();
   refreshOpen(); refreshMe();
+  void refreshAdminLink();
   setInterval(() => { if (screen === "home") refreshOpen(); }, 5000);
   const qj = qs.get("join"); if (qj) joinLobby(qj);
   const me = $("#me"); if (me) me.textContent = nick();
@@ -1249,7 +1278,7 @@ function bind() {
   const msg = $("#boot-msg");
   if (msg) msg.textContent = "Ошибка загрузки — обновите страницу";
   // всё равно покажем лобби: кнопки/меню работают без спрайтов
-  try { bind(); setMode("bot"); show("home"); renderHomeMenu(); } catch { /* */ }
+  try { bind(); setMode("bot"); show("home"); renderHomeMenu(); void refreshAdminLink(); } catch { /* */ }
 });
 
 if (LOCAL) {
