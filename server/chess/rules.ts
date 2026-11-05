@@ -11,6 +11,8 @@ export const STATS: Record<Kind, { hp: number; name: string }> = {
   B: { hp: 5, name: "Слон" }, Q: { hp: 70, name: "Ферзь" }, K: { hp: 60, name: "Король" },
 };
 export const AP_START = 2, AP_EVERY = 15, N = 8;
+/** Чебышёв-радиус щита ладьи: 1 → зона 3×3. */
+export const SHIELD_R = 1;
 export const FIG: Record<Kind, string> = { P: "pawn", R: "rook", N: "knight", B: "bishop", Q: "queen", K: "king" };
 
 export type Game = {
@@ -104,7 +106,7 @@ function trigShield(G: Game, att: Piece, tgt: Piece): "push" | void {
   const def = tgt.s; if (G.shield[def]) return;
   const R = G.pieces.find((r) => r.t === "R" && r.s === def && r.cd === 0 && Math.max(Math.abs(r.x - tgt.x), Math.abs(r.y - tgt.y)) <= 2);
   if (!R) return;
-  G.shield[def] = { x: R.x, y: R.y, hp: 100 }; R.cd = 5; L(G, "Ладья ставит щит 5×5");
+  G.shield[def] = { x: R.x, y: R.y, hp: 100 }; R.cd = 5; L(G, "Ладья ставит щит 3×3");
   if (Math.max(Math.abs(att.x - R.x), Math.abs(att.y - R.y)) === 1) {
     const nx = att.x + Math.sign(att.x - R.x), ny = att.y + Math.sign(att.y - R.y);
     if (inb(nx, ny) && !at(G, nx, ny)) { att.x = nx; att.y = ny; L(G, "…и отталкивает врага"); return "push"; }
@@ -112,7 +114,7 @@ function trigShield(G: Game, att: Piece, tgt: Piece): "push" | void {
 }
 
 function inShield(G: Game, q: Piece) {
-  const s = G.shield[q.s]; return !!(s && Math.abs(q.x - s.x) <= 2 && Math.abs(q.y - s.y) <= 2);
+  const s = G.shield[q.s]; return !!(s && Math.abs(q.x - s.x) <= SHIELD_R && Math.abs(q.y - s.y) <= SHIELD_R);
 }
 
 /** true = цель погибла */
@@ -126,12 +128,13 @@ export function hit(G: Game, att: Piece, q: Piece, dmg: number, ranged?: boolean
     if (ranged || pushed) return false;
   }
   if (pushed) return false;
-  // Конь: добивание, если цель < 30% и CD готов — авто при обычном ударе
-  if (att.t === "N" && att.cd === 0 && q.hp < 0.3 * q.mh) { dmg = 999; att.cd = 5; L(G, "Добивание коня!"); }
+  // Конь: добивание, если цель < 70% и CD готов — авто при обычном ударе
+  if (att.t === "N" && att.cd === 0 && q.hp < 0.7 * q.mh) { dmg = 999; att.cd = 5; L(G, "Добивание коня!"); }
   q.hp -= dmg; L(G, `${STATS[att.t].name} → ${STATS[q.t].name}: ${dmg}`);
   if (q.hp <= 0) {
     G.pieces = G.pieces.filter((z) => z !== q);
-    L(G, `${STATS[q.t].name} погиб`);
+    const fem = q.t === "P" || q.t === "R";
+    L(G, `${STATS[q.t].name} ${fem ? "погибла" : "погиб"}`);
     if (q.t === "K") { G.winner = att.s; G.side = "x"; L(G, att.s === "w" ? "Мат! Светлые победили" : "Мат! Тёмные победили"); }
     return true;
   }
@@ -187,6 +190,7 @@ export function abilities(G: Game, p: Piece): AbilityTarget[] {
           let x = h.x + dx, y = h.y + dy; const second = inb(x, y) ? at(g, x, y) : null;
           let lx = x, ly = y; if (second) { lx = x + dx; ly = y + dy; }
           if (!inb(lx, ly) || at(g, lx, ly)) { L(g, "Стена за целью — прорыв невозможен"); return "no"; }
+          L(g, "Прорыв!");
           hit(g, p, h.q, 90, false);
           if (second && en(p, second)) hit(g, p, second, 45, false);
           p.x = lx; p.y = ly; p.cd = 4; return "ok";

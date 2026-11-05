@@ -2,7 +2,7 @@
 // Поле: чистовик B (board/) + волна 2 bg/props/ui из chess-combat-set-v1.
 import {
   newGame, doMove, doAttack, doAbility, endTurn, view, moves, attacks, abilities, byId, at,
-  STATS, FIG, type Game, type Piece, type Side, type Attack,
+  STATS, FIG, SHIELD_R, type Game, type Piece, type Side, type Attack,
 } from "../../../server/chess/rules";
 import { localApply } from "../../../server/chess/rating";
 import { anim, frame, frameAt, dirTo, type SheetSet, type Dir, type Rect } from "./sprites";
@@ -544,19 +544,33 @@ function juice(before: Piece[], shieldBefore: Game["shield"], kind: "move" | "at
 
   const hitKey = (q: Piece) => (actorB.t === "Q" && !ranged && kind !== "ability" ? "hit_melee" : "hit");
   let anyHit = false;
+  let floatI = 0;
+  const floatOff = () => {
+    // разводим цифры урона (прорыв ферзя бьёт две клетки подряд)
+    const i = floatI++;
+    return { ox: (i % 2 === 0 ? -0.22 : 0.22) * (i > 0 || kind === "ability" ? 1 : 0), oy: -0.12 * i };
+  };
+  const execNow = actorB.t === "N" && G.log.slice(0, 6).includes("Добивание коня!");
   for (const q of before) {
     if (q.id === actorId && kind !== "ability") continue;
     const a = byId(G, q.id);
     const at0 = t + delay;
     if (!a) {
       anyHit = true;
+      const off = floatOff();
       fxs.push({ k: "ghost", t0: t, dur: delay + 560, die: at0, p: { ...q } });
-      fxs.push({ k: "flash", t0: at0, dur: 520, x: q.x, y: q.y, color: "255,70,50", a: 0.7 });
+      fxs.push({ k: "flash", t0: at0, dur: 520, x: q.x, y: q.y, color: execNow ? "220,90,255" : "255,70,50", a: 0.7 });
       fxs.push({ k: "sheet", t0: at0, dur: 460, key, name: hitKey(q), x: q.x, y: q.y });
-      fxs.push({ k: "spark", t0: at0, dur: 760, cx: q.x + 0.5, cy: q.y + 0.6, ps: sparks(0, 0, 22, ["#ffcf6a", "#ff7a3a", "#ff3b3b", "#fff2c0"], 1.2, 0.7), g: 2.2 });
-      fxs.push({ k: "ring", t0: at0, dur: 460, x: q.x, y: q.y, color: "255,120,80", r0: 0.1, r1: 0.9, w: 3 });
-      fxs.push({ k: "float", t0: at0, dur: 1000, x: q.x, y: q.y, text: "−" + Math.max(1, q.hp), color: "#ffd66a", big: true });
-      addShake(at0, q.t === "K" ? 9 : 5, q.t === "K" ? 520 : 280);
+      fxs.push({ k: "spark", t0: at0, dur: 760, cx: q.x + 0.5, cy: q.y + 0.6, ps: sparks(0, 0, execNow ? 34 : 22, execNow ? ["#f0c0ff", "#c070ff", "#ff7a3a", "#fff2c0"] : ["#ffcf6a", "#ff7a3a", "#ff3b3b", "#fff2c0"], execNow ? 1.6 : 1.2, 0.7), g: 2.2 });
+      fxs.push({ k: "ring", t0: at0, dur: 460, x: q.x, y: q.y, color: execNow ? "210,100,255" : "255,120,80", r0: 0.1, r1: execNow ? 1.25 : 0.9, w: execNow ? 4 : 3 });
+      if (execNow) {
+        fxs.push({ k: "burst", t0: at0, dur: 900, x: q.x, y: q.y });
+        fxs.push({ k: "float", t0: at0, dur: 1100, x: q.x, y: q.y, text: "Добивание!", color: "#e8a0ff", big: true, ox: off.ox, oy: (off.oy || 0) - 0.35 });
+        fxs.push({ k: "float", t0: at0 + 40, dur: 1000, x: q.x, y: q.y, text: "−" + Math.max(1, q.hp), color: "#ffd66a", big: true, ox: off.ox, oy: off.oy });
+      } else {
+        fxs.push({ k: "float", t0: at0, dur: 1000, x: q.x, y: q.y, text: "−" + Math.max(1, q.hp), color: "#ffd66a", big: true, ox: off.ox, oy: off.oy });
+      }
+      addShake(at0, q.t === "K" ? 9 : execNow ? 7 : 5, q.t === "K" ? 520 : execNow ? 360 : 280);
       if (q.t === "K") {
         fxs.push({ k: "burst", t0: at0, dur: 1300, x: q.x, y: q.y });
         fxs.push({ k: "spark", t0: at0, dur: 1300, cx: q.x + 0.5, cy: q.y + 0.5, ps: sparks(0, 0, 46, ["#fff6d8", "#ffd66a", "#e0b050"], 2.2, 0.4), g: 1.2 });
@@ -565,12 +579,13 @@ function juice(before: Piece[], shieldBefore: Game["shield"], kind: "move" | "at
     } else if (a.hp < q.hp) {
       anyHit = true;
       const dmg = q.hp - a.hp;
+      const off = floatOff();
       hpView.set(q.id, { v: q.hp, hold: at0 + 140 });
       punches.set(q.id, at0);
       fxs.push({ k: "flash", t0: at0, dur: 420, x: a.x, y: a.y, color: "255,60,40", a: 0.55 });
       fxs.push({ k: "sheet", t0: at0, dur: 460, key, name: hitKey(q), x: a.x, y: a.y });
       fxs.push({ k: "spark", t0: at0, dur: 560, cx: a.x + 0.5, cy: a.y + 0.55, ps: sparks(0, 0, 12, ["#ffcf6a", "#ff7a3a", "#fff2c0"], 1, 0.6), g: 2 });
-      fxs.push({ k: "float", t0: at0, dur: 900, x: a.x, y: a.y, text: "−" + dmg, color: "#ff5a4a" });
+      fxs.push({ k: "float", t0: at0, dur: 900, x: a.x, y: a.y, text: "−" + dmg, color: "#ff5a4a", ox: off.ox, oy: off.oy });
       addShake(at0, Math.min(5, 2 + dmg / 25));
     }
   }
@@ -843,8 +858,9 @@ function drawFx(g: CanvasRenderingContext2D, S: number, t: number, layer: "under
         g.strokeStyle = `rgba(${e.color},${Math.min(1, a * 1.6)})`; g.lineWidth = 2; g.strokeRect(fc(e.x) * S + 1.5, fc(e.y) * S + 1.5, S - 3, S - 3);
       } else if (e.k === "shieldup") {
         const a = 0.55 * (1 - k); const col = e.s === "w" ? "120,190,255" : "255,110,110";
-        g.fillStyle = `rgba(${col},${a * 0.5})`; g.fillRect((fc(e.x) - 2) * S, (fc(e.y) - 2) * S, 5 * S, 5 * S);
-        g.strokeStyle = `rgba(${col},${a})`; g.lineWidth = 3; g.strokeRect((fc(e.x) - 2) * S + 2, (fc(e.y) - 2) * S + 2, 5 * S - 4, 5 * S - 4);
+        const side = 2 * SHIELD_R + 1;
+        g.fillStyle = `rgba(${col},${a * 0.5})`; g.fillRect((fc(e.x) - SHIELD_R) * S, (fc(e.y) - SHIELD_R) * S, side * S, side * S);
+        g.strokeStyle = `rgba(${col},${a})`; g.lineWidth = 3; g.strokeRect((fc(e.x) - SHIELD_R) * S + 2, (fc(e.y) - SHIELD_R) * S + 2, side * S - 4, side * S - 4);
       }
       continue;
     }
@@ -885,7 +901,7 @@ function drawFx(g: CanvasRenderingContext2D, S: number, t: number, layer: "under
       const fs = Math.round(S * (e.big ? 0.38 : 0.31) * pop);
       g.save(); g.globalAlpha = k > 0.6 ? 1 - (k - 0.6) / 0.4 : 1;
       g.font = `900 ${fs}px Georgia, "Times New Roman", serif`; g.textAlign = "center"; g.textBaseline = "middle";
-      const x = (fc(e.x) + 0.5) * S, y = (fc(e.y) + 0.2) * S - rise;
+      const x = (fc(e.x) + 0.5 + (e.ox || 0)) * S, y = (fc(e.y) + 0.2 + (e.oy || 0)) * S - rise;
       g.lineWidth = Math.max(3, fs * 0.16); g.strokeStyle = "rgba(10,6,8,.95)"; g.lineJoin = "round"; g.strokeText(e.text, x, y);
       g.fillStyle = e.color; g.fillText(e.text, x, y); g.restore();
     } else if (e.k === "burst") {
@@ -969,13 +985,14 @@ function renderBoard(t: number) {
   (["w", "b"] as Side[]).forEach((s) => {
     const sh = v.shield[s]; if (!sh) return;
     const pul = 0.18 + Math.sin(t / 300) * 0.05;
+    const side = 2 * SHIELD_R + 1;
     g.fillStyle = s === "w" ? `rgba(120,180,255,${pul})` : `rgba(220,70,70,${pul})`;
-    g.fillRect((fc(sh.x) - 2) * S, (fc(sh.y) - 2) * S, 5 * S, 5 * S);
+    g.fillRect((fc(sh.x) - SHIELD_R) * S, (fc(sh.y) - SHIELD_R) * S, side * S, side * S);
     g.save(); g.setLineDash([6, 4]); g.lineDashOffset = -t / 60;
     g.strokeStyle = s === "w" ? "rgba(170,215,255,.8)" : "rgba(255,120,120,.8)"; g.lineWidth = 2;
-    g.strokeRect((fc(sh.x) - 2) * S + 1, (fc(sh.y) - 2) * S + 1, 5 * S - 2, 5 * S - 2); g.restore();
+    g.strokeRect((fc(sh.x) - SHIELD_R) * S + 1, (fc(sh.y) - SHIELD_R) * S + 1, side * S - 2, side * S - 2); g.restore();
     // запас щита (HUD): видно, сколько ещё поглотит
-    { const fs = Math.max(10, Math.round(S * 0.2)); const lx = (fc(sh.x) - 2) * S + 6, ly = (fc(sh.y) - 2) * S + 5;
+    { const fs = Math.max(10, Math.round(S * 0.2)); const lx = (fc(sh.x) - SHIELD_R) * S + 6, ly = (fc(sh.y) - SHIELD_R) * S + 5;
       g.font = `700 ${fs}px system-ui, sans-serif`; g.textAlign = "left"; g.textBaseline = "top";
       const txt = `щит ${Math.max(0, sh.hp)}`; const tw = g.measureText(txt).width;
       g.fillStyle = "rgba(8,10,20,.78)"; g.fillRect(lx - 3, ly - 2, tw + 6, fs + 4);
