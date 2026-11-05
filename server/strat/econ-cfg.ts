@@ -190,7 +190,7 @@ export function deepMerge<T>(base: T, over: any, depth = 0): T {
     if (!(k in over)) continue;
     const b = out[k], v = over[k];
     if (typeof b === "number") { if (typeof v === "number" && Number.isFinite(v)) out[k] = v; }
-    else if (typeof b === "string") { if (typeof v === "string") out[k] = v.slice(0, 80); }
+    else if (typeof b === "string") { if (typeof v === "string") out[k] = v.slice(0, 400); } // t1243: = TEXT_MAX (cfg.ts)
     else if (typeof b === "boolean") { if (typeof v === "boolean") out[k] = v; }
     else if (b && typeof b === "object") out[k] = deepMerge(b, v, depth + 1);
   }

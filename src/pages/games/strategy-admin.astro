@@ -1,0 +1,36 @@
+---
+// t1243: полноценная админка «Партия Чёрных королей → Правила игры». Отдельная страница (не в меню и не в sitemap, noindex).
+// Все числа и тексты игры (STRAT_CFG) — по разделам, с проверкой, разницей перед сохранением, журналом, откатом и версиями.
+// Доступ проверяет сервер (/strat/admin/cfg: роль администратора сайта); страница без прав показывает только отказ.
+import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/strat-ui.css';
+import '../../styles/strat-admin.css';
+const title = 'Правила игры — админка | Партия Чёрных королей';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Служебная страница администратора." robots="noindex,nofollow" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preload" href="/strat/fonts/oswald-cyrillic-700-normal.woff2" as="font" type="font/woff2" crossorigin />
+</head>
+<body class="sa-body">
+<div class="sa">
+  <header class="sa-top">
+    <a class="btn ghost sm" href="/games/strategy"><span>← К игре</span></a>
+    <div class="sa-logo"><img src="/strat/ui/ornaments/ornament_fan.png" alt="" /><h1>Правила игры</h1></div>
+    <span id="sa-me" class="sa-me"></span>
+  </header>
+  <div id="sa-root" class="sa-root"><div class="sa-msg">Загрузка…</div></div>
+</div>
+<div id="sa-toasts" class="sa-toasts" aria-live="polite"></div>
+<div id="sa-modal"></div>
+<script>
+  import { bootAdmin } from '../../scripts/strat/admin-cfg';
+  bootAdmin();
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@ import { StratMatch } from "./strat/match";
 import { StratIndex } from "./strat/hub";
 import { codexHttp } from "./strat/codex-http";
 import { adminGoalsHttp } from "./strat/admin-http";
+import { adminCfgHttp } from "./strat/admin-cfg-http";
 import type { Env } from "./types";
 import { fetchRoom } from "./meta/doRetry";
 
@@ -21,6 +22,7 @@ export default {
         if (!e.STRAT_MATCH || !e.STRAT_INDEX) return new Response("not found", { status: 404 });
         if (path === "/strat/codex") return await codexHttp(request, env); // F: Библиотека — без DO, D1 напрямую
         if (path === "/strat/admin/goals") return await adminGoalsHttp(request, env); // G: «Цели и лиги» — только админ (401/403)
+        if (path === "/strat/admin/cfg") return await adminCfgHttp(request, env); // t1243: полная админка правил — только админ (401/403)
         const m = STRAT_MATCH_PATH.exec(path);
         if (m) return await fetchRoom(() => e.STRAT_MATCH.get(e.STRAT_MATCH.idFromName(m[1])), request);
         return await fetchRoom(() => e.STRAT_INDEX.get(e.STRAT_INDEX.idFromName("index")), request);
