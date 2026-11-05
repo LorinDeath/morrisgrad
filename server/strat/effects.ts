@@ -133,6 +133,10 @@ export const EFFECT_KEYS: Record<string, Spec> = {
   move: { trig: "always", tgt: "self", stack: "none", t: (e) => e.ref ? `${e.ref}` : `ходит до ${cellsG(e.mag)}` },
   ranged: { trig: "always", tgt: "self", stack: "none", t: (e) => `бьёт издалека по диагоналям до ${cellsG(e.mag)}, сам не встаёт на клетку цели` },
   jump: { trig: "always", tgt: "self", stack: "none", t: () => `ходит буквой «Г» и перепрыгивает фигуры и рельеф` },
+  // t1247: как фигура атакует (1 ОД за удар)
+  approach: { trig: "onAttack", tgt: "self", stack: "none", t: (e) => `подход и удар одним действием: подходит к врагу (до ${cellsG(e.mag)}, путь должен быть свободен) и бьёт с соседней клетки; после удара стоит рядом с целью, даже если убил` },
+  strikeFar: { trig: "onAttack", tgt: "self", stack: "none", t: () => `дальний удар буквой «Г» — бьёт с места через фигуры, не сдвигается и после убийства` },
+  melee: { trig: "onAttack", tgt: "self", stack: "none", t: (e) => e.ref ? `${e.ref}` : `ближний бой: бьёт только соседнюю клетку; убив врага, встаёт на его клетку` },
   promote: { trig: "onEnter", tgt: "self", stack: "once", t: () => `дойдя до последней линии, превращается (по умолчанию в Стража)` },
   era: { trig: "always", tgt: "self", stack: "none", t: (e) => `найм с эпохи ${["", "I", "II", "III"][e.mag] || e.mag}, один на игрока` },
 };
@@ -230,12 +234,12 @@ export function raceEffects(cfg: any, race: string, size?: number): Effect[] {
 export function unitEffects(cfg: any, kind: string): Effect[] {
   const R = cfg.range;
   switch (kind) {
-    case "pawn": return [mk("move", 1, { ref: "ходит на 1 вперёд или вбок, отступает на 1 по диагонали назад; бьёт по диагонали вперёд" }), mk("promote", 1)];
-    case "knight": return [mk("jump", 1)];
+    case "pawn": return [mk("move", 1, { ref: "ходит на 1 вперёд или вбок, отступает на 1 по диагонали назад" }), mk("melee", 1, { ref: "ближний бой: сначала подойти ходом, потом ударить по диагонали вперёд (отдельное действие); убив врага, встаёт на его клетку" }), mk("promote", 1)];
+    case "knight": return [mk("jump", 1), mk("strikeFar", 1)];
     case "mage": return [mk("move", R.mageMove, { ref: `ходит по диагонали до ${cellsG(R.mageMove)}` }), mk("ranged", R.mageShot)];
-    case "rook": return [mk("move", R.rookMove, { ref: `ходит по прямой до ${cellsG(R.rookMove)}; бьёт соседнюю клетку по прямой` })];
-    case "hero": return [mk("move", R.heroMove, { ref: `ходит в любую сторону до ${cellsG(R.heroMove)}` }), mk("era", 2)];
-    case "king": return [mk("move", 1, { ref: "ходит на 1 в любую сторону; растёт в уровнях и учит навыки" })];
+    case "rook": return [mk("move", R.rookMove, { ref: `ходит по прямой до ${cellsG(R.rookMove)}; бьёт соседнюю клетку по прямой` }), mk("approach", R.rookMove)];
+    case "hero": return [mk("move", R.heroMove, { ref: `ходит в любую сторону до ${cellsG(R.heroMove)}; бьёт любую соседнюю клетку` }), mk("approach", R.heroMove), mk("era", 2)];
+    case "king": return [mk("move", 1, { ref: "ходит на 1 в любую сторону; растёт в уровнях и учит навыки" }), mk("melee", 1, { ref: "ближний бой без подхода: бьёт любую соседнюю клетку; убив врага, встаёт на его клетку" })];
   }
   return [];
 }
