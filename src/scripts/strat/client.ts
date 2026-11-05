@@ -31,6 +31,7 @@ import { raceNums, raceEffects, describeEffects } from "../../../server/strat/ef
 import { TECHS } from "../../../server/strat/econ-cfg";
 import { Recorder, framesFrom, itemFrom, libFrom, lsPut, lsList, lsGetRec, lsDel, evLine, evWhy, whyHtml, viewBarHtml, libHtml, type Frame, type Rec, type RpInfo, type EvCtx, type LibItem } from "./history";
 import { codexGot, openCodex } from "./codex-ui";
+import { resultsHtml, type Sum } from "./results";
 import { hpBarArt, unitHpArt, HS_STEP } from "./ui2art";
 import { drawLvBadge, abilityBar, bindAbilityBar, renderLvDock, pieceLevel, pendingTalent } from "./units";
 
@@ -503,14 +504,14 @@ function histWarn(): string[] {
 function renderHistBar() {
   const hb = $("#histbar"); if (!hb || !hv) return; const F = hFrames(), f = F[hv.idx], live = liveS?.g;
   const side = f ? evCtx().nick(f.cur) : ""; hb.hidden = false;
-  const canSave = !!(hv.replay ? !hv.replay.saved : rec.frames.length), h = viewBarHtml({ turn: (hv.sub?.f || f)?.turn ?? 1, side, live: !hv, replay: !!hv.replay, idx: hv.idx, max: F.length - 1, playing: hv.playing, speed: hv.speed, canSave, saved: hv.saved, warn: histWarn() });
+  const canSave = !!(hv.replay ? !hv.replay.saved : rec.frames.length), h = viewBarHtml({ turn: (hv.sub?.f || f)?.turn ?? 1, side, live: !hv, replay: !!hv.replay, idx: hv.idx, max: F.length - 1, playing: hv.playing, speed: hv.speed, canSave, saved: hv.saved, warn: histWarn(), canSum: !!hv.replay?.sum?.sides });
   if (hb.dataset.h !== h) { hb.dataset.h = h; hb.innerHTML = h; bindHistBar(hb); }
   hb.querySelector(".hv-s")!.textContent = `ходит ${side}` + (hv.replay ? ` · ${hv.idx + 1}/${F.length}` + (hv.sub ? ` · действие ${hv.sub.i}` : "") : live ? ` · идёт ход ${live.turn}` : "");
   (hb.querySelector(".hv-scrub") as HTMLInputElement).value = String(hv.idx);
 }
 function bindHistBar(hb: HTMLElement) {
   hb.querySelectorAll<HTMLButtonElement>("[data-hv]").forEach((b) => (b.onclick = () => { const k = b.dataset.hv, F = hFrames();
-    if (k !== "play") { stopPlay(); if (hv) hv.sub = null; } if (k === "first") histOpen(0); if (k === "prev") histStep(-1); if (k === "next") histStep(1); if (k === "play") togglePlay(); if (k === "save") saveReplay();
+    if (k !== "play") { stopPlay(); if (hv) hv.sub = null; } if (k === "first") histOpen(0); if (k === "prev") histStep(-1); if (k === "next") histStep(1); if (k === "play") togglePlay(); if (k === "save") saveReplay(); if (k === "sum") openSum();
     if (k === "last") hv?.replay ? histOpen(F.length - 1) : goLive(); if (k === "live" || k === "close") goLive(); }));
   hb.querySelectorAll<HTMLButtonElement>("[data-sp]").forEach((b) => (b.onclick = () => { if (!hv) return; hv.speed = Number.isFinite(+b.dataset.sp!) ? +b.dataset.sp! : 1; const was = hv.playing; stopPlay(); hb.dataset.h = ""; if (was) togglePlay(); else renderHistBar(); }));
   const sc = hb.querySelector<HTMLInputElement>(".hv-scrub")!; sc.oninput = () => { stopPlay(); if (hv) hv.sub = null; const i = +sc.value; if (!hv?.replay && i >= hFrames().length - 1) return goLive(); histOpen(i); };
@@ -541,7 +542,7 @@ function curRec(saved: boolean): Rec | null {
   const L = hv?.replay || null; if (L) return { ...L, saved };
   const base = liveS || S, F = rec.frames; if (!F.length || !base) return null; const g = F[F.length - 1].g;
   return { id: "loc-" + (base.code || "demo") + "-" + (F[0].at || Date.now()), code: base.code, at: Date.now(), races: g.races || [], nicks: (base.seats || []).map((x: any) => x?.nick || "?"), winner: base.result?.winner ?? null,
-    turns: g.turn, you: base.you, map: rec.map, frames: F, saved };
+    turns: g.turn, you: base.you, map: rec.map, frames: F, saved, ...(base.sum ? { sum: { ...base.sum, rating: base.rating ?? base.sum.rating } } : {}) };
 }
 /** §14.I lib_save {id, title?}: название до 60 символов; пустое — без названия, «Отмена» — не сохранять. */
 function askTitle(def: string, ren = false): Promise<string | null> {
@@ -578,7 +579,7 @@ async function fetchReplay(id: string): Promise<Rec | null> {
   const ok = out.filter(Boolean), F = framesFrom(ok); if (!F.length || F.length !== ok.length) return null; const it = itemFrom(meta, !!meta.saved)!;
   const rp: RpInfo = { id, n: +(j.log?.n ?? j.moves?.list?.length ?? 0), idx: ok.map((x) => +x.i), turns: turns.map((t) => ({ turn: +t.turn, side: +t.side, from: +t.from, to: +t.to })),
     list: (Array.isArray(j.moves?.list) ? j.moves.list : []).map((a: any) => ({ i: +a.i, side: a.side, n: a.n, dt: a.dt, auto: a.auto })), rulesChanged: !!j.rulesChanged, div };
-  return { ...it, frames: F, rp, map: j.log?.map ?? F[0].g.map, nicks: it.nicks.length ? it.nicks : (F[0].g.races || []).map((_: any, i: number) => "Игрок " + (i + 1)) };
+  return { ...it, frames: F, rp, sum: j.log?.sum && typeof j.log.sum === "object" ? j.log.sum : undefined, map: j.log?.map ?? F[0].g.map, nicks: it.nicks.length ? it.nicks : (F[0].g.races || []).map((_: any, i: number) => "Игрок " + (i + 1)) };
 }
 function libDeps() { return { html: () => libHtml(null, { crest, loading: true }), bind: (el: HTMLElement) => { loadLib(el); } }; }
 /** ?menudemo: ответ lib_list в форме рабочей ветки сервера (ReplayMeta), только для скриншотов меню. */
@@ -611,27 +612,43 @@ function myRating(me: number) {
   if (!c || typeof c.delta !== "number") return null; return { league: LG_UI[R.league] || R.league, delta: c.delta, after: c.rating, before: (c.rating ?? 0) - c.delta };
 }
 function patchEndRating() {
-  const f = document.querySelector("#endscreen .es-foot"), me = S?.you; if (!f || !(me >= 0) || f.querySelector(".rdelta")) return; const h = ratingDelta(myRating(me)); if (!h) return;
+  const f = document.querySelector("#endscreen .es-foot"), me = S?.you; if (!f) return;
+  const rs = document.querySelector("#endscreen .rs"); if (rs && S.sum) { const key = JSON.stringify(S.rating || null); if ((rs as HTMLElement).dataset.k !== key) { rs.outerHTML = endResults(me); } } // t1236: рейтинг/опыт приходят чуть позже — перерисовать «Итоги»
+  if (!(me >= 0) || f.querySelector(".rdelta")) return; const h = ratingDelta(myRating(me)); if (!h) return;
   const sc = f.querySelector(".es-score"); if (sc) sc.insertAdjacentHTML("afterend", h); else f.insertAdjacentHTML("afterbegin", h);
+}
+/** t1236: «Итоги партии» — разбор рейтинга, опыт и статистика (S.sum считает сервер при конце партии). */
+function endResults(me: number): string {
+  const s: Sum | undefined = S?.sum; if (!s?.sides?.length) return "";
+  const w = S.result?.winner, win = me >= 0 && w === me, draw_ = w === 2 || w == null;
+  return resultsHtml(s, { me, reason: endReason(win, draw_, me), rating: S.rating, nick: (i) => S.seats?.[i]?.nick || s.nicks?.[i] || "?" }).replace('<section class="rs"', `<section class="rs" data-k="${esc(JSON.stringify(S.rating || null))}"`);
 }
 const endReason = (win: boolean, draw_: boolean, me: number) => { const r = S.result?.reason; if (me >= 0 && !win && !draw_ && r === "forfeit") return "Вы сдались"; if (me >= 0 && !win && !draw_ && (r === "disconnect" || r === "claim")) return "Вы не вернулись вовремя"; if (me >= 0 && !win && !draw_ && r === "wipe") return "Разгром: у вас не осталось ни фигур, ни городов"; if (me >= 0 && !win && !draw_ && r === "goals") return "Соперник выполнил все цели"; if (me >= 0 && !win && !draw_ && r === "king") return "Ваш Вождь пал"; return REASON[r] || r || ""; };
 function showEnd() {
   if (!S?.g || S.phase !== "over") return; const me = S.you, w = S.result?.winner, g = S.g;
   const win = me >= 0 && w === me, draw_ = w === 2 || w == null, title = draw_ ? "Ничья" : me < 0 ? `Победил ${S.seats[w]?.nick || "?"}` : win ? "Победа" : "Поражение";
   const race = g.races[draw_ ? Math.max(0, me) : w] || "fire", G = gs()!, cfg = cfgOf(S), gl = goalsWithSticky(G, cfg);
+  const gDone = (i: number) => S.sum?.sides?.[i]?.goals?.length ?? gl.sides[i].filter((q) => q.done).length; // t1236: счёт из итогов сервера
   const stat = (i: number) => `<div class="es-side ${i === me ? "me" : ""}">${crest(g.races[i])}
     <b class="nick"></b><small class="cname"></small><div class="es-goals">${gl.sides[i].map((q) => { const d = goalDef(q); return `<i class="${q.done ? "on" : ""}" data-tip="${esc(d.name)}">${ic(d.icon)}</i>`; }).join("")}</div>
-    <span class="es-n">${ic("glory")}${g.ec?.res?.[i]?.glory ?? 0} · ${ic("sword")}${g.pieces.filter((p: any) => p.o === i).length}</span></div>`;
-  const m = modal({ id: "endscreen", title, icon: win ? "crown" : draw_ ? "scales" : "skull", cls: "endscreen " + (win || me < 0 ? "win" : draw_ ? "draw" : "lose"), dismiss: true,
+    <span class="es-n">${ic("glory")}${S.sum?.sides?.[i]?.glory ?? g.ec?.res?.[i]?.glory ?? 0} · ${ic("sword")}${g.pieces.filter((p: any) => p.o === i).length}</span></div>`;
+  const m = modal({ id: "endscreen", title, icon: win ? "crown" : draw_ ? "scales" : "skull", cls: "endscreen " + (win || me < 0 ? "win" : draw_ ? "draw" : "lose") + (S.sum ? " has-rs" : ""), dismiss: true,
     sub: esc(endReason(win, draw_, me)),
     body: `<div class="es-hero"><img src="${unitArt(race, "king")}" alt="" data-rmerr></div>
       <p class="es-chief"></p><div class="es-sides">${stat(0)}<span class="vs">VS</span>${stat(1)}</div>
-      <div class="es-foot"><div class="es-score" data-tip="Выполнено целей"><small>Цели</small><b>${gl.sides[Math.max(0, me)].filter((q) => q.done).length}–${gl.sides[me === 1 ? 0 : 1].filter((q) => q.done).length}</b></div>${me >= 0 ? ratingDelta(myRating(me)) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>`,
+      <div class="es-foot"><div class="es-score" data-tip="Выполнено целей"><small>Цели</small><b>${gDone(Math.max(0, me))}–${gDone(me === 1 ? 0 : 1)}</b></div>${me >= 0 ? ratingDelta(myRating(me)) : ""}${S.ranked ? "" : `<small class="muted">Партия без рейтинга</small>`}</div>${endResults(me)}`,
     acts: [{ label: "В меню", cls: "ghost", val: "menu", icon: "back" }, { label: "К доске", cls: "", val: "board", icon: "eye" }, ...(rec.frames.length > 1 ? [{ label: "Повтор", cls: "", val: "replay", icon: "hist" }] : []), ...(me >= 0 ? [{ label: S.seats[me]?.rematch ? "Ждём соперника…" : "Реванш", cls: "gold", val: "rematch", icon: "refresh", id: "es-rematch" }] : [])] });
   m.el.querySelectorAll<HTMLElement>(".es-side").forEach((el, i) => { el.querySelector(".nick")!.textContent = S.seats[i]?.nick || "?"; el.querySelector(".cname")!.textContent = "Вождь " + chiefName(i); });
   m.el.querySelector(".es-chief")!.textContent = draw_ ? "" : `Вождь ${chiefName(w)} ведёт ${RACE_NAME[g.races[w]] || ""} к победе`;
   keepRecent();
   m.done.then((v: any) => { if (v === "rematch") send({ type: "rematch" }); if (v === "menu") leaveMatch(); if (v === "replay") { const r = curRec(false); if (r) histOpen(0, r); } });
+}
+/** t1236: «Итоги партии» из повтора (библиотека / «Недавние»). */
+function openSum() {
+  const R = hv?.replay, s: Sum | undefined = R?.sum; if (!R || !s?.sides) return; const me = R.you ?? -1, w = s.winner;
+  const reason = me >= 0 && w !== me && w !== 2 && s.reason === "goals" ? "Соперник выполнил все цели" : REASON[s.reason] || s.reason || "";
+  modal({ id: "sumdlg", title: w === 2 || w == null ? "Ничья" : me < 0 ? `Победил ${R.nicks[w] || s.nicks?.[w] || "?"}` : w === me ? "Победа" : "Поражение", icon: "scales", cls: "sumdlg",
+    sub: esc(new Date(R.at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })), body: resultsHtml(s, { me, reason, rating: s.rating, nick: (i) => R.nicks[i] || s.nicks?.[i] || "?" }), acts: [{ label: "Закрыть", val: null }] });
 }
 /** «Чёрный список»: первые Вожди соперников стороны side. */
 function openBlacklist(side: number) {
@@ -1699,7 +1716,15 @@ if (LOCAL && qs.get("demo")) (window as any).__stratDev = {
   render: () => { gsCache = { s: null, g: null } as any; render(); }, chief: () => openChiefTree(true), name: (r: boolean) => askChiefName(r), menu: () => openMenu(), surr: () => surrender(), end: () => endTurn(),
   tech: () => { eui.tech = true; renderTech(ectx()); }, city: (id: number) => { eui.city = id; renderCity(ectx()); },
   goal: (i: number) => { const gl = goalsOf(S, gs()!, cfgOf(S)); goalPopup(S.you, gl.sides[S.you][i], 2, 3); },
-  over: (w: number) => { S.phase = "over"; S.ranked = true; S.result = { winner: w, reason: "goals", rating: { [S.you]: w === S.you ? { league: "normal", before: 1532, after: 1550, delta: 18 } : { league: "normal", before: 1532, after: 1520, delta: -12 } } }; render(); showEnd(); },
+  over: (w: number, rated = true) => { const me = Math.max(0, S.you), op = me === 1 ? 0 : 1, wl = [0, 1].map((i) => i === w);
+    const side = (i: number, k: number) => ({ goals: (wl[i] ? ["chief", "hold", "treasury", "domain", "wonder", "glory"] : ["treasury", "domain"]).slice(0, wl[i] ? 6 : 2), kills: [14, 9][k], lost: [9, 14][k], chiefKills: wl[i] ? 1 : 0, cities: [4, 2][k], cells: [96, 61][k], goldIn: [1840, 1310][k], goldOut: [1620, 1205][k], gold: [220, 105][k], techs: [9, 6][k], wonders: wl[i] ? 1 : 0, glory: [62, 31][k], ults: [3, 2][k], units: [11, 4][k], acts: [312, 268][k], activeMin: [24, 21][k] });
+    S.phase = "over"; S.ranked = rated; S.result = { winner: w, reason: "goals" };
+    S.sum = { mid: "DEMO:1", winner: w, reason: "goals", turns: 87, turnLimit: 150, size: 15, need: 6, list: ["chief", "hold", "treasury", "domain", "wonder", "glory"], mode: rated ? "ranked" : "normal", nicks: [S.seats[0]?.nick, S.seats[1]?.nick], bots: [false, !rated], durMs: 31 * 60000, sides: [0, 1].map((i) => side(i, wl[i] ? 0 : 1)) };
+    const bd = (won: boolean) => ({ before: 1500, after: won ? 1597 : 1273, delta: won ? 97 : -227, score: won ? 1 : 0, exp: 0.5, base: won ? 161.9 : -161.9, d: 4, K: won ? 0.6 : 1.4, a: won ? 1.4 : 0.4, b: won ? 0.2 : 0.25, early: 1, idle: 1, abandon: false, rd: 290, prov: true });
+    const seat = (i: number) => rated ? { rating: wl[i] ? 1597 : 1273, delta: wl[i] ? 97 : -227, before: 1500, bd: bd(wl[i]), place: null, total: null, left: 9, xp: wl[i] ? 28 : 16, coins: wl[i] ? 5 : 0, xpd: { got: wl[i] ? 28 : 16, min: [24, 21][wl[i] ? 0 : 1], res: wl[i] ? 1.2 : 0.8, mul: 1, why: null, bot: false, early: 1 } }
+      : { rating: null, delta: null, before: null, bd: null, xp: wl[i] ? 7 : 4, coins: 0, xpd: { got: wl[i] ? 7 : 4, min: [24, 21][wl[i] ? 0 : 1], res: wl[i] ? 1.2 : 0.8, mul: 0.25, why: null, bot: true, early: 1, botLeft: 2 } };
+    S.rating = rated ? { league: "normal", unrated: null, seats: [seat(0), seat(1)] } : { league: null, unrated: "bots", seats: [seat(0), seat(1)] }; S.sum.rating = S.rating; void op;
+    render(); showEnd(); },
   prof: () => showProfile(),
   bl: (k = 1) => { localFell[k] = { turn: 7, by: S.you }; render(); openBlacklist(S.you); },
   bots: () => { S.seats[1] = { nick: "Бот", race: "ice", bot: true, botLv: "hard", ready: true }; S.seats.length > 2 && (S.seats[2] = null); render(); },

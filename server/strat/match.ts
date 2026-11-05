@@ -15,9 +15,9 @@ import { putReplay, pruneReplays, replayCfg, revealFrame } from "./replay-db";
 import { drawRaces, newSeed, commitOf, cleanFav, rollsFor } from "./racedraw";
 import { treeView, publicPatch, hiddenTarget } from "./tree-view";
 import { parseAct } from "./parse-act";
-import { RATING_CFG, xpMul } from "./rating";
+import { RATING_CFG, xpMul, earlyMul } from "./rating";
 import { matchBot, BOT_LEVELS, TACTIC_IDS, type BotLevel } from "./ai";
-import { chiefBlacklist, goalCfg } from "./econ";
+import { chiefBlacklist, goalCfg, territory } from "./econ";
 import { rateFinished, mapInPool, addXp, botXpToday } from "./rating-db";
 import { matchXp } from "./account";
 import { turnMinutes, validTurnMin, canClaim } from "./away";
@@ -48,7 +48,9 @@ type L = {
   game: GameState | null; clock: Clock | null; result?: { winner: number; reason: string };
   cfgPatch?: any; // правка админки (маленькая) — уходит клиенту, чтобы подсказки совпадали с сервером
   cfg?: StratCfg; // снимок правил (STRAT_CFG + правки админки) на момент старта партии
-  st?: { start: number; ck: [number, number]; tal: [string[], string[]]; ult: [string[], string[]] }; // для профиля (stats.ts)
+  st?: { start: number; ck: [number, number]; tal: [string[], string[]]; ult: [string[], string[]]; kl?: [number, number]; ls?: [number, number]; gi?: [number, number]; go?: [number, number] }; // для профиля (stats.ts); t1236: убито/потеряно фигур, золото получено/потрачено
+  mid?: string; // t1236: id партии (код:старт) — у каждого реванша свой (раньше код:создание лобби, и реванш затирал строки прошлой партии)
+  sum?: any; // t1236: «Итоги партии» — считаются один раз на сервере в finish/recordRating
   chat?: ChatMsg[]; chatId?: number; mutes?: Record<string, string[]>; reports?: { at: number; by: string; msg: number; who: string; text: string }[];
   turnMin?: number | null; skips?: [number, number]; // лимит хода хоста (мин; null — по размеру) и подряд авто-пропусков (away.ts)
   activeMs?: [number, number]; // активное время своих ходов (для опыта Полководца; авто-пропуск = 0)
@@ -65,7 +67,9 @@ export class StratMatch extends DurableObject {
   env: any; L: L | null = null; loaded = false; botTimer: any = null;
   constructor(ctx: any, env: any) { super(ctx, env); this.env = env; }
 
-  async load(): Promise<L | null> { if (!this.loaded) { this.L = (await this.ctx.storage.get("L")) || null; this.loaded = true; await this.rload(); } return this.L; }
+  async load(): Promise<L | null> { if (!this.loaded) { this.L = (await this.ctx.storage.get("L")) || null; this.loaded = true; await this.rload();
+      const L = this.L; if (L?.phase === "over" && L.mid && L.game && L.result && !L.rating && this.env.GAME_DB) { const q = this.recordRating(L.mid).catch(() => {}); this.ctx.waitUntil?.(q); } } // t1236: DO выгрузился до записи рейтинга — досчитать (recordRating идемпотентен)
+    return this.L; }
   async save() { if (this.L) { this.L.touched = Date.now(); await this.ctx.storage.put({ L: this.L, ...this.rdirty() }); } await this.rearm(); this.report(); }
   // ---------- t1156: лог партии (replay.ts). Хранится кусками по RCH действий (лимит значения DO storage — 128 КБ) ----------
   R: RLog | null = null; rSaved = 0; fc: FrameCache | null = null;
@@ -176,7 +180,8 @@ export class StratMatch extends DurableObject {
   /** итог рейтинга по местам (без user_id наружу): league/unrated, [{rating, delta, xp, coins}] */
   ratingView() { const R: any = this.L!.rating; if (!R) return null;
     return { league: R.league || null, unrated: R.unrated || null, seats: [0, 1].map((i) => { const pk = this.L!.seats[i]?.pkey, c = pk ? R.changes?.[pk] : null;
-      return { rating: c?.rating ?? null, delta: c?.delta ?? null, xp: R.xp?.[i] ?? null, coins: R.coins?.[i] ?? null }; }) }; }
+      return { rating: c?.rating ?? null, delta: c?.delta ?? null, xp: R.xp?.[i] ?? null, coins: R.coins?.[i] ?? null, before: c?.before ?? (c ? c.rating - c.delta : null), bd: c?.bd ?? null,
+        place: c?.place ?? null, total: c?.total ?? null, left: c?.left ?? null, xpd: R.xpd?.[i] ?? null }; }) }; }
   // ---------- чат (chat.ts) ----------
   chatRate = new Map<string, number[]>();
   team(s: number) { return s; } // 1×1: команда = место (в командах — номер команды места)
@@ -290,7 +295,7 @@ export class StratMatch extends DurableObject {
         (me as any).rematch = true;
         if (L.seats.every((s) => s && (s.bot || (s as any).rematch))) {
           for (const s of L.seats) if (s) { (s as any).rematch = false; s.ready = !!s.bot; if (!s.bot) s.race = null; }
-          L.phase = "lobby"; L.game = null; L.clock = null; L.result = undefined; L.cfg = undefined; L.cfgPatch = undefined; L.draw = undefined; await this.ensureDraw();
+          L.phase = "lobby"; L.game = null; L.clock = null; L.result = undefined; L.cfg = undefined; L.cfgPatch = undefined; L.draw = undefined; L.rating = undefined; L.sum = undefined; (L as any).tlog = undefined; await this.ensureDraw(); // t1236: итог прошлой партии не протекает в реванш
         }
         break;
       }
@@ -322,13 +327,14 @@ export class StratMatch extends DurableObject {
       const r = await resolveLobbyMap(this.env, L.mapId, L.size, L.seats[0]!.pkey);
       if (r.err || !r.map) { this.setMap(null); } else this.setMap({ map: r.map, xp: r.xp, status: r.status });
     }
+    L.mid = L.code + ":" + Date.now(); L.rating = undefined; L.sum = undefined; // t1236: новая партия — новый id (жребий, рейтинг, монеты, профиль) и чистые итоги
     const first = (crypto.getRandomValues(new Uint8Array(1))[0] & 1) as 0 | 1; // кто ходит первым — случайно
     { const c = await loadStratCfg(this.env, true); L.cfg = c.cfg; L.cfgPatch = c.patch && Object.keys(c.patch).length ? c.patch : undefined; }
     if (this.drawOn()) await this.runDraw(); // t1144: рейтинговая — расы жребием, всем сразу (одним st после старта)
     if (L.phase !== "lobby" || !L.seats[0]?.race || !L.seats[1]?.race || !L.seats.every((s) => s?.ready)) { for (const s of L.seats) if (s && !s.bot) s.ready = false; return; } // пока ждали конфиг, место освободилось
     L.game = newGame(L.size, [L.seats[0]!.race!, L.seats[1]!.race!], first, L.cfg, 0, L.map);
     L.clock = { turnStart: Date.now(), reserve: [0, 0] }; L.skips = [0, 0]; // запаса больше нет: только лимит хода
-    L.st = { start: Date.now(), ck: [0, 0], tal: [[], []], ult: [[], []] }; L.activeMs = [0, 0];
+    L.st = { start: Date.now(), ck: [0, 0], tal: [[], []], ult: [[], []], kl: [0, 0], ls: [0, 0], gi: [0, 0], go: [0, 0] }; L.activeMs = [0, 0];
     L.phase = "play"; this.lastEv = [{ e: "turn", cur: first, turn: 1 }];
     if ((L.cfg.econ as any).replay?.on !== false) { L.rid = L.code + ":" + L.st.start; L.rn = 0; this.R = startLog(L.rid, L.game, L.cfg, L.map, L.cfgPatch, !!L.hiddenHp); this.rSaved = 0; this.fc = null; (this.R as any)._m = 1; }
     else { L.rid = undefined; this.R = null; }
@@ -354,6 +360,7 @@ export class StratMatch extends DurableObject {
     const L = this.L!, g = L.game!, prevCur = g.cur;
     const hid = hiddenTarget(g, seat, act, this.cfg()); if (hid) return hid; // скрытый узел дерева — как несуществующий
     const kingId = g.pieces.find((p) => p.owner === seat && p.kind === "king")?.id;
+    const gold0 = g.ec ? [g.ec.res[0].gold, g.ec.res[1].gold] : null;
     const A0: any = act, P0 = A0.id != null ? g.pieces.find((p) => p.id === A0.id && p.owner === seat) : null, f0 = P0 ? [P0.x, P0.y] : null, ap0 = g.ap, t0 = g.turn;
     const r = apply(g, seat, act, this.cfg()); if (!r.ok) return r.err;
     if (TLOG_A.has(act.a) && (A0.x != null || f0)) { // t1221: «мои ходы за этот ход» — путь, цель, действие, потраченные ОД; хранится по месту, отдаётся только владельцу
@@ -361,7 +368,10 @@ export class StratMatch extends DurableObject {
       const P1 = P0 ? g.pieces.find((p) => p.id === P0.id) : null;
       T[seat].items.push({ a: act.a, id: A0.id ?? null, k: P0?.kind ?? null, fx: f0?.[0] ?? null, fy: f0?.[1] ?? null, x: A0.x ?? P1?.x ?? f0?.[0], y: A0.y ?? P1?.y ?? f0?.[1], ap: g.cur === prevCur && g.turn === t0 ? Math.max(0, ap0 - g.ap) : ap0 > 0 ? ap0 : null });
       if (T[seat].items.length > 40) T[seat].items.shift(); }
-    if (L.st) { for (const e of r.ev as any[]) { if (e.e === "kill" && kingId && e.by === kingId) L.st.ck[seat]++; if (e.e === "ult" && (e.side === 0 || e.side === 1)) L.st.ult[e.side].push(String(e.ult)); }
+    if (L.st) { const S = L.st; S.kl ||= [0, 0]; S.ls ||= [0, 0]; S.gi ||= [0, 0]; S.go ||= [0, 0];
+      for (const e of r.ev as any[]) { if (e.e === "kill" && kingId && e.by === kingId) S.ck[seat]++; if (e.e === "ult" && (e.side === 0 || e.side === 1)) S.ult[e.side].push(String(e.ult));
+        if (e.e === "kill" && (e.o === 0 || e.o === 1)) { S.ls[e.o]++; S.kl[1 - e.o]++; } }
+      if (gold0 && g.ec) for (const i of [0, 1] as const) { const d = g.ec.res[i].gold - gold0[i]; if (d > 0) S.gi[i] += d; else if (d < 0) S.go[i] -= d; }
       if (act.a === "talent") { const p = g.pieces.find((q) => q.id === (act as any).id); const t = p?.tal?.[p.tal.length - 1]; if (t) L.st.tal[seat].push(t); } }
     if (this.R && L.rid === this.R.id) logAct(this.R, seat, act, auto, g, g.cur !== prevCur);
     this.lastEv = r.ev; if (act.a !== "end") { const A = (L.acts ||= [0, 0]); A[seat]++; }
@@ -389,7 +399,9 @@ export class StratMatch extends DurableObject {
     const g = L.game!; if (g.winner === -1) { g.winner = winner; g.reason = reason; this.lastEv = [...this.lastEv, { e: "end", winner, reason }]; }
     L.phase = "over"; L.result = { winner, reason };
     if (this.R && L.rid === this.R.id) { logEnd(this.R, g.winner, g.reason); (this.R as any)._m = 1; this.rdb("over").catch(() => {}); }
-    this.record().catch(() => {}); this.recordRating().catch(() => {});
+    try { L.sum = this.summary(); } catch { L.sum = undefined; }
+    const mid = this.matchId(), bg = (p: Promise<any>) => { const q = p.catch(() => {}); this.ctx.waitUntil?.(q); }; // t1236: запись итога/рейтинга — в waitUntil (раньше «висячие» промисы)
+    bg(this.record()); bg(this.recordRating(mid));
     this.lastReport = ""; this.report(); // t1231: сразу снять партию из «Продолжить» (не ждать save)
   }
   /** Итог партии в D1 (strat_matches; миграция 0025). Опыт Полководца — этап 7. */
@@ -398,23 +410,44 @@ export class StratMatch extends DurableObject {
     await db.prepare("INSERT OR REPLACE INTO strat_matches (id, code, size, p0, p1, race0, race1, first, winner, reason, turns, turn_limit, map_id, xp, cfg_version, started_at, ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
       .bind(this.matchId(), L.code, L.size, L.seats[0]!.pkey, L.seats[1]!.pkey, g.races[0], g.races[1], g.first, g.winner, g.reason, g.turn, g.turnLimit, L.mapId || "", this.xpAllowed() ? 1 : 0, this.cfg().version, L.created, Date.now()).run();
   }
-  matchId() { const L = this.L!; return L.code + ":" + L.created; }
+  matchId() { const L = this.L!; return L.mid || L.code + ":" + L.created; }
+  /** t1236: статистика сторон для «Итогов партии» (без рейтинга — его добавляет recordRating). */
+  summary() {
+    const L = this.L!, g = L.game!, C = this.cfg(), ec: any = g.ec, G: any = goalCfg(g, C), T = ec ? territory(g, C) : null, St: any = L.st || {};
+    const wonderB = (b: string) => b === "wonder" || (C as any).buildTpl?.[b]?.type === "wonder";
+    const side = (i: 0 | 1) => ({ goals: ec ? [...ec.goals[i]] : [], gt: ec ? { ...(ec.gt?.[i] || {}) } : {}, kills: St.kl?.[i] ?? 0, lost: St.ls?.[i] ?? 0, chiefKills: St.ck?.[i] ?? 0,
+      cities: ec ? ec.cities.filter((c: any) => c.owner === i).length : 0, cells: T ? T.reduce((n: number, v: number) => n + (v === i ? 1 : 0), 0) : 0,
+      goldIn: St.gi?.[i] ?? ec?.earned?.[i] ?? 0, goldOut: St.go?.[i] ?? 0, gold: ec ? Math.round(ec.res[i].gold) : 0, techs: ec ? ec.techs[i].length : 0,
+      wonders: ec ? ec.cities.filter((c: any) => c.owner === i).reduce((n: number, c: any) => n + c.bld.filter(wonderB).length, 0) : 0,
+      glory: ec ? Math.round(ec.res[i].glory) : 0, ults: St.ult?.[i]?.length ?? 0, units: g.pieces.filter((p) => p.owner === i).length, acts: L.acts?.[i] ?? 0,
+      activeMin: Math.round((L.activeMs?.[i] || 0) / 6e4) });
+    return { v: 1, mid: this.matchId(), winner: g.winner, reason: g.reason, turns: g.turn, turnLimit: g.turnLimit, size: L.size, need: G?.need ?? 6, list: G?.list ? [...G.list] : null,
+      mode: L.rated ? "ranked" : "normal", races: [...g.races], nicks: L.seats.map((s) => s?.nick || ""), bots: L.seats.map((s) => !!s?.bot), durMs: Date.now() - (St.start || L.created),
+      sides: [side(0), side(1)] };
+  }
   /** Рейтинг (1×1 сейчас; команды/FFA — через rateMatch по местам). Гости/боты/не пул/нестандарт — без рейтинга. */
-  async recordRating() {
+  async recordRating(mid = this.matchId()) {
     const L = this.L!, g = L.game!, env = this.env; if (!env.GAME_DB) return;
+    if (L.rating?.mid === mid) return; // t1236: по этой партии уже посчитано (повторный вызов — без второго начисления)
     const seats = L.seats as SeatS[], bots = seats.filter((s) => s?.bot).length, guests = seats.filter((s) => s && !s.bot && !s.verified).length;
     const ctx = { rated: !!L.rated, standard: L.turnMin == null && !L.devTurnMs, mapInPool: await mapInPool(env, L.map as any, L.mapStatus || (L.mapId && /^o/.test(L.mapId) ? "official" : "")),
       humans: seats.filter((s) => s && !s.bot).length, guests, bots, turns: g.turn, reason: g.reason };
     const goals = g.ec?.goals ? [g.ec.goals[0].length, g.ec.goals[1].length] : [undefined, undefined];
     const players = [0, 1].map((i) => ({ uid: seats[i].pkey, team: i, place: g.winner === 2 ? 1 : g.winner === i ? 1 : 2, goals: goals[i], actions: L.acts?.[i] || 0 }));
-    L.rating = await rateFinished(env, this.matchId(), L.size, ctx, players, (goalCfg(g, this.cfg()) as any).rate);
+    const R0: any = await rateFinished(env, mid, L.size, ctx, players, (goalCfg(g, this.cfg()) as any).rate);
+    if (this.matchId() !== mid) return; // пока ждали D1, начался реванш — итог старой партии в новую не пишем
+    L.rating = { ...R0, mid }; const dup = !!R0.dup;
     // опыт Полководца (косметика): активные минуты × итог × xpMul; гостям — никогда; карта не офиц./одобренная — 0
     const xp: (number | null)[] = [null, null];
-    for (const i of [0, 1] as const) { const s = seats[i]; if (!s || s.bot || !s.verified || !this.xpAllowed()) continue;
-      const mul = xpMul({ turns: g.turn, reason: g.reason, bots, botGamesToday: bots ? await botXpToday(env, s.pkey) : 0 });
-      const res = g.winner === 2 ? "draw" : g.winner === i ? "win" : "loss";
-      const got = matchXp(L.activeMs?.[i] || 0, res, mul); xp[i] = got; if (got > 0) await addXp(env, s.pkey, got, bots > 0); }
-    L.rating.xp = xp;
+    const xpd: any[] = [null, null]; // t1236: за что опыт — минуты × итог × множитель (или почему 0)
+    for (const i of [0, 1] as const) { const s = seats[i]; if (!s || s.bot) continue;
+      const res = g.winner === 2 ? "draw" : g.winner === i ? "win" : "loss", min = Math.min(600, Math.floor((L.activeMs?.[i] || 0) / 60_000)), rm = res === "win" ? 1.2 : res === "draw" ? 1 : 0.8;
+      if (!s.verified) { xpd[i] = { got: 0, why: "guest", min, res: rm }; continue; }
+      if (!this.xpAllowed()) { xpd[i] = { got: 0, why: "map", min, res: rm }; continue; }
+      const btd = bots ? await botXpToday(env, s.pkey) : 0, mul = xpMul({ turns: g.turn, reason: g.reason, bots, botGamesToday: btd });
+      const got = matchXp(L.activeMs?.[i] || 0, res, mul); xp[i] = got; if (got > 0 && !dup) await addXp(env, s.pkey, got, bots > 0);
+      xpd[i] = { got, min, res: rm, mul, why: got > 0 ? null : mul === 0 ? (earlyMul(g.turn, g.reason) === 0 ? "too_early" : "bot_limit") : "idle", bot: bots > 0, early: earlyMul(g.turn, g.reason), botLeft: bots ? Math.max(0, RATING_CFG.botXpPerDay - btd - 1) : null }; }
+    L.rating.xp = xp; L.rating.xpd = xpd;
     // монеты: только победителю рейтинговой партии
     const coins: (number | null)[] = [null, null];
     if ((L.rating as any).league) for (const i of [0, 1] as const) { const s = seats[i]; if (!s || s.bot || !s.verified || g.winner !== i) continue;
@@ -429,7 +462,9 @@ export class StratMatch extends DurableObject {
         league: leagueOf(L.size, L.size), size: L.size, map_id: L.mapId || null, turns: g.turn, duration_ms: Date.now() - (L.st?.start || L.created),
         techs: JSON.stringify(g.ec?.techs[i] || []), chief_type: ch?.type || null, chief_level: k ? pieceLevel(k, this.cfg()) : (ch?.hist?.at(-1)?.lvl ?? null),
         chief_kills: L.st?.ck[i] || 0, talents: JSON.stringify(L.st?.tal[i] || []), ults: JSON.stringify(L.st?.ult[i] || []), created_at: Date.now() }); }
-    try { await addStats(env, rows); } catch {}
+    if (!dup) try { await addStats(env, rows); } catch {}
+    if (L.sum && L.sum.mid === mid) { L.sum.rating = this.ratingView();
+      if (this.R && L.rid === this.R.id) { (this.R as any).sum = L.sum; (this.R as any)._m = 1; await this.rdb("over"); } } // в лог повтора — «Итоги» видны и в библиотеке
     await this.save(); this.broadcast();
   }
   /** Опыт за партию (сервер решает сам): только на официальных/одобренных картах. Гостям опыт не начисляется никогда. */
@@ -526,6 +561,7 @@ export class StratMatch extends DurableObject {
       if (L.phase === "play") { const sk = L.skips || [0, 0]; out.away = [0, 1].map((i) => ({ away: L.seats[i]?.goneAt != null, label: L.seats[i]?.goneAt != null ? "Игрок не за столом" : "", skips: sk[i] }));
         out.canClaim = (seat === 0 || seat === 1) && !!L.seats[1 - seat] && !L.seats[1 - seat]!.bot && canClaim(L.seats[1 - seat]!.goneAt != null, sk[1 - seat]); out.turnMin = this.turnMs() / 60000; }
     }
+    if (L.result && L.sum) out.sum = L.sum; // t1236: «Итоги партии»
     if (L.result) { out.result = { ...L.result }; const R = this.ratingView(); // клиент UI: result.rating[side] = {league, before, after, delta}
       if (R?.league) out.result.rating = Object.fromEntries(R.seats.map((x: any, i: number) => [i, x.delta == null ? null : { league: ({ quick: "fast", normal: "normal", tactical: "tactic" } as any)[R.league], before: x.rating - x.delta, after: x.rating, delta: x.delta, xp: x.xp, coins: x.coins }])); }
     if (L.game && out.g?.pieces && (seat === 0 || seat === 1) && L.phase === "play") { const g = L.game, C = this.cfg(); out.g.pdv = 1; // t1221: ждущий уровень и карты — только по своим фигурам

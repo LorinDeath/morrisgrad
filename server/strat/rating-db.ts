@@ -54,6 +54,12 @@ export function ratingCfgFor(rate?: { winA?: number; winB?: number; loseA?: numb
 }
 export async function rateFinished(env: any, matchId: string, size: number, ctx: RatedCtx, players: Omit<RPlayer, "r">[], rate?: any) {
   const league = leagueOf(size); if (!league) return { unrated: "size" };
+  // t1236: идемпотентно — повторный вызов по той же партии (перезапуск DO, повторный finish) рейтинг второй раз не меняет; проверка ДО лимита фарма (иначе сама партия попала бы в счёт)
+  if (players[0]?.uid && !players[0].uid.startsWith("guest:")) {
+    const done = (await env.GAME_DB.prepare("SELECT user_id, before, after FROM strat_rating_history WHERE user_id = ? AND match_id = ?").bind(players[0].uid, matchId).all()).results || [];
+    if (done.length) { const all = (await env.GAME_DB.prepare("SELECT user_id, before, after FROM strat_rating_history WHERE match_id = ? AND user_id IN (" + players.map(() => "?").join(",") + ")").bind(matchId, ...players.map((p) => p.uid)).all()).results || [];
+      return { league, dup: true, changes: Object.fromEntries(all.map((x: any) => [x.user_id, { rating: Math.round(x.after), delta: Math.round(x.after - x.before), before: Math.round(x.before) }])) }; }
+  }
   if (players.length === 2) ctx = { ...ctx, pairToday: await pairToday(env, players[0].uid, players[1].uid) };
   const why = unratedReason(ctx); if (why) return { unrated: why };
   const S = RATING_CFG.start, ps: RPlayer[] = [];
@@ -71,7 +77,10 @@ export async function rateFinished(env: any, matchId: string, size: number, ctx:
     st.push(env.GAME_DB.prepare("INSERT INTO strat_rating_history (user_id, league, match_id, before, after, rd, result, opp, created_at) VALUES (?,?,?,?,?,?,?,?,?)")
       .bind(p.uid, league, matchId, p.r.rating, n.rating, n.rd, w ? 1 : d ? 0.5 : 0, opp, now)); }
   await env.GAME_DB.batch(st);
-  return { league, changes: Object.fromEntries(Object.entries(res).map(([k, v]) => [k, { rating: Math.round(v.rating), delta: v.delta }])) };
+  const changes: Record<string, any> = {};
+  for (const [k, v] of Object.entries(res)) { let pl: any = null; try { pl = await myPlace(env, k, league); } catch {}
+    changes[k] = { rating: Math.round(v.rating), delta: v.delta, before: v.bd?.before, bd: v.bd, place: pl?.place ?? null, total: pl?.total ?? null, left: pl?.left ?? null }; }
+  return { league, changes };
 }
 
 // ---------- «Полководец» (косметика; миграция 0027)

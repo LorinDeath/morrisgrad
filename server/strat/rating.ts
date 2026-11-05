@@ -8,10 +8,10 @@ export const RATING_CFG = {
   tau: 0.5, minRd: 45, maxRd: 350,
   provisional: 10,                       // первые 10 партий — «?» у рейтинга
   leagues: { quickMax: 9, normalMax: 29, tacticalMax: 100 } as Record<string, number>, // по большей стороне карты
-  // t1208: множитель изменения рейтинга по разнице целей d = цели победителя − цели проигравшего (1…5; 0 на лимите при равенстве целей → как 1).
+  // t1208: множитель изменения рейтинга по разнице целей d = цели победителя − цели проигравшего (1…6; 0 на лимите при равенстве целей → как 1).
   // Победителю K·(a − b·d): близкая партия (d=1) — много, разгром (d=5) — мало. Проигравшему K·(a + b·d): d=1 — теряет мало, d=5 — много.
   // Ожидание по рейтингам (Glicko-2) учитывается как прежде; ничья — обычный Glicko со счётом 0,5. Сдача/неявка — проигравшему как при d = abandonD.
-  margin: { win: { a: 1.4, b: 0.2 }, lose: { a: 0.4, b: 0.25 }, dMax: 5, abandonD: 5, min: 0.2, max: 2 },
+  margin: { win: { a: 1.4, b: 0.2 }, lose: { a: 0.4, b: 0.25 }, dMax: 6, abandonD: 6, min: 0.2, max: 2 }, // t1236: целей 6 → d до 6 (6–0 — полный разгром)
   early: { none: 5, quarter: 10, mul: 0.25 }, // конец (сдача/неявка) до 5-го хода — без рейтинга и опыта; 5–9 — ×0,25
   idleLoserMul: 0.25,                    // проигравший не сделал ни одного действия — победителю ×0,25
   farmPerDay: 3,                         // одна и та же пара — не больше 3 рейтинговых партий в сутки
@@ -83,20 +83,29 @@ export function xpMul(c: { turns: number; reason: string; bots: number; botGames
 // ---------- расчёт по итогу партии (1×1, команды, FFA)
 export type RPlayer = { uid: string; team: number; place: number; goals?: number; actions: number; r: Rating }; // place: 1 — лучший (по команде)
 /** Возвращает новые рейтинги. Команды: средний рейтинг/RD команды против среднего соперника. FFA: попарно по месту. */
-export function rateMatch(ps: RPlayer[], turns: number, reason: string, C = RATING_CFG): Record<string, Rating & { delta: number }> {
-  const em = earlyMul(turns, reason, C), out: Record<string, Rating & { delta: number }> = {}; if (!em) return out;
+/** t1236: разбор изменения для окна «Итоги партии». base — сдвиг Glicko-2 без множителей (результат против ожидания по рейтингам);
+ *  K — множитель по разнице целей (a ∓ b·d, коэффициенты лиги), early — ранний конец, idle — проигравший без действий; итог = base × K × early × idle. */
+export type RBreak = { before: number; after: number; delta: number; score: number; exp: number; base: number; d: number | null; K: number; a: number; b: number; early: number; idle: number; abandon: boolean; rd: number; prov: boolean };
+export function rateMatch(ps: RPlayer[], turns: number, reason: string, C = RATING_CFG): Record<string, Rating & { delta: number; bd?: RBreak }> {
+  const em = earlyMul(turns, reason, C), out: Record<string, Rating & { delta: number; bd?: RBreak }> = {}; if (!em) return out;
   const teams = new Map<number, RPlayer[]>(); for (const p of ps) teams.set(p.team, [...(teams.get(p.team) || []), p]);
   const avg = (t: RPlayer[]) => ({ rating: t.reduce((s, p) => s + p.r.rating, 0) / t.length, rd: Math.sqrt(t.reduce((s, p) => s + p.r.rd ** 2, 0) / t.length) });
   const tl = [...teams.entries()].map(([id, m]) => ({ id, m, place: Math.min(...m.map((p) => p.place)), goals: Math.max(...m.map((p) => p.goals ?? -1)), idle: m.every((p) => p.actions === 0), avg: avg(m) }));
   for (const t of tl) {
-    const res: { opp: { rating: number; rd: number }; score: number }[] = []; let mulSum = 0;
+    const res: { opp: { rating: number; rd: number }; score: number }[] = []; let mulSum = 0, kSum = 0, idSum = 0, dLast: number | null = null, sSum = 0;
+    const ab = isAbandon(reason);
     for (const o of tl) { if (o === t) continue;
-      const score = t.place < o.place ? 1 : t.place > o.place ? 0 : 0.5; res.push({ opp: o.avg, score });
-      const d = t.goals < 0 || o.goals < 0 ? undefined : Math.abs(t.goals - o.goals), ab = isAbandon(reason);
-      let m = 1; if (score === 1) { m = marginMul(true, d, C); if (o.idle) m *= C.idleLoserMul; } else if (score === 0) m = marginMul(false, ab ? C.margin.abandonD : d, C);
-      mulSum += m; }
-    const mul = em * (res.length ? mulSum / res.length : 1);
-    for (const p of t.m) { const n = glicko2(p.r, res, mul, C); out[p.uid] = { ...n, delta: Math.round(n.rating - p.r.rating) }; }
+      const score = t.place < o.place ? 1 : t.place > o.place ? 0 : 0.5; res.push({ opp: o.avg, score }); sSum += score;
+      const d = t.goals < 0 || o.goals < 0 ? undefined : Math.abs(t.goals - o.goals);
+      let k = 1, idl = 1; if (score === 1) { k = marginMul(true, d, C); if (o.idle) idl = C.idleLoserMul; } else if (score === 0) k = marginMul(false, ab ? C.margin.abandonD : d, C);
+      dLast = score === 0 && ab ? C.margin.abandonD : d ?? null; kSum += k; idSum += idl; mulSum += k * idl; }
+    const nn = res.length || 1, mul = em * (res.length ? mulSum / res.length : 1), K = res.length ? kSum / nn : 1, idle = res.length ? idSum / nn : 1, sc = res.length ? sSum / nn : 0.5;
+    const won = sc > 0.5, M = C.margin, ab_ = won ? M.win : M.lose;
+    for (const p of t.m) { const n = glicko2(p.r, res, mul, C), n1 = glicko2(p.r, res, 1, C);
+      const mu = (p.r.rating - 1500) / SCALE, exp = res.reduce((s, r) => s + E_(mu, (r.opp.rating - 1500) / SCALE, r.opp.rd / SCALE), 0) / nn;
+      const delta = Math.round(n.rating - p.r.rating);
+      out[p.uid] = { ...n, delta, bd: { before: Math.round(p.r.rating), after: Math.round(n.rating), delta, score: sc, exp: Math.round(exp * 1000) / 1000, base: Math.round((n1.rating - p.r.rating) * 10) / 10,
+        d: dLast, K: Math.round(K * 1000) / 1000, a: ab_.a, b: ab_.b, early: em, idle, abandon: ab && !won && sc < 0.5, rd: Math.round(n.rd), prov: n.games < C.provisional } }; }
   }
   return out;
 }

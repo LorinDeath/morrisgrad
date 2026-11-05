@@ -14,7 +14,7 @@ export type Frame = { turn: number; cur: number; v?: number; g: any; ev: any[]; 
 export type LibItem = { id: string; code?: string; at: number; races: string[]; nicks: string[]; winner?: number | null; turns?: number; league?: string; saved?: boolean; local?: boolean; title?: string; rated?: boolean; srv?: boolean };
 /** §14.I сервер повторов: idx[k] — номер действия для кадра k (конец полухода), list — действия с dt, div — первое расхождение. */
 export type RpInfo = { id: string; n: number; idx: number[]; turns: { turn: number; side: number; from: number; to: number }[]; list: { i: number; side?: number; n?: string; dt?: number; auto?: number }[]; rulesChanged?: boolean; div?: number | null };
-export type Rec = LibItem & { you?: number; map?: any; frames: Frame[]; rp?: RpInfo };
+export type Rec = LibItem & { you?: number; map?: any; frames: Frame[]; rp?: RpInfo; sum?: any }; // t1236: sum — «Итоги партии» (сервер: лог повтора .sum)
 
 const num = (v: any, d = 0) => (Number.isFinite(+v) ? +v : d);
 /** Кадры из любого из ожидаемых видов ответа. */
@@ -161,7 +161,7 @@ export function whyHtml(w: { title: string; rows: [string, string][]; foot?: str
 }
 
 // ---------- разметка ----------
-export function viewBarHtml(o: { turn: number; side: string; live: boolean; replay: boolean; idx: number; max: number; playing: boolean; speed: number; canSave: boolean; saved: boolean; warn?: string[] }): string {
+export function viewBarHtml(o: { turn: number; side: string; live: boolean; replay: boolean; idx: number; max: number; playing: boolean; speed: number; canSave: boolean; saved: boolean; warn?: string[]; canSum?: boolean }): string {
   const sp = [0, 0.5, 1, 2, 4]; // 0 — «как было» (по dt действий)
   return `<div class="hv-l">${ic("rp_hist")}<span class="hv-t">${o.replay ? "Повтор" : "Просмотр"} · ход <b>${o.turn}</b></span><small class="hv-s"></small></div>${o.warn?.length ? `<span class="hv-w" role="note">${ic("warn")}<span>${o.warn.map(esc).join(" · ")}</span></span>` : ""}
     <div class="hv-c"><button class="hv-b" data-hv="first" aria-label="В начало" data-tip="В начало">${ic("rp_start")}</button><button class="hv-b" data-hv="prev" aria-label="Ход назад" data-tip="Назад (←)">${ic("rp_back")}</button>
@@ -169,6 +169,7 @@ export function viewBarHtml(o: { turn: number; side: string; live: boolean; repl
     <button class="hv-b" data-hv="next" aria-label="Ход вперёд" data-tip="Вперёд (→)">${ic("rp_fwd")}</button><button class="hv-b" data-hv="last" aria-label="${o.replay ? "В конец" : "К игре"}" data-tip="${o.replay ? "В конец" : "К текущему ходу"}">${ic("rp_end")}</button></div>
     <input class="hv-scrub" type="range" min="0" max="${Math.max(0, o.max)}" value="${o.idx}" aria-label="Ход партии">
     ${o.replay ? `<div class="hv-sp" role="group" aria-label="Скорость">${sp.map((s) => `<button class="hv-spb ${s === o.speed ? "on" : ""}" data-sp="${s}" ${s ? "" : `data-tip="Скорость как в партии — по времени каждого действия"`}>${s ? s + "×" : "как было"}</button>`).join("")}</div>` : ""}
+    ${o.canSum ? `<button class="btn sm" data-hv="sum" data-tip="Итоги партии: рейтинг, опыт, статистика">${ic("scales")}<span>Итоги</span></button>` : ""}
     ${o.canSave ? `<button class="btn sm ${o.saved ? "" : "gold"}" data-hv="save" ${o.saved ? "disabled" : ""}>${ic("rp_save")}<span>${o.saved ? "Сохранено" : "Сохранить"}</span></button>` : ""}
     ${o.replay ? `<button class="btn sm ghost" data-hv="close">${ic("close")}<span>Закрыть</span></button>` : `<button class="btn sm gold" data-hv="live">${ic("arrow")}<span>К игре</span></button>`}`;
 }
