@@ -77,10 +77,10 @@ const title = 'Боевые шахматы | Моррис Град';
         </div>
         <button class="btn gold big" id="create" type="button">Начать</button>
         <label class="chk" id="lob-private-wrap"><input type="checkbox" id="lob-private" /> <span>закрытое лобби (только по коду)</span></label>
-        <p class="cc-note">ОД: старт 2, +1 каждые 15 своих ходов. За 1 ОД — ход, удар или способность.</p>
+        <p class="cc-note">Онлайн: очередь по рейтингу, 5 мин на ход, 30 мин на партию. ОД: старт 2, +1 каждые 15 ходов.</p>
       </div>
       <div class="cc-panel">
-        <h2>Ждут соперника <button class="btn ghost" id="refresh" type="button" aria-label="Обновить">↻</button></h2>
+        <h2>Комнаты по коду <button class="btn ghost" id="refresh" type="button" aria-label="Обновить">↻</button></h2>
         <div id="open" class="openlist"><div class="empty">Загрузка…</div></div>
         <h3>Кампания</h3>
         <p class="cc-note">Одиночные главы и карты из редактора.</p>
@@ -95,11 +95,11 @@ const title = 'Боевые шахматы | Моррис Град';
 
   <section id="sc-wait" class="cc-screen">
     <div class="cc-panel cc-wait">
-      <h2>Онлайн-лобби</h2>
-      <div class="wait-code"><span>Код</span><b id="wait-code">······</b><button class="btn ghost" id="wait-copy" type="button">Копировать</button></div>
+      <h2 id="wait-title">Поиск соперника</h2>
+      <div class="wait-code" id="wait-code-wrap"><span id="wait-code-lbl">Код</span><b id="wait-code">······</b><button class="btn ghost" id="wait-copy" type="button">Копировать</button></div>
       <p class="cc-note" id="wait-msg"></p>
       <div class="wait-seats" id="wait-seats"></div>
-      <button class="btn ghost big" id="wait-cancel" type="button">Отмена</button>
+      <button class="btn ghost big" id="wait-cancel" type="button">Отменить поиск</button>
     </div>
   </section>
 
@@ -108,6 +108,10 @@ const title = 'Боевые шахматы | Моррис Град';
       <div class="cc-board-wrap">
         <div class="cc-hud">
           <div class="cc-side" id="turn-label">Ход</div>
+          <div class="cc-timers" id="cc-timers" hidden>
+            <span class="tm" title="На ход · макс 5 мин"><i>ход</i> <b id="tm-turn">5:00</b></span>
+            <span class="tm" title="Партия · макс 30 мин"><i>партия</i> <b id="tm-match">30:00</b></span>
+          </div>
           <div class="cc-ap" title="Очки действия: старт 2, +1 каждые 15 своих ходов">
             <span class="lbl">ОД</span> <span id="ap-num">2/2</span>
             <span class="pips" id="ap-pips"></span>

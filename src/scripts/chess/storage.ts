@@ -27,7 +27,7 @@ export type ChessMap = {
 export type Chapter = { id: string; title: string; maps: ChessMap[] };
 export type Campaign = { id: string; title: string; cover?: string; chapters: Chapter[]; updated: number };
 
-export type MenuAction = "bot" | "host" | "join" | "campaign" | "map" | "url" | "none";
+export type MenuAction = "bot" | "host" | "join" | "find" | "campaign" | "map" | "url" | "none";
 export type MenuBtn = { id: string; label: string; style: "gold" | "normal" | "ghost"; action: MenuAction; targetId: string };
 export type HomeMenu = { title: string; tag: string; bg: "hall" | "terrace"; buttons: MenuBtn[] };
 
@@ -59,9 +59,10 @@ export const DEFAULT_HOME: HomeMenu = {
   tag: "Убей короля — это мат. ОД растут каждые 15 твоих ходов.",
   bg: "hall",
   buttons: [
-    { id: "bot", label: "С ботом", style: "gold", action: "bot", targetId: "" },
-    { id: "host", label: "Создать лобби", style: "normal", action: "host", targetId: "" },
+    { id: "find", label: "Найти соперника", style: "gold", action: "find", targetId: "" },
+    { id: "bot", label: "С ботом", style: "normal", action: "bot", targetId: "" },
     { id: "join", label: "Войти по коду", style: "normal", action: "join", targetId: "" },
+    { id: "host", label: "Комната для друга", style: "ghost", action: "host", targetId: "" },
   ],
 };
 
@@ -79,19 +80,25 @@ export const loadHomeMenu = (): HomeMenu => {
   try {
     const m = JSON.parse(localStorage.getItem(MENU_KEY) || "null");
     if (!m || typeof m !== "object") return { ...DEFAULT_HOME, buttons: DEFAULT_HOME.buttons.map((b) => ({ ...b })) };
+    const buttons: MenuBtn[] = Array.isArray(m.buttons)
+      ? m.buttons.slice(0, 12).map((b: any, i: number) => ({
+          id: String(b.id || "b" + i).slice(0, 24),
+          label: String(b.label || "Кнопка").slice(0, 40),
+          style: b.style === "gold" || b.style === "ghost" ? b.style : "normal",
+          action: (["bot", "host", "join", "find", "campaign", "map", "url", "none"] as MenuAction[]).includes(b.action) ? b.action : "none",
+          targetId: String(b.targetId || "").slice(0, 200),
+        }))
+      : DEFAULT_HOME.buttons.map((b) => ({ ...b }));
+    // миграция: старые меню без очереди — вставляем «Найти соперника»
+    if (!buttons.some((b) => b.action === "find")) {
+      for (const b of buttons) if (b.style === "gold" && b.action === "bot") b.style = "normal";
+      buttons.unshift({ id: "find", label: "Найти соперника", style: "gold", action: "find", targetId: "" });
+    }
     return {
       title: String(m.title || DEFAULT_HOME.title).slice(0, 64),
       tag: String(m.tag || DEFAULT_HOME.tag).slice(0, 200),
       bg: m.bg === "terrace" ? "terrace" : "hall",
-      buttons: Array.isArray(m.buttons)
-        ? m.buttons.slice(0, 12).map((b: any, i: number) => ({
-            id: String(b.id || "b" + i).slice(0, 24),
-            label: String(b.label || "Кнопка").slice(0, 40),
-            style: b.style === "gold" || b.style === "ghost" ? b.style : "normal",
-            action: (["bot", "host", "join", "campaign", "map", "url", "none"] as MenuAction[]).includes(b.action) ? b.action : "none",
-            targetId: String(b.targetId || "").slice(0, 200),
-          }))
-        : DEFAULT_HOME.buttons.map((b) => ({ ...b })),
+      buttons,
     };
   } catch {
     return { ...DEFAULT_HOME, buttons: DEFAULT_HOME.buttons.map((b) => ({ ...b })) };

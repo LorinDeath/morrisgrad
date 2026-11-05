@@ -600,3 +600,13 @@ html, body { margin: 0; padding: 0; background: var(--cc-bg); color: var(--cc-te
 .cc-admin-link:hover { background: rgba(212,175,90,.12); }
 .cc-admin-link[hidden], #admin-link-btn[hidden] { display: none !important; }
 #admin-link-btn:not([hidden]) { display: inline-block !important; }
+
+.cc-timers { display: flex; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+.cc-timers .tm { display: flex; flex-direction: column; align-items: center; min-width: 3.2rem;
+  padding: 2px 8px; border: 1px solid rgba(212,175,55,.35); border-radius: 8px; background: rgba(0,0,0,.35); }
+.cc-timers .tm i { font-style: normal; font-size: .65rem; opacity: .7; letter-spacing: .04em; }
+.cc-timers .tm b { font-size: .95rem; color: #f3e6b5; }
+.cc-timers .tm.low b { color: #ff8a6a; }
+.cc-timers .tm.crit b { color: #ff4d4d; animation: cc-blink 1s step-end infinite; }
+@keyframes cc-blink { 50% { opacity: .35; } }
+.cc-wait.searching .wait-code { opacity: .55; }

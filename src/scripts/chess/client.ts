@@ -30,7 +30,7 @@ const PROP = (name: string, ph = 0) => {
 const PROP_FRAMES: Record<string, number> = { portal: 8, lamp: 8, crystal: 4 };
 const PROP_ANCHOR: [number, number] = [32, 60]; // manifest.anchor_prop @64
 
-type Mode = "bot" | "host" | "join";
+type Mode = "bot" | "host" | "join" | "find";
 type MapProp = { prop: string; x: number; y: number };
 type MapSpecial = { kind: "danger" | "boost"; x: number; y: number };
 type MapDecor = { bg: "hall" | "terrace"; props: MapProp[]; special: MapSpecial[] };
@@ -52,7 +52,7 @@ const DEMO_MAP: MapDecor = {
   ],
 };
 
-let playMode: Mode = "bot";
+let playMode: Mode = "find";
 let G: Game | null = null;
 let mySide: Side = "w";
 let vsBot = true;
@@ -153,6 +153,7 @@ function show(sc: typeof screen) {
   screen = sc;
   document.querySelectorAll(".cc-screen").forEach((el) => el.classList.toggle("on", el.id === "sc-" + sc));
   document.body.dataset.screen = sc;
+  if (sc !== "play") { clearInterval(clockUiT); const box = $("#cc-timers"); if (box) box.hidden = true; }
 }
 
 let clerkUser: { id: string; name: string } | null = null;
@@ -261,12 +262,13 @@ function renderHomeMenu() {
   if (box) {
     const btns = homeMenu.buttons.length ? homeMenu.buttons : DEFAULT_HOME.buttons;
     box.innerHTML = btns.map((b) => {
-      const pm = b.action === "bot" || b.action === "host" || b.action === "join" ? ` data-pm="${b.action}"` : "";
+      const pm = b.action === "bot" || b.action === "host" || b.action === "join" || b.action === "find" ? ` data-pm="${b.action}"` : "";
       const cls = `btn cc-mode ${b.style === "gold" ? "gold" : ""} ${b.style === "ghost" ? "ghost" : ""}${b.action === playMode ? " on" : ""}`;
       return `<button type="button" class="${cls}" data-bid="${b.id}"${pm}><b>${b.label}</b><small>${
-        b.action === "bot" ? "сразу за стол, рейтинг не считается"
+        b.action === "find" ? "очередь · матч по рейтингу · 5 мин/ход"
+        : b.action === "bot" ? "сразу за стол, рейтинг не считается"
         : b.action === "host" ? "код для друга · 8×8"
-        : b.action === "join" ? "онлайн 1×1"
+        : b.action === "join" ? "онлайн 1×1 по коду"
         : b.action === "campaign" ? "глава кампании"
         : b.action === "map" ? "карта из редактора"
         : b.action === "url" ? "ссылка"
@@ -277,6 +279,7 @@ function renderHomeMenu() {
       const id = (el as HTMLElement).dataset.bid!;
       const b = (homeMenu.buttons.length ? homeMenu.buttons : DEFAULT_HOME.buttons).find((x) => x.id === id);
       if (!b) return;
+      if (b.action === "find") { setMode("find"); startMatchmaking(); return; }
       if (b.action === "bot" || b.action === "host" || b.action === "join") setMode(b.action);
       else startFromMenu(b);
     }));
@@ -349,7 +352,7 @@ async function refreshOpen() {
 // ───────────────────────── онлайн 1×1 (ChessMatch DO, ходы авторитетны на сервере) ─────────────────────────
 const WSB = HTTP.replace(/^http/, "ws");
 type SeatV = { nick: string; side: Side; rated: boolean; rating: number | null; online: boolean };
-type ResV = { winner: Side; reason: "mate" | "resign" | "forfeit"; turns: number; ap: Record<Side, number>; unrated: string | null;
+type ResV = { winner: Side; reason: "mate" | "resign" | "forfeit" | "timeout"; turns: number; ap: Record<Side, number>; unrated: string | null;
   seats: { nick: string; side: Side; rating: { before: number; after: number; delta: number; provisional: boolean } | null }[] };
 let net: WebSocket | null = null;
 let online = false;
@@ -358,6 +361,13 @@ let netSeats: SeatV[] = [];
 let netRated = false;
 let netRetry = 0;
 let netClosedByMe = false;
+let mmTicket = "";
+let mmPollT = 0;
+let mmActive = false;
+let clockTurnAt: number | null = null;
+let clockMatchAt: number | null = null;
+let clockSkew = 0; // serverNow - clientNow approx
+let clockUiT = 0;
 
 async function helloIdent(): Promise<Record<string, string>> {
   if (LOCAL && qs.get("devUser")) return { userId: qs.get("devUser")!, nick: nick() };
@@ -372,9 +382,15 @@ async function authQuery(): Promise<{ q: string; h: Record<string, string> } | n
   return null;
 }
 
-function waitScreen(code: string, msg: string) {
+function waitScreen(code: string, msg: string, opts?: { searching?: boolean; title?: string }) {
   show("wait");
-  const c = $("#wait-code"); if (c) c.textContent = code || "······";
+  const panel = document.querySelector(".cc-wait");
+  panel?.classList.toggle("searching", !!opts?.searching);
+  const title = $("#wait-title"); if (title) title.textContent = opts?.title || (opts?.searching ? "Поиск соперника" : "Онлайн-лобби");
+  const c = $("#wait-code"); if (c) c.textContent = code || (opts?.searching ? "ПОИСК" : "······");
+  const lbl = $("#wait-code-lbl"); if (lbl) lbl.textContent = opts?.searching ? "Статус" : "Код";
+  const copy = $("#wait-copy"); if (copy) (copy as HTMLElement).hidden = !!opts?.searching;
+  const cancel = $("#wait-cancel"); if (cancel) cancel.textContent = opts?.searching ? "Отменить поиск" : "Отмена";
   const m = $("#wait-msg"); if (m) m.textContent = msg;
   renderSeats();
 }
@@ -395,33 +411,84 @@ function netClose() { netClosedByMe = true; try { net?.close(); } catch {} net =
 async function connectOnline(code: string) {
   netClose(); netClosedByMe = false;
   netCode = code; online = true; netSeats = [];
+  // ident ДО открытия WS — иначе open успевает раньше addEventListener (баг инкогнито/join)
+  let ident: Record<string, string>;
+  try { ident = await helloIdent(); }
+  catch { show("home"); toast("Не удалось определить игрока"); online = false; return; }
   const ws = new WebSocket(`${WSB}/chess/m/${code}`); net = ws;
-  const ident = await helloIdent();
-  ws.addEventListener("open", () => { netRetry = 0; ws.send(JSON.stringify({ type: "hello", ...ident })); });
+  const sendHello = () => { netRetry = 0; try { ws.send(JSON.stringify({ type: "hello", ...ident })); } catch {} };
+  ws.addEventListener("open", sendHello);
+  if (ws.readyState === WebSocket.OPEN) sendHello();
   ws.addEventListener("message", (e) => { if (net === ws) onNet(JSON.parse(String(e.data))); });
+  ws.addEventListener("error", () => {
+    if (net !== ws || netClosedByMe) return;
+    toast("Не удалось подключиться к комнате");
+    stopMatchmaking(false); netClose(); show("home"); refreshOpen();
+  });
   ws.addEventListener("close", () => {
     if (net !== ws || netClosedByMe) return;
     if (G && !G.winner && netRetry < 6) { netRetry++; toast("Связь потеряна — переподключаюсь…"); setTimeout(() => { if (net === ws) reconnect(); }, 600 * netRetry); }
+    else if (!G || screen === "wait") { toast("Соединение закрыто"); stopMatchmaking(false); show("home"); refreshOpen(); }
   });
 }
 async function reconnect() { const c = netCode; const keepG = G; await connectOnline(c); G = keepG; online = true; }
 
+function applyClock(c: any) {
+  if (!c) return;
+  if (typeof c.now === "number") clockSkew = c.now - Date.now();
+  clockTurnAt = typeof c.turnDeadline === "number" ? c.turnDeadline : null;
+  clockMatchAt = typeof c.matchDeadline === "number" ? c.matchDeadline : null;
+  const box = $("#cc-timers"); if (box) box.hidden = !(clockTurnAt || clockMatchAt);
+  tickClocks();
+}
+function fmtLeft(ms: number) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(s / 60), r = s % 60;
+  return m + ":" + String(r).padStart(2, "0");
+}
+function tickClocks() {
+  const srvNow = Date.now() + clockSkew;
+  const turnEl = $("#tm-turn"), matchEl = $("#tm-match");
+  const turnWrap = turnEl?.parentElement, matchWrap = matchEl?.parentElement;
+  if (turnEl && clockTurnAt != null) {
+    const left = clockTurnAt - srvNow;
+    turnEl.textContent = fmtLeft(left);
+    turnWrap?.classList.toggle("low", left <= 60_000);
+    turnWrap?.classList.toggle("crit", left <= 15_000);
+  }
+  if (matchEl && clockMatchAt != null) {
+    const left = clockMatchAt - srvNow;
+    matchEl.textContent = fmtLeft(left);
+    matchWrap?.classList.toggle("low", left <= 5 * 60_000);
+    matchWrap?.classList.toggle("crit", left <= 60_000);
+  }
+}
+function ensureClockUi() {
+  clearInterval(clockUiT);
+  if (online && (clockTurnAt || clockMatchAt)) clockUiT = window.setInterval(tickClocks, 250);
+}
+
 function onNet(m: any) {
   if (m.type === "err") {
-    if (m.err === "full") { netClose(); toast("Лобби уже занято"); show("home"); refreshOpen(); }
+    if (m.err === "full" || m.err === "not_in_match") { netClose(); stopMatchmaking(false); toast(m.err === "full" ? "Лобби уже занято" : "Матч недоступен"); show("home"); refreshOpen(); }
+    else if (m.err === "lobby_expired") { netClose(); stopMatchmaking(false); toast("Лобби истекло"); show("home"); refreshOpen(); }
     else if (m.err?.startsWith?.("auth")) toast("Сессия не подтвердилась — войди заново");
     else if (m.err !== "illegal") toast("Сервер: " + m.err);
     return;
   }
+  if (m.type === "left") { return; }
   if (m.type === "hello_ok") { mySide = m.you.side; netRated = !!m.you.rated; return; }
   if (m.type === "lobby") {
     netSeats = m.lobby.seats || [];
+    if (m.lobby.turnDeadline || m.lobby.matchDeadline) applyClock(m.lobby);
     if (screen === "wait") renderSeats();
     if (screen === "play") draw();
     return;
   }
+  if (m.type === "pong" && m.clock) applyClock(m.clock);
   if (m.type === "state") {
     const st = m.state as Game;
+    if (m.clock) applyClock(m.clock);
     if (!G || m.start || screen !== "play") { beginOnline(st); return; }
     const before = G.pieces.map((q) => ({ ...q }));
     const shB = { w: G.shield.w ? { ...G.shield.w } : null, b: G.shield.b ? { ...G.shield.b } : null };
@@ -443,9 +510,58 @@ function beginOnline(st: Game) {
   tweens.clear(); atks.clear(); punches.clear(); hpView.clear(); fxs = [];
   applyMap({ bg: "hall", props: [], special: [] }); // онлайн-классика — только фигуры
   lastSide = G.side; lastAp = G.ap;
-  show("play"); draw();
+  mmActive = false; clearInterval(mmPollT);
+  show("play"); ensureClockUi(); draw();
   const opp = netSeats.find((s) => s.side !== mySide);
   fxs.push({ k: "banner", t0: now() + 150, dur: 1300, text: G.side === mySide ? "Ваш ход" : "Ход соперника", sub: `вы — ${mySide === "w" ? "светлые" : "тёмные"}${opp ? " · против " + opp.nick : ""}` });
+}
+
+
+async function startMatchmaking() {
+  stopMatchmaking(false);
+  mmActive = true;
+  waitScreen("", "Ищем соперника по рейтингу… Если в очереди двое — сыграете, даже при большой разнице.", { searching: true, title: "Поиск соперника" });
+  try {
+    const ident = await helloIdent();
+    const r = await fetch(HTTP + "/chess/mm/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(ident) });
+    const j: any = await r.json();
+    if (!r.ok || j.err) throw new Error(j.err || "mm");
+    mmTicket = j.ticket || "";
+    if (j.status === "matched" && j.code) {
+      waitScreen(j.code, "Соперник найден — подключаемся…", { searching: true });
+      await connectOnline(j.code);
+      return;
+    }
+    waitScreen("", "В очереди… Можно отменить поиск.", { searching: true });
+    mmPollT = window.setInterval(pollMatchmaking, 1500);
+  } catch {
+    mmActive = false;
+    show("home");
+    toast("Очередь недоступна — можно сыграть с ботом или войти по коду");
+  }
+}
+async function pollMatchmaking() {
+  if (!mmActive || !mmTicket) return;
+  try {
+    const r = await fetch(HTTP + "/chess/mm/status?ticket=" + encodeURIComponent(mmTicket));
+    const j: any = await r.json();
+    if (j.status === "matched" && j.code) {
+      clearInterval(mmPollT);
+      waitScreen(j.code, "Соперник найден — подключаемся…", { searching: true });
+      await connectOnline(j.code);
+    } else if (j.status === "cancelled" || j.status === "gone") {
+      stopMatchmaking(false); show("home"); toast("Поиск остановлен");
+    }
+  } catch { /* soft */ }
+}
+function stopMatchmaking(notifyServer: boolean) {
+  clearInterval(mmPollT); mmPollT = 0; mmActive = false;
+  const ticket = mmTicket; mmTicket = "";
+  if (notifyServer && ticket) {
+    helloIdent().then((ident) => {
+      fetch(HTTP + "/chess/mm/leave", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticket, ...ident }) }).catch(() => {});
+    }).catch(() => {});
+  }
 }
 
 async function createLobby() {
@@ -455,7 +571,7 @@ async function createLobby() {
     const r = await fetch(HTTP + "/chess/new", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pub: !(($("#lob-private") as HTMLInputElement)?.checked) }) });
     const j: any = await r.json();
     if (!j.code) throw new Error(j.err || "fail");
-    waitScreen(j.code, "Отправь код другу или жди — лобби видно в списке «Ждут соперника».");
+    waitScreen(j.code, "Отправь код другу. Можно отменить — комната не будет висеть вечно.");
     await connectOnline(j.code);
   } catch {
     show("home"); toast("Сервер лобби недоступен — можно сыграть с ботом");
@@ -480,7 +596,10 @@ function toast(t: string) {
 function finishOnline(r: ResV) {
   const won = r.winner === mySide;
   resultInfo = { winner: r.winner, delta: null };
-  const why = r.reason === "mate" ? "ставят <b>мат</b> — король пал" : r.reason === "resign" ? "побеждают — соперник сдался" : "побеждают — соперник не вернулся";
+  const why = r.reason === "mate" ? "ставят <b>мат</b> — король пал"
+    : r.reason === "resign" ? "побеждают — соперник сдался"
+    : r.reason === "timeout" ? "побеждают — время хода/партии вышло"
+    : "побеждают — соперник не вернулся";
   const unr: Record<string, string> = { guest: "гость в партии — рейтинг не считается", too_early: "слишком короткая партия — без рейтинга", self: "сам с собой — без рейтинга", no_db: "рейтинг недоступен", db_error: "ошибка записи рейтинга" };
   const rows = (["w", "b"] as Side[]).map((sd) => {
     const x = r.seats.find((q) => q.side === sd); if (!x) return "";
@@ -496,7 +615,7 @@ function finishOnline(r: ResV) {
     ${r.unrated ? `<p class="cc-note">${unr[r.unrated] || "без рейтинга"}</p>` : `<p class="cc-note">Рейтинг «Боевых шахмат» · Glicko-2 · отдельный пул</p>`}`;
   const panel = document.querySelector(".cc-results");
   panel?.classList.toggle("win", won); panel?.classList.toggle("lose", !won);
-  const again = $("#btn-again"); if (again) again.textContent = "Новое онлайн-лобби";
+  const again = $("#btn-again"); if (again) again.textContent = "Найти соперника";
   netClose(); online = false; resultInfo = { winner: r.winner, delta: null };
   show("results");
   refreshMe();
@@ -1236,12 +1355,17 @@ function bind() {
   // режимы кнопками меню биндятся в renderHomeMenu
   $("#create")?.addEventListener("click", () => {
     if (playMode === "bot") startBot(false);
+    else if (playMode === "find") startMatchmaking();
     else if (playMode === "join") joinLobby();
     else createLobby();
   });
   $("#joinbtn")?.addEventListener("click", () => joinLobby());
   $("#joincode")?.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") joinLobby(); });
-  $("#wait-cancel")?.addEventListener("click", () => { netClose(); show("home"); refreshOpen(); });
+  $("#wait-cancel")?.addEventListener("click", () => {
+    if (mmActive) stopMatchmaking(true);
+    if (online && screen === "wait") netSend({ type: "leave" });
+    netClose(); show("home"); refreshOpen();
+  });
   $("#wait-copy")?.addEventListener("click", () => { navigator.clipboard?.writeText(netCode).then(() => toast("Код скопирован"), () => {}); });
   $("#btn-resign")?.addEventListener("click", () => { if (online && G && !G.winner && confirm("Сдаться? Соперник получит победу.")) netSend({ type: "resign" }); });
   $("#refresh")?.addEventListener("click", refreshOpen);
@@ -1252,7 +1376,7 @@ function bind() {
   $("#btn-ab")?.addEventListener("click", () => { if (!sel) return; uiMode = uiMode === "ab" ? "move" : "ab"; draw(); });
   $("#btn-end")?.addEventListener("click", () => { if (!G || G.side !== mySide) return; sel = null; if (online) { netSend({ type: "act", act: "end" }); return; } endTurn(G); afterAct(); });
   $("#btn-home")?.addEventListener("click", () => { netClose(); G = null; show("home"); renderHomeMenu(); refreshOpen(); refreshMe(); });
-  $("#btn-again")?.addEventListener("click", () => { if (resultInfo && !vsBot) { setMode("host"); createLobby(); } else startBot(false); });
+  $("#btn-again")?.addEventListener("click", () => { if (resultInfo && !vsBot) { setMode("find"); startMatchmaking(); } else startBot(false); });
   window.addEventListener("resize", () => setBg(mapDecor.bg));
   requestAnimationFrame(loop);
 }
@@ -1292,5 +1416,5 @@ if (LOCAL) {
   (window as any).__chessFlip = () => flipView;
   (window as any).__chessAct = { move: actMove, attack: actAttack, ability: actAbility, attacks: (p: Piece) => attacks(G!, p), moves: (p: Piece) => moves(G!, p), abilities: (p: Piece) => abilities(G!, p), at: (x: number, y: number) => G && at(G, x, y) };
   (window as any).__chessBotOff = () => { vsBot = false; };
-  (window as any).__chessNet = { create: () => { setMode("host"); return createLobby(); }, join: (c: string) => joinLobby(c), code: () => netCode, side: () => mySide, online: () => online, send: netSend };
+  (window as any).__chessNet = { create: () => { setMode("host"); return createLobby(); }, find: () => startMatchmaking(), join: (c: string) => joinLobby(c), code: () => netCode, side: () => mySide, online: () => online, send: netSend };
 }

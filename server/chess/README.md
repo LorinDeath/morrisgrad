@@ -19,13 +19,13 @@
 
 ## Онлайн 1×1 и рейтинг (chess-combat)
 
-- `POST /chess/new {pub}` → `{code}` (ChessIndex), `GET /chess/open` — публичные лобби с n≤1.
-- `WS /chess/m/:code` (ChessMatch, hibernation): `hello {token | userId(dev) | guest, nick}` → `hello_ok`, `lobby`, `state {state,last,start}`, `result`.
-  Клиент шлёт `act {act: move|attack|ability|end, ...}`, `resign`, `ping`. Сервер валидирует ходы по `rules.ts`; нелегальный → `err illegal` + state.
-  Обрыв → 90 с на возврат (alarm), иначе техническое поражение (`forfeit`).
-- Рейтинг: Glicko-2 (`rating.ts`), запись `rating-db.ts` в `chess_ratings` / `chess_rating_history` (миграция 0042), идемпотентно по match_id.
-  Без рейтинга: гости/боты, сам с собой, < 4 полуходов. `GET /chess/me` (Bearer Clerk / devUser на localhost), `GET /chess/top`.
+- **Очередь:** `POST /chess/mm/join` `{token|userId|guest,nick}` → `{ticket,status}` / `{matched,code,side}`; `GET /chess/mm/status?ticket=`; `POST /chess/mm/leave`.
+  Матч по ближайшему Glicko; если в очереди только двое — играют всегда. Комната DO создаётся только при матче (не висит «жду соперника»).
+- Друг по коду: `POST /chess/new {pub}` → `{code}`, `GET /chess/open` — публичные лобби n≤1 (TTL ~5 мин). `leave` / обрыв в lobby снимает место.
+- `WS /chess/m/:code`: `hello` → `hello_ok`, `lobby`, `state {state,last,start,clock}`, `result`. Клиент: `act`, `resign`, `leave`, `ping`.
+  Таймеры: **5 мин на ход**, **30 мин на партию** (timeout → победа сопернику); обрыв → 90 с (`forfeit`). Пустое лобби → expire.
+- Рейтинг: Glicko-2, `chess_ratings` / `chess_rating_history` (0042). Без рейтинга: гости/боты/self/<4 полуходов. `GET /chess/me`, `GET /chess/top`.
 - Локально: `cd server && npx wrangler d1 execute morrisgrad_db --local --persist-to /workspace/mg-chess-state --config wrangler.json --file migrations/0042_chess.sql`,
   `npx wrangler dev --config wrangler.json --local --port 8787 --persist-to /workspace/mg-chess-state --var MC_DEV_TRUST_USERID:1`, сайт `npm run dev`,
   два окна `/games/chess-combat?devUser=<uid>`; e2e: `bun chess/online-test.ts`.
-- Прод (только после «ок»): remote 0042, деплой воркера (DO-миграция ChessMatch/ChessIndex), деплой сайта.
+- Прод (Алекс/Morrisgrad ок): деплой game worker + сайт. Новых D1-миграций для MM нет.

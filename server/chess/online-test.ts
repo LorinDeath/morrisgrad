@@ -81,4 +81,62 @@ ok(g2.result?.winner === "b" && g2.result?.reason === "resign", "сдача → 
 ok(g2.result?.unrated === "guest" && !g2.result?.seats?.some((s: any) => s.rating), "гость → без рейтинга");
 ok((await me0(A)).games === 1, "рейтинг A не изменился от гостевой партии");
 g1.ws.close(); g2.ws.close();
-console.log(fails ? `FAILED ${fails}` : "ALL OK"); process.exit(fails ? 1 : 0);
+// ─── matchmaking queue + cancel ───
+const mmA = "user_mmA_" + sfx, mmB = "user_mmB_" + sfx;
+const joinQ = async (uid: string, nick: string) => {
+  const r = await fetch(HTTP + "/chess/mm/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: uid, nick }) });
+  return await r.json() as any;
+};
+const j1 = await joinQ(mmA, "ММ-Альфа");
+ok(j1.status === "searching" && j1.ticket, "A в очереди: " + j1.status);
+const leave = await (await fetch(HTTP + "/chess/mm/leave", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticket: j1.ticket }) })).json() as any;
+ok(!!leave.ok, "A отменил поиск");
+const stGone = await (await fetch(HTTP + "/chess/mm/status?ticket=" + j1.ticket)).json() as any;
+ok(stGone.status === "cancelled" || stGone.status === "gone" || stGone.status === "searching", "ticket после leave: " + stGone.status);
+
+const jA = await joinQ(mmA, "ММ-Альфа");
+const jB = await joinQ(mmB, "ММ-Бета");
+ok(jA.status === "searching" || jA.status === "matched", "A join2 " + jA.status);
+ok(jB.status === "matched" && jB.code, "B сразу matched: " + JSON.stringify(jB));
+const stA = jA.status === "matched" ? jA : await (await fetch(HTTP + "/chess/mm/status?ticket=" + jA.ticket)).json() as any;
+ok(stA.status === "matched" && stA.code === jB.code, "A видит тот же код " + stA.code);
+ok(stA.side && jB.side && stA.side !== jB.side, "стороны разные " + stA.side + "/" + jB.side);
+
+const mmCode = jB.code;
+function mmClient(uid: string, nick: string) {
+  const ws = new WebSocket(WSU + "/chess/m/" + mmCode);
+  const c: any = { ws, state: null as Game | null, side: null, result: null, clock: null };
+  c.ready = new Promise<void>((res) => ws.addEventListener("open", () => { ws.send(JSON.stringify({ type: "hello", userId: uid, nick })); res(); }));
+  ws.addEventListener("message", (e: any) => {
+    const m = JSON.parse(e.data);
+    if (m.type === "hello_ok") c.side = m.you.side;
+    if (m.type === "state") { c.state = m.state; if (m.clock) c.clock = m.clock; }
+    if (m.type === "result") c.result = m.result;
+  });
+  return c;
+}
+const ma = mmClient(mmA, "ММ-Альфа"); await ma.ready;
+const mb = mmClient(mmB, "ММ-Бета"); await mb.ready;
+await sleep(500);
+ok(ma.state && mb.state, "MM партия стартовала");
+ok(ma.clock?.turnDeadline && ma.clock?.matchDeadline, "clock в state");
+const turnLeft = ma.clock.turnDeadline - ma.clock.now;
+const matchLeft = ma.clock.matchDeadline - ma.clock.now;
+ok(turnLeft > 4 * 60_000 && turnLeft <= 5 * 60_000, "ход ~5 мин: " + Math.round(turnLeft / 1000) + "s");
+ok(matchLeft > 29 * 60_000 && matchLeft <= 30 * 60_000, "партия ~30 мин: " + Math.round(matchLeft / 1000) + "s");
+ma.ws.close(); mb.ws.close();
+
+// leave снимает место в обычном лобби
+const { code: lob } = await (await fetch(HTTP + "/chess/new", { method: "POST", body: JSON.stringify({ pub: true }) })).json() as any;
+const lw = new WebSocket(WSU + "/chess/m/" + lob);
+let leftOk = false;
+await new Promise<void>((res) => lw.addEventListener("open", () => { lw.send(JSON.stringify({ type: "hello", userId: A, nick: "LeaveTest" })); res(); }));
+await sleep(300);
+lw.send(JSON.stringify({ type: "leave" }));
+lw.addEventListener("message", (e: any) => { if (JSON.parse(e.data).type === "left") leftOk = true; });
+await sleep(400);
+const open3 = await (await fetch(HTTP + "/chess/open")).json() as any;
+ok(!open3.list.some((l: any) => l.code === lob && l.n >= 1) || leftOk, "leave: место снято / left ok");
+try { lw.close(); } catch {}
+
+console.log(fails ? `FAILED ${fails}` : "ALL OK (incl MM)"); process.exit(fails ? 1 : 0);
