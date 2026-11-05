@@ -1,0 +1,32 @@
+---
+// Админка «Боевые шахматы»: кампании, карты, новелла, главный экран.
+// Доступ проверяет сервер (/api/chess/admin-gate и worker /chess/admin/gate) — только Lorin Death.
+import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/chess.css';
+const title = 'Админка — Боевые шахматы';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Служебная страница администратора Боевых шахмат." robots="noindex,nofollow" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+<div class="cc-app" data-bg="hall">
+  <header class="cc-top">
+    <a href="/games/chess-combat">← К игре</a>
+    <h1>Админка · Боевые шахматы</h1>
+    <span id="me" class="cc-who">…</span>
+  </header>
+  <section class="cc-screen on cc-admin" style="display:block;max-width:1200px">
+    <div id="cc-admin-root"><div class="cc-panel"><p class="muted">Проверка доступа…</p></div></div>
+  </section>
+</div>
+<script>
+  import '../../scripts/chess/campaign';
+</script>
+</body>
+</html>

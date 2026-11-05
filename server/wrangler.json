@@ -16,6 +16,14 @@
       {
         "name": "STRAT_INDEX",
         "class_name": "StratIndex"
+      },
+      {
+        "name": "CHESS_MATCH",
+        "class_name": "ChessMatch"
+      },
+      {
+        "name": "CHESS_INDEX",
+        "class_name": "ChessIndex"
       }
     ]
   },
@@ -31,6 +39,13 @@
       "new_sqlite_classes": [
         "StratMatch",
         "StratIndex"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "ChessMatch",
+        "ChessIndex"
       ]
     }
   ],

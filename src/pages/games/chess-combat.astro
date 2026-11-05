@@ -1,0 +1,150 @@
+---
+// «Боевые шахматы» — отдельная мини-игра. Логика: server/chess, клиент: src/scripts/chess/client.ts.
+// Поле: чистовик B + волна 2 (bg/props/ui). Без слова «шах» — только мат / угроза.
+import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/chess.css';
+const title = 'Боевые шахматы | Моррис Град';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Боевые шахматы с очками действия: убей короля — поставь мат. Лобби, бот, рейтинг." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    /* critical: лоадер сразу, без чёрной пустоты до CSS бандла */
+    html,body{margin:0;background:#0c0a10;color:#f0e6d4;font-family:Georgia,serif}
+    .cc-screen{display:none}
+    .cc-screen.on{display:block}
+    #sc-boot.on{display:flex;align-items:center;justify-content:center;min-height:70vh;padding:24px 16px}
+    .cc-boot-frame{max-width:420px;width:100%;text-align:center;padding:36px 28px;border:1px solid rgba(212,175,90,.45);background:linear-gradient(165deg,rgba(28,22,36,.92),rgba(12,10,16,.95));box-shadow:0 12px 40px #0008}
+    .cc-boot-spinner{width:48px;height:48px;margin:0 auto 18px;border-radius:50%;border:2px solid rgba(212,175,90,.22);border-top-color:#d4af5a;animation:ccSpin .9s linear infinite}
+    @keyframes ccSpin{to{transform:rotate(360deg)}}
+    .cc-boot-title{margin:0 0 8px;color:#d4af5a;letter-spacing:.06em;font-size:1.35rem}
+    .cc-boot-msg{margin:0 0 16px;color:#f0e6d4}
+    .cc-boot-bar{height:6px;max-width:280px;margin:0 auto 10px;background:#0007;border:1px solid rgba(212,175,90,.35);border-radius:3px;overflow:hidden}
+    .cc-boot-bar>i{display:block;height:100%;width:8%;background:linear-gradient(90deg,#8a7040,#d4af5a,#fff6d8)}
+    .cc-boot-sub{margin:0;font-size:.78rem;color:#9a8f7c;font-family:system-ui,sans-serif}
+    .cc-top{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #3a2f1f;background:#1a1422}
+    .cc-top a{color:#d4af5a;text-decoration:none;font-weight:600;font-size:.9rem;font-family:system-ui,sans-serif}
+    .cc-top h1{margin:0;flex:1;text-align:center;font-size:1.15rem;color:#d4af5a;letter-spacing:.04em}
+  </style>
+</head>
+<body>
+<div class="cc-app">
+  <header class="cc-top">
+    <a href="/games">← Мини-игры</a>
+    <h1>Боевые шахматы</h1>
+    <a id="admin-link" class="cc-admin-link" href="/games/chess-combat-admin" hidden>Админка</a>
+    <span id="me" class="cc-who"></span>
+  </header>
+
+  <section id="sc-boot" class="cc-screen on" aria-busy="true" aria-live="polite">
+    <div class="cc-boot">
+      <div class="cc-boot-frame">
+        <div class="cc-boot-ornament" aria-hidden="true">
+          <span class="dia"></span><span class="dia mid"></span><span class="dia"></span>
+        </div>
+        <div class="cc-boot-spinner" aria-hidden="true"></div>
+        <h2 class="cc-boot-title">Боевые шахматы</h2>
+        <p class="cc-boot-msg" id="boot-msg">Загрузка…</p>
+        <div class="cc-boot-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="boot-bar">
+          <i id="boot-fill"></i>
+        </div>
+        <p class="cc-boot-sub" id="boot-sub">Подготовка поля и фигур</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="sc-home" class="cc-screen">
+    <div class="cc-hero">
+      <div class="cc-title"><span class="dia"></span><h2 id="home-title">Боевые шахматы</h2><span class="dia"></span></div>
+      <canvas id="hero-army" class="cc-army" aria-hidden="true"></canvas>
+      <p class="tag" id="home-tag">Убей короля — это мат. ОД растут каждые 15 твоих ходов. Поле — чистовик B · зал MorrisGrad.</p>
+    </div>
+    <div class="cc-grid">
+      <div class="cc-panel">
+        <h2>Играть</h2>
+        <div class="cc-modes" id="home-buttons" role="radiogroup">
+          <!-- кнопки из меню админки (localStorage) или дефолт -->
+        </div>
+        <label class="fld" id="nick-wrap"><span>Имя гостя</span><input id="nick" maxlength="24" placeholder="необязательно" autocomplete="nickname" /></label>
+        <div class="joinrow" id="joinrow" hidden>
+          <input id="joincode" maxlength="6" placeholder="КОД" autocomplete="off" spellcheck="false" />
+          <button class="btn" id="joinbtn" type="button">Войти</button>
+        </div>
+        <button class="btn gold big" id="create" type="button">Начать</button>
+        <label class="chk" id="lob-private-wrap"><input type="checkbox" id="lob-private" /> <span>закрытое лобби (только по коду)</span></label>
+        <p class="cc-note">Онлайн: очередь по рейтингу, 5 мин на ход, 30 мин на партию. ОД: старт 2, +1 каждые 15 ходов.</p>
+      </div>
+      <div class="cc-panel">
+        <h2>Комнаты по коду <button class="btn ghost" id="refresh" type="button" aria-label="Обновить">↻</button></h2>
+        <div id="open" class="openlist"><div class="empty">Загрузка…</div></div>
+        <h3>Кампания</h3>
+        <p class="cc-note">Одиночные главы и карты из редактора.</p>
+        <a id="admin-link-btn" class="btn gold" href="/games/chess-combat-admin" hidden style="display:none;margin:8px 0 12px">Админка</a>
+        <div id="camp-play" class="openlist"></div>
+        <h3>Рейтинг</h3>
+        <div id="my-rating" class="openlist cc-myr"><div class="empty">Загрузка…</div></div>
+        <p class="cc-note">Glicko-2, отдельный пул (не Чёрные короли). Считаются только партии онлайн между вошедшими игроками.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="sc-wait" class="cc-screen">
+    <div class="cc-panel cc-wait">
+      <h2 id="wait-title">Поиск соперника</h2>
+      <div class="wait-code" id="wait-code-wrap"><span id="wait-code-lbl">Код</span><b id="wait-code">······</b><button class="btn ghost" id="wait-copy" type="button">Копировать</button></div>
+      <p class="cc-note" id="wait-msg"></p>
+      <div class="wait-seats" id="wait-seats"></div>
+      <button class="btn ghost big" id="wait-cancel" type="button">Отменить поиск</button>
+    </div>
+  </section>
+
+  <section id="sc-play" class="cc-screen">
+    <div class="cc-play">
+      <div class="cc-board-wrap">
+        <div class="cc-hud">
+          <div class="cc-side" id="turn-label">Ход</div>
+          <div class="cc-timers" id="cc-timers" hidden>
+            <span class="tm" title="На ход · макс 5 мин"><i>ход</i> <b id="tm-turn">5:00</b></span>
+            <span class="tm" title="Партия · макс 30 мин"><i>партия</i> <b id="tm-match">30:00</b></span>
+          </div>
+          <div class="cc-ap" title="Очки действия: старт 2, +1 каждые 15 своих ходов">
+            <span class="lbl">ОД</span> <span id="ap-num">2/2</span>
+            <span class="pips" id="ap-pips"></span>
+            <small id="ap-hint"></small>
+          </div>
+        </div>
+        <div class="cc-threat" id="threat"></div>
+        <canvas id="board" class="cc-board" width="560" height="560" aria-label="Доска"></canvas>
+      </div>
+      <aside class="cc-panel cc-sidepanel">
+        <div class="info" id="info">Выбери фигуру</div>
+        <div class="cc-legend" id="legend"><span><i class="lg w"></i>светлые — вы</span><span><i class="lg b"></i>тёмные — бот</span></div>
+        <div class="cc-acts">
+          <button class="btn" id="btn-ab" type="button" disabled>Способность</button>
+          <button class="btn gold" id="btn-end" type="button">Конец хода</button>
+          <button class="btn ghost" id="btn-resign" type="button" hidden>Сдаться</button>
+        </div>
+        <div class="cc-log" id="log"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="sc-results" class="cc-screen">
+    <div class="cc-panel cc-results win">
+      <h2>Итоги партии</h2>
+      <div id="res-body"></div>
+      <button class="btn gold big" id="btn-again" type="button">Ещё раз с ботом</button>
+      <button class="btn ghost big" id="btn-home" type="button">В меню</button>
+    </div>
+  </section>
+</div>
+<script>
+  import '../../scripts/chess/client';
+</script>
+</body>
+</html>

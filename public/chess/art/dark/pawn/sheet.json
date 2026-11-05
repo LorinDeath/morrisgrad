@@ -1,0 +1,777 @@
+{
+ "figure": "pawn",
+ "name_ru": "Пешка",
+ "image": "sheet.png",
+ "frame": [
+  64,
+  64
+ ],
+ "anchor": [
+  32,
+  60
+ ],
+ "ground_row": 60,
+ "directions": [
+  "down",
+  "left",
+  "right",
+  "up"
+ ],
+ "left_is_mirror_of_right": true,
+ "rows": [
+  {
+   "row": 0,
+   "anim": "idle",
+   "dir": "down",
+   "y": 0,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 8
+  },
+  {
+   "row": 1,
+   "anim": "idle",
+   "dir": "left",
+   "y": 64,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 8
+  },
+  {
+   "row": 2,
+   "anim": "idle",
+   "dir": "right",
+   "y": 128,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 8
+  },
+  {
+   "row": 3,
+   "anim": "idle",
+   "dir": "up",
+   "y": 192,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 8
+  },
+  {
+   "row": 4,
+   "anim": "attack",
+   "dir": "down",
+   "y": 256,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 10
+  },
+  {
+   "row": 5,
+   "anim": "attack",
+   "dir": "left",
+   "y": 320,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 10
+  },
+  {
+   "row": 6,
+   "anim": "attack",
+   "dir": "right",
+   "y": 384,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 10
+  },
+  {
+   "row": 7,
+   "anim": "attack",
+   "dir": "up",
+   "y": 448,
+   "cell": [
+    64,
+    64
+   ],
+   "frames": 10
+  },
+  {
+   "row": 8,
+   "anim": "hit",
+   "dir": "any",
+   "y": 512,
+   "cell": [
+    64,
+    72
+   ],
+   "frames": 6
+  }
+ ],
+ "animations": {
+  "idle": {
+   "fps": 8,
+   "loop": true,
+   "size": [
+    64,
+    64
+   ],
+   "frames": 8,
+   "directions": {
+    "down": {
+     "files": [
+      "pawn/down/idle/pawn_down_idle_00.png",
+      "pawn/down/idle/pawn_down_idle_01.png",
+      "pawn/down/idle/pawn_down_idle_02.png",
+      "pawn/down/idle/pawn_down_idle_03.png",
+      "pawn/down/idle/pawn_down_idle_04.png",
+      "pawn/down/idle/pawn_down_idle_05.png",
+      "pawn/down/idle/pawn_down_idle_06.png",
+      "pawn/down/idle/pawn_down_idle_07.png"
+     ],
+     "rects": [
+      [
+       0,
+       0,
+       64,
+       64
+      ],
+      [
+       64,
+       0,
+       64,
+       64
+      ],
+      [
+       128,
+       0,
+       64,
+       64
+      ],
+      [
+       192,
+       0,
+       64,
+       64
+      ],
+      [
+       256,
+       0,
+       64,
+       64
+      ],
+      [
+       320,
+       0,
+       64,
+       64
+      ],
+      [
+       384,
+       0,
+       64,
+       64
+      ],
+      [
+       448,
+       0,
+       64,
+       64
+      ]
+     ]
+    },
+    "left": {
+     "files": [
+      "pawn/left/idle/pawn_left_idle_00.png",
+      "pawn/left/idle/pawn_left_idle_01.png",
+      "pawn/left/idle/pawn_left_idle_02.png",
+      "pawn/left/idle/pawn_left_idle_03.png",
+      "pawn/left/idle/pawn_left_idle_04.png",
+      "pawn/left/idle/pawn_left_idle_05.png",
+      "pawn/left/idle/pawn_left_idle_06.png",
+      "pawn/left/idle/pawn_left_idle_07.png"
+     ],
+     "rects": [
+      [
+       0,
+       64,
+       64,
+       64
+      ],
+      [
+       64,
+       64,
+       64,
+       64
+      ],
+      [
+       128,
+       64,
+       64,
+       64
+      ],
+      [
+       192,
+       64,
+       64,
+       64
+      ],
+      [
+       256,
+       64,
+       64,
+       64
+      ],
+      [
+       320,
+       64,
+       64,
+       64
+      ],
+      [
+       384,
+       64,
+       64,
+       64
+      ],
+      [
+       448,
+       64,
+       64,
+       64
+      ]
+     ]
+    },
+    "right": {
+     "files": [
+      "pawn/right/idle/pawn_right_idle_00.png",
+      "pawn/right/idle/pawn_right_idle_01.png",
+      "pawn/right/idle/pawn_right_idle_02.png",
+      "pawn/right/idle/pawn_right_idle_03.png",
+      "pawn/right/idle/pawn_right_idle_04.png",
+      "pawn/right/idle/pawn_right_idle_05.png",
+      "pawn/right/idle/pawn_right_idle_06.png",
+      "pawn/right/idle/pawn_right_idle_07.png"
+     ],
+     "rects": [
+      [
+       0,
+       128,
+       64,
+       64
+      ],
+      [
+       64,
+       128,
+       64,
+       64
+      ],
+      [
+       128,
+       128,
+       64,
+       64
+      ],
+      [
+       192,
+       128,
+       64,
+       64
+      ],
+      [
+       256,
+       128,
+       64,
+       64
+      ],
+      [
+       320,
+       128,
+       64,
+       64
+      ],
+      [
+       384,
+       128,
+       64,
+       64
+      ],
+      [
+       448,
+       128,
+       64,
+       64
+      ]
+     ]
+    },
+    "up": {
+     "files": [
+      "pawn/up/idle/pawn_up_idle_00.png",
+      "pawn/up/idle/pawn_up_idle_01.png",
+      "pawn/up/idle/pawn_up_idle_02.png",
+      "pawn/up/idle/pawn_up_idle_03.png",
+      "pawn/up/idle/pawn_up_idle_04.png",
+      "pawn/up/idle/pawn_up_idle_05.png",
+      "pawn/up/idle/pawn_up_idle_06.png",
+      "pawn/up/idle/pawn_up_idle_07.png"
+     ],
+     "rects": [
+      [
+       0,
+       192,
+       64,
+       64
+      ],
+      [
+       64,
+       192,
+       64,
+       64
+      ],
+      [
+       128,
+       192,
+       64,
+       64
+      ],
+      [
+       192,
+       192,
+       64,
+       64
+      ],
+      [
+       256,
+       192,
+       64,
+       64
+      ],
+      [
+       320,
+       192,
+       64,
+       64
+      ],
+      [
+       384,
+       192,
+       64,
+       64
+      ],
+      [
+       448,
+       192,
+       64,
+       64
+      ]
+     ]
+    }
+   },
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "size": [
+    64,
+    64
+   ],
+   "kind": "melee",
+   "impact": 4,
+   "note": "impact: в этом кадре наносится урон; удар направлен в сторону взгляда. В кадре impact поставить эффект hit (см. поле hit) в центр клетки цели",
+   "hit": "hit",
+   "frames": 10,
+   "directions": {
+    "down": {
+     "files": [
+      "pawn/down/attack/pawn_down_attack_00.png",
+      "pawn/down/attack/pawn_down_attack_01.png",
+      "pawn/down/attack/pawn_down_attack_02.png",
+      "pawn/down/attack/pawn_down_attack_03.png",
+      "pawn/down/attack/pawn_down_attack_04.png",
+      "pawn/down/attack/pawn_down_attack_05.png",
+      "pawn/down/attack/pawn_down_attack_06.png",
+      "pawn/down/attack/pawn_down_attack_07.png",
+      "pawn/down/attack/pawn_down_attack_08.png",
+      "pawn/down/attack/pawn_down_attack_09.png"
+     ],
+     "rects": [
+      [
+       0,
+       256,
+       64,
+       64
+      ],
+      [
+       64,
+       256,
+       64,
+       64
+      ],
+      [
+       128,
+       256,
+       64,
+       64
+      ],
+      [
+       192,
+       256,
+       64,
+       64
+      ],
+      [
+       256,
+       256,
+       64,
+       64
+      ],
+      [
+       320,
+       256,
+       64,
+       64
+      ],
+      [
+       384,
+       256,
+       64,
+       64
+      ],
+      [
+       448,
+       256,
+       64,
+       64
+      ],
+      [
+       512,
+       256,
+       64,
+       64
+      ],
+      [
+       576,
+       256,
+       64,
+       64
+      ]
+     ]
+    },
+    "left": {
+     "files": [
+      "pawn/left/attack/pawn_left_attack_00.png",
+      "pawn/left/attack/pawn_left_attack_01.png",
+      "pawn/left/attack/pawn_left_attack_02.png",
+      "pawn/left/attack/pawn_left_attack_03.png",
+      "pawn/left/attack/pawn_left_attack_04.png",
+      "pawn/left/attack/pawn_left_attack_05.png",
+      "pawn/left/attack/pawn_left_attack_06.png",
+      "pawn/left/attack/pawn_left_attack_07.png",
+      "pawn/left/attack/pawn_left_attack_08.png",
+      "pawn/left/attack/pawn_left_attack_09.png"
+     ],
+     "rects": [
+      [
+       0,
+       320,
+       64,
+       64
+      ],
+      [
+       64,
+       320,
+       64,
+       64
+      ],
+      [
+       128,
+       320,
+       64,
+       64
+      ],
+      [
+       192,
+       320,
+       64,
+       64
+      ],
+      [
+       256,
+       320,
+       64,
+       64
+      ],
+      [
+       320,
+       320,
+       64,
+       64
+      ],
+      [
+       384,
+       320,
+       64,
+       64
+      ],
+      [
+       448,
+       320,
+       64,
+       64
+      ],
+      [
+       512,
+       320,
+       64,
+       64
+      ],
+      [
+       576,
+       320,
+       64,
+       64
+      ]
+     ]
+    },
+    "right": {
+     "files": [
+      "pawn/right/attack/pawn_right_attack_00.png",
+      "pawn/right/attack/pawn_right_attack_01.png",
+      "pawn/right/attack/pawn_right_attack_02.png",
+      "pawn/right/attack/pawn_right_attack_03.png",
+      "pawn/right/attack/pawn_right_attack_04.png",
+      "pawn/right/attack/pawn_right_attack_05.png",
+      "pawn/right/attack/pawn_right_attack_06.png",
+      "pawn/right/attack/pawn_right_attack_07.png",
+      "pawn/right/attack/pawn_right_attack_08.png",
+      "pawn/right/attack/pawn_right_attack_09.png"
+     ],
+     "rects": [
+      [
+       0,
+       384,
+       64,
+       64
+      ],
+      [
+       64,
+       384,
+       64,
+       64
+      ],
+      [
+       128,
+       384,
+       64,
+       64
+      ],
+      [
+       192,
+       384,
+       64,
+       64
+      ],
+      [
+       256,
+       384,
+       64,
+       64
+      ],
+      [
+       320,
+       384,
+       64,
+       64
+      ],
+      [
+       384,
+       384,
+       64,
+       64
+      ],
+      [
+       448,
+       384,
+       64,
+       64
+      ],
+      [
+       512,
+       384,
+       64,
+       64
+      ],
+      [
+       576,
+       384,
+       64,
+       64
+      ]
+     ]
+    },
+    "up": {
+     "files": [
+      "pawn/up/attack/pawn_up_attack_00.png",
+      "pawn/up/attack/pawn_up_attack_01.png",
+      "pawn/up/attack/pawn_up_attack_02.png",
+      "pawn/up/attack/pawn_up_attack_03.png",
+      "pawn/up/attack/pawn_up_attack_04.png",
+      "pawn/up/attack/pawn_up_attack_05.png",
+      "pawn/up/attack/pawn_up_attack_06.png",
+      "pawn/up/attack/pawn_up_attack_07.png",
+      "pawn/up/attack/pawn_up_attack_08.png",
+      "pawn/up/attack/pawn_up_attack_09.png"
+     ],
+     "rects": [
+      [
+       0,
+       448,
+       64,
+       64
+      ],
+      [
+       64,
+       448,
+       64,
+       64
+      ],
+      [
+       128,
+       448,
+       64,
+       64
+      ],
+      [
+       192,
+       448,
+       64,
+       64
+      ],
+      [
+       256,
+       448,
+       64,
+       64
+      ],
+      [
+       320,
+       448,
+       64,
+       64
+      ],
+      [
+       384,
+       448,
+       64,
+       64
+      ],
+      [
+       448,
+       448,
+       64,
+       64
+      ],
+      [
+       512,
+       448,
+       64,
+       64
+      ],
+      [
+       576,
+       448,
+       64,
+       64
+      ]
+     ]
+    }
+   },
+   "anchor": [
+    32,
+    60
+   ]
+  },
+  "hit": {
+   "fps": 14,
+   "loop": false,
+   "size": [
+    64,
+    72
+   ],
+   "impact": 0,
+   "center": [
+    32,
+    60
+   ],
+   "center_meaning": "cell_center_on_floor",
+   "note": "ближнее попадание: ставить в кадре impact атаки; anchor=center=(32,60) — в центр клетки цели (туда же, куда якорь стоящей там фигуры). Один эффект на все направления.",
+   "frames": 6,
+   "anchor": [
+    32,
+    60
+   ],
+   "files": [
+    "pawn/fx/hit/pawn_hit_00.png",
+    "pawn/fx/hit/pawn_hit_01.png",
+    "pawn/fx/hit/pawn_hit_02.png",
+    "pawn/fx/hit/pawn_hit_03.png",
+    "pawn/fx/hit/pawn_hit_04.png",
+    "pawn/fx/hit/pawn_hit_05.png"
+   ],
+   "directions": "any",
+   "rects": [
+    [
+     0,
+     512,
+     64,
+     72
+    ],
+    [
+     64,
+     512,
+     64,
+     72
+    ],
+    [
+     128,
+     512,
+     64,
+     72
+    ],
+    [
+     192,
+     512,
+     64,
+     72
+    ],
+    [
+     256,
+     512,
+     64,
+     72
+    ],
+    [
+     320,
+     512,
+     64,
+     72
+    ]
+   ]
+  }
+ }
+}
