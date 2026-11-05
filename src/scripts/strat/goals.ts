@@ -64,6 +64,21 @@ export function normTree(t: any): CNode[] {
   const a: any[] = Array.isArray(t) ? t.flat ? t.flat(2) : t : Object.entries(t).map(([id, v]: any) => ({ id, ...v }));
   return a.filter(Boolean).map((n: any) => ({ id: String(n.id), red: redacted(n), name: redacted(n) ? "" : n.name, eff: redacted(n) ? "" : n.eff || n.desc || "", lv: +(n.lv ?? n.level ?? n.tier ?? 2), req: arr(n.req ?? n.prereq ?? n.requires), excl: arr(n.excl ?? n.excludes ?? n.locks), icon: n.icon }));
 }
+/** t1238: древо Вождя из урезанного дерева сервера (S.tree.chief.nodes, tree-view.ts). В клиентской сборке CHIEFS пуст,
+ *  и запасной путь (cfg.talents.king: «Гвардия»/«Приказ») — НЕ то древо, которое примет сервер; взятые узлы там не находились → «Очков навыка: 0». */
+export function chiefTreeFromView(nodes: any[] | null | undefined): CNode[] | null {
+  if (!Array.isArray(nodes) || !nodes.length) return null;
+  const got = nodes.filter((n) => n && n.state === "got" && n.name);
+  return nodes.filter(Boolean).map((n: any) => {
+    const lv = +(n.lvl ?? n.lv ?? 2);
+    if (!n.name) { // заглушка: hidden — туман, closed — закрыта взятым узлом (того же уровня, иначе любым взятым)
+      const by = got.filter((x) => +(x.lvl ?? x.lv) === lv), ex = n.state === "closed" ? (by.length ? by : got.slice(0, 1)).map((x) => String(x.id)) : [];
+      return { id: String(n.id), name: "", eff: "", lv, req: [], excl: ex, red: true };
+    }
+    const excl = nodes.filter((x: any) => x && x !== n && x.name && x.grp && x.grp === n.grp).map((x: any) => String(x.id));
+    return { id: String(n.id), name: String(n.name), eff: String(n.tip || n.eff || ""), lv, req: Array.isArray(n.req) ? n.req.map(String) : [], excl };
+  });
+}
 export type CState = "got" | "can" | "later" | "closed";
 export function chiefNodeState(n: CNode, tree: CNode[], have: string[], lv: number, points: number): { st: CState; why: string } {
   if (have.includes(n.id)) return { st: "got", why: "Взято" };

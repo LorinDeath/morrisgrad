@@ -10,7 +10,7 @@ import { ensureSize } from "../../../server/strat/rules";
 import { moveTargets, attackTargets, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
 import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
 import { esc, modal, confirmDlg, choiceDlg, promptDlg, toast as uiToast, banner, showTip, hideTip, bindTips, openSheet } from "./ui-kit";
-import { GOALS, goalDef, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, type Goal, type CNode } from "./goals";
+import { GOALS, goalDef, goalsOf, chiefOf, chiefTypes, chiefNodeState, normTree, chiefTreeFromView, type Goal, type CNode } from "./goals";
 import { fogView, unveilCls, fogNode } from "./fog";
 import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
@@ -840,6 +840,7 @@ function chiefIc(n: any): string {
 }
 function chiefSkillsOf(p: any): string[] { return (p?.sk || p?.tal || []) as string[]; }
 function skillPassive(id: string, side: number): Passive | null {
+  if (side === S.you) { const n: any = ((S as any).tree?.chief?.nodes || []).find((x: any) => x?.id === id && x.name); if (n) return { key: "chief." + id, name: n.name, icon: "xp", effs: [], note: n.tip || n.eff || "" }; } // t1238: узлы древа Вождя — с сервера
   const cfg = cfgOf(S), types = chiefTypes(cfg, S.g.races[side]); for (const t of types) { const n = t.tree.find((x) => x.id === id); if (n) {
     const raw: any = ((cfg.talents as any).king || []).flat().find((x: any) => x.id === id); if (raw) return talentPassive(raw, "king");
     return { key: "chief." + id, name: n.name, icon: "xp", effs: Array.isArray((n as any).effects) ? (n as any).effects : [], note: n.eff }; } }
@@ -912,8 +913,9 @@ function renderHud() {
 /** Древо навыков Вождя (как древо технологий, меньше). Уровни — строки, взаимоисключающие узлы через «или». */
 function openChiefTree(auto: boolean) {
   if (!S?.g || S.you < 0) return; const me = S.you, cfg = cfgOf(S), G = gs()!, ch = chiefOf(S, G, me, cfg); if (!ch.p) return;
-  const types = chiefTypes(cfg, G.races[me]), type = types.find((t) => t.id === S.seats[me]?.chief) || types[0];
-  const srv: any = (G as any).ec?.chiefTree?.[me] ?? (S as any).chiefTree ?? null, tree: CNode[] = srv ? normTree(srv) : type?.tree || []; // урезанное древо с сервера — приоритет
+  const types = chiefTypes(cfg, G.races[me]), type0 = types.find((t) => t.id === S.seats[me]?.chief) || types[0];
+  const tv = chiefTreeFromView((S as any).tree?.chief?.nodes), type = tv ? { ...type0, name: (S as any).tree.chief.name || type0?.name || "Вождь" } : type0; // t1238: древо Вождя — только с сервера (state.tree.chief)
+  const srv: any = (G as any).ec?.chiefTree?.[me] ?? (S as any).chiefTree ?? null, tree: CNode[] = tv || (srv ? normTree(srv) : type?.tree || []); // урезанное древо с сервера — приоритет
   const have = chiefSkillsOf(G.pieces.find((q) => q.id === ch.p!.id)), points = Math.max(0, ch.lv - 1 - have.length), my = G.cur === me && S.phase === "play";
   const lvls = [...new Set([2, 3, 4, 5, ...tree.map((n) => n.lv)])].sort((a, b) => a - b);
   const body = `<div class="ctree">${lvls.map((l) => { const ns = tree.filter((n) => n.lv === l);
