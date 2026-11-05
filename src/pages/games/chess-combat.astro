@@ -13,6 +13,24 @@ const title = 'Боевые шахматы | Моррис Град';
   <title>{title}</title>
   <SeoHead title={title} description="Боевые шахматы с очками действия: убей короля — поставь мат. Лобби, бот, рейтинг." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    /* critical: лоадер сразу, без чёрной пустоты до CSS бандла */
+    html,body{margin:0;background:#0c0a10;color:#f0e6d4;font-family:Georgia,serif}
+    .cc-screen{display:none}
+    .cc-screen.on{display:block}
+    #sc-boot.on{display:flex;align-items:center;justify-content:center;min-height:70vh;padding:24px 16px}
+    .cc-boot-frame{max-width:420px;width:100%;text-align:center;padding:36px 28px;border:1px solid rgba(212,175,90,.45);background:linear-gradient(165deg,rgba(28,22,36,.92),rgba(12,10,16,.95));box-shadow:0 12px 40px #0008}
+    .cc-boot-spinner{width:48px;height:48px;margin:0 auto 18px;border-radius:50%;border:2px solid rgba(212,175,90,.22);border-top-color:#d4af5a;animation:ccSpin .9s linear infinite}
+    @keyframes ccSpin{to{transform:rotate(360deg)}}
+    .cc-boot-title{margin:0 0 8px;color:#d4af5a;letter-spacing:.06em;font-size:1.35rem}
+    .cc-boot-msg{margin:0 0 16px;color:#f0e6d4}
+    .cc-boot-bar{height:6px;max-width:280px;margin:0 auto 10px;background:#0007;border:1px solid rgba(212,175,90,.35);border-radius:3px;overflow:hidden}
+    .cc-boot-bar>i{display:block;height:100%;width:8%;background:linear-gradient(90deg,#8a7040,#d4af5a,#fff6d8)}
+    .cc-boot-sub{margin:0;font-size:.78rem;color:#9a8f7c;font-family:system-ui,sans-serif}
+    .cc-top{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #3a2f1f;background:#1a1422}
+    .cc-top a{color:#d4af5a;text-decoration:none;font-weight:600;font-size:.9rem;font-family:system-ui,sans-serif}
+    .cc-top h1{margin:0;flex:1;text-align:center;font-size:1.15rem;color:#d4af5a;letter-spacing:.04em}
+  </style>
 </head>
 <body>
 <div class="cc-app">
@@ -21,6 +39,23 @@ const title = 'Боевые шахматы | Моррис Град';
     <h1>Боевые шахматы</h1>
     <span id="me" class="cc-who"></span>
   </header>
+
+  <section id="sc-boot" class="cc-screen on" aria-busy="true" aria-live="polite">
+    <div class="cc-boot">
+      <div class="cc-boot-frame">
+        <div class="cc-boot-ornament" aria-hidden="true">
+          <span class="dia"></span><span class="dia mid"></span><span class="dia"></span>
+        </div>
+        <div class="cc-boot-spinner" aria-hidden="true"></div>
+        <h2 class="cc-boot-title">Боевые шахматы</h2>
+        <p class="cc-boot-msg" id="boot-msg">Загрузка…</p>
+        <div class="cc-boot-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="boot-bar">
+          <i id="boot-fill"></i>
+        </div>
+        <p class="cc-boot-sub" id="boot-sub">Подготовка поля и фигур</p>
+      </div>
+    </div>
+  </section>
 
   <section id="sc-home" class="cc-screen">
     <div class="cc-hero">

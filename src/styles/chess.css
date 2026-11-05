@@ -496,3 +496,98 @@ html, body { margin: 0; padding: 0; background: var(--cc-bg); color: var(--cc-te
 .cc-admin-tabs .btn.on {
   box-shadow: 0 0 12px rgba(224,192,106,.25);
 }
+
+
+/* —— boot / loading (visible before JS finishes preload) —— */
+.cc-screen#sc-boot.on {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  min-height: calc(100vh - 52px);
+}
+.cc-boot {
+  width: min(420px, 100%);
+  text-align: center;
+}
+.cc-boot-frame {
+  position: relative;
+  padding: 36px 28px 32px;
+  background: linear-gradient(165deg, rgba(28,22,36,.92), rgba(12,10,16,.95));
+  border: 1px solid rgba(212,175,90,.45);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.6),
+    0 12px 40px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(240,230,212,.08);
+}
+.cc-boot-frame::before,
+.cc-boot-frame::after {
+  content: "";
+  position: absolute;
+  width: 18px; height: 18px;
+  border: 2px solid var(--cc-gold);
+  opacity: .7;
+}
+.cc-boot-frame::before { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
+.cc-boot-frame::after { bottom: 8px; right: 8px; border-left: 0; border-top: 0; }
+.cc-boot-ornament {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-bottom: 18px;
+}
+.cc-boot-ornament .dia {
+  width: 8px; height: 8px;
+  background: var(--cc-gold);
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(212,175,90,.5);
+}
+.cc-boot-ornament .dia.mid {
+  width: 12px; height: 12px;
+  background: linear-gradient(135deg, #fff6d8, var(--cc-gold));
+}
+.cc-boot-spinner {
+  width: 48px; height: 48px; margin: 0 auto 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(212,175,90,.22);
+  border-top-color: var(--cc-gold);
+  border-right-color: rgba(240,230,212,.55);
+  animation: ccSpin .9s linear infinite;
+  box-shadow: 0 0 16px rgba(212,175,90,.2);
+}
+@keyframes ccSpin { to { transform: rotate(360deg); } }
+.cc-boot-title {
+  margin: 0 0 8px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+  letter-spacing: .06em;
+  color: var(--cc-gold);
+  text-shadow: 0 1px 0 #000, 0 0 18px rgba(212,175,90,.25);
+}
+.cc-boot-msg {
+  margin: 0 0 16px;
+  color: var(--cc-text);
+  font-size: .95rem;
+  letter-spacing: .04em;
+}
+.cc-boot-bar {
+  height: 6px;
+  background: rgba(0,0,0,.45);
+  border: 1px solid rgba(212,175,90,.35);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 0 auto 10px;
+  max-width: 280px;
+}
+.cc-boot-bar > i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--cc-gold-dim), var(--cc-gold), #fff6d8);
+  box-shadow: 0 0 10px rgba(212,175,90,.55);
+  transition: width .18s ease-out;
+}
+.cc-boot-sub {
+  margin: 0;
+  font-size: .78rem;
+  color: var(--cc-muted);
+  letter-spacing: .03em;
+}

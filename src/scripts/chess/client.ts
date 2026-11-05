@@ -90,28 +90,63 @@ function applyMap(m: MapDecor) {
   setBg(m.bg);
 }
 
+function setBootProgress(done: number, total: number, label?: string) {
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const fill = $("#boot-fill");
+  const bar = $("#boot-bar");
+  const msg = $("#boot-msg");
+  const sub = $("#boot-sub");
+  if (fill) fill.style.width = pct + "%";
+  if (bar) bar.setAttribute("aria-valuenow", String(pct));
+  if (msg) msg.textContent = label || "Загрузка…";
+  if (sub) sub.textContent = total ? `${done} / ${total} · ${pct}%` : "Подготовка поля и фигур";
+}
+
 async function preload() {
+  type Job = () => Promise<void>;
+  const jobs: Job[] = [];
+
   for (const s of ["w", "b"] as Side[]) for (const [t, f] of Object.entries(FIG)) {
     const base = `/chess/art/${s === "w" ? "light" : "dark"}/${f}/`;
-    try {
-      const j = await fetch(base + "sheet.json").then((r) => r.json());
-      const im = await loadImg(base + (j.image || "sheet.png"));
-      if (im.naturalWidth) spr[s + t] = { im, j, side: s, frames: new Map() };
-    } catch { /* skip */ }
+    const key = s + t;
+    jobs.push(async () => {
+      try {
+        const j = await fetch(base + "sheet.json").then((r) => r.json());
+        const im = await loadImg(base + (j.image || "sheet.png"));
+        if (im.naturalWidth) spr[key] = { im, j, side: s, frames: new Map() };
+      } catch { /* skip */ }
+    });
   }
   for (let i = 0; i < 3; i++) {
-    tileIm["L" + i] = await loadImg(TILE(true, i));
-    tileIm["D" + i] = await loadImg(TILE(false, i));
+    const li = i;
+    jobs.push(async () => { tileIm["L" + li] = await loadImg(TILE(true, li)); });
+    jobs.push(async () => { tileIm["D" + li] = await loadImg(TILE(false, li)); });
   }
-  for (const k of ["move", "attack", "selected", "threat"] as const) hlIm[k] = await loadImg(HL(k));
+  for (const k of ["move", "attack", "selected", "threat"] as const) {
+    jobs.push(async () => { hlIm[k] = await loadImg(HL(k)); });
+  }
   for (const k of ["danger", "boost"] as const) for (let ph = 0; ph < 4; ph++) {
-    specIm[k + ph] = await loadImg(SPEC(k, ph));
+    const key = k + ph;
+    const kk = k; const pph = ph;
+    jobs.push(async () => { specIm[key] = await loadImg(SPEC(kk, pph)); });
   }
   const propNames = ["rock", "column_rubble", "ruins_arch", "portal", "lamp", "crystal"];
   for (const n of propNames) {
     const frames = PROP_FRAMES[n] || 1;
-    for (let ph = 0; ph < frames; ph++) propIm[n + ph] = await loadImg(PROP(n, ph));
+    for (let ph = 0; ph < frames; ph++) {
+      const key = n + ph;
+      const nn = n; const pph = ph;
+      jobs.push(async () => { propIm[key] = await loadImg(PROP(nn, pph)); });
+    }
   }
+
+  const total = jobs.length;
+  let done = 0;
+  setBootProgress(0, total, "Загрузка…");
+  await Promise.all(jobs.map((job) => job().finally(() => {
+    done++;
+    setBootProgress(done, total, done >= total ? "Готово" : "Загрузка ассетов…");
+  })));
 }
 
 function show(sc: typeof screen) {
@@ -1195,8 +1230,9 @@ function bind() {
 }
 
 (async () => {
-  await preload();
-  await identifyClerk();
+  setBootProgress(0, 1, "Загрузка…");
+  // ассеты + Clerk параллельно — не держим чёрный экран дольше нужного
+  await Promise.all([preload(), identifyClerk()]);
   bind();
   setMode("bot");
   show("home");
@@ -1208,7 +1244,13 @@ function bind() {
   if (qs.get("bot") === "1" || qs.get("play") === "bot") startBot(qs.get("demo") === "1");
   else if (qs.get("demo") === "1") startBot(true);
   if (qs.get("bg") === "terrace") setBg("terrace");
-})();
+})().catch((err) => {
+  console.error("[chess-combat] boot failed", err);
+  const msg = $("#boot-msg");
+  if (msg) msg.textContent = "Ошибка загрузки — обновите страницу";
+  // всё равно покажем лобби: кнопки/меню работают без спрайтов
+  try { bind(); setMode("bot"); show("home"); renderHomeMenu(); } catch { /* */ }
+});
 
 if (LOCAL) {
   (window as any).__chessG = () => G;
