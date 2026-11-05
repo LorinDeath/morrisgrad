@@ -567,8 +567,8 @@ body[data-screen="game"] .gtop { display: none; }
 .abil.ult .ab-ic { border-color: var(--red-hi); background: radial-gradient(circle at 35% 30%, var(--red), var(--red-dk)); } .abil.ult .ab-ic .ic { color: #ffe0a0; }
 .abil .ab-cd { position: absolute; top: 10px; left: 0; right: 0; z-index: 3; text-align: center; font: 700 1.05rem var(--f-disp); color: var(--ivory); text-shadow: 0 0 4px var(--black), 1px 1px 0 var(--black); }
 .abil small { font: 500 .64rem var(--f-disp); letter-spacing: .04em; text-transform: uppercase; text-align: center; line-height: 1.1; }
-.abil:hover:not(:disabled) .ab-ic { transform: scale(1.07); box-shadow: 0 0 0 2px var(--black), 0 0 14px #f3d27a88; }
-.abil:disabled { cursor: default; } .abil:disabled:not(.cd) .ab-ic { filter: grayscale(.8) brightness(.7); }
+.abil:hover:not(:disabled):not([aria-disabled="true"]) .ab-ic { transform: scale(1.07); box-shadow: 0 0 0 2px var(--black), 0 0 14px #f3d27a88; }
+.abil:disabled, .abil[aria-disabled="true"] { cursor: default; } .abil:disabled:not(.cd) .ab-ic, .abil[aria-disabled="true"]:not(.cd) .ab-ic { filter: grayscale(.8) brightness(.7); }
 .abil.armed .ab-ic { animation: pulse 1s infinite; }
 .chiefult { width: 64px; } .chiefult .ab-ic, .chiefult .ring { width: 54px; height: 54px; } .chiefult .ring { left: 5px; } .chiefult .ab-cd { top: 14px; font-size: 1.2rem; }
 .chiefult:not(:disabled):not(.cd) .ab-ic { animation: ultReady 1.6s ease-in-out infinite; }

@@ -107,6 +107,11 @@ const easeOut = (k: number) => 1 - Math.pow(1 - k, 3);
 const AIM_SHAPE: Record<string, { s: "circle" | "square" | "line" | "chain"; r?: number; size?: number; eraSize?: number; len?: number; hops?: number; hop?: number; rng: number }> = {
   fire: { s: "circle", r: 2.5, rng: 4 }, lightning: { s: "chain", hops: 3, hop: 3, rng: 4 }, stone: { s: "square", size: 3, eraSize: 5, rng: 3 }, ice: { s: "square", size: 5, rng: 4 }, water: { s: "line", len: 5, rng: 1 }, nature: { s: "square", size: 5, rng: 3 },
 };
+/** t1248: прицел ульты/умения фигуры — форма из вида дерева (UNIT_ULTS) под ключом «u:<id>|<раса>» / «v:<r>|<раса>» (выстрел) */
+export type AimDef = (typeof AIM_SHAPE)[string];
+export function regAim(key: string, d: AimDef) { AIM_SHAPE[key] = d; return key; }
+export const aimOfUlt = (u: any): AimDef => ({ s: (["circle", "square", "line", "chain"].includes(u?.shape) ? u.shape : "square") as AimDef["s"], r: u?.r, size: u?.size, len: u?.len, hops: u?.hops, hop: u?.hop, rng: +u?.range || 1 });
+const defOf = (k: string) => ULT[k] || ULT[k.split("|")[1]] || ULT.fire;
 /** t1225: форма и дальность ульты расы для подсказки прицела (зеркало ULTS сервера: range) */
 export function aimShape(race: string) { return AIM_SHAPE[race] || null; }
 /** t1225: можно ли бить в (x, y) — как canUlt на сервере (out_of_range / bad_target / bad_cell) */
@@ -132,7 +137,7 @@ export function ultAimCells(race: string, x: number, y: number, n: number, A: Ai
   return out;
 }
 export function drawAim(ctx: CanvasRenderingContext2D, race: string, x: number, y: number, r: number, n: number, sx: SX, sy: SX, z: number, now: number, ok = true, A?: AimCtx) {
-  const d = ULT[race] || ULT.fire, pulse = 0.5 + 0.5 * Math.sin(now / 160);
+  const d = defOf(race), pulse = 0.5 + 0.5 * Math.sin(now / 160);
   const cells = A ? ultAimCells(race, x, y, n, A) : null;
   if (cells) { // форма ульты: квадрат / линия / круг клетками / цепь — контур по границе области, пунктир бежит
     const set = new Set(cells.map(([a, b]) => b * n + a)), chain = AIM_SHAPE[race]?.s === "chain";

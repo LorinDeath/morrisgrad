@@ -17,7 +17,7 @@ import { fogView, unveilCls, fogNode } from "./fog";
 import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
-import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ultAimOk, aimShape, ULT, ultRadius, shake, placeBanner, BAN_MS, setField } from "./ult-fx";
+import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ultAimOk, aimShape, ULT, ultRadius, shake, placeBanner, BAN_MS, setField, regAim } from "./ult-fx";
 import { loadFx, fxImg, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies, isDrawW, wonW, winnerNick } from "./players";
@@ -92,7 +92,7 @@ const ERR: Record<string, string> = { ...ECON_ERR, quiet: "Сейчас нель
 Object.assign(ERR, { lib_full: "Библиотека заполнена — уберите старые партии", live: "Партия ещё идёт", no_replay: "Повтор недоступен", bad_id: "Неверная ссылка на повтор", ...(ERR.guest ? {} : { guest: "Нужно войти на сайт" }), need_login: "Нужно войти на сайт" });
 const toast = (t: string, k: "info" | "good" | "bad" | "turn" = "info", i?: string) => uiToast(t, k, i);
 /** Прицел ульты/способности: телеграф круга на доске до клика. */
-let ultAim: { id: string; pid: number; r: number; race: string; chief: boolean; kind?: "act" | "ult" } | null = null, aimCell: [number, number] | null = null;
+let ultAim: { id: string; pid: number; r: number; race: string; chief: boolean; kind?: "act" | "ult"; name?: string } | null = null, aimCell: [number, number] | null = null;
 /** Время на ход по размеру карты (если хост не задал): 4×4 — 1 мин … 50+ — 30 мин. */
 const turnSecFor = (n: number) => (n <= 4 ? 60 : n <= 5 ? 90 : n <= 8 ? 180 : n <= 15 ? 300 : n <= 25 ? 600 : n <= 49 ? 1200 : 1800);
 const fmtMin = (s: number) => (s >= 60 ? `${Math.round(s / 60)} мин` : `${s} с`);
@@ -995,7 +995,7 @@ function renderInfo() {
   if (p) { const sub = box.querySelector(".uc-sub"); if (sub) sub.textContent = (p.o === S.you ? "Ваш" : "Враг") + (p.k === "king" ? " · " + chiefName(p.o) : " · " + (RACE_NAME[g.races[p.o]] || ""));
     const P = gs()!.pieces.find((q) => q.id === p.id)!; bindPieceActs(ectx(), P, box); bindChiefActs(P, box);
     box.querySelectorAll<HTMLButtonElement>("[data-raze]").forEach((b) => (b.onclick = () => send({ type: "act", act: { a: "raze", id: P.id, city: +b.dataset.raze!, b: b.dataset.b } })));
-    bindAbilityBar(ectx(), P, p, box, (a) => startAim({ id: a.id, pid: a.pid, r: a.r, race: g.races[p.o], chief: false, kind: a.kind })); }
+    bindAbilityBar(ectx(), P, p, box, (a) => startAim({ id: a.id, pid: a.pid, r: a.r, race: a.aim ? regAim((a.kind === "ult" ? "u:" : "v:") + a.id + ":" + a.r + "|" + g.races[p.o], a.aim) : g.races[p.o], chief: false, kind: a.kind, name: a.name }), (t) => toast(t, "bad")); }
 }
 /** Действия Вождя: «Построить» (выбор постройки → клетка для башни) и «Основать поселение» (многоходовое). */
 function chiefActs(P: any): string {
@@ -1053,8 +1053,9 @@ function chiefUltBtn(ch: any, me: number): string {
 const ULT_ART: Record<string, string> = { fire: "doom", lightning: "blink", stone: "dome", ice: "blizzard", water: "tide", nature: "grove" }; // аудит п.3: серверные ключи
 function ultIconArt(race: string) { const k = ULT_ART[race]; return k ? `<img class="ult-art" src="/strat/ui2/ult/ult_icon_${k}.png" alt="">` : ic("ult"); }
 function startAim(a: NonNullable<typeof ultAim>) { ultAim = a; aimCell = null; const p = S.g.pieces.find((q: any) => q.id === a.pid); if (p) aimCell = [p.x, p.y];
-  const h = $("#hint"); h.hidden = false; const sh = a.chief ? aimShape(a.race) : null, hov = matchMedia("(hover: hover)").matches; // t1225: подсказка по форме ульты
-  h.textContent = sh?.s === "chain" ? `Выберите врага в радиусе ${sh.rng}` + (hov ? " — Esc отменит" : "; второе касание — удар") : sh?.s === "line" ? "Укажите направление — клетку рядом с Вождём" + (hov ? "; Esc отменит" : "; второе касание — удар") : hov ? "Наведите область и нажмите — Esc отменит" : "Коснитесь клетки — область покажется; второе касание — удар"; draw(); }
+  const h = $("#hint"); h.hidden = false; const sh = aimShape(a.race), who = a.chief ? "Вождём" : "фигурой", hov = matchMedia("(hover: hover)").matches; // t1225: подсказка по форме ульты
+  const t = (a.name ? `«${a.name}»: ` : "") + (sh?.s === "chain" ? `выберите врага в радиусе ${sh.rng}` + (hov ? " — Esc отменит" : "; второе касание — удар") : sh?.s === "line" ? `укажите направление — клетку рядом с ${who}` + (hov ? "; Esc отменит" : "; второе касание — удар") : (sh ? `центр области — не дальше ${sh.rng} кл. от ${who}; ` : "") + (hov ? "наведите область и нажмите — Esc отменит" : "коснитесь клетки — область покажется; второе касание — удар"));
+  h.innerHTML = ""; const sp = document.createElement("span"); sp.textContent = t; const cb = document.createElement("button"); cb.className = "btn sm ghost aim-cancel"; cb.textContent = "Отмена"; cb.dataset.tip = "Отменить прицел — ОД не тратятся"; cb.onclick = (e) => { e.stopPropagation(); stopAim(); }; h.append(sp, " ", cb); draw(); } // t1248: отмена прицела и на телефоне
 function stopAim() { ultAim = null; aimCell = null; renderHint(); draw(); }
 
 // ---------- камера: карты до 100×100 ----------
@@ -1278,8 +1279,8 @@ function drawNow() {
   bursts = bursts.filter((b) => now - b.t < FX_MS);
   for (const b of bursts) { const frs = hitFx(b.race); if (!frs.length) continue; const i = Math.min(frs.length - 1, Math.floor(((now - b.t) / FX_MS) * frs.length)), s2 = z * 1.3; ctx.drawImage(frs[i], sx(b.x) + z / 2 - s2 / 2, sy(b.y) + z / 2 - s2 / 2, s2, s2); }
   const castBusy = drawCasts(ctx, n, sx, sy, z, now), fx2Busy = drawFx2(ctx, sx, sy, z, now) || marksOn;
-  if (ultAim && aimCell) { const cp = ultAim.chief ? g.pieces.find((q: any) => q.id === ultAim!.pid) : null, side = cp ? cp.o : S.you;
-    const A = ultAim.chief ? { from: (cp ? [cp.x, cp.y] : aimCell) as [number, number], era: g.ec?.era?.[side] || 1, side, pieces: g.pieces } : undefined;
+  if (ultAim && aimCell) { const cp = g.pieces.find((q: any) => q.id === ultAim!.pid) || null, side = cp ? cp.o : S.you; // t1248: форма прицела и для фигур
+    const A = aimShape(ultAim.race) ? { from: (cp ? [cp.x, cp.y] : aimCell) as [number, number], era: g.ec?.era?.[side] || 1, side, pieces: g.pieces } : undefined;
     drawAim(ctx, ultAim.race, aimCell[0], aimCell[1], ultAim.r, n, sx, sy, z, now, A ? ultAimOk(ultAim.race, aimCell[0], aimCell[1], A) : true, A); }
   // числа урона: всплывают, «пружинят», Oswald с чернильной обводкой
   fx = fx.filter((f) => now - f.t < NUM_MS); ctx.textAlign = "center"; ctx.textBaseline = "middle";
