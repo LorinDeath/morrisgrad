@@ -21,7 +21,7 @@ export function availItems(G: GameState, S: any, me: number, cfg: StratCfg, extr
   const lv = G.pieces.filter((p) => p.owner === me && pendingTalent(p, cfg));
   if (lv.length) out.push({ k: "lvl", icon: "xp", title: lv.length > 1 ? `Новый уровень · ${lv.length} фигуры` : `Новый уровень: ${KIND_NAME[lv[0].kind] || lv[0].kind}`, sub: "выберите навык", ref: lv[0].id });
   if (!canEra(G, me, cfg)) out.push({ k: "era", icon: "glory", title: "Можно перейти в новую эпоху", sub: "древо технологий" });
-  { const ok = TECHS.filter((t) => !canResearch(G, me, t, cfg)); if (ok.length) out.push({ k: "tech", icon: "know", title: ok.length > 1 ? `Можно изучить технологию · ${ok.length}` : "Можно изучить технологию", sub: ok.slice(0, 2).map((t) => t.name).join(", ") + (ok.length > 2 ? "…" : "") }); }
+  { const ok = (((cfg as any).techs?.length ? (cfg as any).techs : TECHS) as typeof TECHS).filter((t) => !canResearch(G, me, t, cfg)); if (ok.length) out.push({ k: "tech", icon: "know", title: ok.length > 1 ? `Можно изучить технологию · ${ok.length}` : "Можно изучить технологию", sub: ok.slice(0, 2).map((t) => t.name).join(", ") + (ok.length > 2 ? "…" : "") }); }
   { const s = chiefBuildSite(G, me, cfg); if (s) { const bs = (Object.keys(cfg.build) as BuildId[]).filter((b) => !canBuild(G, me, s.c, b, cfg, "rook"));
     if (bs.length) out.push({ k: "build", icon: "build", title: "Вождь может строить", sub: bs.slice(0, 2).map((b) => bName(b, G.races[me] || "")).join(", ") + (bs.length > 2 ? "…" : ""), ref: s.k.id }); } }
   for (const c of ec.cities) if (c.owner === me && !c.acted) {

@@ -402,7 +402,7 @@ body[data-screen="game"] .gtop { display: none; }
 .uns { display: flex; flex-wrap: wrap; gap: 4px; } .un { display: inline-flex; align-items: center; gap: 3px; font-size: .7rem; padding: 1px 6px; background: var(--ink); border: 1px solid var(--gold-dk); } .un .ic { width: 13px; height: 13px; }
 .tnode.can { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 14px #e0b04a44; } .tnode.can::before { background: var(--gold-hi); }
 .tnode.can:hover { transform: translateY(-2px); background: #3a2e46; }
-.tnode.got { background: #3f1b18; border-color: var(--red); } .tnode.got::before { background: var(--red-hi); } .tnode.got em { color: var(--good); }
+.tnode.got { background: #1f3320; border-color: #6fbf6a; box-shadow: inset 0 0 0 1px #6fbf6a55; cursor: default; } .tnode.got::before { background: var(--red-hi); } .tnode.got em { color: var(--good); }
 .tnode.later { opacity: .72; } .tnode.later em { color: var(--grey-hi); }
 .tnode.closed { opacity: .5; filter: grayscale(.9); } .tnode.closed b { text-decoration: line-through; } .tnode.closed em { color: var(--red-hi); }
 .tnode[aria-disabled] { cursor: default; }
@@ -843,3 +843,10 @@ body[data-screen="game"] .gtop { display: none; }
   .es-sides { gap: 6px; } .es-side { padding: 8px 4px; } .es-goals i { width: 18px; height: 18px; } .es-goals i .ic { width: 11px; height: 11px; } .es-goals { gap: 2px; }
 }
 .sumdlg .dlg { width: min(720px, 96vw); } .sumdlg .rs-h { display: none; }
+/* t1246: отклик на выбор технологии */
+.tnode.got em .ic { width: 12px; height: 12px; vertical-align: -2px; margin-right: 2px; }
+.tnode.pend { outline: 2px solid var(--gold-hi, #ffd77a); animation: tnpend 0.9s ease-in-out infinite alternate; }
+.tnode.fresh { animation: tnfresh 0.6s ease-out 3; outline: 2px solid #8fe08a; outline-offset: 1px; }
+@keyframes tnpend { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+@keyframes tnfresh { 0% { transform: scale(1); box-shadow: 0 0 0 0 #8fe08aaa; } 50% { transform: scale(1.05); box-shadow: 0 0 16px 4px #8fe08a88; } 100% { transform: scale(1); box-shadow: 0 0 0 0 #8fe08a00; } }
+@media (prefers-reduced-motion: reduce) { .tnode.pend, .tnode.fresh { animation: none; } }

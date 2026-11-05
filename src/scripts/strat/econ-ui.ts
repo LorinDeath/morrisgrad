@@ -39,7 +39,7 @@ const RECRUIT: Kind[] = ["pawn", "rook", "knight", "mage", "hero"];
 const KIND_ICON: Record<string, string> = { pawn: "boot", rook: "shield", knight: "horse", mage: "spark", hero: "sword", king: "crown" };
 
 export type Ctx = { S: any; G: GameState; me: number; send: (o: any) => void; redraw: () => void; toast: (t: string, k?: any, i?: string) => void; col: (side: number) => string; refresh: () => void };
-export const ui = { city: null as number | null, recruit: null as { city: number; kind: Kind } | null, tech: false, cfgKey: "", cfg: STRAT_CFG as StratCfg, tree: null as any[] | null };
+export const ui = { city: null as number | null, recruit: null as { city: number; kind: Kind } | null, tech: false, fresh: "" as string, pend: "" as string, cfgKey: "", cfg: STRAT_CFG as StratCfg, tree: null as any[] | null };
 export function cfgOf(S: any): StratCfg { ui.tree = Array.isArray(S?.tree?.techs) ? S.tree.techs : null; // r3: урезанное древо сервера (state.tree, ТЗ §14.F) — в клиентской сборке TECHS пуст
   const k = S?.cfgPatch ? JSON.stringify(S.cfgPatch) : ""; if (k !== ui.cfgKey) { ui.cfgKey = k; ui.cfg = k ? mergeCfg(S.cfgPatch) : STRAT_CFG; } return ui.cfg; }
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -108,6 +108,8 @@ export function techTip(G: GameState, cfg: StratCfg, n: TNode): string {
 }
 /** t1221: имена узлов для подсказок «или» (заполняется при отрисовке древа) */
 const XN = new Map<string, string>(); const xName = (id: string) => XN.get(id) || "";
+/** t1246: имя технологии для тоста/журнала — в клиентской сборке TECHS пуст, берём из серверного древа (ui.tree / XN) */
+export const techLabel = (id: string, race = ""): string => XN.get(id) || String((ui.tree || []).find((t: any) => t?.id === id)?.name || "") || rv(TECHS.find((t) => t.id === id) as any, race).name || id;
 /** Видимость узла древа технологий для игрока (туман знаний). */
 export function techFog(G: GameState, me: number, n: TNode, st: TState): FogView {
   const have: string[] = (G.ec?.techs?.[me] || []) as any;
@@ -289,10 +291,10 @@ export function renderTech(c: Ctx) {
   const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
-    return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" data-tip="${esc(techTip(G, cfg, n))}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
+    return `<button class="tnode ${st}${uv}${ui.fresh === n.id ? " fresh" : ""}${ui.pend === n.id && st !== "got" ? " pend" : ""}" data-t="${n.id}" data-node="${n.id}" data-tip="${esc(techTip(G, cfg, n))}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
       <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
       <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>${pathTag(n, st)}${n.excl?.length ? `<span class="xor" data-xor="${esc(n.excl.join(" "))}">${ic("close")}${st === "closed" ? "закрыто выбором" : st === "got" ? "закрыло" : "закроет"} «${esc(n.excl.map(xName).filter(Boolean).join("», «"))}»</span>` : ""}
-      <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + nodeCost(G, cfg, n)}</em></button>`; };
+      <em>${st === "got" ? (ui.fresh === n.id ? ic("check") + "Изучено только что" : ic("check") + "Изучено") : ui.pend === n.id ? "Изучаем…" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + nodeCost(G, cfg, n)}</em></button>`; };
   const cell = (br: string, era: number) => {
     const ns = nodes.filter((n) => n.br === br && n.era === era);
     if (!ns.length && era >= 4) return `<div class="tcell e4">${[0, 1].map((i) => `${i ? '<span class="and"></span>' : ""}<span class="tnode fog e4q" data-tip="Эпоха IV: узел откроется позже"><span class="e4fr locked"><span class="fogq">?</span></span><small>Эпоха IV</small></span>`).join("")}</div>`;
@@ -317,7 +319,13 @@ export function renderTech(c: Ctx) {
   const sc = dlg.querySelector<HTMLElement>(".tscroll")!; sc.scrollTop = keepScroll;
   const close = () => { ui.tech = false; persist("techdlg", false, ""); };
   dlg.querySelector<HTMLElement>("[data-x]")!.onclick = close; dlg.onclick = (e) => { if (e.target === dlg) close(); };
-  for (const b of dlg.querySelectorAll<HTMLButtonElement>("[data-t]")) b.onclick = () => { if (!b.getAttribute("aria-disabled")) c.send({ type: "act", act: { a: "research", t: b.dataset.t } }); };
+  // t1246: мгновенный отклик — карточка «Изучаем…» до ответа сервера; изученная — не отправляем повторно, а говорим об этом сразу
+  for (const b of dlg.querySelectorAll<HTMLButtonElement>("[data-t]")) b.onclick = () => {
+    if (b.classList.contains("got")) { c.toast?.("Уже изучено: " + techLabel(b.dataset.t!, race), "info", "tech"); return; }
+    if (b.getAttribute("aria-disabled") || ui.pend) return;
+    ui.pend = b.dataset.t!; b.classList.add("pend"); const em = b.querySelector("em"); if (em) em.textContent = "Изучаем…";
+    setTimeout(() => { if (ui.pend === b.dataset.t) { ui.pend = ""; renderTech(c); } }, 4000); // нет ответа — снимаем «Изучаем…»
+    c.send({ type: "act", act: { a: "research", t: b.dataset.t } }); };
   // t1221: наведение/касание узла «или» подсвечивает, какой узел он закроет (и наоборот)
   const xHi = (b: HTMLElement | null) => { dlg.querySelectorAll(".xpart,.xsel").forEach((x) => x.classList.remove("xpart", "xsel")); if (!b) return;
     const ids = (b.querySelector<HTMLElement>("[data-xor]")?.dataset.xor || "").split(" ").filter(Boolean); if (!ids.length) return;
@@ -474,7 +482,7 @@ export function econFx(e: any): { txt: string; col: string } | null {
 export function econToast(e: any, me: number, G?: GameState): [string, "info" | "good" | "bad" | "turn", string] | null {
   const own = (id: number) => G?.ec?.cities.find((q) => q.id === id)?.owner;
   const race = G?.races?.[me] || "";
-  if (e.e === "tech" && e.side === me) return ["Изучено: " + (rv(TECHS.find((t) => t.id === e.t) as any, race).name || e.t), "good", "tech"];
+  if (e.e === "tech" && e.side === me) return ["Изучено: " + techLabel(e.t, race), "good", "tech"];
   if (e.e === "era" && e.side === me) return ["Новая эпоха: " + ERA_NAME(e.era), "good", "era"];
   if (e.e === "build" && e.side === me) return ["Построено: " + bName(e.b, race), "good", BUILD_ICON[e.b] || "build"];
   if (e.e === "grow" && own(e.city) === me) return ["Столица выросла: ур. " + ((e.lvl ?? 0) + 1), "good", "castle"];

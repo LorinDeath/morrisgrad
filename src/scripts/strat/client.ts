@@ -4,7 +4,7 @@
 import { mountAdminGoals } from "./admin-goals";
 import { loadArt, unitSprite, hitFx, spriteBox, type Pose } from "./art";
 import { terrainLayer, drawStructIcon, GOLD, INK } from "./terrain-draw";
-import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick, drawEcon, econFx, econToast, cfgOf, ui as eui, KIND_NAME, ECON_ERR, territoryCached, pieceLv, talName, unitArt, type Ctx } from "./econ-ui";
+import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick, drawEcon, econFx, econToast, techLabel, cfgOf, ui as eui, KIND_NAME, ECON_ERR, territoryCached, pieceLv, talName, unitArt, type Ctx } from "./econ-ui";
 import { TERRAIN, STRUCT, TER_RULES, openMap, type MapData } from "../../../server/strat/terrain";
 import { ensureSize } from "../../../server/strat/rules";
 import { moveTargets, attackTargets, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
@@ -186,7 +186,7 @@ function openMatch() {
     if (m.type === "st") { m.skew = Date.now() - m.now; if (hv?.replay) { hv.back = m; rec.push(m.code, m.g, m.ev || []); return; }
       const viewing = !!hv, prev = liveS || S; S = m; if (S.phase !== "play" && resumeInfo?.code === S.code) resumeInfo = null; /* t1231: завершённая партия — не «незавершённая» */ onState(prev); applyIntent(); rec.push(S.code, S.g, S.ev || []); if (Array.isArray(S.hist)) rec.merge(S.code, framesFrom(S.hist));
       if (viewing && hv) { liveS = S; applyView(); } else renderMoves(); if (S.replay?.id && (!srvMv || hv || S.phase === "over")) askMoves(); }
-    if (m.type === "err") { toast(ERR[m.err] || m.err, "bad"); document.getElementById("lvdock")?.classList.remove("picked"); } // t1221: отказ — док снова активен
+    if (m.type === "err") { if (eui.pend) { eui.pend = ""; if (eui.tech && S) renderTech(ectx()); } toast(ERR[m.err] || ECON_ERR[m.err] || m.err, "bad"); document.getElementById("lvdock")?.classList.remove("picked"); } // t1221: отказ — док снова активен
     if (m.type === "left") { left = true; if (resumeInfo?.code && (resumeInfo.code === S?.code || S?.phase !== "play")) resumeInfo = null; S = null; loadResume().catch(() => {}); /* t1231: меню — свежая карточка «Продолжить» */ curCode = ""; resetMatchUi(); const u = new URL(location.href); u.searchParams.delete("join"); history.replaceState(null, "", u); render(); }
   };
   ws.onclose = (e) => {
@@ -370,6 +370,7 @@ function onState(prev: any) {
     const ef = ["bhit", "bdestroy", "tgrow", "tcap"].includes(e.e) ? null : econFx(e); if (ef) { const c = e.city != null ? g.ec?.cities.find((q: any) => q.id === e.city) : null, at = c || p || (e.x != null ? e : null);
       if (at) fx.push({ x: at.x, y: at.y, t: now, txt: ef.txt, col: ef.col }); }
     if (e.e === "build") { const c = g.ec?.cities.find((q: any) => q.id === e.city); if (c) e.side = c.owner; }
+    if (e.e === "tech" && e.side === me) { eui.fresh = e.t; eui.pend = ""; setTimeout(() => { if (eui.fresh === e.t) { eui.fresh = ""; if (eui.tech) renderTech(ectx()); } }, 2600); } // t1246: подсветка только что изученной
     const tt = econToast(e, me, gs()!); if (tt) { toast(tt[0], tt[1], tt[2]); logAdd(tt[0], tt[1] === "bad" ? "bad" : tt[1] === "good" ? "good" : ""); }
     if (e.e === "capture" && e.cap) sticky[e.by]?.add("capital");
     if (e.e === "promote" && p) fx.push({ x: p.x, y: p.y, t: now, txt: KIND_NAME[e.kind as Kind], col: "#f3d27a" });
@@ -421,7 +422,7 @@ const hFrames = (): Frame[] => (hv?.replay ? hv.replay.frames : rec.frames);
 const hMarks = (F: Frame[]) => F.map((f, i) => i).filter((i) => !F[i + 1] || F[i + 1].turn !== F[i].turn || F[i + 1].cur !== F[i].cur);
 function evCtx(): EvCtx { const g = (liveS || S)?.g; return { me: (liveS || S)?.you ?? -1, nick: (i) => (hv?.replay?.nicks?.[i] ?? (liveS || S)?.seats?.[i]?.nick) || "Игрок " + (i + 1),
   pieceName: (p) => (p?.k === "king" || p?.kind === "king" ? "Вождь" : KIND_NAME[(p?.k || p?.kind) as Kind] || "фигура"), cityName: (id) => { const c = g?.ec?.cities?.find((q: any) => q.id === id); return c?.name || (id >= 10001 ? "Башня" : "Город"); },
-  bName: (b, side) => (b === "watchtower" ? "Сторожевая башня" : bName(b, g?.races?.[side] || "")), techName: (id) => (TECHS as any[]).find((t) => t.id === id)?.name || id }; }
+  bName: (b, side) => (b === "watchtower" ? "Сторожевая башня" : bName(b, g?.races?.[side] || "")), techName: (id) => techLabel(id, g?.races?.[(liveS || S)?.you ?? 0] || "") }; }
 /** Открыть просмотр кадра idx (в партии — прошлый ход; в повторе — любой). */
 function histOpen(idx: number, replay?: Rec | null) {
   if (replay !== undefined && replay) { stopPlay(); hv = { idx: 0, replay, playing: false, speed: 1, timer: 0, saved: !!replay.saved, back: hv?.back ?? liveS ?? S }; liveS = null; }
