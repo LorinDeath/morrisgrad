@@ -1,0 +1,60 @@
+---
+import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/chess.css';
+const title = 'Админка кампаний — Боевые шахматы';
+const mapPayload = `{
+  "w": 8, "h": 8,
+  "boardSkin": "B_artdeco",
+  "units": [],
+  "win": [{"type":"kill_king","side":"b"}],
+  "lose": [{"type":"kill_king","side":"w"}]
+}`;
+const scenePayload = `{
+  "bg": "",
+  "beats": [
+    {"speaker":"Рассказчик","portrait":null,"text":"Король пал — это мат.","side":"center"}
+  ]
+}`;
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Редактор кампаний, карт и новелл Боевых шахмат" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+<div class="cc-app">
+  <header class="cc-top">
+    <a href="/games/chess-combat">← К игре</a>
+    <h1>Кампании · каркас</h1>
+    <span class="cc-who">local</span>
+  </header>
+  <section class="cc-screen on cc-admin" style="display:block">
+    <div class="cc-grid">
+      <div class="cc-panel">
+        <h2>Кампании (localStorage)</h2>
+        <div id="list" class="list"></div>
+        <label class="fld"><span>Название</span><input id="title" placeholder="Глава 1" /></label>
+        <button class="btn gold" id="add" type="button">Создать кампанию</button>
+        <h3>JSON карты (payload)</h3>
+        <textarea id="payload" spellcheck="false">{mapPayload}</textarea>
+        <button class="btn" id="save-map" type="button">Сохранить карту в выбранную</button>
+      </div>
+      <div class="cc-panel">
+        <h2>Новелла (сцена)</h2>
+        <textarea id="scene" spellcheck="false">{scenePayload}</textarea>
+        <button class="btn" id="save-scene" type="button">Сохранить сцену before</button>
+        <p style="font-size:.85rem;color:var(--cc-muted);margin-top:12px">
+          Полный CRUD в D1 — после «ок» на миграцию <code>0042_chess.sql</code>.
+          Win-слоты: kill_king, destroy_n, survive_turns, reach_cell.
+        </p>
+      </div>
+    </div>
+  </section>
+</div>
+<script type="module" src="../../scripts/chess/campaign.ts"></script>
+</body>
+</html>

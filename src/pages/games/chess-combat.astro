@@ -1,0 +1,93 @@
+---
+// «Боевые шахматы» — отдельная мини-игра. Логика: server/chess, клиент: src/scripts/chess/client.ts.
+// Поле: B_artdeco из chess-combat-set-v1 (выбор Алекса). Без слова «шах» — только мат / угроза.
+import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/chess.css';
+const title = 'Боевые шахматы | Моррис Град';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Боевые шахматы с очками действия: убей короля — поставь мат. Лобби, бот, рейтинг." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+<div class="cc-app">
+  <header class="cc-top">
+    <a href="/games">← Мини-игры</a>
+    <h1>Боевые шахматы</h1>
+    <span id="me" class="cc-who"></span>
+  </header>
+
+  <section id="sc-home" class="cc-screen">
+    <div class="cc-hero">
+      <p class="tag">Убей короля — это мат. ОД растут каждые 15 твоих ходов. Поле — арт-деко MorrisGrad.</p>
+    </div>
+    <div class="cc-grid">
+      <div class="cc-panel">
+        <h2>Играть</h2>
+        <div class="cc-modes" role="radiogroup">
+          <button type="button" class="btn cc-mode on" data-pm="bot"><b>С ботом</b><small>сразу за стол, рейтинг не считается</small></button>
+          <button type="button" class="btn cc-mode" data-pm="host"><b>Создать лобби</b><small>код для друга · 8×8</small></button>
+          <button type="button" class="btn cc-mode" data-pm="join"><b>Войти по коду</b><small>онлайн 1×1</small></button>
+        </div>
+        <label class="fld"><span>Имя гостя</span><input id="nick" maxlength="24" placeholder="необязательно" autocomplete="nickname" /></label>
+        <div class="joinrow">
+          <input id="joincode" maxlength="6" placeholder="КОД" autocomplete="off" spellcheck="false" />
+          <button class="btn" id="joinbtn" type="button">Войти</button>
+        </div>
+        <button class="btn gold big" id="create" type="button">Начать</button>
+        <p style="font-size:.8rem;color:var(--cc-muted);margin-top:10px">ОД: старт 2, +1 каждые 15 своих ходов. За 1 ОД — ход, удар или способность.</p>
+      </div>
+      <div class="cc-panel">
+        <h2>Ждут соперника <button class="btn ghost" id="refresh" type="button" aria-label="Обновить">↻</button></h2>
+        <div id="open" class="openlist"><div class="empty">Загрузка…</div></div>
+        <h3>Кампания</h3>
+        <p style="font-size:.85rem;color:var(--cc-muted)">Редактор карт и новеллы — в каркасе админки. <a href="/games/chess-combat-admin" style="color:var(--cc-gold)">Открыть</a></p>
+        <h3>Рейтинг</h3>
+        <p style="font-size:.85rem;color:var(--cc-muted)">Отдельный пул (не Чёрные короли). Пока локально / после выкладки — D1 <code>chess_ratings</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="sc-play" class="cc-screen">
+    <div class="cc-play">
+      <div class="cc-board-wrap">
+        <div class="cc-hud">
+          <div class="cc-side" id="turn-label">Ход</div>
+          <div class="cc-ap" title="Очки действия">ОД <span id="ap-num">2/2</span>
+            <span class="pips" id="ap-pips"></span>
+          </div>
+        </div>
+        <div class="cc-threat" id="threat"></div>
+        <canvas id="board" class="cc-board" width="560" height="560" aria-label="Доска"></canvas>
+      </div>
+      <aside class="cc-panel cc-sidepanel">
+        <div class="info" id="info">Выбери фигуру</div>
+        <div class="cc-acts">
+          <button class="btn" id="btn-ab" type="button" disabled>Способность</button>
+          <button class="btn gold" id="btn-end" type="button">Конец хода</button>
+        </div>
+        <div class="cc-log" id="log"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="sc-results" class="cc-screen">
+    <div class="cc-panel cc-results">
+      <h2>Итоги партии</h2>
+      <div id="res-body"></div>
+      <button class="btn gold big" id="btn-again" type="button">Ещё раз с ботом</button>
+      <button class="btn ghost big" id="btn-home" type="button">В меню</button>
+    </div>
+  </section>
+</div>
+<script>
+  // Clerk stub hook — тот же CDN-паттерн сайта подключится на выкладке
+</script>
+<script type="module" src="../../scripts/chess/client.ts"></script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+/* Боевые шахматы — тёмный арт-деко. Без слова «шах» в UI. */
+:root {
+  --cc-bg: #0c0a10;
+  --cc-panel: #16121c;
+  --cc-line: #3a2f1f;
+  --cc-gold: #d4af5a;
+  --cc-gold-dim: #8a7040;
+  --cc-text: #f0e6d4;
+  --cc-muted: #9a8f7c;
+  --cc-danger: #c44a4a;
+  --cc-ok: #4a9a6a;
+  --cc-ap: #e0c060;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--cc-bg); color: var(--cc-text);
+  font-family: "Segoe UI", system-ui, sans-serif; min-height: 100%; }
+.cc-app { min-height: 100vh; display: flex; flex-direction: column; }
+.cc-top { display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border-bottom: 1px solid var(--cc-line); background: linear-gradient(180deg,#1a1422,#0c0a10); }
+.cc-top a { color: var(--cc-gold); text-decoration: none; font-weight: 600; font-size: .9rem; }
+.cc-top h1 { margin: 0; font-size: 1.15rem; letter-spacing: .04em; color: var(--cc-gold);
+  font-family: Georgia, "Times New Roman", serif; flex: 1; text-align: center; }
+.cc-who { font-size: .8rem; color: var(--cc-muted); min-width: 80px; text-align: right; }
+
+.cc-screen { display: none; flex: 1; padding: 16px; max-width: 1100px; margin: 0 auto; width: 100%; }
+.cc-screen.on { display: block; }
+
+.cc-hero { text-align: center; margin-bottom: 18px; }
+.cc-hero .tag { color: var(--cc-muted); margin: 6px 0 0; }
+.cc-grid { display: grid; grid-template-columns: 1.2fr .9fr; gap: 16px; }
+@media (max-width: 800px) { .cc-grid { grid-template-columns: 1fr; } }
+
+.cc-panel { background: var(--cc-panel); border: 1px solid var(--cc-line); border-radius: 10px;
+  padding: 14px 16px; position: relative; }
+.cc-panel h2 { margin: 0 0 10px; font-size: 1rem; color: var(--cc-gold);
+  font-family: Georgia, serif; letter-spacing: .03em; }
+.cc-panel h3 { margin: 14px 0 8px; font-size: .85rem; color: var(--cc-gold-dim); text-transform: uppercase; letter-spacing: .08em; }
+
+.btn { appearance: none; border: 1px solid var(--cc-gold-dim); background: #2a2114; color: var(--cc-text);
+  padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 650; font-size: .92rem; }
+.btn:hover { border-color: var(--cc-gold); background: #3a2e1a; }
+.btn.gold { background: linear-gradient(180deg,#6a5420,#3a2e10); border-color: var(--cc-gold); color: #fff6d8; }
+.btn.ghost { background: transparent; }
+.btn.big { width: 100%; padding: 12px; margin-top: 8px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.fld { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: .85rem; color: var(--cc-muted); }
+.fld input { background: #0e0b12; border: 1px solid var(--cc-line); color: var(--cc-text);
+  padding: 8px 10px; border-radius: 6px; font-size: 1rem; letter-spacing: .1em; text-transform: uppercase; }
+.joinrow { display: flex; gap: 8px; }
+.joinrow input { flex: 1; }
+
+.cc-modes { display: flex; flex-direction: column; gap: 8px; }
+.cc-mode { text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.cc-mode b { color: var(--cc-gold); }
+.cc-mode small { color: var(--cc-muted); font-weight: 500; }
+.cc-mode.on { border-color: var(--cc-gold); box-shadow: inset 0 0 0 1px var(--cc-gold); }
+
+.openlist { display: flex; flex-direction: column; gap: 6px; min-height: 40px; }
+.openlist .row { display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; background: #100d16; border-radius: 6px; border: 1px solid #2a2230; }
+.openlist .empty { color: var(--cc-muted); font-size: .85rem; }
+
+/* play */
+.cc-play { display: grid; grid-template-columns: 1fr 260px; gap: 14px; align-items: start; }
+@media (max-width: 860px) { .cc-play { grid-template-columns: 1fr; } }
+.cc-board-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.cc-board {
+  width: min(92vw, 560px); height: min(92vw, 560px);
+  border: 3px solid #5a4820; border-radius: 6px; background: #1a1420;
+  box-shadow: 0 0 0 1px #2a2010, 0 12px 40px rgba(0,0,0,.55);
+  image-rendering: pixelated; cursor: pointer; touch-action: manipulation;
+}
+.cc-hud { width: min(92vw, 560px); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cc-ap { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--cc-ap); }
+.cc-ap .pips { display: flex; gap: 3px; }
+.cc-ap .pips i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--cc-gold-dim);
+  background: #2a2410; display: inline-block; }
+.cc-ap .pips i.on { background: var(--cc-ap); box-shadow: 0 0 6px #e0c06088; }
+.cc-threat { color: var(--cc-danger); font-size: .85rem; font-weight: 700; min-height: 1.2em; }
+.cc-side { font-size: .95rem; }
+.cc-side .me { color: var(--cc-gold); }
+
+.cc-sidepanel .info { font-size: .9rem; color: var(--cc-muted); min-height: 2.4em; margin-bottom: 8px; }
+.cc-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.cc-log { font-size: .78rem; color: var(--cc-muted); max-height: 220px; overflow: auto;
+  line-height: 1.35; border-top: 1px solid var(--cc-line); padding-top: 8px; }
+
+/* results */
+.cc-results { text-align: center; max-width: 480px; margin: 40px auto; }
+.cc-results h2 { color: var(--cc-gold); font-family: Georgia, serif; font-size: 1.6rem; }
+.cc-results .delta { font-size: 1.1rem; margin: 12px 0; }
+
+/* campaign admin scaffold */
+.cc-admin textarea { width: 100%; min-height: 120px; background: #0e0b12; color: var(--cc-text);
+  border: 1px solid var(--cc-line); border-radius: 6px; padding: 8px; font-family: ui-monospace, monospace; font-size: .8rem; }
+.cc-admin .list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.cc-admin .list .row { display: flex; gap: 8px; align-items: center; justify-content: space-between;
+  padding: 8px; background: #100d16; border-radius: 6px; }
