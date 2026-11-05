@@ -31,7 +31,8 @@ export const ECON_ERR: Record<string, string> = {
   bad_building: "Нет такой постройки", no_gift: "Передача без встречной оплаты запрещена", bad_ratio: "Курс обмена вне 1:2…2:1", too_much: "Больше 30% запаса нельзя", trade_done: "Сделка за ход уже была",
   need_tech: "Нужна технология", path_closed: "Путь закрыт выбором другой технологии",
 };
-const BR_NAME: Record<string, string> = { war: "Война", econ: "Хозяйство", elem: "Стихия" };
+// t1237: названия тактик — как в «Экскурсе 4» на форуме (без них заголовки шли латиницей: RUSH, FORT…)
+const BR_NAME: Record<string, string> = { war: "Война", econ: "Хозяйство", elem: "Стихия", rush: "Натиск", fort: "Оборона", trade: "Торговля", expand: "Рост", arcana: "Тайное знание" };
 const ERA_ROMAN = ["", "I", "II", "III", "IV", "V", "VI"];
 export const ERA_NAME = (e: number) => "Эпоха " + (ERA_ROMAN[e] || e);
 const RECRUIT: Kind[] = ["pawn", "rook", "knight", "mage", "hero"];
@@ -102,7 +103,8 @@ export function techTip(G: GameState, cfg: StratCfg, n: TNode): string {
   const era = `Эпоха ${ERA_ROMAN[n.era] || n.era}` + (shifted ? ` — в лиге «${LG_NAME[lid] || lid}»` + (base && base !== n.era ? ` (обычно эпоха ${ERA_ROMAN[base] || base})` : "") : "");
   const t = String((n.raw as any)?.tip || n.eff || ""); // подсказка вставляется как HTML (ui-kit tipOf) — текст экранируем
   const xs = (n.excl || []).map((id) => xName(id)).filter(Boolean);
-  return (t ? esc(t) + "<br>" : "") + `<b>${esc(era)}</b> · ${nodeCost(G, cfg, n)} знаний` + (xs.length ? `<br>⚔ Взаимоисключается с «${xs.map(esc).join("», «")}»: изучите одну — другая закроется навсегда` : "");
+  return (t ? esc(t) + "<br>" : "") + `<b>${esc(era)}</b> · ${nodeCost(G, cfg, n)} знаний` + (xs.length ? `<br>⚔ Взаимоисключается с «${xs.map(esc).join("», «")}»: изучите одну — другая закроется навсегда` : "")
+    + ((n.raw as any)?.grp === "root" ? `<br>⚔ Корень тактики: тактик можно взять не больше ${+(cfg.econ.research as any).maxPaths || 2}, остальные закроются навсегда` : "");
 }
 /** t1221: имена узлов для подсказок «или» (заполняется при отрисовке древа) */
 const XN = new Map<string, string>(); const xName = (id: string) => XN.get(id) || "";
@@ -278,12 +280,18 @@ export function renderTech(c: Ctx) {
   const brs = [...new Set(["war", "econ", "elem", ...nodes.map((n) => n.br)])].filter((b) => nodes.some((n) => n.br === b) || b === "elem");
   const maxEra = Math.max(4, eras, ...nodes.map((n) => n.era)); // эпоха IV видна всегда: её узлы скрыты «?», пока сервер их не раскроет
   for (const n of nodes) XN.set(n.id, n.name);
+  // t1237: корни тактик не «или» друг другу — их можно взять не больше econ.research.maxPaths (2) из пяти; третья тактика закрывается целиком
+  const have: string[] = (ec.techs?.[me] || []) as any, maxP = +(cfg.econ.research as any).maxPaths || 2;
+  const isRoot = (n: TNode) => (n.raw as any)?.grp === "root", roots = nodes.filter((n) => isRoot(n) && !n.red);
+  const rootsGot = roots.filter((n) => have.includes(n.id)).length, rootsN = new Set(nodes.filter((n) => n.br !== "elem" && n.era === 1).map((n) => n.br)).size || roots.length;
+  const pathTag = (n: TNode, st: TState) => !isRoot(n) ? "" : `<span class="xor paths">${ic("tech")}${st === "got" ? `тактика ${rootsGot} из ${maxP}`
+    : st === "closed" ? `уже выбрано ${maxP} тактики` : rootsGot >= maxP - 1 ? `последняя тактика: остальные закроются` : `можно взять ${maxP} тактики из ${rootsN}`}</span>`;
   const card = (n: TNode) => { const { st, why } = techState(G, me, n, nodes, cfg), fv = techFog(G, me, n, st), uv = unveilCls("t" + me, n.id, fv);
     if (fv !== "show") return fogNode(n.id, fv, "tech");
     const un = [...n.unB.map((b) => `<span class="un">${bIcon(b, race)}${esc(bName(b, race))}</span>`), ...n.unK.map((k) => `<span class="un">${ic(KIND_ICON[k] || "recruit")}${esc((KIND_NAME as any)[k] || k)}</span>`)].join("");
     return `<button class="tnode ${st}${uv}" data-t="${n.id}" data-node="${n.id}" data-tip="${esc(techTip(G, cfg, n))}" ${!my || st !== "can" ? 'aria-disabled="true"' : ""}>
       <span class="tn-h">${n.era >= 4 ? `<span class="e4fr ${st === "got" ? "active" : st === "can" ? "" : "locked"}">${techIc(n, race)}</span>` : `<span class="tn-ic">${techIc(n, race)}</span>`}<b>${esc(n.name)}</b>${st === "got" ? `<span class="stamp">${ic("check")}</span>` : st === "closed" ? `<span class="stamp x">${ic("close")}</span>` : ""}</span>
-      <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>${n.excl?.length ? `<span class="xor" data-xor="${esc(n.excl.join(" "))}">${ic("close")}${st === "closed" ? "закрыто выбором" : st === "got" ? "закрыло" : "закроет"} «${esc(n.excl.map(xName).filter(Boolean).join("», «"))}»</span>` : ""}
+      <small>${esc(n.eff)}</small>${un ? `<span class="uns">${un}</span>` : ""}<span class="pas-row">${pasIcon(techPassive(n.id, cfg, race))}</span>${pathTag(n, st)}${n.excl?.length ? `<span class="xor" data-xor="${esc(n.excl.join(" "))}">${ic("close")}${st === "closed" ? "закрыто выбором" : st === "got" ? "закрыло" : "закроет"} «${esc(n.excl.map(xName).filter(Boolean).join("», «"))}»</span>` : ""}
       <em>${st === "got" ? "Изучено" : st === "closed" ? esc(why) : st === "later" ? ic("lock") + esc(why) : ic("know") + nodeCost(G, cfg, n)}</em></button>`; };
   const cell = (br: string, era: number) => {
     const ns = nodes.filter((n) => n.br === br && n.era === era);
@@ -301,7 +309,7 @@ export function renderTech(c: Ctx) {
   const legend = `<div class="tlegend"><span class="lg can"></span>можно изучить<span class="lg got"></span>изучено<span class="lg later"></span>пока недоступно<span class="lg closed"></span>путь закрыт навсегда<span class="lg fog">?</span>ещё не открыто</div>`;
   const keepScroll = dlg.querySelector(".tscroll")?.scrollTop || 0;
   dlg.innerHTML = `<div class="dlg deco techscreen">
-    <div class="dlg-h"><span class="dlg-ic">${ic("tech")}</span><div><h3>Древо технологий</h3><p class="dlg-sub">Одно исследование за ход. Выбор навсегда закрывает альтернативный путь.</p></div>
+    <div class="dlg-h"><span class="dlg-ic">${ic("tech")}</span><div><h3>Древо технологий</h3><p class="dlg-sub">Одно исследование за ход. Тактик можно взять ${maxP} из ${rootsN}. Где стоит «или», выбор навсегда закрывает соседний узел.</p></div>
       <div class="dlg-res"><span data-tip="Знания">${ic("know")}<b>${ec.res[me].know}</b></span><span>${ic("era")}<b>${ERA_NAME(ec.era[me])}</b></span></div>
       <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
     <div class="tscroll">${body}</div>
