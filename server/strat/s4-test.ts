@@ -67,7 +67,7 @@ const killKing = (g: GameState, s: number) => { const k = king(g, s)!; const a =
   killKing(g, 1);
   ok(!king(g, 1) && g.winner === -1 && g.ec.goals[0].includes("chief") && g.ec.chief[1].dead === ((C.econ as any).leagueRules ? (C.econ as any).league.quick.respawn : C.chief.respawn), "Вождь пал: партия идёт, цель засчитана (возрождение — по лиге)");
   ok(g.ec.chief[1].hist[0].died && g.ec.chief[1].hist[0].by === 0, "история: кто и когда");
-  ok(apFor(g, 1, C) === Math.max(1, C.sizes[8].ap - C.chief.noChiefAp), "без Вождя −1 ОД");
+  ok(apFor(g, 1, C) === Math.max(1, (C.econ as any).league.quick.apBase - C.chief.noChiefAp), "без Вождя −1 ОД");
   let turns = 0; while (!king(g, 1) && turns < 20 && g.winner === -1) { endTurn(g); turns++; }
   const k2 = king(g, 1)!;
   ok(k2 && g.ec.chief[1].gen === 2 && (k2.xp || 0) === 0 && !(k2.tal || []).length, "возрождение: ур.1, без опыта и навыков");

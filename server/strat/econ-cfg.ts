@@ -59,14 +59,14 @@ export const ECON = {
    *  ОД: apBase + apTech за каждую ОД-технологию (Муштра / Сигнальные огни — каждая в развилке «одна из трёх») + apBld за «Военный совет»
    *  (однократная постройка: onceMax на игрока), не больше apMax (до талантов Вождя). grow — ходов на право клетки; capture — ходов до потери
    *  клетки; found — ходов канала поселения; respawn — ходов до нового Вождя; xp — множитель опыта фигур/Вождя; research — множитель цены
-   *  технологий и эпох (темп эпох). t1143: apBase 1/2/3; итог ОД не меньше 1 (без Вождя −1 ОД не опускает ниже 1). */
+   *  технологий и эпох (темп эпох). t1143: apBase; t1245: прод d2ca2917 — база 4/8/12, apTech 2/2/2, apMax 99 (Алекс: стартовые ОД ×4, иначе 1–2 слишком медленно). Итог ОД не меньше 1 (без Вождя −1 ОД не опускает ниже 1). */
   league: {
     // t1163 (баланс-сим, набор H): race — правки чисел расы только в этой лиге (поверх cfg.race, см. econ.ts raceCfg); secondGold — компенсация второму игроку в лиге (вместо start.secondGold)
-    quick:    { apBase: 1, apTech: 1, apBld: 1, raceCap: 1, onceMax: 1, apMax: 6,  grow: 6, growMin: 5, growMax: 6, capture: 4, found: 8,  respawn: 4, xp: 1.5 /* t1207: опыт по лиге 1,25/1/0,8 → 1,5/0,25/0,08 (xp-test.ts) */, research: 0.8,
+    quick:    { apBase: 4, apTech: 2, apBld: 1, raceCap: 1, onceMax: 1, apMax: 99,  grow: 6, growMin: 5, growMax: 6, capture: 4, found: 8,  respawn: 4, xp: 1.5 /* t1207: опыт по лиге 1,25/1/0,8 → 1,5/0,25/0,08 (xp-test.ts) */, research: 0.8,
                 race: { water: { healOwnT: 0 }, fire: { hpMul: 1.1 }, lightning: { chain: 1, hpMul: 0.8 } } }, // secondGold: 6 (H) и 5 (t1175) пробовали — перевес первого хода не снизился (61% / 60%), не берём; t1175: Огонь HP ×1,0→×1,1, Молния HP ×0,9→×0,8 (8×8: 39%/61%)
-    normal:   { apBase: 2, apTech: 1, apBld: 3, raceCap: 2, onceMax: 1, apMax: 7,  grow: 12, growMin: 10, growMax: 14, capture: 4, found: 10, respawn: 5, xp: 0.25,  research: 1,
+    normal:   { apBase: 8, apTech: 2, apBld: 3, raceCap: 2, onceMax: 1, apMax: 99,  grow: 12, growMin: 10, growMax: 14, capture: 4, found: 10, respawn: 5, xp: 0.25,  research: 1,
                 race: { lightning: { hpMul: 1.1 }, nature: { hpMul: 0.9 } }, techEra: { grove: 4 } }, // t1163: «Чаща» в Обычной — с эры IV (Природа 68% на 15×15); t1175: Молния HP ×1,0→×1,1 (29% на 15×15; разряд 2→3 пробовали — ~33%, не берём); t1175: Природа HP ×0,9 (64% на 15×15; «Урожай» с эры IV пробовали — бот берёт «Чащу», Природа ~82%, не берём)
-    tactical: { apBase: 3, apTech: 2, apBld: 4, raceCap: 3, onceMax: 2, apMax: 12, grow: 17, growMin: 15, growMax: 20, capture: 5, found: 12, respawn: 6, xp: 0.08,  research: 1.25 },
+    tactical: { apBase: 12, apTech: 2, apBld: 4, raceCap: 3, onceMax: 2, apMax: 99, grow: 17, growMin: 15, growMax: 20, capture: 5, found: 12, respawn: 6, xp: 0.08,  research: 1.25 },
   } as Record<string, { apBase: number; apTech: number; apBld: number; raceCap: number; onceMax: number; apMax: number; grow: number; growMin: number; growMax: number; capture: number; found: number; respawn: number; xp: number; research: number; secondGold?: number; race?: Record<string, Record<string, number>>; techEra?: Record<string, number> }>,
   /** t1143: «Сила стихии» — свой ситуативный прирост ОД у каждой расы (скрытая связь раса↔тактика: игрок видит только «+N ОД: <причина>»).
    *  +1 ОД за каждые per единиц условия, не больше raceCap лиги. Считается в начале хода.

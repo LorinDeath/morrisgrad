@@ -90,9 +90,9 @@ const ownTurns = (g: GameState, side: number, k: number, ev: any[] = []) => { le
 // --- ОД по лигам
 {
   const q = newGame(5, ["fire", "ice"], 0), nn = newGame(15, ["fire", "ice"], 0);
-  ok(apFor(q, 0, C) === 1 && apFor(newGame(8, ["fire", "ice"], 0), 0, C) === 1 && apFor(nn, 0, C) === 2, "база ОД: Быстрая 1, Обычная 2");
-  nn.ec.techs[0].push("drill"); ok(apFor(nn, 0, C) === 3, "ОД-технология +1 (Обычная)");
-  cap(nn, 0).bld.push("warcouncil"); ok(apFor(nn, 0, C) === 6, "Военный совет +3 (Обычная)");
+  ok(apFor(q, 0, C) === 4 && apFor(newGame(8, ["fire", "ice"], 0), 0, C) === 4 && apFor(nn, 0, C) === 8, "база ОД: Быстрая 4, Обычная 8 (t1245)");
+  nn.ec.techs[0].push("drill"); ok(apFor(nn, 0, C) === 10, "ОД-технология +2 (Обычная)");
+  cap(nn, 0).bld.push("warcouncil"); ok(apFor(nn, 0, C) === 13, "Военный совет +3 (Обычная)");
   ok(canBuild(nn, 0, cap(nn, 0), "warcouncil", C) === "once_max", "Военный совет — один на игрока");
   const g1 = newGame(8, ["fire", "ice"], 0); g1.pieces = g1.pieces.filter((p) => !(p.owner === 0 && p.kind === "king")); ok(apFor(g1, 0, C) >= 1, "без Вождя ОД не меньше 1");
   const f = newGame(15, ["fire", "ice"], 0); (f.ec as any).rap = [{ kills: 3 }, {}]; ok(raceAp(f, 0, C).n === C.econ.league.normal.raceCap, "Сила стихии огня: убийства → ОД, потолок лиги");

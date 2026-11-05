@@ -46,10 +46,10 @@ export const STRAT_CFG = {
     nature: { hpMul: 1.0, atk: 0, arm: 0, rookAtk: 0, growthMul: 1.5, forestKnow: 1, forestKnowMax: 3, armOutside: -1 }, lightning: { hpMul: 0.9, atk: 0, arm: 0, rookAtk: 0, chain: 2 },
   },
   sizes: {
-    5: { size: 5, turnLimit: 0, turnSec: 20, reserveSec: 60, ap: 1, army: [["knight", "king", "rook"]] },
-    8: { size: 8, turnLimit: 50, turnSec: 40, reserveSec: 180, ap: 2, army: [["rook", "knight", "king", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn"]] },
-    15: { size: 15, turnLimit: 150, turnSec: 60, reserveSec: 300, ap: 3, army: [["rook", "mage", "knight", "king", "hero", "knight", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] },
-    35: { size: 35, turnLimit: 400, turnSec: 90, reserveSec: 600, ap: 4, army: [["rook", "knight", "mage", "knight", "hero", "king", "hero", "knight", "mage", "knight", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] }, // t1201: Тактическая
+    5: { size: 5, turnLimit: 0, turnSec: 20, reserveSec: 60, ap: 4, army: [["knight", "king", "rook"]] },
+    8: { size: 8, turnLimit: 50, turnSec: 40, reserveSec: 180, ap: 4, army: [["rook", "knight", "king", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn"]] },
+    15: { size: 15, turnLimit: 150, turnSec: 60, reserveSec: 300, ap: 8, army: [["rook", "mage", "knight", "king", "hero", "knight", "mage", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] },
+    35: { size: 35, turnLimit: 400, turnSec: 90, reserveSec: 600, ap: 12, army: [["rook", "knight", "mage", "knight", "hero", "king", "hero", "knight", "mage", "knight", "rook"], ["pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn", "pawn"]] }, // t1201: Тактическая
   } as Record<number, SizeCfg>,
   econ: ECON, build: BUILD, talents: TALENTS, // этап 2 (econ-cfg.ts)
   techs: TECHS, // этап 3: дерево тактик (econ-cfg.ts)

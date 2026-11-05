@@ -11,14 +11,14 @@ export const TECHS: Tech[] = [
   { id: "horse", br: "rush", era: 1, grp: "root", name: "Коневодство", eff: "открывает Конюшню; Всадник на 1 з дешевле", unlock: ["stable"], fx: { knightDisc: 1 } },
   { id: "ambush", br: "rush", era: 2, grp: "rush2", req: ["horse"], name: "Засада", eff: "+2 урона по фигуре, ходившей в прошлый ход", fx: { ambush: 2 } },
   { id: "steel", br: "rush", era: 2, grp: "rush2", req: ["horse"], name: "Сталь", eff: "+1 АТК всем; открывает Кузню", unlock: ["forge"], fx: { atk: 1 } },
-  { id: "drill", br: "rush", era: 2, grp: "rush2", req: ["horse"], name: "Муштра", eff: "+ОД за ход (ОД-технология: Быстрая/Обычная +1, Тактическая +2)", fx: { ap: 1 } },
+  { id: "drill", br: "rush", era: 2, grp: "rush2", req: ["horse"], name: "Муштра", eff: "+ОД за ход (ОД-технология: +2 во всех лигах)", fx: { ap: 1 } },
   { id: "warcry", br: "rush", era: 3, grp: "rush3a", req: ["ambush", "drill"], name: "Боевой клич", eff: "+1 АТК Ополченцам и Всадникам", fx: { atkK: { pawn: 1, knight: 1 } } },
   { id: "siegecraft", br: "rush", era: 3, grp: "rush3b", req: ["steel", "drill"], name: "Осадное дело", eff: "+2 АТК на вражеской территории", fx: { atkEnemyT: 2 } },
   // 🛡 Крепость
   { id: "masonry", br: "fort", era: 1, grp: "root", name: "Каменное дело", eff: "открывает Стену и Кузню; +1 БРН Стражам и Вождю", unlock: ["wall", "forge"], fx: { armK: { rook: 1, king: 1 } } },
   { id: "formation", br: "fort", era: 2, grp: "fort2", req: ["masonry"], name: "Строй", eff: "+1 БРН Ополченцу рядом с Ополченцем; +1 БРН у Вождя (радиус 2)", fx: { formation: 1, armKing2: 1 } },
   { id: "bastion", br: "fort", era: 2, grp: "fort2", req: ["masonry"], name: "Бастион", eff: "+1 БРН на своей территории", fx: { armOwnT: 1 } },
-  { id: "beacons", br: "fort", era: 2, grp: "fort2", req: ["masonry"], name: "Сигнальные огни", eff: "+ОД за ход (ОД-технология: Быстрая/Обычная +1, Тактическая +2)", fx: { ap: 1 } },
+  { id: "beacons", br: "fort", era: 2, grp: "fort2", req: ["masonry"], name: "Сигнальные огни", eff: "+ОД за ход (ОД-технология: +2 во всех лигах)", fx: { ap: 1 } },
   { id: "guardians", br: "fort", era: 3, grp: "fort3a", req: ["formation", "beacons"], name: "Гвардия", eff: "Вождь +10 HP; ещё +1 БРН у Вождя", fx: { kingHp: 10, armKing2: 1 } },
   { id: "citadel", br: "fort", era: 3, grp: "fort3b", req: ["bastion", "beacons"], name: "Цитадель", eff: "врагу нужен лишний ход осады твоих городов; +1 БРН на своей территории", fx: { siege: 1, armOwnT: 1 } },
   // ⚖ Торговля

@@ -18,7 +18,7 @@ for (const s of [5, 8, 15]) {
   ok(new Set(g.pieces.map((p) => p.x + ":" + p.y)).size === g.pieces.length, `${s}×${s}: клетки не пересекаются`);
   const mirror = g.pieces.filter((p) => p.owner === 0).every((p) => g.pieces.some((q) => q.owner === 1 && q.kind === p.kind && q.x === p.x && q.y === s - 1 - p.y));
   ok(mirror, `${s}×${s}: армии зеркальны (честный старт)`);
-  ok(g.apMax === ({ 5: 1, 8: 1, 15: 2 } as any)[s] && g.turnLimit === ({ 5: 0, 8: 50, 15: 150 } as any)[s], `${s}×${s}: ОД по лиге (Быстрая 1, Обычная 2), лимит ходов t1208`);
+  ok(g.apMax === ({ 5: 4, 8: 4, 15: 8 } as any)[s] && g.turnLimit === ({ 5: 0, 8: 50, 15: 150 } as any)[s], `${s}×${s}: ОД по лиге (Быстрая 4, Обычная 8, t1245), лимит ходов t1208`);
 }
 ok(newGame(15, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 20, "Огонь: −10% HP (Страж 22 → 20)");
 ok(newGame(8, ["fire", "ice"]).pieces.find((p) => p.owner === 0 && p.kind === "rook")!.maxHp === 24, "t1175: Огонь на 8×8 — лига quick +10% HP (Страж 24)");
@@ -74,12 +74,13 @@ ok(elementMul("fire", "ice") === 1.1 && elementMul("ice", "fire") === 1 && eleme
   const pawn = g.pieces.find((p) => p.owner === 0 && p.kind === "pawn")!;
   g.ec.res[0].gold = 0; g.ec.res[0].know = 0; // нечего делать в городе → ход передастся сам
   ok(apply(g, 0, { a: "move", id: pawn.id, x: pawn.x, y: pawn.y - 1 }).ok, "ход Ополченцем");
-  ok(!apply(g, 0, { a: "move", id: pawn.id, x: pawn.x, y: pawn.y - 1 }).ok, "после траты ОД ходить нельзя");
+  ok(!apply(g, 0, { a: "move", id: pawn.id, x: pawn.x, y: pawn.y - 1 }).ok, "та же фигура повторно ходить нельзя");
   ok(!apply(g, 0, { a: "move", id: p1.id, x: p1.x, y: p1.y + 1 }).ok, "чужая фигура отклонена");
   ok(!apply(g, 0, { a: "move", id: 999, x: 0, y: 0 }).ok, "несуществующая фигура отклонена");
-  const v0 = g.v; // t1141: на 8×8 (Быстрая лига) 1 ОД — первый ход Ополченцем уже передал ход
-  ok(g.cur === 1 && g.ap === g.apMax, "1 ОД на 8×8 кончилось → ход сопернику");
-  apply(g, 1, { a: "end" }); ok(g.v === v0 + 1, "версия растёт на каждое действие");
+  const v0 = g.v; // t1245: Быстрая база 4 ОД — после 1 действия ход ещё наш
+  ok(g.cur === 0 && g.ap === g.apMax - 1, "после 1 действия ОД осталось, ход наш");
+  ok(apply(g, 0, { a: "end" }).ok && g.cur === 1, "конец хода → сопернику");
+  apply(g, 1, { a: "end" }); ok(g.v > v0, "версия растёт на каждое действие");
   g.ec.res[0].gold = 0; g.ec.res[0].know = 0;
   ok(g.pieces.filter((p) => p.owner === 0).every((p) => !p.acted), "в новом ходе флаги сброшены");
   ok(!apply(g, 0, { a: "move", id: 999, x: 1.5 as any, y: 0 }).ok, "мусор в координатах отклонён");
