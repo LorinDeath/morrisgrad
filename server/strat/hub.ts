@@ -193,7 +193,7 @@ export class StratIndex extends DurableObject {
       if (m.type === "map_save") { const now = Date.now(); if (now - (a.mapAt || 0) < 5000) return reply({ err: "rate" }); a.mapAt = now; ws.serializeAttachment(a); return reply(await saveMap(this.env, who, m.map)); }
       if (m.type === "map_flag") return reply(await flagMap(this.env, who, String(m.id || ""), String(m.why || "")));
       // ---- хаб карт (t1217): чужим — только одобренные; лайк/избранное/комментарии — только вход
-      if (m.type === "map_hub") return reply({ list: await hubList(this.env, who.verified ? who.pkey : null, { sort: String(m.sort || ""), league: String(m.league || ""), size: +m.size || undefined, q: String(m.q || ""), tab: String(m.tab || ""), mode: isMode(m.mode) ? m.mode : undefined }), admin: await isStratAdmin(this.env, who.pkey, who.verified), me: who.verified });
+      if (m.type === "map_hub") return reply({ list: await hubList(this.env, who.verified ? who.pkey : null, { sort: String(m.sort || ""), league: String(m.league || ""), size: +m.size || undefined, q: String(m.q || ""), shape: String(m.shape || ""), tab: String(m.tab || ""), mode: isMode(m.mode) ? m.mode : undefined }), admin: await isStratAdmin(this.env, who.pkey, who.verified), me: who.verified });
       if (m.type === "map_like" || m.type === "map_fav") { const now = Date.now(); if (now - (a.likeAt || 0) < 700) return reply({ err: "rate" }); a.likeAt = now; ws.serializeAttachment(a);
         return reply(await (m.type === "map_like" ? likeMap : favMap)(this.env, who, String(m.id || ""), !!m.on)); }
       if (m.type === "map_comments") { const admin = await isStratAdmin(this.env, who.pkey, who.verified); const r = await getMapRow(this.env, String(m.id || ""));

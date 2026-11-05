@@ -2,6 +2,7 @@
 // Видно: своя (командная) территория и клетки в радиусе R от своих фигур, городов и Сторожевых башен (у Всадника — Rk), Чебышёв.
 // Разведанные клетки помнят рельеф и города, но не показывают фигуры. В 2×2 видимость общая на команду.
 // Сервер вырезает из состояния всё, чего команда не видит (фигуры, события, чужие каналы поселения, ОЗ построек) — подсмотреть в коде страницы нельзя.
+import { mw, mh } from "./terrain";
 import { territory } from "./econ";
 import type { GameState, StratCfg } from "./rules";
 
@@ -13,7 +14,7 @@ export const fogCfg = (cfg: StratCfg): FogCfg => ({ ...FOG0, ...((cfg.econ as an
 export function visMask(g: GameState, viewer: number, sameTeam: (a: number, b: number) => boolean, cfg: StratCfg): Uint8Array {
   const n = g.size, V = new Uint8Array(n * n); if (viewer < 0) return V;
   const F = fogCfg(cfg), mine = (o: number) => o >= 0 && sameTeam(o, viewer);
-  const disc = (cx: number, cy: number, r: number) => { for (let y = Math.max(0, cy - r); y <= Math.min(n - 1, cy + r); y++) for (let x = Math.max(0, cx - r); x <= Math.min(n - 1, cx + r); x++) V[y * n + x] = 1; };
+  const disc = (cx: number, cy: number, r: number) => { for (let y = Math.max(0, cy - r); y <= Math.min(mh(g) - 1, cy + r); y++) for (let x = Math.max(0, cx - r); x <= Math.min(mw(g) - 1, cx + r); x++) V[y * n + x] = 1; };
   if (g.ec) { const T = territory(g, cfg); for (let i = 0; i < T.length; i++) if (T[i] >= 0 && mine(T[i])) V[i] = 1;
     for (const c of g.ec.cities) if (mine(c.owner)) disc(c.x, c.y, F.rCity);
     for (const t of g.ec.towers || []) if (mine(t.owner)) disc(t.x, t.y, F.rTower); }
@@ -29,7 +30,7 @@ const PIECE_EV = new Set(["move", "hit", "kill", "burn", "heal", "promote", "abi
 /** Урезать уже собранный вид (out = stateFor: g, ev, bhp, towers, check) под туман зрителя viewer. Не мутирует исходные объекты игры. */
 export function fogRedact(out: any, g: GameState, viewer: number, sameTeam: (a: number, b: number) => boolean, vis: Uint8Array, seen: Uint8Array) {
   const n = g.size, mine = (o: any) => typeof o === "number" && o >= 0 && viewer >= 0 && sameTeam(o, viewer);
-  const at = (M: Uint8Array, x: any, y: any) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < n && y < n && !!M[y * n + x];
+  const at = (M: Uint8Array, x: any, y: any) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < mw(g) && y < mh(g) && !!M[y * n + x];
   if (out.g) {
     out.g = { ...out.g, pieces: (out.g.pieces || []).filter((p: any) => mine(p.o) || at(vis, p.x, p.y)) };
     if (out.g.ec) { const ec = out.g.ec;
@@ -54,6 +55,6 @@ export function fogRedact(out: any, g: GameState, viewer: number, sameTeam: (a: 
 }
 /** t1247: в тумане бить можно только видимую команде цель (иначе подход Ладьи/Ферзя «на ощупь» раскрывал бы скрытые фигуры). */
 export function fogAttackOk(g: GameState, seat: number, act: { a: string; x?: number; y?: number }, sameTeam: (a: number, b: number) => boolean, cfg: StratCfg): boolean {
-  if (act.a !== "attack") return true; const x = act.x! | 0, y = act.y! | 0; if (x < 0 || y < 0 || x >= g.size || y >= g.size) return false;
+  if (act.a !== "attack") return true; const x = act.x! | 0, y = act.y! | 0; if (x < 0 || y < 0 || x >= mw(g) || y >= mh(g)) return false;
   return visMask(g, seat, sameTeam, cfg)[y * g.size + x] === 1;
 }

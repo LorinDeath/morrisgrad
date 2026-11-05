@@ -32,18 +32,21 @@ export const STRUCT = {
 } as const;
 export type StructCh = keyof typeof STRUCT;
 
-export type MapData = { id: string; name: string; size: number; t: string; s: string; mode?: string }; // mode — t1219: режим карты (1v1, 2v2, ffa3…ffa8); нет — по числу точек спавна
+export type MapData = { id: string; name: string; size: number; w?: number; h?: number; t: string; s: string; mode?: string }; // mode — t1219: режим карты (1v1, 2v2, ffa3…ffa8); нет — по числу точек спавна
 /** Карты игроков (редактор, t1217): сторона 4…100. Лига — по стороне (rating.leagueOf). */
 export const MAP_MIN = 4, MAP_MAX = 100, SPAWN_MAX = 8;
 export const isMapSize = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= MAP_MIN && n <= MAP_MAX;
 /** Шаблон правил для произвольной стороны: армия, ОД, таймер, цели берутся у ближайшего штатного размера своей лиги. */
 export const tplSize = (n: number) => (n <= 6 ? 5 : n <= 9 ? 8 : n <= 29 ? 15 : 35);
 /** Точки спавна (P) карты: [x,y] по порядку чтения. */
-export function spawnsOf(m: MapData): [number, number][] { const out: [number, number][] = []; for (let i = 0; i < m.s.length; i++) if (m.s[i] === "P") out.push([i % m.size, Math.floor(i / m.size)]); return out; }
+/** t1247: прямоугольные карты — ширина/высота (size = большая сторона, по ней лига и правила). Квадрат: w/h не заданы. */
+export const mw = (m: { size: number; w?: number }) => m.w || m.size;
+export const mh = (m: { size: number; h?: number }) => m.h || m.size;
+export function spawnsOf(m: MapData): [number, number][] { const out: [number, number][] = []; for (let i = 0; i < m.s.length; i++) if (m.s[i] === "P") out.push([i % mw(m), Math.floor(i / mw(m))]); return out; }
 /** Старт 1×1 на карте игрока: сторона 0 — нижняя точка спавна, сторона 1 — верхняя. null — меньше двух точек. */
 export function duelSpawns(m: MapData): [[number, number], [number, number]] | null {
-  const sp = spawnsOf(m); if (sp.length < 2) return null; const mid = (m.size - 1) / 2;
-  const by = (a: [number, number], b: [number, number]) => Math.abs(b[1] - mid) - Math.abs(a[1] - mid) || Math.abs(a[0] - mid) - Math.abs(b[0] - mid);
+  const sp = spawnsOf(m); if (sp.length < 2) return null; const mid = (mh(m) - 1) / 2, midx = (mw(m) - 1) / 2;
+  const by = (a: [number, number], b: [number, number]) => Math.abs(b[1] - mid) - Math.abs(a[1] - mid) || Math.abs(a[0] - midx) - Math.abs(b[0] - midx);
   const lo = sp.filter((p) => p[1] > mid).sort(by)[0], hi = sp.filter((p) => p[1] < mid).sort(by)[0];
   return lo && hi ? [lo, hi] : null;
 }
@@ -57,7 +60,7 @@ export const mapFits = (m: MapData, mode: string) => { const n = spawnsOf(m).len
 export function seatSpawns(m: MapData, mode: string): [number, number][] | null {
   const sp = spawnsOf(m), need = MODE_SEATS[mode]; if (!need || sp.length !== need) return null;
   if (mode === "1v1") return duelSpawns(m);
-  const c = (m.size - 1) / 2, ang = (p: [number, number]) => { let a = Math.atan2(p[1] - c, p[0] - c) - Math.PI / 2; while (a < -1e-9) a += 2 * Math.PI; return a; };
+  const cx = (mw(m) - 1) / 2, cy = (mh(m) - 1) / 2, ang = (p: [number, number]) => { let a = Math.atan2(p[1] - cy, p[0] - cx) - Math.PI / 2; while (a < -1e-9) a += 2 * Math.PI; return a; };
   if (mode === "2v2") {
     const by = [...sp].sort((a, b) => b[1] - a[1] || a[0] - b[0]), A = by.slice(0, 2).sort((a, b) => a[0] - b[0]), B = by.slice(2);
     const far = (p: [number, number]) => [...B].sort((a, b) => Math.hypot(b[0] - p[0], b[1] - p[1]) - Math.hypot(a[0] - p[0], a[1] - p[1]))[0];
@@ -69,19 +72,19 @@ export function seatSpawns(m: MapData, mode: string): [number, number][] | null 
  *  Клетка занята/непроходима — ближайшая свободная проходимая (до 4 клеток). null — не хватило места. */
 /** t1219: куда смотрит армия у точки (2×2/FFA): к центру по большей оси — точка у левого/правого края строит ряды столбцами */
 export function armyDir(m: MapData, sp: [number, number]): { dir: -1 | 1; axis: "x" | "y" } {
-  const c = (m.size - 1) / 2, dx = sp[0] - c, dy = sp[1] - c;
+  const dx = sp[0] - (mw(m) - 1) / 2, dy = sp[1] - (mh(m) - 1) / 2;
   return Math.abs(dx) > Math.abs(dy) + 0.5 ? { dir: dx > 0 ? -1 : 1, axis: "x" } : { dir: dy > 0 ? -1 : 1, axis: "y" };
 }
 export function placeArmy(m: MapData, army: string[][], sp: [number, number], dir: -1 | 1, taken = new Set<number>(), axis: "x" | "y" = "y"): { k: string; x: number; y: number }[] | null {
-  const n = m.size, out: { k: string; x: number; y: number }[] = [], free = (x: number, y: number) => x >= 0 && y >= 0 && x < n && y < n && passable(m, x, y);
+  const n = mw(m), H = mh(m), out: { k: string; x: number; y: number }[] = [], free = (x: number, y: number) => x >= 0 && y >= 0 && x < n && y < H && passable(m, x, y);
   if (!free(sp[0], sp[1]) || taken.has(sp[1] * n + sp[0])) return null;
   // клетки, достижимые от точки по проходимым (не через реку/стену), в радиусе рядов армии + 4
   const R = army.length + 4, near = new Map<number, number>([[sp[1] * n + sp[0], 0]]), q = [sp[1] * n + sp[0]];
   while (q.length) { const i = q.shift()!, d = near.get(i)!, x = i % n, y = Math.floor(i / n); if (d >= R) continue;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy, j = b * n + a; if (free(a, b) && !near.has(j)) { near.set(j, d + 1); q.push(j); } } }
-  const ki = Math.max(0, army[0].indexOf("king")), x00 = Math.floor((n - army[0].length) / 2) + ki; // ряды центрированы относительно ряда Вождя, как в штатной расстановке
+  const ki = Math.max(0, army[0].indexOf("king")), L = axis === "y" ? n : H, x00 = Math.floor((L - army[0].length) / 2) + ki; // ряды центрированы относительно ряда Вождя, как в штатной расстановке
   const want: { k: string; x: number; y: number }[] = [];
-  army.forEach((row, r) => { const x0 = Math.floor((n - row.length) / 2); row.forEach((k, i) => want.push(axis === "y" ? { k, x: sp[0] + x0 + i - x00, y: sp[1] + dir * r } : { k, x: sp[0] + dir * r, y: sp[1] + x0 + i - x00 })); });
+  army.forEach((row, r) => { const x0 = Math.floor((L - row.length) / 2); row.forEach((k, i) => want.push(axis === "y" ? { k, x: sp[0] + x0 + i - x00, y: sp[1] + dir * r } : { k, x: sp[0] + dir * r, y: sp[1] + x0 + i - x00 })); });
   want.sort((a, b) => (a.k === "king" ? -1 : b.k === "king" ? 1 : 0));
   for (const w of want) {
     let best = -1, bd = Infinity;
@@ -93,19 +96,19 @@ export function placeArmy(m: MapData, army: string[][], sp: [number, number], di
 }
 /** Клетки, недостижимые из главной области (для подсветки в редакторе). */
 export function unreachableCells(m: MapData): number[] {
-  const n = m.size, seen = new Uint8Array(n * n); let best: number[] = [];
-  for (let s = 0; s < n * n; s++) { if (seen[s] || !passable(m, s % n, Math.floor(s / n))) continue;
+  const n = mw(m), H = mh(m), seen = new Uint8Array(n * H); let best: number[] = [];
+  for (let s = 0; s < n * H; s++) { if (seen[s] || !passable(m, s % n, Math.floor(s / n))) continue;
     const comp = [s], q = [s]; seen[s] = 1;
     while (q.length) { const i = q.pop()!, x = i % n, y = Math.floor(i / n);
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (a < 0 || b < 0 || a >= n || b >= n) continue; const j = b * n + a; if (!seen[j] && passable(m, a, b)) { seen[j] = 1; comp.push(j); q.push(j); } } }
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (a < 0 || b < 0 || a >= n || b >= H) continue; const j = b * n + a; if (!seen[j] && passable(m, a, b)) { seen[j] = 1; comp.push(j); q.push(j); } } }
     if (comp.length > best.length) best = comp; }
-  const main = new Set(best), out: number[] = []; for (let i = 0; i < n * n; i++) if (passable(m, i % n, Math.floor(i / n)) && !main.has(i)) out.push(i); return out;
+  const main = new Set(best), out: number[] = []; for (let i = 0; i < n * H; i++) if (passable(m, i % n, Math.floor(i / n)) && !main.has(i)) out.push(i); return out;
 }
 export const TER_RULES = { forestArm: 1, gateArm: 1, towerArm: 2, wellHeal: 1 };
 
 const idx = (n: number, x: number, y: number) => y * n + x;
-export const ter = (m: MapData, x: number, y: number) => m.t[idx(m.size, x, y)] as TerrainCh;
-export const str = (m: MapData, x: number, y: number) => m.s[idx(m.size, x, y)] as StructCh | ".";
+export const ter = (m: MapData, x: number, y: number) => m.t[idx(mw(m), x, y)] as TerrainCh;
+export const str = (m: MapData, x: number, y: number) => m.s[idx(mw(m), x, y)] as StructCh | ".";
 
 /** Может ли фигура расы race стоять/пройти на клетке. */
 export function passable(m: MapData | undefined, x: number, y: number, race?: string): boolean {
@@ -127,7 +130,7 @@ export function coverArm(m: MapData | undefined, x: number, y: number): number {
   const c = ter(m, x, y); return c === "f" ? TER_RULES.forestArm : c === "g" ? TER_RULES.gateArm : 0;
 }
 
-export function openMap(size: number): MapData { return { id: "open", name: "Открытое поле", size, t: ".".repeat(size * size), s: ".".repeat(size * size) }; }
+export function openMap(size: number, w = size, h = size): MapData { const r = w !== h; return { id: "open", name: "Открытое поле", size: r ? Math.max(w, h) : size, ...(r ? { w, h } : {}), t: ".".repeat(w * h), s: ".".repeat(w * h) }; }
 
 // ---------- генерация (официальные карты и «Случайная»)
 function rng(seed: number) { let a = seed >>> 0 || 1; return () => { a ^= a << 13; a >>>= 0; a ^= a >> 17; a ^= a << 5; a >>>= 0; return a / 4294967296; }; }
@@ -239,18 +242,18 @@ function tryGen(o: GenOpts, seed: number): MapData {
 
 /** Проверка карты (официальной или игрока): ошибки блокируют публикацию, предупреждения дают «неравная». */
 export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [number, number][]; army?: string[][] }): { errors: string[]; warnings: string[] } {
-  const errors: string[] = [], warnings: string[] = [], n = m.size;
-  if (!isMapSize(n)) return { errors: ["size"], warnings };
-  if (typeof m.t !== "string" || typeof m.s !== "string" || m.t.length !== n * n || m.s.length !== n * n) return { errors: ["shape"], warnings };
+  const errors: string[] = [], warnings: string[] = [], n = mw(m), H = mh(m), N = n * H;
+  if (!isMapSize(n) || !isMapSize(H) || m.size !== Math.max(n, H) || (m.w != null && m.h == null) || (m.h != null && m.w == null)) return { errors: ["size"], warnings };
+  if (typeof m.t !== "string" || typeof m.s !== "string" || m.t.length !== N || m.s.length !== N) return { errors: ["shape"], warnings };
   for (const c of m.t) if (!(c in TERRAIN)) return { errors: ["bad_terrain"], warnings };
   for (const c of m.s) if (c !== "." && !(c in STRUCT)) return { errors: ["bad_struct"], warnings };
   let blocked = 0, res0 = 0, res1 = 0;
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+  for (let y = 0; y < H; y++) for (let x = 0; x < n; x++) {
     if (!passable(m, x, y)) { blocked++; if (str(m, x, y) !== ".") errors.push("struct_on_blocked"); }
-    const s = str(m, x, y); if (s !== "." && (STRUCT as any)[s].res) { if (y > (n - 1) / 2) res0++; else if (y < (n - 1) / 2) res1++; }
+    const s = str(m, x, y); if (s !== "." && (STRUCT as any)[s].res) { if (y > (H - 1) / 2) res0++; else if (y < (H - 1) / 2) res1++; }
   }
-  if (blocked > n * n * 0.25) errors.push("too_blocked");
-  if (res0 + res1 > Math.floor((n * n) / 12)) errors.push("too_many_resources");
+  if (blocked > N * 0.25) errors.push("too_blocked");
+  if (res0 + res1 > Math.floor(N / 12)) errors.push("too_many_resources");
   if (Math.abs(res0 - res1) > 1) warnings.push("resources_unequal");
   const sp = spawnsOf(m);
   if (sp.length > SPAWN_MAX) errors.push("spawns_many");
@@ -259,7 +262,7 @@ export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [numbe
     if (!md || !seats) errors.push("spawns_count");
     else if (o?.army) { const taken = new Set<number>(); if (seats.some((p) => { const a = armyDir(m, p); return !placeArmy(m, o.army!, p, a.dir, taken, a.axis); })) errors.push("spawn_space"); }
     if (seats) { // ресурсы у каждой точки (ближайшей по Чебышёву) — не больше ±1 от среднего
-      const cnt = seats.map(() => 0); for (let i = 0; i < n * n; i++) { const ch = m.s[i]; if (ch === "." || !(STRUCT as any)[ch]?.res) continue; const x = i % n, y = Math.floor(i / n); let bi = 0, bd = 1e9; seats.forEach((p, k) => { const d = Math.max(Math.abs(p[0] - x), Math.abs(p[1] - y)); if (d < bd) { bd = d; bi = k; } }); cnt[bi]++; }
+      const cnt = seats.map(() => 0); for (let i = 0; i < N; i++) { const ch = m.s[i]; if (ch === "." || !(STRUCT as any)[ch]?.res) continue; const x = i % n, y = Math.floor(i / n); let bi = 0, bd = 1e9; seats.forEach((p, k) => { const d = Math.max(Math.abs(p[0] - x), Math.abs(p[1] - y)); if (d < bd) { bd = d; bi = k; } }); cnt[bi]++; }
       if (Math.max(...cnt) - Math.min(...cnt) > 1) warnings.push("resources_unequal_seats");
       const wi = warnings.indexOf("resources_unequal"); if (wi >= 0) warnings.splice(wi, 1); // верх/низ для FFA не мерило
     }
@@ -267,20 +270,21 @@ export function validateMap(m: MapData, o?: { armyRows: number; armyCols: [numbe
     const d = duelSpawns(m);
     if (!d) errors.push("spawn_half");
     else if (o?.army) { const taken = new Set<number>(); if (!placeArmy(m, o.army, d[0], -1, taken) || !placeArmy(m, o.army, d[1], 1, taken)) errors.push("spawn_space"); }
-  } else if (o) for (const [x, y] of o.armyCols) {
+  } else if (n !== H) errors.push("rect_spawns"); // t1247: прямоугольная карта — только со своими точками старта
+  else if (o) for (const [x, y] of o.armyCols) {
     if (!passable(m, x, y) || !passable(m, n - 1 - x, n - 1 - y)) errors.push("army_blocked");
   }
   // связность проходимых клеток (8 соседей)
-  const seen = new Uint8Array(n * n); let start = -1, total = 0;
-  for (let i = 0; i < n * n; i++) if (passable(m, i % n, Math.floor(i / n))) { total++; if (start < 0) start = i; }
+  const seen = new Uint8Array(N); let start = -1, total = 0;
+  for (let i = 0; i < N; i++) if (passable(m, i % n, Math.floor(i / n))) { total++; if (start < 0) start = i; }
   if (start >= 0) {
     const q = [start]; seen[start] = 1; let c = 1;
     while (q.length) { const i = q.pop()!, x = i % n, y = Math.floor(i / n);
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (a < 0 || b < 0 || a >= n || b >= n) continue; const j = idx(n, a, b); if (!seen[j] && passable(m, a, b)) { seen[j] = 1; c++; q.push(j); } } }
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (a < 0 || b < 0 || a >= n || b >= H) continue; const j = idx(n, a, b); if (!seen[j] && passable(m, a, b)) { seen[j] = 1; c++; q.push(j); } } }
     if (c !== total) errors.push("unreachable");
   }
   // t1219: у карт 2×2/«Все» своя симметрия (поворот на 360°/мест) — честность меряем ресурсами у каждой точки и местом под армии
-  let sym = true; if (!(sp.length > 2 && m.mode !== "1v1")) for (let i = 0; i < n * n; i++) if (m.t[i] !== m.t[n * n - 1 - i] || m.s[i] !== m.s[n * n - 1 - i]) { sym = false; break; }
+  let sym = true; if (!(sp.length > 2 && m.mode !== "1v1")) for (let i = 0; i < N; i++) if (m.t[i] !== m.t[N - 1 - i] || m.s[i] !== m.s[N - 1 - i]) { sym = false; break; }
   if (!sym) warnings.push("not_symmetric");
   return { errors: [...new Set(errors)], warnings };
 }

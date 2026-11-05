@@ -2,13 +2,13 @@
 // Событие { e: "ult", side, by, ult, name, banner?, x, y, cells } уходит ВСЕМ (баннер на весь экран у обоих игроков и зрителей).
 import type { GameState, Piece, StratCfg, Ev, Kind } from "./rules";
 import type { UltDef } from "./content-cfg";
-import { passable } from "./terrain";
+import { passable, mw, mh } from "./terrain";
 import { foe } from "./seats";
 
 export type UltHooks = { kill: (t: Piece, by: Piece) => void; onHit: (a: Piece, t: Piece, killed: boolean) => void; mk?: (o: number, k: Kind, x: number, y: number) => Piece; pop: number };
 const cheb = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 const at = (g: GameState, x: number, y: number) => g.pieces.find((p) => p.x === x && p.y === y);
-const inb = (g: GameState, x: number, y: number) => x >= 0 && y >= 0 && x < g.size && y < g.size;
+const inb = (g: GameState, x: number, y: number) => x >= 0 && y >= 0 && x < mw(g) && y < mh(g);
 const late = (g: GameState, side: number) => (g.ec?.era[side] || 0) >= 3;
 
 /** клетки области: круг — центр клетки в пределах r от центра цели (⌀5 при r = 2.5: 21 клетка, не ромб); квадрат size×size */

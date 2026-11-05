@@ -111,7 +111,7 @@ export function rateMatch(ps: RPlayer[], turns: number, reason: string, C = RATI
   return out;
 }
 /** хэш версии карты для пула: меняется при любой правке автора → карта выпадает из пула до повторного одобрения */
-export async function mapHash(m: { size: number; t: string; s: string; name?: string }): Promise<string> {
-  const d = new TextEncoder().encode(`${m.size}|${m.t}|${m.s}`);
+export async function mapHash(m: { size: number; w?: number; h?: number; t: string; s: string; name?: string }): Promise<string> {
+  const d = new TextEncoder().encode(`${m.w && m.h && m.w !== m.h ? m.w + "x" + m.h : m.size}|${m.t}|${m.s}`); // t1247: у прямоугольной — W×H; квадраты — как раньше
   const h = await crypto.subtle.digest("SHA-256", d); return [...new Uint8Array(h)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
 }

@@ -7,7 +7,13 @@ import { readFileSync } from "node:fs";
 import { validateMap, spawnsOf, duelSpawns, placeArmy, unreachableCells, tplSize, isMapSize, type MapData } from "./terrain";
 import { STRAT_CFG, ensureSize, newGame, type StratCfg } from "./rules";
 import { showcaseAll, showcaseMap } from "./showcase";
-import { saveMap, resolveLobbyMap, hubList, likeMap, favMap, addComment, listComments, reportComment, modComment, countPlay, moderate, checkSave, thumb, cleanComment, getMapRow, listMaps, modQueue } from "./maps";
+import { matchBot } from "./ai";
+import { apply, view } from "./rules";
+import { visMask } from "./fog";
+import { mw, mh, openMap } from "./terrain";
+import { note } from "./replay";
+import { mapHash } from "./rating";
+import { saveMap, resolveLobbyMap, hubList, likeMap, favMap, addComment, listComments, reportComment, modComment, countPlay, moderate, checkSave, checkMap, thumb, cleanComment, getMapRow, listMaps, modQueue } from "./maps";
 import { mapInPool, poolSet } from "./rating-db";
 import { unratedReason } from "./rating";
 let fails = 0, n = 0; const ok = (c: any, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -96,4 +102,53 @@ const cm = (await listComments(env, id))[0]; await reportComment(env, A, cm.id);
 await modComment(env, "admin", cm.id, "ban"); ok((await listComments(env, id)).length === 0 && (await addComment(env, B, id, "снова")).err === "banned", "админ: удалить и запретить комментарии");
 ok((await listMaps(env, B.pkey, 50)).filter((x: any) => /^s/.test(x.id)).length === 2, "лобби: витрина 50×50 в списке");
 ok((await resolveLobbyMap(env, "s10", 0, B.pkey)).xp === true && !(await mapInPool(env, showcaseMap("s10"), "approved")), "витрина: с опытом, рейтинг — только если Алекс добавит");
+
+const A2 = { pkey: "author_rect", nick: "Прямоуг", verified: true };
+const blankSp = (n: number) => { const m = blank(n); setS(m, 1, n - 2, "P"); setS(m, n - 2, 1, "P"); return m; };
+// ---- t1247: прямоугольные карты (ширина ≠ высоте)
+const rect = (W: number, H: number, id = "u00000000r1"): MapData => { const m: MapData = { id, name: "rect", size: Math.max(W, H), w: W, h: H, t: ".".repeat(W * H), s: ".".repeat(W * H) }; return m; };
+const setR = (m: MapData, x: number, y: number, c: string, k: "t" | "s" = "s") => { const a = m[k].split(""); a[y * mw(m) + x] = c; m[k] = a.join(""); };
+{ const m = rect(12, 20); setR(m, 6, 18, "P"); setR(m, 5, 1, "P");
+  ok(mw(m) === 12 && mh(m) === 20 && m.size === 20, "W×H: ширина 12, высота 20, size — большая сторона");
+  ok(spawnsOf(m).some(([x, y]) => x === 6 && y === 18), "точки спавна читаются со страйдом ширины");
+  const v = checkSave(m); ok(!v.errors.length, "прямоугольная 12×20 проходит проверки: " + v.errors.join(","));
+  const bad = rect(12, 20); ok(checkMap(bad).errors.includes("rect_spawns"), "прямоугольная без точек спавна — ошибка rect_spawns");
+  const wrong = { ...rect(12, 20), size: 12 }; ok(checkMap(wrong).errors.length > 0, "size ≠ max(w,h) — ошибка");
+  const short = { ...m, t: m.t.slice(1) }; ok(checkMap(short).errors.length > 0, "длина строки ≠ w·h — ошибка");
+  const c = cfg(); const g = newGame(20, ["fire" as any, "ice" as any], 0, c, null, m);
+  ok(g.w === 12 && g.h === 20, "партия знает ширину и высоту");
+  ok(g.pieces.every((p) => p.x >= 0 && p.x < 12 && p.y >= 0 && p.y < 20), "все фигуры внутри 12×20");
+  const k0 = g.pieces.find((p) => p.kind === "king" && p.owner === 0)!; ok(k0.x === 6 && k0.y === 18, "Вождь на своей точке");
+  const vw: any = view(g); ok(vw.w === 12 && vw.h === 20 && vw.size === 20, "вид партии отдаёт w/h клиенту");
+  const V = visMask(g, 0, (a, b) => a === b, c); let outV = 0; for (let i = 0; i < V.length; i++) if (V[i] && (i % 20) >= 12) outV++; ok(outV === 0, "туман: видимость не выходит за ширину");
+  // партия ботов до конца — ходы только внутри поля
+  let err = "", moves = 0, oob = 0; const gg = structuredClone(g);
+  for (let k = 0; k < 400 && gg.winner === -1; k++) { const sd = gg.cur;
+    const a = matchBot(gg, sd, c, "medium"); const r: any = apply(gg, sd, a, c); if (!r.ok) { err = r.err + ":" + JSON.stringify(a); break; } moves++;
+    if (gg.pieces.some((p) => p.x < 0 || p.y < 0 || p.x >= 12 || p.y >= 20)) { oob++; break; } }
+  ok(!err && !oob && moves > 20, `боты играют 12×20 без ошибок и выходов за поле (ходов ${moves}${err ? ", " + err : ""})`);
+  ok(note(20, { a: "move", id: 1, x: 0, y: 19 } as any) === "→a1", "запись хода: ряд от высоты");
+  const h1 = await mapHash(m), h2 = await mapHash({ ...m, w: 20, h: 12 }); ok(h1 !== h2, "хэш карты учитывает ориентацию");
+  ok((await mapHash(blank(12))) === (await mapHash({ ...blank(12) })), "квадрат — хэш как раньше");
+  const om = openMap(20, 12, 20); ok(om.w === 12 && om.h === 20 && om.t.length === 240, "openMap(W,H)");
+  const tb: any = thumb({ ...rect(60, 100), t: "." .repeat(6000), s: ".".repeat(6000) }); ok(tb.pn === 48 && tb.pw && tb.ph === 48 && tb.pt.length === tb.pw * tb.ph, "миниатюра прямоугольной: pw×ph");
+}
+{ // хранение: до миграции 0041 прямоугольную не сохраняем; квадрат — как раньше; после — w/h в строке
+  const m = rect(10, 30); setR(m, 5, 28, "P"); setR(m, 4, 1, "P");
+  const r0 = await saveMap(env, A2, { name: "Коридор", w: 10, h: 30, t: m.t, s: m.s }); ok(r0.err === "no_rect", "до 0041: прямоугольная — no_rect (" + r0.err + ")");
+  db.exec(readFileSync(new URL("../migrations/0041_strat_map_rect.sql", import.meta.url), "utf8"));
+  ok((await saveMap(env, A2, { name: "Коридор", size: 20, w: 10, h: 30, t: m.t, s: m.s })).err === "bad_size", "size ≠ max(w,h) — bad_size");
+  ok((await saveMap(env, A2, { name: "Коридор", w: 10, h: 101, t: m.t, s: m.s })).err === "bad_size", "сторона > 100 — bad_size");
+  const r1 = await saveMap(env, A2, { name: "Коридор", w: 10, h: 30, t: m.t, s: m.s, descr: "узко" }); ok(!!r1.id, "после 0041: прямоугольная сохраняется " + (r1.err || ""));
+  const row: any = await getMapRow(env, r1.id!); ok(row.w === 10 && row.h === 30 && row.size === 30, "в строке: w=10, h=30, size=30");
+  const sq = await saveMap(env, A2, { name: "Квадрат", size: 12, t: blankSp(12).t, s: blankSp(12).s }); const rs: any = await getMapRow(env, sq.id!); ok(!!sq.id && rs.w == null && rs.h == null, "квадрат — w/h пустые");
+  await moderate(env, "admin", r1.id!, "approve"); await moderate(env, "admin", sq.id!, "approve");
+  const rl = await resolveLobbyMap(env, r1.id!, 0, B.pkey); ok(rl.map?.w === 10 && rl.map?.h === 30, "лобби получает прямоугольную карту");
+  const g = newGame(rl.map!.size, ["fire" as any, "ice" as any], 0, cfg(), null, rl.map!); ok(g.w === 10 && g.h === 30, "партия на сохранённой прямоугольной");
+  const hr = await hubList(env, null, { shape: "rect" }), hs = await hubList(env, null, { shape: "square" });
+  ok(hr.some((x: any) => x.id === r1.id && x.w === 10 && x.h === 30) && !hr.some((x: any) => x.id === sq.id), "хаб: фильтр «прямоугольные»");
+  ok(hs.some((x: any) => x.id === sq.id) && !hs.some((x: any) => x.id === r1.id), "хаб: фильтр «квадратные»");
+  ok((await hubList(env, null, { league: "normal" })).some((x: any) => x.id === r1.id) && !(await hubList(env, null, { league: "quick" })).some((x: any) => x.id === r1.id), "хаб: лига по большей стороне (10×30 — обычная)");
+  ok((await hubList(env, null, { size: 30 })).some((x: any) => x.id === r1.id), "хаб: размер — большая сторона");
+}
 console.log(`\n${n - fails}/${n} PASS`); if (fails) process.exit(1);

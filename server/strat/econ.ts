@@ -1,7 +1,7 @@
 // «Партия Чёрных королей» — этап 2: экономика, города и территория, постройки, найм, технологии, таланты, Слава.
 // Чистые функции поверх GameState (rules.ts вызывает хуки). Все числа — cfg.econ / cfg.build / cfg.talents (econ-cfg.ts).
 import type { GameState, Piece, Kind, Race, Ev, StratCfg, Action } from "./rules";
-import { passable, str as mapStr, ter, tplSize } from "./terrain";
+import { passable, str as mapStr, ter, tplSize, mw, mh } from "./terrain";
 import { UNLOCK, PAWN_BARRACKS_COST, HERO_ERA, buildGate, type BuildId, type Tech, type TechFx } from "./econ-cfg";
 import type { ChiefDef, ChiefNode } from "./content-cfg";
 import { checkChiefName } from "./names";
@@ -206,15 +206,15 @@ function respawnChief(g: GameState, side: number, ev: Ev[], cfg: StratCfg, mk: M
   }
   // городов нет (или все заняты): Вождь приходит «из изгнания» на свою заднюю линию — ближайшая к центру свободная клетка
   const hm = g.home?.[side]; if (hm) { // t1219: карта с точками спавна — ближайшая к своей точке свободная клетка
-    let best: [number, number] | null = null, bd = 1e9; for (let y = 0; y < g.size; y++) for (let x = 0; x < g.size; x++) { const d = Math.max(Math.abs(x - hm[0]), Math.abs(y - hm[1])); if (d < bd && !pieceAt(g, x, y) && passable(g.map, x, y, g.races[side])) { bd = d; best = [x, y]; } }
+    let best: [number, number] | null = null, bd = 1e9; for (let y = 0; y < mh(g); y++) for (let x = 0; x < mw(g); x++) { const d = Math.max(Math.abs(x - hm[0]), Math.abs(y - hm[1])); if (d < bd && !pieceAt(g, x, y) && passable(g.map, x, y, g.races[side])) { bd = d; best = [x, y]; } }
     if (best) { ch.dead = 0; ch.gen++; ch.renames = 0; ch.nameUntil = g.turn + (cfg as any).chief.name.window; ch.surv = 0; ch.name = autoChiefName(g, side, ch.gen, cfg);
       const p = mk(side, "king", best[0], best[1]); g.pieces.push(p); ch.hist.push({ gen: ch.gen, name: ch.name, born: g.turn });
       ev.push({ e: "chief_up", side, id: p.id, name: ch.name, gen: ch.gen, city: 0 }); return; }
   }
-  const y0 = side === 0 ? g.size - 1 : 0, mid = (g.size - 1) / 2;
+  const y0 = side === 0 ? mh(g) - 1 : 0, mid = (mw(g) - 1) / 2;
   for (const dy of [0, 1, 2]) {
     const y = side === 0 ? y0 - dy : y0 + dy;
-    const xs = [...Array(g.size).keys()].sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+    const xs = [...Array(mw(g)).keys()].sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
     const x = xs.find((x) => !pieceAt(g, x, y) && passable(g.map, x, y, g.races[side]));
     if (x === undefined) continue;
     ch.dead = 0; ch.gen++; ch.renames = 0; ch.nameUntil = g.turn + (cfg as any).chief.name.window; ch.surv = 0; ch.name = autoChiefName(g, side, ch.gen, cfg);
@@ -290,7 +290,7 @@ export function holdScore(g: GameState, side: number, cfg: StratCfg): number {
   for (const p of g.pieces) if (p.owner === side && H.points.includes(mapStr(g.map, p.x, p.y))) s += H.point;
   return s;
 }
-export function passableCells(g: GameState): number { let n = 0; for (let i = 0; i < g.size * g.size; i++) { const t = g.map ? g.map.t[i] : "."; if (t !== "#" && t !== "m" && t !== "w") n++; } return Math.max(1, n); }
+export function passableCells(g: GameState): number { let n = 0; for (let i = 0; i < mw(g) * mh(g); i++) { const t = g.map ? g.map.t[i] : "."; if (t !== "#" && t !== "m" && t !== "w") n++; } return Math.max(1, n); }
 /** прогресс целей (для панели и бота): 0…1 */
 export function goalProgress(g: GameState, side: number, cfg: StratCfg, T?: Int8Array): Record<string, number> {
   const G = goalCfg(g, cfg), ec = g.ec, out: Record<string, number> = {};
@@ -325,7 +325,7 @@ export function territory(g: GameState, cfg: StratCfg): Int8Array {
     const D = new Int16Array(n * n).fill(999), R = new Int8Array(n * n).fill(-1);
     for (const c of g.ec.cities) {
       const r = cityRadius(g, c, cfg), lo = core ? 0 : Math.min(r, 1) + 1, hi = core ? Math.min(r, 1) : noRing ? 0 : r; if (hi < lo) continue;
-      for (let y = Math.max(0, c.y - hi); y <= Math.min(n - 1, c.y + hi); y++) for (let x = Math.max(0, c.x - hi); x <= Math.min(n - 1, c.x + hi); x++) {
+      for (let y = Math.max(0, c.y - hi); y <= Math.min(mh(g) - 1, c.y + hi); y++) for (let x = Math.max(0, c.x - hi); x <= Math.min(mw(g) - 1, c.x + hi); x++) { // t1247: шаг индекса — g.size, границы — ширина/высота
         const i = y * n + x, d = cheb(c, { x, y }); if (d < lo || T[i] !== -1) continue;
         if (d < D[i]) { D[i] = d; R[i] = c.owner; } else if (d === D[i] && R[i] !== c.owner) R[i] = -2; // спор
       }
@@ -585,9 +585,9 @@ export function startTurn(g: GameState, side: number, ev: Ev[], cfg: StratCfg, m
     inc.know += tfx(g, side, "knowCity", cfg); inc.gold += tfx(g, side, "goldCity", cfg);
   }
   let cells = 0, water = 0, forest = 0; const goldMV = tfx(g, side, "goldMV", cfg), hasQuarry = mine.some((c) => c.bld.includes("quarry")), RC = raceOf(g, side, cfg);
-  for (let y = 0; y < g.size; y++) for (let x = 0; x < g.size; x++) {
+  for (let y = 0; y < mh(g); y++) for (let x = 0; x < mw(g); x++) {
     if (T[y * g.size + x] !== side) continue; cells++;
-    const tc = g.map ? g.map.t[y * g.size + x] : "."; if (tc === "w") water++; else if (tc === "f") forest++;
+    const tc = g.map ? ter(g.map, x, y) : "."; if (tc === "w") water++; else if (tc === "f") forest++;
     const s = mapStr(g.map, x, y), S = E.struct[s]; if (!S) continue;
     const o = pieceAt(g, x, y); if (o && foe(g, o.owner, side)) continue; // набег: вражеская фигура на клетке
     inc.gold += (S.gold || 0) + (s === "M" || s === "V" ? goldMV : 0) + (s === "Q" && hasQuarry ? F.quarryGold : 0);
@@ -651,9 +651,10 @@ export const claimCost = (g: GameState, c: City, cfg: StratCfg) => { const G = (
 /** t1140: клетки, которые можно купить: нейтральные, проходимые для расы, рядом (8 соседей) с любой своей землёй */
 export function claimCells(g: GameState, c: City, cfg: StratCfg, T = territory(g, cfg)): number[] {
   const n = g.size, race = g.races[c.owner], out: number[] = []; // t1140: любая клетка, соседняя со своей землёй (reach не ограничивает)
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+  const W = mw(g), H = mh(g);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * n + x; if (T[i] !== -1 || !passable(g.map, x, y, race)) continue;
-    let adj = false; for (let dy = -1; dy <= 1 && !adj; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if ((dx || dy) && xx >= 0 && yy >= 0 && xx < n && yy < n && T[yy * n + xx] === c.owner) { adj = true; break; } }
+    let adj = false; for (let dy = -1; dy <= 1 && !adj; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if ((dx || dy) && xx >= 0 && yy >= 0 && xx < W && yy < H && T[yy * n + xx] === c.owner) { adj = true; break; } }
     if (adj) out.push(i);
   }
   return out;
@@ -662,7 +663,7 @@ export function claimCells(g: GameState, c: City, cfg: StratCfg, T = territory(g
 export function growPick(g: GameState, c: City, cfg: StratCfg, T = territory(g, cfg)): number {
   let best = -1, bs = -1e9; const n = g.size;
   for (const i of claimCells(g, c, cfg, T)) { const x = i % n, y = (i / n) | 0; let near = 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < n && yy < n && cfg.econ.struct[mapStr(g.map, xx, yy)]) near++; }
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < mw(g) && yy < mh(g) && cfg.econ.struct[mapStr(g.map, xx, yy)]) near++; }
     const sc = (cfg.econ.struct[mapStr(g.map, x, y)] ? 100 : 0) + near * 10 - cheb(c, { x, y }) * 2; if (sc > bs) { bs = sc; best = i; } }
   return best;
 }
@@ -723,13 +724,13 @@ export const founding = (g: GameState, p: Piece) => !!g.ec?.fnd?.[p.owner] && g.
 /** t1140: может ли Вождь поставить Сторожевую башню на (x, y): соседняя с ним свободная проходимая клетка не дальше outDist от своей земли */
 export function canTower(g: GameState, side: number, k: Piece, x: number, y: number, cfg: StratCfg): string | null {
   const TW = (cfg.econ as any).tower; if (!TW?.on) return "no_tower";
-  if (x < 0 || y < 0 || x >= g.size || y >= g.size || cheb(k, { x, y }) > 1) return "bad_cell";
+  if (x < 0 || y < 0 || x >= mw(g) || y >= mh(g) || cheb(k, { x, y }) > 1) return "bad_cell";
   if (pieceAt(g, x, y) && !(k.x === x && k.y === y)) return "occupied";
   if (!passable(g.map, x, y, g.races[side]) || mapStr(g.map, x, y) !== "." && mapStr(g.map, x, y) !== "P") return "bad_cell";
   if (g.ec.cities.some((c) => c.x === x && c.y === y) || g.ec.towers?.some((t) => t.x === x && t.y === y)) return "occupied";
   if ((g.ec.towers || []).filter((t) => t.owner === side).length >= (TW.max ?? 3)) return "tower_max";
   const T = territory(g, cfg), n = g.size, R = TW.outDist ?? 2; let d = 99;
-  for (let yy = Math.max(0, y - R); yy <= Math.min(n - 1, y + R); yy++) for (let xx = Math.max(0, x - R); xx <= Math.min(n - 1, x + R); xx++) if (T[yy * n + xx] === side) d = Math.min(d, cheb({ x, y }, { x: xx, y: yy }));
+  for (let yy = Math.max(0, y - R); yy <= Math.min(mh(g) - 1, y + R); yy++) for (let xx = Math.max(0, x - R); xx <= Math.min(mw(g) - 1, x + R); xx++) if (T[yy * n + xx] === side) d = Math.min(d, cheb({ x, y }, { x: xx, y: yy }));
   if (d > R) return "too_far"; if (foeT(g, T[y * n + x], side)) return "enemy_land";
   if (g.ec.res[side].gold < (TW.cost ?? 8)) return "no_gold";
   return null;
@@ -800,13 +801,13 @@ export function recruitCells(g: GameState, c: City, kind: Kind, cfg: StratCfg): 
     const race = g.races[c.owner];
     if (!pieceAt(g, c.x, c.y) && passable(g.map, c.x, c.y, race)) return [[c.x, c.y]];
     const T = territory(g, cfg), n = g.size; let bd = 1e9; let out: [number, number][] = [];
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { if (T[y * n + x] !== c.owner || pieceAt(g, x, y) || !passable(g.map, x, y, race)) continue;
+    for (let y = 0; y < mh(g); y++) for (let x = 0; x < mw(g); x++) { if (T[y * n + x] !== c.owner || pieceAt(g, x, y) || !passable(g.map, x, y, race)) continue;
       const d = cheb(c, { x, y }); if (d > bd) continue; if (d < bd) { bd = d; out = []; } out.push([x, y]); }
     return out;
   }
   const out: [number, number][] = [], r = cfg.econ.city.recruitRadius, race = g.races[c.owner];
   for (let y = c.y - r; y <= c.y + r; y++) for (let x = c.x - r; x <= c.x + r; x++) {
-    if (x < 0 || y < 0 || x >= g.size || y >= g.size || pieceAt(g, x, y)) continue;
+    if (x < 0 || y < 0 || x >= mw(g) || y >= mh(g) || pieceAt(g, x, y)) continue;
     if (!passable(g.map, x, y, race)) continue;
     out.push([x, y]);
   }
@@ -871,7 +872,7 @@ export function canFound(g: GameState, side: number, p: Piece, cfg: StratCfg): s
   if (g.ec.cities.filter((c) => c.owner === side && !c.cap).length + (g.ec.fnd?.[side] ? 1 : 0) >= maxOutposts(g, side, cfg)) return "outpost_max";
   if (g.ec.cities.some((c) => cheb(c, p) < cfg.econ.city.outMinDist - tfx(g, side, "outDist", cfg))) return "too_close";
   const T = territory(g, cfg), R = cfg.econ.city.outRadius + tfx(g, side, "outR", cfg); // t1170: ни клетка, ни земля нового поселения (радиус) не заходят на чужую
-  for (let y = Math.max(0, p.y - R); y <= Math.min(g.size - 1, p.y + R); y++) for (let x = Math.max(0, p.x - R); x <= Math.min(g.size - 1, p.x + R); x++) if (foeT(g, T[y * g.size + x], side)) return "enemy_land";
+  for (let y = Math.max(0, p.y - R); y <= Math.min(mh(g) - 1, p.y + R); y++) for (let x = Math.max(0, p.x - R); x <= Math.min(mw(g) - 1, p.x + R); x++) if (foeT(g, T[y * g.size + x], side)) return "enemy_land";
   if (mapStr(g.map, p.x, p.y) !== "." && mapStr(g.map, p.x, p.y) !== "P") return "on_structure";
   return null;
 }
@@ -998,7 +999,7 @@ export function applyEcon(g: GameState, side: number, act: EconAction, cfg: Stra
       } else if (n.fx.summon) {
         if (g.pieces.filter((q) => q.owner === side).length >= sz(g, cfg).pop) return no("pop_cap");
         let cell: [number, number] | null = null;
-        for (let y = p.y - 1; y <= p.y + 1 && !cell; y++) for (let x = p.x - 1; x <= p.x + 1; x++) if (x >= 0 && y >= 0 && x < g.size && y < g.size && !pieceAt(g, x, y) && passable(g.map, x, y, g.races[side])) { cell = [x, y]; break; }
+        for (let y = p.y - 1; y <= p.y + 1 && !cell; y++) for (let x = p.x - 1; x <= p.x + 1; x++) if (x >= 0 && y >= 0 && x < mw(g) && y < mh(g) && !pieceAt(g, x, y) && passable(g.map, x, y, g.races[side])) { cell = [x, y]; break; }
         if (!cell || !mk) return no("no_cell");
         const q = mk(side, "pawn", cell[0], cell[1]); q.acted = true; g.pieces.push(q); ev.push({ e: "recruit", id: q.id, city: 0, kind: "pawn" });
       }
@@ -1120,7 +1121,7 @@ export function botChiefHome(g: GameState, side: number, cfg: StratCfg): City | 
 /** Куда тянуть Ополченца-бота: ближайшая доходная клетка/руины без своей фигуры. */
 export function botPawnGoal(g: GameState, p: Piece, cfg: StratCfg): { x: number; y: number } | null {
   if (!g.ec) return null; let best: { x: number; y: number } | null = null, bd = 99;
-  for (let y = 0; y < g.size; y++) for (let x = 0; x < g.size; x++) {
+  for (let y = 0; y < mh(g); y++) for (let x = 0; x < mw(g); x++) {
     const s = mapStr(g.map, x, y);
     const want = (s === "R" && !g.ec.ruins.includes(y * g.size + x)) || s === "X" || (maxOutposts(g, p.owner, cfg) > 0 && cfg.econ.struct[s]);
     if (!want) continue; const o = pieceAt(g, x, y); if (o && o.owner === p.owner && o !== p) continue;

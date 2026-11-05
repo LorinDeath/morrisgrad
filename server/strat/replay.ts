@@ -67,6 +67,7 @@ export function actView(act: Action, mine: boolean): any {
   return o;
 }
 /** Короткая запись хода для списка (как «e2–e4»): буквы — столбцы a.., цифры — ряды снизу. */
+/** size — высота поля (у прямоугольной — h): ряды считаются снизу */
 export function note(size: number, act: Action): string {
   const c = (x: number, y: number) => (x < 26 ? String.fromCharCode(97 + x) : "z" + (x - 25)) + (size - y);
   const a: any = act;
@@ -82,7 +83,7 @@ export function moveList(log: RLog, seat: number, live: boolean, upto = log.acts
   const hid = (side: number) => !!fog && live && !(seat >= 0 && fog.ally(side, seat));
   const list = log.acts.slice(0, upto).map(([side, act, auto, dt], i) => hid(side)
     ? { i, side, a: { a: act.a === "end" ? "end" : "hidden" }, n: act.a === "end" ? "—" : "…", auto: !!auto, dt }
-    : { i, side, a: actView(act, !live || side === seat || (!!fog && seat >= 0 && fog.ally(side, seat))), n: note(log.size, act), auto: !!auto, dt });
+    : { i, side, a: actView(act, !live || side === seat || (!!fog && seat >= 0 && fog.ally(side, seat))), n: note(log.map?.h && log.map?.w ? log.map.h : log.size, act), auto: !!auto, dt });
   return { n: upto, turns: turnMarks({ ...log, acts: log.acts.slice(0, upto) }), list };
 }
 export const encodeLog = (log: RLog) => JSON.stringify(log);

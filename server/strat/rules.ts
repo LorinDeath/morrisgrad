@@ -2,7 +2,7 @@
 // клиента (подсветка ходов), бота и симулятора. Все числа — в STRAT_CFG (позже правятся в админке, game_overrides strat_*).
 
 import { RATING_CFG } from "./rating";
-import { type MapData, openMap, generateMap, tplSize, duelSpawns, seatSpawns, armyDir, placeArmy, passable, stopsSlide, blocksShot, coverArm, str as mapStr, TER_RULES } from "./terrain";
+import { type MapData, openMap, generateMap, tplSize, duelSpawns, seatSpawns, armyDir, placeArmy, passable, stopsSlide, blocksShot, coverArm, str as mapStr, TER_RULES, mw, mh } from "./terrain";
 export type { MapData } from "./terrain";
 import { NP, foe, nextSeat, roundPos, seatList, teamList, teamOf, teamsFor, isOut, drawCode, alliesOf, MODES, type ModeId } from "./seats";
 import { ECON, BUILD, TALENTS, TECHS } from "./econ-cfg";
@@ -90,7 +90,7 @@ export type Piece = { id: number; owner: number; kind: Kind; x: number; y: numbe
   xp?: number; tal?: string[]; mv?: boolean; cm?: number; cds?: Record<string, number> }; // cds: перезарядка активных навыков Вождя // этап 2: опыт, выбранные таланты, «ходила в прошлый ход»
 export type Seat = { race: Race };
 export type GameState = {
-  v: number; size: number; turn: number; first: number; cur: number; ap: number; apMax: number; turnLimit: number;
+  v: number; size: number; w?: number; h?: number; /* t1247: прямоугольное поле (size — большая сторона; шаг индексов клеток — size) */ turn: number; first: number; cur: number; ap: number; apMax: number; turnLimit: number;
   races: Race[]; pieces: Piece[]; nextId: number;
   // t1219: режимы 2×2/«Все». Нет полей — 1×1 (2 места, команда = место). winner — номер команды; ничья — drawCode (2 или 100 в FFA)
   np?: number; tm?: number[]; out?: number[]; mode?: ModeId; home?: [number, number][]; place?: number[];
@@ -160,6 +160,7 @@ export function newGame(size: number, races: Race[], first = 0, cfg: StratCfg = 
   const sc = ensureSize(cfg, size);
   if (map && map.size !== size) throw new Error("map size");
   const g = { v: 0, size, turn: 1, first, cur: first, ap: sc.ap, apMax: sc.ap, turnLimit: sc.turnLimit || 0, races, pieces: [], nextId: 1, winner: -1, reason: "", lastEv: [], map: map || openMap(size) } as unknown as GameState;
+  if (map && (mw(map) !== size || mh(map) !== size)) { g.w = mw(map); g.h = mh(map); if (!/^[us]/.test(map.id || "")) throw new Error("rect map"); }
   const mode: ModeId = opts?.mode && MODES[opts.mode] ? opts.mode : "1v1", n = MODES[mode].seats;
   if (races.length !== n) throw new Error("races");
   if (mode !== "1v1") { g.np = n; g.tm = teamsFor(mode); g.out = []; g.mode = mode; g.place = []; }
@@ -193,7 +194,7 @@ function mkPiece(g: GameState, owner: number, kind: Kind, x: number, y: number, 
 }
 
 export const at = (g: GameState, x: number, y: number) => g.pieces.find((p) => p.x === x && p.y === y);
-const inB = (g: GameState, x: number, y: number) => x >= 0 && y >= 0 && x < g.size && y < g.size;
+const inB = (g: GameState, x: number, y: number) => x >= 0 && y >= 0 && x < mw(g) && y < mh(g);
 const fwd = (owner: number) => (owner === 0 ? -1 : 1);
 const D8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 const D4 = D8.slice(0, 4), DD = D8.slice(4);
@@ -434,7 +435,7 @@ function done(g: GameState, ev: Ev[]): Result { g.v++; g.lastEv = ev; return { o
 
 function promote(g: GameState, p: Piece, to: Kind | undefined, ev: Ev[], cfg: StratCfg) {
   if (p.kind !== "pawn") return;
-  const last = p.owner === 0 ? 0 : g.size - 1;
+  const last = p.owner === 0 ? 0 : mh(g) - 1;
   if (p.y !== last) return;
   const kind: Kind = to && PROMO_OK.includes(to) ? to : "rook";
   const u = cfg.units[kind], mul = raceCfg(g, p.owner, cfg).hpMul;
@@ -577,7 +578,7 @@ export function botAction(g: GameState, side: number, cfg: StratCfg = STRAT_CFG)
 
 /** Снимок для клиента (этап 1 — без тумана: всё видно обоим). */
 export function view(g: GameState, withMap = true, cfg: StratCfg = STRAT_CFG) {
-  return { v: g.v, ...(withMap ? { map: g.map } : {}), size: g.size, turn: g.turn, cur: g.cur, ap: g.ap, apMax: g.apMax, turnLimit: g.turnLimit, races: g.races, winner: g.winner, reason: g.reason, first: g.first, ...(g.np ? { np: g.np, tm: g.tm, out: g.out || [], mode: g.mode } : {}),
+  return { v: g.v, ...(withMap ? { map: g.map } : {}), size: g.size, ...(g.w ? { w: g.w, h: g.h } : {}), turn: g.turn, cur: g.cur, ap: g.ap, apMax: g.apMax, turnLimit: g.turnLimit, races: g.races, winner: g.winner, reason: g.reason, first: g.first, ...(g.np ? { np: g.np, tm: g.tm, out: g.out || [], mode: g.mode } : {}),
     pieces: g.pieces.map((p) => ({ id: p.id, o: p.owner, k: p.kind, x: p.x, y: p.y, hp: p.hp, mh: p.maxHp, atk: p.atk, arm: p.arm, a: p.acted ? 1 : 0, b: p.burn, c: p.chill,
       ...(p.xp ? { xp: p.xp } : {}), ...(p.tal?.length ? { tl: p.tal } : {}), ...(p.mv ? { mv: 1 } : {}), ...(p.cm ? { cm: 1 } : {}), ...((p as any).sh > 0 ? { sh: (p as any).sh } : {}), ...((p as any).root > 0 ? { rt: (p as any).root } : {}), ...((p as any).treant ? { tr: 1 } : {}), ...(p.cds && Object.values(p.cds).some((v) => v > 0) ? { cd: { ...p.cds } } : {}), ea: effAtk(g, p, null, cfg), er: effArm(g, p, cfg) })),
     ec: g.ec, glory: cfg.econ.sizes[g.size]?.glory || 0 };
