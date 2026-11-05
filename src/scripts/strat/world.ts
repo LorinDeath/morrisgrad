@@ -113,8 +113,8 @@ function drawWallsArt(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array,
   const g2s = (dx: number, dy: number) => { const ux = Math.sign(sx(dx) - sx(0)) || 0, uy = Math.sign(sy(dy) - sy(0)) || 0; return ux > 0 ? "e" : ux < 0 ? "w" : uy > 0 ? "s" : "n"; };
   const D: Record<string, [number, number]> = {}; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) D[g2s(dx, dy)] = [dx, dy];
   if (Object.keys(D).length < 4) return false;
-  const tt: string = (G as any).map?.t || "", inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n;
-  const road = (X: number, Y: number) => inb(X, Y) && (tt[Y * n + X] === "r" || tt[Y * n + X] === "b");
+  const tt: string = (G as any).map?.t || "", MW = (G as any).w || n, MH = (G as any).h || n, inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < MW && Y < MH;
+  const road = (X: number, Y: number) => inb(X, Y) && (tt[Y * MW + X] === "r" || tt[Y * MW + X] === "b");
   // owner города по id (первая клетка)
   const ownC = new Map<number, number>(); for (let i = 0; i < n * n; i++) if (C[i] >= 0 && !ownC.has(C[i])) ownC.set(C[i], T[i]);
   let missing = false; const jobs: [HTMLCanvasElement, number, number][] = [];
@@ -164,8 +164,8 @@ const WALL: Record<string, { base: string; hi: string; mort: string; kind: "bric
  * чтобы углы смыкались без щелей. Ворота — разрыв с золотыми створками, где дорога пересекает границу (открыты — створки разведены). */
 export function drawWalls(ctx: CanvasRenderingContext2D, G: GameState, T: Int8Array, C: Int16Array, z: number, sx: SX, sy: SX, vis: (x: number, y: number) => boolean, col: (s: number) => string, wo: WallOpts = {}) {
   const n = G.size; if (z < 5) return; const sideOf = wo.side || ((q: number) => q), t = Math.max(2, z * 0.065), post = t * 1.7;
-  const tt: string = (G as any).map?.t || "", inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n;
-  const road = (X: number, Y: number) => inb(X, Y) && (tt[Y * n + X] === "r" || tt[Y * n + X] === "b");
+  const tt: string = (G as any).map?.t || "", MW = (G as any).w || n, MH = (G as any).h || n, inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < MW && Y < MH;
+  const road = (X: number, Y: number) => inb(X, Y) && (tt[Y * MW + X] === "r" || tt[Y * MW + X] === "b");
   const city = (X: number, Y: number) => inb(X, Y) && C[Y * n + X] >= 0;
   type Seg = { ax: number; ay: number; bx: number; by: number; nx: number; ny: number; c1: string; c2?: string; gate?: boolean; open?: boolean };
   const segs: Seg[] = [], posts = new Map<string, [number, number, string, number, number]>();
@@ -251,7 +251,7 @@ function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: 
  *  чудо/легенда — первый свободный блок 2×2. Ключ — состав, так что старые постройки не «прыгают» при новых. */
 const layCache = new Map<number, { k: string; v: Map<string, { x: number; y: number; big: boolean }> }>();
 /** вторая клетка столицы terrain-v2 (арт 2×1): восточная по карте, если она суша и свободна, иначе западная */
-export function capPair(G: GameState, ct: any): number { const n = G.size, m: any = (G as any).map || openMap(n);
+export function capPair(G: GameState, ct: any): number { const n = G.w || G.size, m: any = (G as any).map || openMap(n); // t1247: строки карты — по ширине
   const okc = (x: number) => x >= 0 && x < n && !"w#m".includes(m.t?.[ct.y * n + x] || ".") && (!m.s?.[ct.y * n + x] || m.s[ct.y * n + x] === ".");
   return okc(ct.x + 1) ? ct.x + 1 : okc(ct.x - 1) ? ct.x - 1 : ct.x + 1 < n ? ct.x + 1 : ct.x - 1; }
 export function cityLayout(G: GameState, C: Int16Array | null, ct: any, items: string[]): Map<string, { x: number; y: number; big: boolean }> {
@@ -261,10 +261,11 @@ export function cityLayout(G: GameState, C: Int16Array | null, ct: any, items: s
   for (const q of G.ec?.cities || []) if ((q as any).cap) cities.add(q.y * n + capPair(G, q)); // столица terrain-v2 занимает 2 клетки
   const R = 1, near = (x: number, y: number) => Math.max(Math.abs(x - ct.x), Math.abs(y - ct.y));
   // своя земля города; если мест не хватает — ничья клетка рядом (до 2), только для картинки
-  const ok = (x: number, y: number) => { if (x < 0 || y < 0 || x >= n || y >= n) return false; const i = y * n + x;
+  const MW = G.w || n, MH = G.h || n; // t1247
+  const ok = (x: number, y: number) => { if (x < 0 || y < 0 || x >= MW || y >= MH) return false; const i = y * n + x, j = y * MW + x;
     if (C ? !(C[i] === ct.id || (C[i] < 0 && near(x, y) <= 2)) : near(x, y) > R) return false; if (cities.has(i) || towers.has(i)) return false;
-    const t = m.t?.[i] || "."; if (t === "#" || t === "w" || t === "m") return false; const st = m.s?.[i]; return !st || st === "."; };
-  const cand: [number, number][] = []; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (ok(x, y)) cand.push([x, y]);
+    const t = m.t?.[j] || "."; if (t === "#" || t === "w" || t === "m") return false; const st = m.s?.[j]; return !st || st === "."; };
+  const cand: [number, number][] = []; for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (ok(x, y)) cand.push([x, y]);
   const d = (c: [number, number]) => Math.max(Math.abs(c[0] - ct.x), Math.abs(c[1] - ct.y)) * 10 + Math.abs(c[0] - ct.x) + Math.abs(c[1] - ct.y);
   const own = (c: [number, number]) => (C && C[c[1] * n + c[0]] !== ct.id ? 1000 : 0);
   cand.sort((A, B) => own(A) + d(A) - own(B) - d(B) || A[1] - B[1] || A[0] - B[0]);
@@ -339,8 +340,8 @@ export function chiefSite(G: GameState, T: Int8Array, side: number, k: Piece): a
 /** Клетки для башни: соседние с Вождём, свободные, «.»/«P», не дальше outDist от своей земли и не на чужой. */
 export function towerCells(G: GameState, T: Int8Array, side: number, k: Piece, cfg: StratCfg): [number, number][] {
   const n = G.size, m: any = (G as any).map || openMap(n), R = (cfg as any).econ?.tower?.outDist ?? 2, out: [number, number][] = [];
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = k.x + dx, y = k.y + dy; if ((!dx && !dy) || x < 0 || y < 0 || x >= n || y >= n) continue;
-    if (G.pieces.some((q) => q.x === x && q.y === y)) continue; const ss = m.s?.[y * n + x];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = k.x + dx, y = k.y + dy; if ((!dx && !dy) || x < 0 || y < 0 || x >= (G.w || n) || y >= (G.h || n)) continue;
+    if (G.pieces.some((q) => q.x === x && q.y === y)) continue; const ss = m.s?.[y * (G.w || n) + x];
     if (!passable(m, x, y, G.races[side])) continue; if (ss && ss !== "." && ss !== "P") continue;
     if (G.ec?.cities.some((c) => c.x === x && c.y === y) || towersOf(G).some((t) => t.x === x && t.y === y)) continue;
     const o = T[y * n + x]; if (o >= 0 && o !== side) continue;

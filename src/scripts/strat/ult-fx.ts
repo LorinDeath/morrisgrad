@@ -28,9 +28,12 @@ export function ultRadius(cfg: any, race: string, small: boolean): number {
   const u = cfg?.ults?.[race] ?? cfg?.econ?.ults?.[race]; const r = small ? u?.unitR ?? u?.small?.r : u?.r;
   return typeof r === "number" ? r : small ? Math.max(1, ULT[race]?.r - 1 || 1) : ULT[race]?.r ?? 2;
 }
+/** t1247: границы прямоугольного поля W×H (0 — квадрат n×n); клиент ставит перед отрисовкой */
+let FW = 0, FH = 0; export function setField(w: number, h: number) { FW = w; FH = h; }
+const inF = (X: number, Y: number, n: number) => X >= 0 && Y >= 0 && X < (FW || n) && Y < (FH || n);
 export const inDisc = (dx: number, dy: number, r: number) => dx * dx + dy * dy <= r * r + r; // r=2 → «круг» диаметром 5 клеток
 export function discCells(x: number, y: number, r: number, n: number): [number, number][] {
-  const out: [number, number][] = []; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < n && Y < n && inDisc(dx, dy, r)) out.push([X, Y]); } return out;
+  const out: [number, number][] = []; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const X = x + dx, Y = y + dy; if (inF(X, Y, n) && inDisc(dx, dy, r)) out.push([X, Y]); } return out;
 }
 /** Разбор события сервера (e.e = "ult" | "ultimate" | "uult"). Форма данных — защитная: ТЗ §14 ещё уточняется. */
 /** prevG — снимок до события: откуда начался «Молниеносный рывок» (после него Вождь уже стоит у последней цели). */
@@ -116,7 +119,7 @@ export function ultAimOk(race: string, x: number, y: number, A: AimCtx): boolean
 export type AimCtx = { from: [number, number]; era: number; side: number; pieces: { x: number; y: number; o: number; hp: number; id: number }[] };
 /** клетки ульты расы race в цель (x, y) так же, как считает сервер; null — формы нет (способности фигур — круг r) */
 export function ultAimCells(race: string, x: number, y: number, n: number, A: AimCtx): [number, number][] | null {
-  const u = AIM_SHAPE[race]; if (!u) return null; const out: [number, number][] = [], inb = (X: number, Y: number) => X >= 0 && Y >= 0 && X < n && Y < n;
+  const u = AIM_SHAPE[race]; if (!u) return null; const out: [number, number][] = [], inb = (X: number, Y: number) => inF(X, Y, n);
   if (u.s === "circle") { const r = u.r!, R = Math.ceil(r); for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) if (dx * dx + dy * dy <= r * r + 1e-9 && inb(x + dx, y + dy)) out.push([x + dx, y + dy]); }
   else if (u.s === "square") { const sz = A.era >= 3 && u.eraSize ? u.eraSize : u.size!, h = (sz - 1) >> 1; for (let dy = -h; dy <= h; dy++) for (let dx = -h; dx <= h; dx++) if (inb(x + dx, y + dy)) out.push([x + dx, y + dy]); }
   else if (u.s === "line") { const [fx, fy] = A.from, sx = Math.sign(x - fx), sy = Math.sign(y - fy); if (!sx && !sy) return out; const px = -sy, py = sx;

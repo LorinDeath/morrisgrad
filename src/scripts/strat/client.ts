@@ -3,9 +3,11 @@
 // HUD вокруг, игровые окна вместо prompt/confirm, баннер хода, тосты, анимации.
 import { mountAdminGoals } from "./admin-goals";
 import { loadArt, unitSprite, hitFx, spriteBox, type Pose } from "./art";
-import { terrainLayer, drawStructIcon, GOLD, INK } from "./terrain-draw";
+import { terrainLayer, drawLayerFit, drawStructIcon, GOLD, INK } from "./terrain-draw";
 import { renderBar, renderCity, renderTech, pieceActs, bindPieceActs, boardClick, drawEcon, econFx, econToast, techLabel, cfgOf, ui as eui, KIND_NAME, ECON_ERR, territoryCached, pieceLv, talName, unitArt, type Ctx } from "./econ-ui";
-import { TERRAIN, STRUCT, TER_RULES, openMap, type MapData } from "../../../server/strat/terrain";
+import { TERRAIN, STRUCT, TER_RULES, openMap, mw, mh, type MapData } from "../../../server/strat/terrain";
+/** t1247: подпись размера «W×H» (квадрат — «N×N») */
+const dimTxt = (o: any, n?: number) => { const N = o?.size || n || 8; return `${o?.w || N}×${o?.h || N}`; };
 import { ensureSize } from "../../../server/strat/rules";
 import { moveTargets, attackTargets, attackLanding, attackKind, STRAT_CFG, SIZES, RACES, newGame, makeMap, view, type GameState, type Kind } from "../../../server/strat/rules";
 import { injectIcons, ic, iconImg, RACE_ICON } from "./icons";
@@ -15,7 +17,7 @@ import { fogView, unveilCls, fogNode } from "./fog";
 import { t2, t2Tint, t2OnLoad } from "./t2";
 import { racePassives, talentPassive, terrainPassive, structPassive, pasIcon, regPassive, passiveTip, effLine, type Passive } from "./passives";
 import { setTipResolver } from "./ui-kit";
-import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ultAimOk, aimShape, ULT, ultRadius, shake, placeBanner, BAN_MS } from "./ult-fx";
+import { parseUlt, addCast, ultBanner, zonesOf, resetUlt, drawZones, drawCasts, drawAim, ultAimOk, aimShape, ULT, ultRadius, shake, placeBanner, BAN_MS, setField } from "./ult-fx";
 import { loadFx, fxImg, drawFx2, addArc, addShot, addAnim, addLunge, lungeOf, hitStop, inHitStop, hitStopLeft, resetFx2, fxUrl, fxMeta, drawEnt, drawStatusMarks, pruneMarks } from "./fx2";
 import { chatInit, chatRecv, chatReset, chatShow, chatDemo } from "./chat";
 import { renderPlayers, renderSlots, playerCol, isAway, teamOf, modeOf, allies, isDrawW, wonW, winnerNick } from "./players";
@@ -777,20 +779,20 @@ async function renderLobbyMap(host: boolean) {
     for (const m of mapList) {
       const b = document.createElement("button"); b.className = "mapcard"; b.dataset.map = m.id;
       b.innerHTML = `<span class="mc-fr"><span class="mc-pv"></span><b></b></span><small></small>`; // P2: map_card_frame — окно 208×136, табличка имени
-      b.querySelector("b")!.textContent = m.name; b.querySelector("small")!.textContent = [`${S.size}×${S.size}`, m.author || (m.kind === "official" ? "официальная" : m.kind === "random" ? "новая каждый раз" : ""), m.kind === "mine" ? "моя" : "", ST_NAME[m.status] || ""].filter(Boolean).join(" · ");
+      b.querySelector("b")!.textContent = m.name; b.querySelector("small")!.textContent = [dimTxt(m.w ? m : null, S.size), m.author || (m.kind === "official" ? "официальная" : m.kind === "random" ? "новая каждый раз" : ""), m.kind === "mine" ? "моя" : "", ST_NAME[m.status] || ""].filter(Boolean).join(" · ");
       const pv = b.querySelector<HTMLElement>(".mc-pv")!;
-      if (m.t && m.s) { const c = document.createElement("canvas"), w = 192; c.width = c.height = w; c.getContext("2d")!.drawImage(terrainLayer({ id: m.id, name: m.name, size: m.size || S.size, t: m.t, s: m.s } as any, w, false, [GOLD, "#b3261e"]), 0, 0); pv.appendChild(c); }
+      if (m.t && m.s) { const c = document.createElement("canvas"), w = 192; c.width = c.height = w; drawLayerFit(c.getContext("2d")!, terrainLayer({ id: m.id, name: m.name, size: m.size || S.size, ...(m.w ? { w: m.w, h: m.h } : {}), t: m.t, s: m.s } as any, w, false, [GOLD, "#b3261e"]), w); pv.appendChild(c); }
       else pv.innerHTML = ic(m.kind === "random" ? "dice" : "map");
       b.onclick = () => send({ type: "cfg", map: m.id }); gal.appendChild(b);
     }
   }
   const cur = S.mapInfo?.id || "", want = cur.startsWith("rnd:") ? "rnd" : cur;
   for (const b of gal.querySelectorAll<HTMLButtonElement>("[data-map]")) { b.classList.toggle("on", b.dataset.map === want); b.disabled = !host;
-    if (b.dataset.map === want && S.lobbyMap && !b.querySelector("canvas")) { const c = document.createElement("canvas"); c.width = c.height = 192; c.getContext("2d")!.drawImage(terrainLayer(S.lobbyMap, 192, false, [GOLD, "#b3261e"]), 0, 0); const pv = b.querySelector(".mc-pv")!; pv.innerHTML = ""; pv.appendChild(c); } }
+    if (b.dataset.map === want && S.lobbyMap && !b.querySelector("canvas")) { const c = document.createElement("canvas"); c.width = c.height = 192; drawLayerFit(c.getContext("2d")!, terrainLayer(S.lobbyMap, 192, false, [GOLD, "#b3261e"]), 192); const pv = b.querySelector(".mc-pv")!; pv.innerHTML = ""; pv.appendChild(c); } }
   const pv = $<HTMLCanvasElement>("#mappv"), m: MapData | undefined = S.lobbyMap;
   if (m) { const d = devicePixelRatio || 1, w = Math.min(300, pv.parentElement!.clientWidth || 300); pv.style.width = pv.style.height = w + "px"; pv.width = pv.height = Math.round(w * d);
-    pv.getContext("2d")!.drawImage(terrainLayer(m, Math.min(pv.width, 2048), S.you === 1, [GOLD, "#b3261e"]), 0, 0, pv.width, pv.height); }
-  $("#mapname0").textContent = (S.mapInfo?.name || m?.name || "Карта") + ` · ${S.size}×${S.size}`;
+    { const x2 = pv.getContext("2d")!; x2.clearRect(0, 0, pv.width, pv.height); drawLayerFit(x2, terrainLayer(m, Math.min(pv.width, 2048), S.you === 1, [GOLD, "#b3261e"]), pv.width, pv.height); } }
+  $("#mapname0").textContent = (S.mapInfo?.name || m?.name || "Карта") + ` · ${dimTxt(m?.w ? m : S.lobbyMap?.w ? S.lobbyMap : null, S.size)}`;
   const chips = $("#mapdesc"); chips.innerHTML = "";
   if (m) { const cnt: Record<string, number> = {}; for (const c of m.s) if (c !== ".") cnt[c] = (cnt[c] || 0) + 1;
     for (const [c, n] of Object.entries(cnt)) { const sp = document.createElement("span"); sp.className = "schip"; sp.textContent = ((STRUCT as any)[c]?.name || c) + (n > 1 ? " ×" + n : ""); sp.dataset.tip = esc((STRUCT as any)[c]?.eff || ""); chips.appendChild(sp); } }
@@ -804,9 +806,9 @@ async function loadQueue() {
   for (const q of r.list) {
     const row = document.createElement("div"); row.className = "modrow";
     const pv = document.createElement("canvas"); pv.width = pv.height = 150; pv.className = "framed sm";
-    pv.getContext("2d")!.drawImage(terrainLayer({ id: q.id, name: q.name, size: q.size, t: q.t, s: q.s } as any, 150, false, [GOLD, "#b3261e"]), 0, 0);
+    drawLayerFit(pv.getContext("2d")!, terrainLayer({ id: q.id, name: q.name, size: q.size, ...(q.w ? { w: q.w, h: q.h } : {}), t: q.t, s: q.s } as any, 150, false, [GOLD, "#b3261e"]), 150);
     const info = document.createElement("div"); const ch = q.checks || { errors: [], warnings: [] };
-    info.innerHTML = `<b class="nm"></b> <span class="muted">${q.size}×${q.size} · ${esc(q.status)}${q.flagged ? " · жалоб: " + q.flagged : ""}</span><div class="muted au"></div>
+    info.innerHTML = `<b class="nm"></b> <span class="muted">${dimTxt(q)} · ${esc(q.status)}${q.flagged ? " · жалоб: " + q.flagged : ""}</span><div class="muted au"></div>
       <div class="${ch.errors.length ? "warn" : "ok"}">${ch.errors.length ? "ошибки: " + esc(ch.errors.join(", ")) : "проверки пройдены"}${ch.warnings.length ? " · предупреждения: " + esc(ch.warnings.join(", ")) : ""}</div>
       <div class="row"><button class="btn sm gold" data-a="approve"><span>Одобрить</span></button><button class="btn sm" data-a="reject"><span>Отклонить</span></button><button class="btn sm ghost" data-a="hide"><span>Скрыть</span></button>${q.flagged ? '<button class="btn sm ghost" data-a="clear_flag"><span>Снять жалобы</span></button>' : ""}</div>`;
     info.querySelector(".nm")!.textContent = q.name; info.querySelector(".au")!.textContent = "автор: " + (q.author_nick || q.author) + (q.flag_note ? " · жалоба: " + q.flag_note : "");
@@ -909,7 +911,7 @@ function renderHud() {
   $("#endsub").textContent = myTurn ? `осталось ${g.ap} ОД` : "";
   $<HTMLButtonElement>("#forfeit").hidden = S.phase !== "play" || me < 0;
   const rm = $<HTMLButtonElement>("#rematch"); rm.hidden = S.phase !== "over" || me < 0; rm.querySelector("span")!.textContent = S.seats[me]?.rematch ? "Ждём соперника…" : "Реванш";
-  $("#mapname").textContent = S.mapInfo?.name ? `${S.mapInfo.name} · ${g.size}×${g.size}` : `${g.size}×${g.size}`;
+  $("#mapname").textContent = S.mapInfo?.name ? `${S.mapInfo.name} · ${dimTxt(g)}` : dimTxt(g);
   $("#checkwarn").hidden = !(S.phase === "play" && S.check?.[me]);
 }
 
@@ -978,7 +980,7 @@ function renderInfo() {
     if (S.phase === "play" && p.k === "king" && p.o === S.you) h += chiefActs(P);
     if (S.phase === "play" && p.o === S.you && !p.a) { const rz = razeTargets(S, gs()!, P); if (rz.length) h += `<div class="uc-acts raze"><small>${ic("target")}Удар по постройке</small>${rz.flatMap((t) => t.b.map((b) => `<button class="btn sm red" data-raze="${t.city}" data-b="${esc(b)}">${ic("sword")}<span>${esc(b === "watchtower" ? "Башня" : bName(b, g.races[1 - S.you] || ""))}${t.tower ? "" : " · " + esc(cityName(gs()!, t.city))}</span></button>`)).join("")}</div>`; }
   }
-  if (m && at) { const [x, y] = at, t = m.t[y * m.size + x], st = m.s[y * m.size + x], tn = (TERRAIN as any)[t]?.name || t;
+  if (m && at) { const [x, y] = at, t = m.t[y * mw(m) + x], st = m.s[y * mw(m) + x], tn = (TERRAIN as any)[t]?.name || t;
     const tp = terrainPassive(t, tn), sp = st !== "." ? structPassive(st, (STRUCT as any)[st]) : null;
     h += `<div class="cellinfo"><span class="ci-t">${ic(t === "f" ? "leaf" : t === "w" ? "wave" : t === "m" ? "mountain" : t === "#" ? "wall" : "map")}<b>${esc(tn)}</b>${pasIcon(tp)}</span>${terrEff(t) ? `<small>${terrEff(t)}</small>` : ""}
       ${sp ? `<span class="ci-t">${ic("castle")}<b>${esc(sp.name)}</b>${pasIcon(sp)}</span><small>${structInc(st) ? structInc(st).slice(3) : esc(String((STRUCT as any)[st]?.eff || "").replace(/\s*\(этап \d+\)/g, ""))}</small>` : ""}${cellOwnerInfo(x, y)}</div>`; }
@@ -1088,7 +1090,10 @@ function startInertia(vx0: number, vy0: number) { stopInertia(); let vx1 = vx0, 
 const cv = () => $<HTMLCanvasElement>("#board");
 const big = () => (S?.g?.size || 0) > SMALL;
 const flipped = () => S?.you === 1;
-const vx = (x: number) => (flipped() ? cam.n - 1 - x : x), vy = (y: number) => (flipped() ? cam.n - 1 - y : y);
+// t1247: прямоугольное поле W×H стоит по центру квадрата камеры n×n (n — большая сторона); шаг индексов клеток — по-прежнему n
+const gW = () => (S?.g ? S.g.w || S.g.size : cam.n), gH = () => (S?.g ? S.g.h || S.g.size : cam.n);
+const offX = () => (cam.n - gW()) / 2, offY = () => (cam.n - gH()) / 2;
+const vx = (x: number) => (flipped() ? gW() - 1 - x : x) + offX(), vy = (y: number) => (flipped() ? gH() - 1 - y : y) + offY();
 const scrX = (x: number) => cam.W / 2 + (vx(x) - cam.cx) * cam.z, scrY = (y: number) => cam.H / 2 + (vy(y) - cam.cy) * cam.z;
 function fitCam(force: boolean) {
   const st = $("#stage"); if (!st || !S?.g) return; const W = st.clientWidth, H = st.clientHeight; if (!W || !H) return;
@@ -1125,8 +1130,8 @@ function zoomAt(k: number, px = cam.W / 2, py = cam.H / 2) { const bx = cam.cx +
   cam.z *= k; clampCam(); cam.cx = bx - (px - cam.W / 2) / cam.z; cam.cy = by - (py - cam.H / 2) / cam.z; clampCam(); draw();
 }
 function cellAt(px: number, py: number): [number, number] | null {
-  const X = Math.floor(cam.cx + (px - cam.W / 2) / cam.z), Y = Math.floor(cam.cy + (py - cam.H / 2) / cam.z), n = cam.n;
-  if (X < 0 || Y < 0 || X >= n || Y >= n) return null; return flipped() ? [n - 1 - X, n - 1 - Y] : [X, Y];
+  const W = gW(), H = gH(), X = Math.floor(cam.cx + (px - cam.W / 2) / cam.z - offX()), Y = Math.floor(cam.cy + (py - cam.H / 2) / cam.z - offY());
+  if (X < 0 || Y < 0 || X >= W || Y >= H) return null; return flipped() ? [W - 1 - X, H - 1 - Y] : [X, Y];
 }
 
 // ---------- взгляд фигур: никогда «в стену» ----------
@@ -1188,13 +1193,13 @@ function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawNow
 function drawNow() {
   if (inHitStop(performance.now())) { setTimeout(draw, hitStopLeft(performance.now())); return; } // хит-стоп: кадр удара держится 60 мс
   const c = cv(); if (!S?.g || !c || c.offsetParent === null) return; if (!cam.W || cam.n !== S.g.size) fitCam(false); if (!cam.W) return;
-  const dpr = devicePixelRatio || 1, ctx = c.getContext("2d")!, g = S.g, n = g.size, z = cam.z;
+  const dpr = devicePixelRatio || 1, ctx = c.getContext("2d")!, g = S.g, n = g.size, z = cam.z; setField(g.w || 0, g.h || 0); // t1247: границы прицела ульт — W×H
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cam.W, cam.H); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
   const map: MapData = g.map || openMap(n), G0 = gs()!, cfg = cfgOf(S), T0 = G0.ec ? territoryCached(G0, cfg, g) : null, WT = T0 ? terrFull(G0, T0, g) : null, T = WT ? WT.T : null;
   const L = Math.min(n > 60 ? 3072 : 4096, Math.max(512, Math.ceil(n * Math.min(64, Math.max(cam.fit, 24)) * dpr)));
   { // рельеф: только видимый кусок слоя (на больших картах не масштабируем весь слой каждый кадр)
-    const lay = terrainLayer(map, L, flipped(), [raceCol(0), raceCol(1)], T ? (x, y) => T[y * n + x] : undefined, z < 20), ox = cam.W / 2 - cam.cx * z, oy = cam.H / 2 - cam.cy * z, k = lay.width / n;
-    const c0 = Math.max(0, Math.floor(-ox / z)), r0 = Math.max(0, Math.floor(-oy / z)), c1 = Math.min(n, Math.ceil((cam.W - ox) / z)), r1 = Math.min(n, Math.ceil((cam.H - oy) / z));
+    const MW = gW(), MH = gH(), lay = terrainLayer(map, L, flipped(), [raceCol(0), raceCol(1)], T ? (x, y) => T[y * n + x] : undefined, z < 20), ox = cam.W / 2 - (cam.cx - offX()) * z, oy = cam.H / 2 - (cam.cy - offY()) * z, k = lay.width / MW;
+    const c0 = Math.max(0, Math.floor(-ox / z)), r0 = Math.max(0, Math.floor(-oy / z)), c1 = Math.min(MW, Math.ceil((cam.W - ox) / z)), r1 = Math.min(MH, Math.ceil((cam.H - oy) / z));
     if (c1 > c0 && r1 > r0) ctx.drawImage(lay, c0 * k, r0 * k, (c1 - c0) * k, (r1 - r0) * k, ox + c0 * z, oy + r0 * z, (c1 - c0) * z, (r1 - r0) * z); }
   // видимая область (в координатах карты) — рисуем только её
   const m = 1, vis = (x: number, y: number) => { const X = scrX(x), Y = scrY(y); return X > -z * m && Y > -z * m && X < cam.W + z * (m - 1) + z && Y < cam.H + z * (m - 1) + z; };
@@ -1259,7 +1264,7 @@ function drawNow() {
     let bi = 0; if (p.b) badge("burn", bi++); if (p.c) badge("chill", bi++);
     { const st: string[] = []; if (p.b) st.push("burn"); if (p.c) st.push("chill"); if (p.sh > 0) st.push("shield"); if (p.rt > 0) st.push("roots"); if (p.tr) marksOn = true; // энт idle — анимация // метки статусов — арт fx-v1, пока статус висит
       for (const k of st) liveMarks.add(p.id + ":" + k); if (drawStatusMarks(ctx, p.id, st, X, Y - hop, z, now)) marksOn = true; }
-    const st = map.s[p.y * n + p.x]; if (st && st !== ".") drawStructIcon(ctx, st, X + z * 0.14, Y + z * 0.72, z * 0.26);
+    const st = map.s[p.y * mw(map) + p.x]; if (st && st !== ".") drawStructIcon(ctx, st, X + z * 0.14, Y + z * 0.72, z * 0.26);
     ctx.globalAlpha = 1;
   }
   pruneMarks(liveMarks);
@@ -1344,26 +1349,26 @@ function fogMasks(n: number) { const f = S?.fog; if (!f || typeof f.vis !== "str
   fogKey = k; fogM = { vis: dec(f.vis), seen: dec(f.seen || "") }; return fogM; }
 function drawFog(ctx: CanvasRenderingContext2D, n: number, sx: (x: number) => number, sy: (y: number) => number, z: number, vis: (x: number, y: number) => boolean) {
   const M = fogMasks(n); if (!M) return;
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x; if (M.vis[i] || !vis(x, y)) continue;
+  for (let y = 0; y < gH(); y++) for (let x = 0; x < gW(); x++) { const i = y * n + x; if (M.vis[i] || !vis(x, y)) continue;
     ctx.fillStyle = M.seen[i] ? "rgba(12,10,16,.5)" : "rgba(8,7,12,.93)"; ctx.fillRect(sx(x) - 0.5, sy(y) - 0.5, z + 1, z + 1); } }
 /** Мини-карта: рельеф + территория + фигуры точками, рамка видимой области; клик/перетаскивание — прыжок. */
 let mmKey = "", mmBase: HTMLCanvasElement | null = null;
 function drawMinimap() {
-  const c = $<HTMLCanvasElement>("#minimap"); if (!c || !S?.g) return; const n = S.g.size, D = c.width, k = D / n, g = S.g;
-  const key = `${g.map?.id}|${n}|${flipped()}|${g.turn}|${g.cur}`;
+  const c = $<HTMLCanvasElement>("#minimap"); if (!c || !S?.g) return; const n = S.g.size, D = c.width, k = D / n, g = S.g, MW = gW(), MH = gH();
+  const key = `${g.map?.id}|${MW}x${MH}|${flipped()}|${g.turn}|${g.cur}`;
   if (key !== mmKey || !mmBase) { mmKey = key; const map: MapData = g.map || openMap(n); mmBase = document.createElement("canvas"); mmBase.width = mmBase.height = D; const x2 = mmBase.getContext("2d")!;
     // terrain-v2 mini_* (8×8 на клетку): рельеф, постройки карты; нет набора — уменьшенный пререндер рельефа
     const MT: Record<string, string> = { ".": "plain", ",": "meadow", f: "forest", m: "mountain", w: "water", r: "road", b: "bridge", "#": "wall", g: "wall" };
     const mi = (nm: string) => t2(nm, 8), okMini = !!mi("mini_plain") && !!mi("mini_forest") && !!mi("mini_water");
-    if (okMini) { x2.imageSmoothingEnabled = false; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x, X = vx(x) * k, Y = vy(y) * k;
+    if (okMini) { x2.imageSmoothingEnabled = false; for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { const i = y * MW + x, X = vx(x) * k, Y = vy(y) * k; // строки карты — по ширине
       const im = mi("mini_" + (MT[map.t[i]] || "plain")) || mi("mini_plain"); if (im) x2.drawImage(im, X, Y, k + 0.3, k + 0.3);
       const st = map.s[i]; if (st && st !== ".") { const si = mi("mini_" + st); if (si) x2.drawImage(si, X, Y, k + 0.3, k + 0.3); } } }
-    else x2.drawImage(terrainLayer(map, Math.min(1024, Math.max(256, n * 8)), flipped(), [raceCol(0), raceCol(1)]), 0, 0, D, D);
+    else drawLayerFit(x2, terrainLayer(map, Math.min(1024, Math.max(256, n * 8)), flipped(), [raceCol(0), raceCol(1)]), D);
     const G0 = gs()!, T = G0.ec ? territoryCached(G0, cfgOf(S), g) : null;
-    if (T) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const o = T[y * n + x]; if (o >= 0) { x2.fillStyle = raceCol(o) + "55"; x2.fillRect(vx(x) * k, vy(y) * k, k, k); } }
+    if (T) for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { const o = T[y * n + x]; if (o >= 0) { x2.fillStyle = raceCol(o) + "55"; x2.fillRect(vx(x) * k, vy(y) * k, k, k); } }
     const mc = mi("mini_city"); if (mc && G0.ec) for (const ct of G0.ec.cities) { const s2 = k * (ct.cap ? 1.8 : 1.3); x2.drawImage(mc, vx(ct.x) * k + k / 2 - s2 / 2, vy(ct.y) * k + k / 2 - s2 / 2, s2, s2); } }
   const ctx = c.getContext("2d")!; ctx.drawImage(mmBase, 0, 0);
-  { const M = fogMasks(n); if (M) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x; if (M.vis[i]) continue; ctx.fillStyle = M.seen[i] ? "rgba(12,10,16,.5)" : "rgba(8,7,12,.93)"; ctx.fillRect(vx(x) * k, vy(y) * k, k + 0.3, k + 0.3); } } // t1221
+  { const M = fogMasks(n); if (M) for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { const i = y * n + x; if (M.vis[i]) continue; ctx.fillStyle = M.seen[i] ? "rgba(12,10,16,.5)" : "rgba(8,7,12,.93)"; ctx.fillRect(vx(x) * k, vy(y) * k, k + 0.3, k + 0.3); } } // t1221
   for (const p of g.pieces) { ctx.fillStyle = raceCol(p.o); ctx.strokeStyle = INK; ctx.lineWidth = 1; const s = Math.max(3, k * (p.k === "king" ? 1.6 : 1)); ctx.fillRect(vx(p.x) * k + k / 2 - s / 2, vy(p.y) * k + k / 2 - s / 2, s, s); ctx.strokeRect(vx(p.x) * k + k / 2 - s / 2, vy(p.y) * k + k / 2 - s / 2, s, s); }
   const w = (cam.W / cam.z) * k, h = (cam.H / cam.z) * k; ctx.strokeStyle = "#f3d27a"; ctx.lineWidth = 2; ctx.strokeRect((cam.cx * k) - w / 2, (cam.cy * k) - h / 2, w, h);
 }
@@ -1460,7 +1465,7 @@ let cityIdx = -1, hoverKey = "", hoverCell: [number, number] | null = null;
 /** Наведение на доску (мышь): короткая подсказка о фигуре или клетке. */
 function hoverTip(px: number, py: number, cx: number, cy: number, sheet = false) {
   if ((!sheet && !matchMedia("(hover: hover)").matches) || !S?.g) return; if (sheet) hoverKey = ""; const at = cellAt(px, py); if (!at) { hideTip(); hoverKey = ""; if (hoverCell) { hoverCell = null; draw(); } return; }
-  const [x, y] = at, g = S.g, p = g.pieces.find((q: any) => q.x === x && q.y === y), m: MapData = g.map || openMap(g.size), t = m.t[y * g.size + x], st = m.s[y * g.size + x];
+  const [x, y] = at, g = S.g, p = g.pieces.find((q: any) => q.x === x && q.y === y), m: MapData = g.map || openMap(g.size), t = m.t[y * mw(m) + x], st = m.s[y * mw(m) + x];
   const key = `${x},${y},${p?.id},${p?.hp},${S.g.v ?? S.g.turn}`; if (key === hoverKey) return; hoverKey = key; if (!hoverCell || hoverCell[0] !== x || hoverCell[1] !== y) { hoverCell = [x, y]; draw(); } { const hp0 = p?.id ?? -1; if (hp0 !== hoverPid) { hoverPid = hp0; if (hideHp) draw(); } }
   let h = "";
   if (p) h = `<b>${p.k === "king" ? "Вождь " + esc(chiefName(p.o)) : KIND_NAME[p.k as Kind]}</b> · ${p.o === S.you ? "ваш" : "враг"}<br>${p.hp == null && p.hs ? `<span class="hsb hs-${p.hs}">${HS_NAME[p.hs] || "?"}</span>` : `${ic("heart")}${p.hp}/${p.mh}`} ${ic("sword")}${p.ea ?? p.atk} ${ic("shield")}${p.er ?? p.arm}`;
@@ -1511,7 +1516,7 @@ function onBoard(px: number, py: number) {
   if (P && G.cur === S.you) {
     if (here && attackTargets(G, P).some(([a, b]) => a === x && b === y)) { if (!confirmed()) return; faceAt(P.id, x, y); const L = attackLanding(G, P, x, y, cfgOf(S)); send({ type: "act", act: { a: "attack", id: P.id, x, y, ...(L && (L[0] !== P.x || L[1] !== P.y) ? { lx: L[0], ly: L[1] } : {}) } }); }
     else if (!here && moveTargets(G, P).some(([a, b]) => a === x && b === y)) { if (!confirmed()) return;
-      const last = P.owner === 0 ? 0 : G.size - 1;
+      const last = P.owner === 0 ? 0 : mh(G) - 1;
       if (P.kind === "pawn" && y === last) { choiceDlg("Повышение", "Ополченец дошёл до края поля. Кем он станет?",
           (["knight", "mage", "rook"] as Kind[]).map((k) => ({ id: k, title: KIND_NAME[k], img: unitArt(S.g.races[P.owner], k), foot: `${ic("heart")}${cfgOf(S).units[k].hp} ${ic("sword")}${cfgOf(S).units[k].atk} ${ic("shield")}${cfgOf(S).units[k].arm}` })), "promo")
         .then((k: any) => { if (k) send({ type: "act", act: { a: "move", id: P.id, x, y, promo: k } }); }); }

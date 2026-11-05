@@ -890,7 +890,7 @@ body.me-open { overflow: hidden; }
 @media (max-width: 600px) {
   .me-top { flex-wrap: wrap; gap: 6px; padding: 6px; } .me-top .me-name { order: 1; flex: 1 1 100%; min-width: 0; padding: 6px 8px; }
   .me-top > * { order: 2; } .me-top .btn.sm { --bh: 34px; padding: 0 8px; font-size: .72rem; } .me-top .btn.sq { --bh: 34px; } .me-sp { display: none; } .me-lg { font-size: .68rem; }
-  .me-size span { display: none; } .me-size input { width: 52px; }
+  .me-size span:last-child { display: none; } .me-size input { width: 46px; }
   .me-side { top: 96px; }
   .me-mini { width: 84px; height: 84px; right: 6px; bottom: 6px; border-width: 9px; border-image-width: 9px; } .me-zoom { right: 6px; top: 6px; } .me-hint { display: none; }
   .me-tools { padding: 4px 6px; gap: 3px; } .me-tools .mt { min-width: 44px; height: 46px; padding: 2px 4px; } .me-tools .mt.bs { min-width: 34px; } .mt-cur { display: none; } .mt-sep { margin: 0 2px; }

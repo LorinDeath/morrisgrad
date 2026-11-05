@@ -1,7 +1,7 @@
 // Рисованные кодом тайлы рельефа и построек в стиле варианта C (плоские заливки, жирная чистая линия #1a1014,
 // ар-деко-мотивы; чёрный/золото/слоновая кость/красный + стихийные акценты). Заглушки до арта Художника
 // (заказ: minigame-tz/art-request-terrain.md). Рельеф пререндерится в offscreen-canvas один раз на карту/размер.
-import type { MapData } from "../../../server/strat/terrain";
+import { mw, mh, type MapData } from "../../../server/strat/terrain";
 import { terrainImg, artVer } from "./art";
 import { t2, t2Ver, sideD } from "./t2";
 
@@ -196,12 +196,12 @@ export function drawStructIcon(ctx: CanvasRenderingContext2D, ch: string, cx: nu
   const im = terrainImg("icon_" + ch); if (im) { ctx.drawImage(im, cx - s / 2, cy - s / 2, s, s); return; } drawStruct(ctx, ch, cx, cy, s, GOLD);
 }
 /** Рамка доски 9-slice (frame_board 96×96, отступ 32); t — толщина на экране. */
-function drawFrame(ctx: CanvasRenderingContext2D, W: number, t: number): boolean {
-  const im = terrainImg("frame_board"); if (!im) return false; const s = 32, M = 96 - 2 * s, L = W - 2 * t;
+function drawFrame(ctx: CanvasRenderingContext2D, W: number, t: number, H = W): boolean { // t1247: рамка и для прямоугольного поля W×H
+  const im = terrainImg("frame_board"); if (!im) return false; const s = 32, M = 96 - 2 * s, L = W - 2 * t, LH = H - 2 * t;
   const P: [number, number, number, number, number, number, number, number][] = [
     [0, 0, s, s, 0, 0, t, t], [s, 0, M, s, t, 0, L, t], [96 - s, 0, s, s, W - t, 0, t, t],
-    [0, s, s, M, 0, t, t, L], [96 - s, s, s, M, W - t, t, t, L],
-    [0, 96 - s, s, s, 0, W - t, t, t], [s, 96 - s, M, s, t, W - t, L, t], [96 - s, 96 - s, s, s, W - t, W - t, t, t]];
+    [0, s, s, M, 0, t, t, LH], [96 - s, s, s, M, W - t, t, t, LH],
+    [0, 96 - s, s, s, 0, H - t, t, t], [s, 96 - s, M, s, t, H - t, L, t], [96 - s, 96 - s, s, s, W - t, H - t, t, t]];
   for (const q of P) ctx.drawImage(im, ...q); return true;
 }
 
@@ -243,19 +243,24 @@ export function drawStruct(ctx: CanvasRenderingContext2D, ch: string, cx: number
 
 const cache = new Map<string, HTMLCanvasElement>();
 /** Пререндер рельефа (+ постройки) в offscreen-canvas. flip — вид со стороны игрока 1. */
+/** t1247: вписать слой (возможно прямоугольный) в квадрат D×D по центру, без растяжения. */
+export function drawLayerFit(ctx: CanvasRenderingContext2D, lay: HTMLCanvasElement, D: number, DH = D) {
+  const k = Math.min(D / lay.width, DH / lay.height), w = lay.width * k, h = lay.height * k; ctx.drawImage(lay, (D - w) / 2, (DH - h) / 2, w, h);
+}
 export function terrainLayer(m: MapData, side: number, flip: boolean, sideCols: [string, string], owner?: (x: number, y: number) => number, lod = false): HTMLCanvasElement {
   const own = (x: number, y: number) => (owner ? owner(x, y) : -1);
-  let ok = ""; if (owner) for (let i = 0; i < m.s.length; i++) if (m.s[i] !== ".") ok += own(i % m.size, Math.floor(i / m.size)) + 1;
-  const key = m.id + "|" + side + "|" + flip + "|" + sideCols.join() + "|" + m.t + m.s + "|" + ok + "|" + artVer + "|" + t2Ver + "|" + lod;
+  const W = mw(m), H = mh(m); // t1247: прямоугольное поле — слой W×H клеток (клетка = side / большая сторона), строки карты — по ширине
+  let ok = ""; if (owner) for (let i = 0; i < m.s.length; i++) if (m.s[i] !== ".") ok += own(i % W, Math.floor(i / W)) + 1;
+  const key = m.id + "|" + side + "|" + flip + "|" + sideCols.join() + "|" + W + "x" + H + "|" + m.t + m.s + "|" + ok + "|" + artVer + "|" + t2Ver + "|" + lod;
   const hit = cache.get(key); if (hit) return hit;
   if (cache.size > 6) cache.clear();
-  const n = m.size, c = side / n, cv = document.createElement("canvas"); cv.width = cv.height = side; LPX = c; LOD = lod;
+  const n = Math.max(W, H), c = side / n, cv = document.createElement("canvas"), PW = Math.round(W * c), PH = Math.round(H * c); cv.width = PW; cv.height = PH; LPX = c; LOD = lod;
   const ctx = cv.getContext("2d")!;
-  const T = (x: number, y: number) => (x < 0 || y < 0 || x >= n || y >= n ? "?" : m.t[y * n + x]);
-  const scr = (x: number, y: number) => (flip ? [n - 1 - x, n - 1 - y] : [x, y]);
+  const T = (x: number, y: number) => (x < 0 || y < 0 || x >= W || y >= H ? "?" : m.t[y * W + x]);
+  const scr = (x: number, y: number) => (flip ? [W - 1 - x, H - 1 - y] : [x, y]);
   // порядок: сначала плоские клетки, потом выступающие (горы/лес/стены), чтобы контуры не перекрывались соседями
   const order = (t: string) => ("w b".includes(t) ? 0 : ".,r".includes(t) ? 1 : 2);
-  const cells: [number, number][] = []; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) cells.push([x, y]);
+  const cells: [number, number][] = []; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) cells.push([x, y]);
   cells.sort((a, b) => order(T(a[0], a[1])) - order(T(b[0], b[1])) || scr(a[0], a[1])[1] - scr(b[0], b[1])[1]);
   for (const [x, y] of cells) {
     const [sx, sy] = scr(x, y), d = flip ? -1 : 1;
@@ -263,15 +268,16 @@ export function terrainLayer(m: MapData, side: number, flip: boolean, sideCols: 
   }
   // тонкая сетка — клетки читаются, но это не шахматная доска
   ctx.strokeStyle = "rgba(26,16,20,.22)"; ctx.lineWidth = 1;
-  for (let i = 1; i < n; i++) { ctx.beginPath(); ctx.moveTo(i * c, 0); ctx.lineTo(i * c, side); ctx.moveTo(0, i * c); ctx.lineTo(side, i * c); ctx.stroke(); }
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    const ch = m.s[y * n + x]; if (ch === ".") continue; const [sx, sy] = scr(x, y);
-    const o = own(x, y), sc = sideCols[y > (n - 1) / 2 ? 0 : 1];
+  for (let i = 1; i < W; i++) { ctx.beginPath(); ctx.moveTo(i * c, 0); ctx.lineTo(i * c, PH); ctx.stroke(); }
+  for (let i = 1; i < H; i++) { ctx.beginPath(); ctx.moveTo(0, i * c); ctx.lineTo(PW, i * c); ctx.stroke(); }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ch = m.s[y * W + x]; if (ch === ".") continue; const [sx, sy] = scr(x, y);
+    const o = own(x, y), sc = sideCols[y > (H - 1) / 2 ? 0 : 1];
     if (!drawStructArt(ctx, ch, sx * c, sy * c, c, o >= 0 ? sideCols[o] : null, sc)) drawStruct(ctx, ch, (sx + 0.5) * c, (sy + 0.5) * c, c * 0.7, sc);
   }
-  if (drawFrame(ctx, side, Math.max(6, Math.min(c * 0.22, side * 0.03)))) { cache.set(key, cv); return cv; }
+  if (drawFrame(ctx, PW, Math.max(6, Math.min(c * 0.22, side * 0.03)), PH)) { cache.set(key, cv); return cv; }
   // рамка в стиле C: чёрная линия + золотая кайма
-  ctx.lineWidth = Math.max(3, c * 0.08); ctx.strokeStyle = INK; ctx.strokeRect(0, 0, side, side);
-  ctx.lineWidth = Math.max(1.5, c * 0.03); ctx.strokeStyle = GOLD; ctx.strokeRect(c * 0.06, c * 0.06, side - c * 0.12, side - c * 0.12);
+  ctx.lineWidth = Math.max(3, c * 0.08); ctx.strokeStyle = INK; ctx.strokeRect(0, 0, PW, PH);
+  ctx.lineWidth = Math.max(1.5, c * 0.03); ctx.strokeStyle = GOLD; ctx.strokeRect(c * 0.06, c * 0.06, PW - c * 0.12, PH - c * 0.12);
   cache.set(key, cv); return cv;
 }
