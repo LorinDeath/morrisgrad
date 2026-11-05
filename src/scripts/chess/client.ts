@@ -974,6 +974,12 @@ function renderBoard(t: number) {
     g.save(); g.setLineDash([6, 4]); g.lineDashOffset = -t / 60;
     g.strokeStyle = s === "w" ? "rgba(170,215,255,.8)" : "rgba(255,120,120,.8)"; g.lineWidth = 2;
     g.strokeRect((fc(sh.x) - 2) * S + 1, (fc(sh.y) - 2) * S + 1, 5 * S - 2, 5 * S - 2); g.restore();
+    // запас щита (HUD): видно, сколько ещё поглотит
+    { const fs = Math.max(10, Math.round(S * 0.2)); const lx = (fc(sh.x) - 2) * S + 6, ly = (fc(sh.y) - 2) * S + 5;
+      g.font = `700 ${fs}px system-ui, sans-serif`; g.textAlign = "left"; g.textBaseline = "top";
+      const txt = `щит ${Math.max(0, sh.hp)}`; const tw = g.measureText(txt).width;
+      g.fillStyle = "rgba(8,10,20,.78)"; g.fillRect(lx - 3, ly - 2, tw + 6, fs + 4);
+      g.fillStyle = s === "w" ? "#bfe0ff" : "#ffc0c0"; g.fillText(txt, lx, ly); }
   });
   if (v.threat[mySide]) {
     const k = G.pieces.find((p) => p.t === "K" && p.s === mySide);
@@ -1186,7 +1192,7 @@ if (LOCAL) {
   (window as any).__chessSel = (x: number, y: number) => { if (G) { sel = at(G, x, y) || null; draw(); } };
   (window as any).__chessHover = (x: number, y: number) => { hover = [x, y]; };
   (window as any).__chessFlip = () => flipView;
-  (window as any).__chessAct = { move: actMove, attack: actAttack, ability: actAbility, attacks: (p: Piece) => attacks(G!, p), moves: (p: Piece) => moves(G!, p), at: (x: number, y: number) => G && at(G, x, y) };
+  (window as any).__chessAct = { move: actMove, attack: actAttack, ability: actAbility, attacks: (p: Piece) => attacks(G!, p), moves: (p: Piece) => moves(G!, p), abilities: (p: Piece) => abilities(G!, p), at: (x: number, y: number) => G && at(G, x, y) };
   (window as any).__chessBotOff = () => { vsBot = false; };
   (window as any).__chessNet = { create: () => { setMode("host"); return createLobby(); }, join: (c: string) => joinLobby(c), code: () => netCode, side: () => mySide, online: () => online, send: netSend };
 }
