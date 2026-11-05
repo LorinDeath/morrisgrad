@@ -104,7 +104,7 @@ function L(G: Game, m: string) { G.log.unshift(m); if (G.log.length > 80) G.log.
 
 function trigShield(G: Game, att: Piece, tgt: Piece): "push" | void {
   const def = tgt.s; if (G.shield[def]) return;
-  const R = G.pieces.find((r) => r.t === "R" && r.s === def && r.cd === 0 && Math.max(Math.abs(r.x - tgt.x), Math.abs(r.y - tgt.y)) <= 2);
+  const R = G.pieces.find((r) => r.t === "R" && r.s === def && r.cd === 0 && Math.max(Math.abs(r.x - tgt.x), Math.abs(r.y - tgt.y)) <= SHIELD_R);
   if (!R) return;
   G.shield[def] = { x: R.x, y: R.y, hp: 100 }; R.cd = 5; L(G, "Ладья ставит щит 3×3");
   if (Math.max(Math.abs(att.x - R.x), Math.abs(att.y - R.y)) === 1) {
