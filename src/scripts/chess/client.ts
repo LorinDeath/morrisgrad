@@ -376,7 +376,7 @@ function onNet(m: any) {
 }
 
 function beginOnline(st: Game) {
-  vsBot = false; G = { ...st, nextId: 0 } as Game; sel = null; uiMode = "move"; resultInfo = null;
+  vsBot = false; flipView = mySide === "b"; G = { ...st, nextId: 0 } as Game; sel = null; uiMode = "move"; resultInfo = null;
   tweens.clear(); atks.clear(); punches.clear(); hpView.clear(); fxs = [];
   applyMap({ bg: "hall", props: [], special: [] }); // онлайн-классика — только фигуры
   lastSide = G.side; lastAp = G.ap;
@@ -477,7 +477,11 @@ let lastAp = 0;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const easeOut = (v: number) => 1 - Math.pow(1 - v, 3);
-const idleDir = (s: Side): Dir => (s === "w" ? "up" : "down");
+// переворот доски: онлайн за чёрных — своя армия снизу. fc — клетка/левый край, fp — точка (центр = x+0.5)
+let flipView = false;
+const fc = (c: number) => (flipView ? 7 - c : c);
+const fp = (c: number) => (flipView ? 8 - c : c);
+const idleDir = (s: Side): Dir => ((s === "w") !== flipView ? "up" : "down");
 
 function sparks(cx: number, cy: number, n: number, colors: string[], speed = 1, up = 0.6): Spark[] {
   return Array.from({ length: n }, () => {
@@ -512,7 +516,7 @@ function juice(before: Piece[], shieldBefore: Game["shield"], kind: "move" | "at
   // ─ удар / способность
   if (tgt) {
     const dx = tgt[0] - actorB.x, dy = tgt[1] - actorB.y;
-    const d = dirTo(dx, dy, idleDir(actorB.s));
+    const d = dirTo(flipView ? -dx : dx, flipView ? -dy : dy, idleDir(actorB.s));
     const sheet = spr[key];
     const aname = actorB.t === "Q" ? (ranged ? "attack_ranged" : "attack_melee") : "attack";
     const a = sheet ? anim(sheet, aname, d) : null;
@@ -607,7 +611,7 @@ netAct = () => { if (pendingNet) netSend({ type: "act", ...pendingNet }); pendin
 function startBot(withDemo = false) {
   netClose();
   const again = $("#btn-again"); if (again) again.textContent = "Ещё раз с ботом";
-  vsBot = true; mySide = "w";
+  vsBot = true; mySide = "w"; flipView = false;
   G = newGame(); sel = null; uiMode = "move"; resultInfo = null;
   tweens.clear(); atks.clear(); punches.clear(); hpView.clear(); fxs = [];
   // Классика с ботом — только фигуры (без пропов/порталов/башен). DEMO_MAP — для кампаний/превью.
@@ -753,7 +757,7 @@ function piecePos(p: Piece, t: number): RP {
     const o = Math.sin(Math.PI * k) * 0.24;
     rx += at.lunge[0] * o; ry += at.lunge[1] * o;
   }
-  return { p, rx, ry, lift };
+  return { p, rx: fc(rx), ry: fc(ry), lift };
 }
 
 function drawPiece(g: CanvasRenderingContext2D, S: number, rp: RP, t: number, opts: { alpha?: number; whiteK?: number; scale?: number; selected?: boolean } = {}) {
@@ -835,24 +839,24 @@ function drawFx(g: CanvasRenderingContext2D, S: number, t: number, layer: "under
     if (layer === "under") {
       if (e.k === "flash") {
         const a = e.a * (1 - k) * (1 - k);
-        g.fillStyle = `rgba(${e.color},${a})`; g.fillRect(e.x * S, e.y * S, S, S);
-        g.strokeStyle = `rgba(${e.color},${Math.min(1, a * 1.6)})`; g.lineWidth = 2; g.strokeRect(e.x * S + 1.5, e.y * S + 1.5, S - 3, S - 3);
+        g.fillStyle = `rgba(${e.color},${a})`; g.fillRect(fc(e.x) * S, fc(e.y) * S, S, S);
+        g.strokeStyle = `rgba(${e.color},${Math.min(1, a * 1.6)})`; g.lineWidth = 2; g.strokeRect(fc(e.x) * S + 1.5, fc(e.y) * S + 1.5, S - 3, S - 3);
       } else if (e.k === "shieldup") {
         const a = 0.55 * (1 - k); const col = e.s === "w" ? "120,190,255" : "255,110,110";
-        g.fillStyle = `rgba(${col},${a * 0.5})`; g.fillRect((e.x - 2) * S, (e.y - 2) * S, 5 * S, 5 * S);
-        g.strokeStyle = `rgba(${col},${a})`; g.lineWidth = 3; g.strokeRect((e.x - 2) * S + 2, (e.y - 2) * S + 2, 5 * S - 4, 5 * S - 4);
+        g.fillStyle = `rgba(${col},${a * 0.5})`; g.fillRect((fc(e.x) - 2) * S, (fc(e.y) - 2) * S, 5 * S, 5 * S);
+        g.strokeStyle = `rgba(${col},${a})`; g.lineWidth = 3; g.strokeRect((fc(e.x) - 2) * S + 2, (fc(e.y) - 2) * S + 2, 5 * S - 4, 5 * S - 4);
       }
       continue;
     }
     if (e.k === "ring") {
       const r = (e.r0 + (e.r1 - e.r0) * easeOut(k)) * S;
       g.strokeStyle = `rgba(${e.color},${1 - k})`; g.lineWidth = e.w * (1 - k * 0.6);
-      g.beginPath(); g.ellipse((e.x + 0.5) * S, (e.y + 0.6) * S, r, r * 0.62, 0, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.ellipse((fc(e.x) + 0.5) * S, (fc(e.y) + 0.6) * S, r, r * 0.62, 0, 0, Math.PI * 2); g.stroke();
     } else if (e.k === "spark") {
       const tt = (t - e.t0) / 1000;
       for (const s of e.ps as Spark[]) {
         if (k > s.life) continue;
-        const px = (e.cx + (s.vx * tt) ) * S, py = (e.cy + s.vy * tt + 0.5 * e.g * tt * tt) * S;
+        const px = (fp(e.cx) + (s.vx * tt) ) * S, py = (fp(e.cy) + s.vy * tt + 0.5 * e.g * tt * tt) * S;
         g.globalAlpha = 1 - k / s.life; g.fillStyle = s.color;
         const z = s.size * (S / 64) * 1.6; g.fillRect(px - z / 2, py - z / 2, z, z);
       }
@@ -862,10 +866,10 @@ function drawFx(g: CanvasRenderingContext2D, S: number, t: number, layer: "under
       if (!a) continue;
       const r = frameAt({ ...a, loop: false }, t - e.t0, 1.3); if (!r) continue;
       const f = frame(sh, r, false); const sc = (S / 64) * 1.15;
-      g.drawImage(f.c, (e.x + 0.5) * S - a.anchor[0] * sc, (e.y + 0.84) * S - a.anchor[1] * sc, f.w * sc, f.h * sc);
+      g.drawImage(f.c, (fc(e.x) + 0.5) * S - a.anchor[0] * sc, (fc(e.y) + 0.84) * S - a.anchor[1] * sc, f.w * sc, f.h * sc);
     } else if (e.k === "proj") {
       const sh = spr[e.key]; const a = sh && anim(sh, "projectile", e.d);
-      const ex = e.from[0] + (e.to[0] - e.from[0]) * k, ey = e.from[1] + (e.to[1] - e.from[1]) * k;
+      const ex = fc(e.from[0] + (e.to[0] - e.from[0]) * k), ey = fc(e.from[1] + (e.to[1] - e.from[1]) * k);
       const px = (ex + 0.5) * S, py = (ey + 0.5) * S - S * 0.08;
       g.save(); g.globalCompositeOperation = "lighter";
       const gr = g.createRadialGradient(px, py, 0, px, py, S * 0.35);
@@ -881,11 +885,11 @@ function drawFx(g: CanvasRenderingContext2D, S: number, t: number, layer: "under
       const fs = Math.round(S * (e.big ? 0.38 : 0.31) * pop);
       g.save(); g.globalAlpha = k > 0.6 ? 1 - (k - 0.6) / 0.4 : 1;
       g.font = `900 ${fs}px Georgia, "Times New Roman", serif`; g.textAlign = "center"; g.textBaseline = "middle";
-      const x = (e.x + 0.5) * S, y = (e.y + 0.2) * S - rise;
+      const x = (fc(e.x) + 0.5) * S, y = (fc(e.y) + 0.2) * S - rise;
       g.lineWidth = Math.max(3, fs * 0.16); g.strokeStyle = "rgba(10,6,8,.95)"; g.lineJoin = "round"; g.strokeText(e.text, x, y);
       g.fillStyle = e.color; g.fillText(e.text, x, y); g.restore();
     } else if (e.k === "burst") {
-      const cx = (e.x + 0.5) * S, cy = (e.y + 0.55) * S, r = S * (0.4 + easeOut(k) * 3.2);
+      const cx = (fc(e.x) + 0.5) * S, cy = (fc(e.y) + 0.55) * S, r = S * (0.4 + easeOut(k) * 3.2);
       g.save(); g.globalCompositeOperation = "lighter";
       const gr = g.createRadialGradient(cx, cy, 0, cx, cy, r);
       gr.addColorStop(0, `rgba(255,250,220,${0.95 * (1 - k)})`); gr.addColorStop(0.35, `rgba(255,200,90,${0.6 * (1 - k)})`); gr.addColorStop(1, "rgba(255,160,40,0)");
@@ -949,7 +953,7 @@ function renderBoard(t: number) {
   for (const c of mapDecor.special) {
     if (c.y < 2 || c.y > 5) continue;
     const im = specIm[c.kind + (tick % 4)];
-    if (im?.complete && im.naturalWidth) g.drawImage(im, c.x * S, c.y * S, S, S);
+    if (im?.complete && im.naturalWidth) g.drawImage(im, fc(c.x) * S, fc(c.y) * S, S, S);
   }
   // пропы — только центр (ряды 2–5), чтобы не перекрывать стартовые армии
   for (const p of mapDecor.props) {
@@ -958,7 +962,7 @@ function renderBoard(t: number) {
     const im = propIm[p.prop + (tick % frames)];
     if (!im?.complete || !im.naturalWidth) continue;
     const sc = S / 64; const [ax, ay] = PROP_ANCHOR;
-    g.drawImage(im, p.x * S + S / 2 - ax * sc, p.y * S + S * 0.92 - ay * sc, 64 * sc, 64 * sc);
+    g.drawImage(im, fc(p.x) * S + S / 2 - ax * sc, fc(p.y) * S + S * 0.92 - ay * sc, 64 * sc, 64 * sc);
   }
 
   const v = view(G);
@@ -966,16 +970,16 @@ function renderBoard(t: number) {
     const sh = v.shield[s]; if (!sh) return;
     const pul = 0.18 + Math.sin(t / 300) * 0.05;
     g.fillStyle = s === "w" ? `rgba(120,180,255,${pul})` : `rgba(220,70,70,${pul})`;
-    g.fillRect((sh.x - 2) * S, (sh.y - 2) * S, 5 * S, 5 * S);
+    g.fillRect((fc(sh.x) - 2) * S, (fc(sh.y) - 2) * S, 5 * S, 5 * S);
     g.save(); g.setLineDash([6, 4]); g.lineDashOffset = -t / 60;
     g.strokeStyle = s === "w" ? "rgba(170,215,255,.8)" : "rgba(255,120,120,.8)"; g.lineWidth = 2;
-    g.strokeRect((sh.x - 2) * S + 1, (sh.y - 2) * S + 1, 5 * S - 2, 5 * S - 2); g.restore();
+    g.strokeRect((fc(sh.x) - 2) * S + 1, (fc(sh.y) - 2) * S + 1, 5 * S - 2, 5 * S - 2); g.restore();
   });
   if (v.threat[mySide]) {
     const k = G.pieces.find((p) => p.t === "K" && p.s === mySide);
     if (k) {
       g.globalAlpha = 0.6 + Math.sin(t / 140) * 0.4;
-      if (hlIm.threat?.complete) g.drawImage(hlIm.threat, k.x * S, k.y * S, S, S);
+      if (hlIm.threat?.complete) g.drawImage(hlIm.threat, fc(k.x) * S, fc(k.y) * S, S, S);
       g.globalAlpha = 1;
     }
   }
@@ -985,24 +989,25 @@ function renderBoard(t: number) {
   const pulse = 0.65 + Math.sin(t / 220) * 0.35;
   let preview: { x: number; y: number; dmg: number; kill: boolean } | null = null;
   if (sel && G.side === mySide) {
-    if (hlIm.selected?.complete) g.drawImage(hlIm.selected, sel.x * S, sel.y * S, S, S);
+    if (hlIm.selected?.complete) g.drawImage(hlIm.selected, fc(sel.x) * S, fc(sel.y) * S, S, S);
     if (uiMode === "move") {
-      moves(G, sel).forEach(([x, y]) => {
+      moves(G, sel).forEach(([bx, by]) => {
+        const x = fc(bx), y = fc(by);
         g.globalAlpha = 0.55 + pulse * 0.45;
         if (hlIm.move?.complete) g.drawImage(hlIm.move, x * S, y * S, S, S);
         g.globalAlpha = 1;
-        const hv = hover && hover[0] === x && hover[1] === y;
+        const hv = hover && hover[0] === bx && hover[1] === by;
         g.fillStyle = hv ? "#fff1b8" : "rgba(240,205,120,.9)";
         const r = S * (hv ? 0.1 : 0.07);
         g.beginPath(); g.moveTo(x * S + S / 2, y * S + S / 2 - r); g.lineTo(x * S + S / 2 + r, y * S + S / 2); g.lineTo(x * S + S / 2, y * S + S / 2 + r); g.lineTo(x * S + S / 2 - r, y * S + S / 2); g.fill();
       });
       attacks(G, sel).forEach((a) => {
         const q = byId(G!, a.qId); if (!q) return;
-        if (hlIm.attack?.complete) g.drawImage(hlIm.attack, q.x * S, q.y * S, S, S);
+        if (hlIm.attack?.complete) g.drawImage(hlIm.attack, fc(q.x) * S, fc(q.y) * S, S, S);
         // прицел-уголки
         const m = S * (0.06 + (1 - pulse) * 0.05), L = S * 0.22;
         g.strokeStyle = "#ff5a48"; g.lineWidth = 2.5;
-        const x0 = q.x * S + m, y0 = q.y * S + m, x1 = (q.x + 1) * S - m, y1 = (q.y + 1) * S - m;
+        const x0 = fc(q.x) * S + m, y0 = fc(q.y) * S + m, x1 = (fc(q.x) + 1) * S - m, y1 = (fc(q.y) + 1) * S - m;
         g.beginPath();
         g.moveTo(x0, y0 + L); g.lineTo(x0, y0); g.lineTo(x0 + L, y0);
         g.moveTo(x1 - L, y0); g.lineTo(x1, y0); g.lineTo(x1, y0 + L);
@@ -1014,7 +1019,7 @@ function renderBoard(t: number) {
     } else {
       abilities(G, sel).forEach((a) => {
         const q = a.qId != null ? byId(G!, a.qId) : null;
-        const x = q ? q.x : a.x!, y = q ? q.y : a.y!;
+        const x = fc(q ? q.x : a.x!), y = fc(q ? q.y : a.y!);
         g.fillStyle = `rgba(160,110,240,${0.18 + pulse * 0.15})`; g.fillRect(x * S, y * S, S, S);
         g.strokeStyle = "#b88cff"; g.lineWidth = 3; g.strokeRect(x * S + 3, y * S + 3, S - 6, S - 6);
       });
@@ -1022,12 +1027,12 @@ function renderBoard(t: number) {
   }
   if (hover && G.side === mySide) {
     g.strokeStyle = "rgba(255,245,215,.45)"; g.lineWidth = 1.5;
-    g.strokeRect(hover[0] * S + 1, hover[1] * S + 1, S - 2, S - 2);
+    g.strokeRect(fc(hover[0]) * S + 1, fc(hover[1]) * S + 1, S - 2, S - 2);
   }
 
   // фигуры: сортировка по глубине (y), призраки погибших
   const rps: (RP & { ghost?: Fx })[] = G.pieces.map((p) => piecePos(p, t));
-  for (const e of fxs) if (e.k === "ghost" && t >= e.t0 && t <= e.t0 + e.dur) rps.push({ p: e.p, rx: e.p.x, ry: e.p.y, lift: 0, ghost: e });
+  for (const e of fxs) if (e.k === "ghost" && t >= e.t0 && t <= e.t0 + e.dur) rps.push({ p: e.p, rx: fc(e.p.x), ry: fc(e.p.y), lift: 0, ghost: e });
   rps.sort((a, b) => a.ry - b.ry);
   for (const rp of rps) {
     if (rp.ghost) {
@@ -1060,7 +1065,7 @@ function renderBoard(t: number) {
     const fs = Math.round(S * 0.24);
     g.font = `800 ${fs}px Georgia, serif`; g.textAlign = "center"; g.textBaseline = "middle";
     const txt = pv.kill ? `−${pv.dmg} ✦ добить` : `−${pv.dmg}`;
-    const x = (pv.x + 0.5) * S, y = pv.y * S + fs * 0.35;
+    const x = (fc(pv.x) + 0.5) * S, y = fc(pv.y) * S + fs * 0.35;
     g.lineWidth = 3; g.strokeStyle = "#0a0608"; g.strokeText(txt, x, y);
     g.fillStyle = pv.kill ? "#ffd66a" : "#ffb0a0"; g.fillText(txt, x, y);
   }
@@ -1107,7 +1112,7 @@ function cellFromEvent(e: MouseEvent): [number, number] | null {
   const S = r.width / 8;
   const x = Math.floor((e.clientX - r.left) / S), y = Math.floor((e.clientY - r.top) / S);
   if (x < 0 || y < 0 || x > 7 || y > 7) return null;
-  return [x, y];
+  return [fc(x), fc(y)]; // экран → доска (инволюция)
 }
 
 function onBoardClick(e: MouseEvent) {
@@ -1180,6 +1185,7 @@ if (LOCAL) {
   (window as any).__chessApplyMap = applyMap;
   (window as any).__chessSel = (x: number, y: number) => { if (G) { sel = at(G, x, y) || null; draw(); } };
   (window as any).__chessHover = (x: number, y: number) => { hover = [x, y]; };
+  (window as any).__chessFlip = () => flipView;
   (window as any).__chessAct = { move: actMove, attack: actAttack, ability: actAbility, attacks: (p: Piece) => attacks(G!, p), moves: (p: Piece) => moves(G!, p), at: (x: number, y: number) => G && at(G, x, y) };
   (window as any).__chessBotOff = () => { vsBot = false; };
   (window as any).__chessNet = { create: () => { setMode("host"); return createLobby(); }, join: (c: string) => joinLobby(c), code: () => netCode, side: () => mySide, online: () => online, send: netSend };
