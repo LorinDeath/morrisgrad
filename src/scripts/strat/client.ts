@@ -906,7 +906,7 @@ function renderHud() {
         <div class="ch-b"><b class="ch-name"></b><small>Ур. ${ch.lv} из ${ch.maxLv} · ${ic("heart")}${ch.p.hp}/${ch.p.maxHp}</small><div class="meter xp" data-tip="Опыт ${ch.xp}${ch.next ? " / " + ch.next : ""}"><i style="width:${pct}%"></i></div>${pas ? `<div class="pas-row">${pas}</div>` : ""}</div>
         <button class="btn sq ${ch.pend ? "gold pulse" : ""}" id="chieftree" data-tip="Навыки Вождя">${ic("xp")}</button>${chiefUltBtn(ch, me)}`;
       cb.querySelector(".ch-name")!.textContent = chiefName(me); cb.querySelector<HTMLButtonElement>("#chieftree")!.onclick = () => openChiefTree(false);
-      const ub = cb.querySelector<HTMLButtonElement>("#chiefult"); if (ub) ub.onclick = () => startAim({ id: "ult", pid: ch.p!.id, r: ultRadius(cfg, race, false), race, chief: true });
+      const ub = cb.querySelector<HTMLButtonElement>("#chiefult"); if (ub) ub.onclick = () => ub.getAttribute("aria-disabled") === "true" ? toast(ub.dataset.why || "Сейчас недоступно", "bad") : startAim({ id: "ult", pid: ch.p!.id, r: ultRadius(cfg, race, false), race, chief: true });
       cb.querySelector<HTMLElement>(".ch-port")!.onclick = () => askChiefName(false); } }
   const end = $<HTMLButtonElement>("#end"); end.disabled = !myTurn; end.hidden = S.phase !== "play" || me < 0;
   $("#endsub").textContent = myTurn ? `осталось ${g.ap} ОД` : "";
@@ -1048,14 +1048,14 @@ function chiefUltBtn(ch: any, me: number): string {
   const sh = aimShape(S.g.races[me]), how = sh?.s === "chain" ? `Выберите врага в радиусе ${sh.rng}.` : sh?.s === "line" ? "Укажите направление — клетку рядом с Вождём." : `Выберите центр области в радиусе ${sh?.rng ?? ""}.`;
   const cd = +(pv?.ucd ?? pv?.cd?.ult ?? S.g.ec?.ultCd?.[me] ?? 0) || 0, max = +(cfgOf(S) as any).chiefUlt?.cd || 8;
   const my = S.g.cur === me && S.phase === "play" && S.g.ap > 0 && !cd;
-  return `<button class="abil ult chiefult ${cd ? "cd" : ""}" id="chiefult" ${my ? "" : "disabled"} style="--p:${cd ? Math.round((cd / max) * 100) : 0}" data-tip="${esc(`Ульта «${d.title}»: ${d.sub}. ${cd ? `Готово через ${cd} х.` : how}`)}"><span class="ring"></span><span class="ab-ic">${ultIconArt(S.g.races[me])}</span>${cd ? `<b class="ab-cd">${cd}</b>` : ""}</button>`;
+  return `<button class="abil ult chiefult ${cd ? "cd" : ""}" id="chiefult" ${my ? "" : `aria-disabled="true" data-why="${esc(cd ? `Ульта перезаряжается: ещё ${cd} х.` : S.g.cur !== me ? "Сейчас ход соперника" : "Нет очков действий")}"`} style="--p:${cd ? Math.round((cd / max) * 100) : 0}" data-tip="${esc(`Ульта «${d.title}»: ${d.sub}. ${cd ? `Готово через ${cd} х.` : how}`)}"><span class="ring"></span><span class="ab-ic">${ultIconArt(S.g.races[me])}</span>${cd ? `<b class="ab-cd">${cd}</b>` : ""}</button>`;
 }
 /** Арт иконки ульты (ui2/ult/ult_icon_<вид>.png) по расе. */
 const ULT_ART: Record<string, string> = { fire: "doom", lightning: "blink", stone: "dome", ice: "blizzard", water: "tide", nature: "grove" }; // аудит п.3: серверные ключи
 function ultIconArt(race: string) { const k = ULT_ART[race]; return k ? `<img class="ult-art" src="/strat/ui2/ult/ult_icon_${k}.png" alt="">` : ic("ult"); }
 function startAim(a: NonNullable<typeof ultAim>) { ultAim = a; aimCell = null; const p = S.g.pieces.find((q: any) => q.id === a.pid); if (p) aimCell = [p.x, p.y];
-  const h = $("#hint"); h.hidden = false; const sh = aimShape(a.race), who = a.chief ? "Вождём" : "фигурой", hov = matchMedia("(hover: hover)").matches; // t1225: подсказка по форме ульты
-  const t = (a.name ? `«${a.name}»: ` : "") + (sh?.s === "chain" ? `выберите врага в радиусе ${sh.rng}` + (hov ? " — Esc отменит" : "; второе касание — удар") : sh?.s === "line" ? `укажите направление — клетку рядом с ${who}` + (hov ? "; Esc отменит" : "; второе касание — удар") : (sh ? `центр области — не дальше ${sh.rng} кл. от ${who}; ` : "") + (hov ? "наведите область и нажмите — Esc отменит" : "коснитесь клетки — область покажется; второе касание — удар"));
+  const h = $("#hint"); h.hidden = false; const sh = aimShape(a.race), who = a.chief ? "Вождём" : "фигурой", whoG = a.chief ? "Вождя" : "фигуры", hov = matchMedia("(hover: hover)").matches; // t1225: подсказка по форме ульты
+  const t = (a.name ? `«${a.name}»: ` : "") + (sh?.s === "chain" ? `выберите врага в радиусе ${sh.rng}` + (hov ? " — Esc отменит" : "; второе касание — удар") : sh?.s === "line" ? `укажите направление — клетку рядом с ${who}` + (hov ? "; Esc отменит" : "; второе касание — удар") : (sh ? `центр области — не дальше ${sh.rng} кл. от ${whoG}; ` : "") + (hov ? "наведите область и нажмите — Esc отменит" : "коснитесь клетки — область покажется; второе касание — удар"));
   h.innerHTML = ""; const sp = document.createElement("span"); sp.textContent = t; const cb = document.createElement("button"); cb.className = "btn sm ghost aim-cancel"; cb.textContent = "Отмена"; cb.dataset.tip = "Отменить прицел — ОД не тратятся"; cb.onclick = (e) => { e.stopPropagation(); stopAim(); }; h.append(sp, " ", cb); draw(); } // t1248: отмена прицела и на телефоне
 function stopAim() { ultAim = null; aimCell = null; renderHint(); draw(); }
 
@@ -1751,7 +1751,7 @@ export function boot() {
     if (S?.g && !document.querySelector("#modals .dlg") && !/INPUT|TEXTAREA|SELECT/.test(tg?.tagName || "") && (e.key === "ArrowLeft" || e.key === "ArrowRight" || (e.key === " " && hv?.replay) || (e.key === "Escape" && hv))) {
       if (e.key === "ArrowLeft") { e.preventDefault(); histStep(-1); return; } if (e.key === "ArrowRight" && hv) { e.preventDefault(); histStep(1); return; }
       if (e.key === " ") { e.preventDefault(); togglePlay(); return; } if (e.key === "Escape") { goLive(); return; } }
-if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" && !document.querySelector("#modals .dlg")) { eui.recruit = null; sel = null; renderHint(); renderInfo(); draw(); }
+if (e.key === "Escape" && ultAim) { stopAim(); return; } if (e.key === "Escape" && !document.querySelector("#modals .ovl:not(#techdlg):not(#citydlg) .dlg") && (eui.tech || eui.city != null)) { eui.tech = false; eui.city = null; ectx().refresh(); return; } if (e.key === "Escape" && !document.querySelector("#modals .dlg")) { eui.recruit = null; sel = null; renderHint(); renderInfo(); draw(); }
     if (e.key === " " && S?.phase === "play" && !(e.target as HTMLElement).closest("input,textarea") && !document.querySelector("#modals .dlg")) { e.preventDefault(); endTurn(); } });
   bindBoard(); bindTips(); watchTips();
   new ResizeObserver(() => { if (S?.g) { fitCam(false); draw(); } }).observe($("#stage"));

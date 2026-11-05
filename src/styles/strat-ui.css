@@ -64,10 +64,11 @@ img.ic.kit { object-fit: contain; image-rendering: auto; }
   transition: transform .12s var(--ease), filter .12s; user-select: none; -webkit-tap-highlight-color: transparent; }
 .btn:hover:not(:disabled) { border-image-source: url("/strat/ui/buttons/btn_secondary_hover.png"); transform: translateY(-1px); }
 .btn:active:not(:disabled) { border-image-source: url("/strat/ui/buttons/btn_secondary_pressed.png"); transform: translateY(1px) scale(.98); }
-.btn:disabled { border-image-source: url("/strat/ui/buttons/btn_secondary_disabled.png"); color: var(--grey); cursor: default; }
+.btn:disabled, .btn[aria-disabled="true"] { border-image-source: url("/strat/ui/buttons/btn_secondary_disabled.png"); color: var(--grey); cursor: default; }
 .btn.gold, .btn.on { border-image-source: url("/strat/ui/buttons/btn_primary_normal.png"); color: var(--ink); text-shadow: 0 1px 0 #f3d27a99; }
 .btn.gold:hover:not(:disabled), .btn.on:hover:not(:disabled) { border-image-source: url("/strat/ui/buttons/btn_primary_hover.png"); }
 .btn.gold:active:not(:disabled) { border-image-source: url("/strat/ui/buttons/btn_primary_pressed.png"); }
+.btn[aria-disabled="true"], .btn.gold[aria-disabled="true"]:hover { border-image-source: url("/strat/ui/buttons/btn_secondary_disabled.png"); color: var(--grey); cursor: default; text-shadow: none; }
 .btn.gold:disabled { border-image-source: url("/strat/ui/buttons/btn_primary_disabled.png"); color: #3a3442; text-shadow: none; }
 .btn.red, .btn.danger { border-image-source: url("/strat/ui/buttons/btn_endturn_normal.png"); border-image-slice: 0 100 fill; border-width: 0 calc(var(--bh) * .6); border-image-width: 0 calc(var(--bh) * .6); color: var(--ivory); }
 .btn.red:hover:not(:disabled), .btn.danger:hover:not(:disabled) { border-image-source: url("/strat/ui/buttons/btn_endturn_hover.png"); }

@@ -5,7 +5,7 @@ import { DurableObject } from "cloudflare:workers";
 import { admitMessage, originAllowed, isLocalRequest, isDevRequest, MSG_BURST } from "../limits";
 import { identify, type Ident } from "./ident";
 import { resolveLobbyMap, isStratAdmin, countPlay } from "./maps";
-import { isMapSize, mapFits } from "./terrain";
+import { isMapSize, mapFits, passable } from "./terrain";
 import { MODES, isMode, teamsFor, teamOf, isOut, isDraw, seatWon, alliesOf, ally, type ModeId } from "./seats";
 import { showcaseAll } from "./showcase";
 import { type MapData } from "./terrain";
@@ -165,6 +165,8 @@ export class StratMatch extends DurableObject {
       const g = L.game; if (!isDevRequest(this.env, { url: a.url }) || L.phase !== "play" || !g || seat < 0) return this.send(ws, { type: "err", err: "dev_only" });
       const p = msg.id != null ? g.pieces.find((q) => q.id === msg.id && q.owner === seat) : null; if (msg.id != null && !p) return this.send(ws, { type: "err", err: "no_piece" });
       if (p && typeof msg.xp === "number") p.xp = Math.max(0, msg.xp | 0); if (p && Array.isArray(msg.tal)) p.tal = msg.tal.map(String).slice(0, 8); if (p && msg.cds === null) p.cds = {};
+      if (p && msg.pos && typeof msg.pos.x === "number" && typeof msg.pos.y === "number") { const W = g.w || g.size, H = g.h || g.size, x = msg.pos.x | 0, y = msg.pos.y | 0; if (x < 0 || y < 0 || x >= W || y >= H || g.pieces.some((q) => q !== p && q.x === x && q.y === y) || !passable(g.map, x, y, g.races[seat])) return this.send(ws, { type: "err", err: "dev_pos" }); p.x = x; p.y = y; }
+      if (p && msg.fresh) { p.acted = false; p.mv = false; }
       if (typeof msg.ap === "number" && g.cur === seat) g.ap = Math.max(0, Math.min(99, msg.ap | 0));
       if (g.ec && msg.res && typeof msg.res === "object") { const r: any = (g.ec as any).res?.[seat]; if (r) for (const k of Object.keys(msg.res)) if (typeof r[k] === "number") r[k] = Math.max(0, msg.res[k] | 0); }
       await this.save(); return this.broadcast();

@@ -324,14 +324,15 @@ export function renderTech(c: Ctx) {
       <div class="dlg-res"><span data-tip="Знания">${ic("know")}<b>${ec.res[me].know}</b></span><span>${ic("era")}<b>${ERA_NAME(ec.era[me])}</b></span></div>
       <button class="xbtn" data-x aria-label="Закрыть">${ic("close")}</button></div>
     <div class="tscroll">${body}</div>
-    <div class="dlg-f">${legend}${nextEra <= eras ? `<button class="btn gold big" id="erabtn" ${!my || eraErr ? "disabled" : ""}>${ic("era")}<span>Новая эпоха: ${ERA_ROMAN[nextEra]} · ${ic("know")}${eraCost ?? "?"}</span></button><span class="muted">${eraLine(G, me, cfg, eraErr, eraCost)}</span>` : ""}</div></div>`;
+    <div class="dlg-f">${legend}${nextEra <= eras ? `<button class="btn gold big" id="erabtn" ${!my || eraErr ? `aria-disabled="true"` : ""} data-tip="${esc(`Новая эпоха ${ERA_ROMAN[nextEra]}: откроет следующий ряд технологий и построек. Цена — ${eraCost ?? "?"} знаний.${!my ? " Сейчас ход соперника." : eraErr ? " Пока недоступно — условие указано рядом." : ""}`)}">${ic("era")}<span>Новая эпоха: ${ERA_ROMAN[nextEra]} · ${ic("know")}${eraCost ?? "?"}</span></button><span class="muted">${eraLine(G, me, cfg, eraErr, eraCost)}</span>` : ""}</div></div>`;
   const sc = dlg.querySelector<HTMLElement>(".tscroll")!; sc.scrollTop = keepScroll;
   const close = () => { ui.tech = false; persist("techdlg", false, ""); };
   dlg.querySelector<HTMLElement>("[data-x]")!.onclick = close; dlg.onclick = (e) => { if (e.target === dlg) close(); };
   // t1246: мгновенный отклик — карточка «Изучаем…» до ответа сервера; изученная — не отправляем повторно, а говорим об этом сразу
   for (const b of dlg.querySelectorAll<HTMLButtonElement>("[data-t]")) b.onclick = () => {
     if (b.classList.contains("got")) { c.toast?.("Уже изучено: " + techLabel(b.dataset.t!, race), "info", "tech"); return; }
-    if (b.getAttribute("aria-disabled") || ui.pend) return;
+    if (ui.pend) return;
+    if (b.getAttribute("aria-disabled")) { const em = b.querySelector("em")?.textContent?.trim(); c.toast?.(G.cur !== me ? "Сейчас ход соперника — изучать можно в свой ход" : (em && !/^\d+$/.test(em) ? em : "Пока недоступно: нужны предыдущие узлы или знания"), "bad", "lock"); return; }
     ui.pend = b.dataset.t!; b.classList.add("pend"); const em = b.querySelector("em"); if (em) em.textContent = "Изучаем…";
     setTimeout(() => { if (ui.pend === b.dataset.t) { ui.pend = ""; renderTech(c); } }, 4000); // нет ответа — снимаем «Изучаем…»
     c.send({ type: "act", act: { a: "research", t: b.dataset.t } }); };
@@ -340,7 +341,7 @@ export function renderTech(c: Ctx) {
     const ids = (b.querySelector<HTMLElement>("[data-xor]")?.dataset.xor || "").split(" ").filter(Boolean); if (!ids.length) return;
     b.classList.add("xsel"); for (const id of ids) dlg.querySelector(`[data-node="${CSS.escape(id)}"]`)?.classList.add("xpart"); };
   for (const b of dlg.querySelectorAll<HTMLElement>(".tnode[data-node]")) { b.addEventListener("mouseenter", () => xHi(b)); b.addEventListener("mouseleave", () => xHi(null)); b.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") xHi(b); }); b.addEventListener("focus", () => xHi(b)); }
-  const eb = dlg.querySelector<HTMLButtonElement>("#erabtn"); if (eb) eb.onclick = () => c.send({ type: "act", act: { a: "era" } });
+  const eb = dlg.querySelector<HTMLButtonElement>("#erabtn"); if (eb) eb.onclick = () => { if (eb.getAttribute("aria-disabled") === "true") { c.toast((eb.nextElementSibling as HTMLElement | null)?.textContent || "Пока недоступно", "bad"); return; } c.send({ type: "act", act: { a: "era" } }); };
   requestAnimationFrame(() => { techFit(dlg); techLinks(dlg, nodes); });
 }
 /** Телефон в ландшафте: древо (ветви — строки) ужимается по высоте, чтобы карточки не резались; не мельче 0.72. */
