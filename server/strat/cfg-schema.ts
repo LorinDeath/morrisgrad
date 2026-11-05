@@ -124,7 +124,7 @@ const RULES: [RegExp, Spec][] = [
   [/^race\.[\w*]+\.hpMul$/, { t: "num", min: 0.1, max: 5 }], [/^race\.[\w*]+\.growthMul$/, { t: "num", min: 0.1, max: 5 }],
   [/^sizes\.[\w*]+\.turnLimit$/, { t: "int", min: 0, max: 2000 }], [/^sizes\.[\w*]+\.(turnSec|reserveSec)$/, { t: "int", min: 5, max: 86400 }], [/^sizes\.[\w*]+\.ap$/, { t: "int", min: 1, max: 20 }], [/^sizes\.[\w*]+\.size$/, { ro: "размер поля — ключ таблицы" }],
   [/^econ\.league\.[\w*]+\.(xp|research)$/, { t: "num", min: 0.01, max: 10 }], [/^econ\.league\.[\w*]+\.race\.[\w*]+\.hpMul$/, { t: "num", min: 0.1, max: 5 }],
-  [/^econ\.league\.[\w*]+\.(apBase|apTech|apBld|raceCap|onceMax)$/, { t: "int", min: 0, max: 20 }], [/^econ\.league\.[\w*]+\.apMax$/, { t: "int", min: 1, max: 30 }], [/^econ\.league\.[\w*]+\.(grow|growMin|growMax|capture|found|respawn)$/, { t: "int", min: 1, max: 200 }],
+  [/^econ\.league\.[\w*]+\.(apBase|apTech|apBld|raceCap|onceMax)$/, { t: "int", min: 0, max: 20 }], [/^econ\.league\.[\w*]+\.apMax$/, { t: "int", min: 1, max: 200 }], [/^econ\.league\.[\w*]+\.(grow|growMin|growMax|capture|found|respawn)$/, { t: "int", min: 1, max: 200 }],
   [/^econ\.sizes\.[\w*]+\.eras$/, { t: "int", min: 0, max: 4 }], [/^econ\.sizes\.[\w*]+\.glory$/, { t: "int", min: 0, max: 100000 }], [/^econ\.sizes\.[\w*]+\.pop$/, { t: "int", min: 1, max: 500 }],
   [/^econ\.research\.(cost|eraCost)\.\*$/, { t: "int", min: 0, max: 10000 }], [/^econ\.research\.maxPaths$/, { t: "int", min: 1, max: 6 }], [/^econ\.research\.(need|perTurn)$/, { t: "int", min: 1, max: 10 }],
   [/^econ\.xp\.lv\.\*$/, { t: "int", min: 0, max: 100000 }], [/^chief\.lv\.\*$/, { t: "int", min: 0, max: 100000 }],

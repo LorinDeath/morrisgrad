@@ -12,7 +12,8 @@ const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const HTTP = LOCAL ? (qs.get("ws") || "ws://127.0.0.1:8871").replace(/^ws/, "http") : PROD;
 const DRAFT_KEY = "strat.admin.draft";
 const MAIN = "__main"; // «Главное»: закреплённые поля (стартовые ОД по лигам и т. п.) — первый раздел
-const AP_REC = 4; // t1243: стартовые ОД, принятые в игре (Алекс выставил 4 в проде вручную; код догонит в erafix-1242)
+const AP_REC: Record<string, number> = { quick: 4, normal: 8, tactical: 12 }; // t1245/t1247: стартовые ОД по лигам = значения кода (econ-cfg)
+const apRec = (p: string) => AP_REC[p.split(".")[2]] ?? 4;
 const TN: Record<string, string> = { int: "целое", num: "число", bool: "да/нет", text: "текст", enum: "выбор" };
 const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const fmt = (v: any) => (v === undefined ? "—" : v === null ? "по умолчанию" : typeof v === "boolean" ? (v ? "да" : "нет") : typeof v === "string" ? `«${v}»` : String(v));
@@ -100,9 +101,9 @@ function renderRules() {
   for (const f of shownL) { const k = (q ? S.sections.find((s) => s.id === f.sec)?.name + " → " : "") + f.g; (groups.get(k) || groups.set(k, []).get(k)!).push(f); }
   if (!q && sec === MAIN) { groups.clear(); for (const f of shownL) { const k = f.l; (groups.get(k) || groups.set(k, []).get(k)!).push(f); } }
   const s = sec === MAIN ? { name: "Главное", hint: "Самые важные числа партии: стартовые ОД по лигам, потолок ОД, лимит ходов. Остальное — в других разделах." } : S.sections.find((x) => x.id === sec);
-  const apLow = sec === MAIN && !q ? S.fields.filter((f) => /^econ\.league\.\w+\.apBase$/.test(f.p) && Number(shown(f)) !== AP_REC) : [];
+  const apLow = sec === MAIN && !q ? S.fields.filter((f) => /^econ\.league\.\w+\.apBase$/.test(f.p) && Number(shown(f)) !== apRec(f.p)) : [];
   return `<div class="sa-head">${q ? `<h2>Поиск: «${esc(q)}»</h2><p class="sa-hint">Найдено полей: ${list.length}${list.length > LIM ? ` (показаны первые ${LIM} — уточните запрос)` : ""}.</p>` : `<h2>${esc(s?.name)}</h2><p class="sa-hint">${esc(s?.hint)}</p>`}
-    ${!q ? `<div class="sa-hrow"><span>Изменено полей: <b>${modCount(sec)}</b></span><button type="button" class="btn ghost sm" data-openall="1"><span>Раскрыть все</span></button><button type="button" class="btn ghost sm" data-openall="0"><span>Свернуть все</span></button>${apLow.length ? `<button type="button" class="btn gold sm" data-ap4><span>Стартовые ОД = ${AP_REC} во всех лигах</span></button>` : ""}${modCount(sec) && sec !== MAIN ? `<button type="button" class="btn ghost sm" data-resetsec="${esc(sec)}"><span>Вернуть раздел по умолчанию</span></button>` : ""}</div>` : ""}</div>
+    ${!q ? `<div class="sa-hrow"><span>Изменено полей: <b>${modCount(sec)}</b></span><button type="button" class="btn ghost sm" data-openall="1"><span>Раскрыть все</span></button><button type="button" class="btn ghost sm" data-openall="0"><span>Свернуть все</span></button>${apLow.length ? `<button type="button" class="btn gold sm" data-ap4 title="Вернуть в черновик стартовые ОД по лигам: Быстрая 4, Обычная 8, Тактическая 12. Сохранится только после «Проверить и сохранить»."><span>Стартовые ОД по умолчанию: 4 / 8 / 12</span></button>` : ""}${modCount(sec) && sec !== MAIN ? `<button type="button" class="btn ghost sm" data-resetsec="${esc(sec)}"><span>Вернуть раздел по умолчанию</span></button>` : ""}</div>` : ""}</div>
     ${groups.size ? [...groups].map(([g, fs], i) => { const k = (q ? "q:" : sec + ":") + g, o = openG.has(k) || (!closedG.has(k) && (groups.size <= 12 || i < 2 || fs.some((f) => f.p in draft || errs.has(f.p)))); return `<details class="sa-g" data-g="${esc(k)}" ${o ? "open" : ""}><summary><span>${esc(g)}</span><small>${fs.length}${fs.some(isMod) ? ` · изм. ${fs.filter(isMod).length}` : ""}</small></summary>${sec === MAIN && !q && fs[0].hint ? `<div class="sa-fh sa-gh">${esc(fs[0].hint)}</div>` : ""}${o ? fs.map(fieldRow).join("") : ""}</details>`; }).join("") : `<div class="sa-msg">Ничего не найдено. Снимите фильтры или измените запрос.</div>`}`;
 }
 function renderLog() {
@@ -202,8 +203,8 @@ function wire() {
     if (d.openall) { for (const el of root.querySelectorAll<HTMLElement>("details.sa-g")) { const k = el.dataset.g!; if (d.openall === "1") { openG.add(k); closedG.delete(k); } else { openG.delete(k); closedG.add(k); } } render(); return; }
     if (d.tab) { tab = d.tab as any; render(); return; }
     if (d.ap4 !== undefined) { // черновик: стартовые ОД = 4 в каждой лиге (+потолок не ниже); сохранение — как обычно, через проверку и разницу
-      for (const f of S.fields) if (/^econ\.league\.\w+\.apBase$/.test(f.p)) { setDraft(f, AP_REC); errs.delete(f.p); const mx = byP.get(f.p.replace(/apBase$/, "apMax")); if (mx && Number(shown(mx)) < AP_REC) setDraft(mx, AP_REC); }
-      render(); toast(`В черновике: стартовые ОД = ${AP_REC} во всех лигах. Нажмите «Проверить и сохранить».`); return; }
+      for (const f of S.fields) if (/^econ\.league\.\w+\.apBase$/.test(f.p)) { const v = apRec(f.p); setDraft(f, v); errs.delete(f.p); const mx = byP.get(f.p.replace(/apBase$/, "apMax")); if (mx && Number(shown(mx)) < v) setDraft(mx, v); }
+      render(); toast(`В черновике: стартовые ОД 4 / 8 / 12 (Быстрая / Обычная / Тактическая). Нажмите «Проверить и сохранить».`); return; }
     if (d.sec) { sec = d.sec; q = ""; render(); window.scrollTo({ top: 0 }); return; }
     if (d.def) { const f = byP.get(d.def)!; setDraft(f, null); errs.delete(f.p); render(); return; }
     if (d.undraft !== undefined) { delete draft[d.undraft]; errs.delete(d.undraft); saveDraft(); render(); return; }

@@ -44,7 +44,7 @@ ok(st && st.seats[0].race === null && st.seats[1].race === "ice", "выбор в
 A.send({ type: "ready", on: true }); B.send({ type: "ready", on: true });
 st = await A.wait("st", (m) => m.phase === "play");
 ok(st && st.g.size === 15 && st.g.races[0] === "fire" && st.g.races[1] === "ice", "оба готовы → старт 15×15, расы открыты");
-ok(st && st.g.turnLimit === 0 && st.league?.id === "normal" && !!st.terr, "в партии лимита нет; есть league и terr (15×15 — Обычная)");
+ok(st && st.g.turnLimit === 150 && st.league?.id === "normal" && !!st.terr, "лимит хода по умолчанию для 15×15 (150); есть league и terr (15×15 — Обычная)");
 ok(st?.clock && st.clock.reserve[0] === 0 && st.clock.turnMs > 0, "таймер: лимит хода без запаса (t1135)");
 const g = st.g, me = g.cur, P = me === 0 ? A : B, O = me === 0 ? B : A;
 const pawn = g.pieces.find((p) => p.o === me && p.k === "pawn"), dy = me === 0 ? -1 : 1;
