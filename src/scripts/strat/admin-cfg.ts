@@ -87,7 +87,7 @@ function fieldRow(f: F) {
   const range = f.t === "int" || f.t === "num" ? `${f.min ?? "…"} … ${f.max ?? "…"}` : f.t === "text" ? `до ${f.len} зн.` : f.t === "enum" ? `${f.opts?.length || 0} вар.` : "";
   return `<div class="sa-f${d ? " dr" : ""}${m ? " mod" : ""}${f.ro ? " ro" : ""}${e ? " err" : ""}" data-row="${esc(f.p)}">
     <label class="sa-fl" for="fi-${btoa(unescape(encodeURIComponent(f.p))).replace(/[^\w]/g, "")}"><b>${esc(sec === MAIN && !q ? f.g : f.l)}</b><code title="путь в правилах">${esc(f.p)}</code></label>
-    <div class="sa-fi">${inputOf(f)}</div>
+    <div class="sa-fi" data-tip="${esc((f.hint ? f.hint + " · " : "") + "умолч.: " + fmt(f.def) + " · " + TN[f.t] + (range ? " " + range : "") + (f.ro ? " · только чтение: " + f.ro : " · правка попадёт в черновик; сохранение — кнопкой «Проверить и сохранить»"))}">${inputOf(f)}</div>
     ${f.hint && !(sec === MAIN && !q) ? `<div class="sa-fh">${esc(f.hint)}</div>` : ""}<div class="sa-fm"><span class="sa-def" title="значение по умолчанию (в коде)">умолч.: ${esc(fmt(f.def))}</span><span class="sa-rng">${esc(TN[f.t])}${range ? " · " + esc(range) : ""}</span>
       ${f.ro ? `<span class="sa-tag">только чтение: ${esc(f.ro)}</span>` : ""}${m ? `<span class="sa-tag mod">${lg ? "изменено (старый раздел)" : "изменено"}</span>` : ""}${d ? `<span class="sa-tag dr">черновик: ${esc(fmt(draft[f.p]))}</span>` : ""}</div>
     <div class="sa-fa">${!f.ro && (m || d) ? `<button type="button" class="sa-ic" data-def="${esc(f.p)}" title="Вернуть по умолчанию">↺</button>` : ""}${d ? `<button type="button" class="sa-ic" data-undraft="${esc(f.p)}" title="Убрать из черновика">✕</button>` : ""}</div>
