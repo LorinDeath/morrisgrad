@@ -19,7 +19,8 @@ const KIND_RU: Record<string, string> = { pawn: "Ополченец", knight: "�
 const KIND_ICON: Record<string, string> = { pawn: "♟", knight: "♞", mage: "✦", rook: "♜", hero: "♛", king: "♚" };
 const ERA_RU = ["", "I", "II", "III", "IV", "V"];
 const clean = (s: string) => String(s || "").replace(/\s*\((этап \d+|goals\.sizes)\)/g, "").trim();
-const LEAGUE_SIZES: Record<string, number[]> = { quick: [5, 8], normal: [15], tactical: [35] }; // как rating.leagueOf (quickMax 9, normalMax 29)
+const LEAGUE_SIZES: Record<string, number[]> = { quick: [5, 8], normal: [15, 35], tactical: [35] }; // t1247: как rating.leagueOf (quickMax 9, normalMax 35); Тактическая — карты игроков 36…100, параметры поля как у 35×35
+const LEAGUE_FIELD: Record<string, string> = { quick: "до 9×9 (5×5, 8×8)", normal: "10…35 по большей стороне (15×15, 35×35)", tactical: "36…100 по большей стороне (карты игроков)" };
 
 const cache = new WeakMap<object, { list: CodexEntry[]; map: Map<string, CodexEntry> }>();
 export function codexCatalog(cfg: StratCfg): CodexEntry[] { return codexIndex(cfg).list; }
@@ -91,7 +92,7 @@ export function codexIndex(cfg: StratCfg) {
     out.push({ k: "goal:" + id, cat: "goal", name: G.name, icon: G.icon, eff: clean(G.eff), league: by.join(", ") || undefined, ...(req ? { req } : {}) }); }
   for (const [lid, ss] of Object.entries(LEAGUE_SIZES)) { const L = C.econ?.league?.[lid] || {}, G = gAt(ss[ss.length - 1]) || {};
     out.push({ k: "league:" + lid, cat: "league", league: LEAGUE_NAME[lid as keyof typeof LEAGUE_NAME], name: LEAGUE_NAME[lid as keyof typeof LEAGUE_NAME] + " лига", icon: "🏆",
-      eff: `Поле ${ss.map((s) => s + "×" + s).join(", ")}. ОД: база ${L.apBase ?? "—"}, максимум ${L.apMax ?? "—"}. Для победы целей: ${G.need ?? "—"} из ${(G.list || []).length}. Лимит ходов: ${(C as any).sizes?.[ss[ss.length - 1]]?.turnLimit || "нет"} (на лимите — больше целей, затем прогресс, иначе ничья). Цель «Слава»: ${C.econ?.sizes?.[ss[ss.length - 1]]?.glory ?? "—"}. Опыт ×${L.xp ?? 1}` }); }
+      eff: `Поле ${LEAGUE_FIELD[lid] || ss.map((s) => s + "×" + s).join(", ")}. ОД: база ${L.apBase ?? "—"}, максимум ${L.apMax ?? "—"}. Для победы целей: ${G.need ?? "—"} из ${(G.list || []).length}. Лимит ходов: ${(C as any).sizes?.[ss[ss.length - 1]]?.turnLimit || "нет"} (на лимите — больше целей, затем прогресс, иначе ничья). Цель «Слава»: ${C.econ?.sizes?.[ss[ss.length - 1]]?.glory ?? "—"}. Опыт ×${L.xp ?? 1}` }); }
   c = { list: out, map: new Map(out.map((e) => [e.k, e])) }; cache.set(cfg as any, c); return c;
 }
 
