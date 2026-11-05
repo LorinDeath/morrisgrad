@@ -844,10 +844,15 @@ export function canResearch(g: GameState, side: number, t: Tech | undefined, cfg
   if (ec.res[side].know < rCost(g, cfg, cfg.econ.research.cost[te])) return "no_know";
   return null;
 }
-/** t1221: сколько технологий засчитано в текущую эпоху: эпоха технологии с поправкой лиги (techEra) ИЛИ изучена, пока игрок был в этой эпохе (ec.tre). */
+/** t1221/t1242: сколько технологий засчитано в текущую эпоху — только технологии ЭТОЙ эпохи (с поправкой лиги, techEra), включая только что изученную.
+ *  Технологии прошлых эпох, изученные позже, в текущую не засчитываются (решение Алекса, t1235). ec.tre хранится только для статистики. */
 export function eraTechs(g: GameState, side: number, cfg: StratCfg): number {
-  const ec = g.ec, e = ec.era[side], at = (ec as any).tre?.[side] || {};
-  return ec.techs[side].filter((id) => { const t = techOf(cfg, id); return !!t && (techEra(g, t, cfg) === e || at[id] === e); }).length;
+  const ec = g.ec, e = ec.era[side];
+  return ec.techs[side].filter((id) => { const t = techOf(cfg, id); return !!t && techEra(g, t, cfg) === e; }).length;
+}
+/** t1242: цена перехода в следующую эпоху с поправкой лиги (её же проверяет canEra) — для подписи кнопки */
+export function eraCostOf(g: GameState, side: number, cfg: StratCfg): number | null {
+  const c = cfg.econ.research.eraCost[g.ec.era[side] + 1]; return c == null ? null : rCost(g, cfg, c);
 }
 export function canEra(g: GameState, side: number, cfg: StratCfg): string | null {
   const ec = g.ec, e = ec.era[side];
