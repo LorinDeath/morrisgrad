@@ -633,6 +633,7 @@ export function buildCityAt(g: GameState, side: number, x: number, y: number, cf
 /** t1137: может ли Вождь стороны сейчас строить: { chief, city } или null */
 export function chiefBuildSite(g: GameState, side: number, cfg: StratCfg): { k: Piece; c: City } | null {
   const k = g.pieces.find((q) => q.owner === side && q.kind === "king"); if (!k || k.acted || g.ap < 1) return null;
+  if (g.ec?.fnd?.[side]?.id === k.id) return null; // Вождь основывает город (channeling) — строить не может
   const c = buildCityAt(g, side, k.x, k.y, cfg); return c ? { k, c } : null;
 }
 /** t1139/t1140: ходов между правами на клетку у города: интервал лиги + скрытая поправка расы − постройки − технологии, в [growMin, growMax] лиги.

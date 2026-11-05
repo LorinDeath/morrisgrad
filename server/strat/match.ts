@@ -22,7 +22,7 @@ import { parseAct } from "./parse-act";
 import { RATING_CFG, xpMul, earlyMul } from "./rating";
 import { matchBot, BOT_LEVELS, TACTIC_IDS, type BotLevel } from "./ai";
 import { chiefBlacklist, goalCfg, territory } from "./econ";
-import { rateFinished, mapInPool, addXp, botXpToday } from "./rating-db";
+import { rateFinished, mapInPool, addXp, botXpToday, ratingCfgFor } from "./rating-db";
 import { matchXp } from "./account";
 import { turnMinutes, validTurnMin, canClaim } from "./away";
 import { cleanChat, chatAllowed, canSee, parseTo, CHAT_CFG, type ChatMsg } from "./chat";
@@ -53,6 +53,7 @@ type L = {
   mode?: ModeId; // t1219: режим (нет = 1×1); места: 2×2 — [A1,B1,A2,B2], «Все» — по кругу
   phase: "lobby" | "play" | "over"; seats: (SeatS | null)[];
   game: GameState | null; clock: Clock | null; result?: { winner: number; reason: string };
+  cfgRev?: number; // t1247: номер версии правил (strat_cfg_rev) на старте партии — уходит в итог рейтинга
   cfgPatch?: any; // правка админки (маленькая) — уходит клиенту, чтобы подсказки совпадали с сервером
   cfg?: StratCfg; // снимок правил (STRAT_CFG + правки админки) на момент старта партии
   st?: { start: number; ck: number[]; tal: string[][]; ult: string[][]; kl?: number[]; ls?: number[]; gi?: number[]; go?: number[] }; // для профиля (stats.ts); t1236: убито/потеряно фигур, золото получено/потрачено (по местам, до 8)
@@ -314,7 +315,7 @@ export class StratMatch extends DurableObject {
         (me as any).rematch = true;
         if (L.seats.every((s) => s && (s.bot || (s as any).rematch))) {
           for (const s of L.seats) if (s) { (s as any).rematch = false; s.ready = !!s.bot; if (!s.bot) s.race = null; }
-          L.phase = "lobby"; L.game = null; L.clock = null; L.result = undefined; L.cfg = undefined; L.cfgPatch = undefined; L.draw = undefined; L.rating = undefined; L.sum = undefined; (L as any).tlog = undefined; await this.ensureDraw(); // t1236: итог прошлой партии не протекает в реванш
+          L.phase = "lobby"; L.game = null; L.clock = null; L.result = undefined; L.cfg = undefined; L.cfgPatch = undefined; L.cfgRev = undefined; L.draw = undefined; L.rating = undefined; L.sum = undefined; (L as any).tlog = undefined; await this.ensureDraw(); // t1236: итог прошлой партии не протекает в реванш
         }
         break;
       }
@@ -379,7 +380,7 @@ export class StratMatch extends DurableObject {
     L.mid = L.code + ":" + Date.now(); L.rating = undefined; L.sum = undefined; // t1236: новая партия — новый id (жребий, рейтинг, монеты, профиль) и чистые итоги
     const N = L.seats.length, rnd = crypto.getRandomValues(new Uint8Array(1))[0];
     const first = md === "2v2" ? rnd & 1 : rnd % N; // кто ходит первым — случайно (2×2: первая команда; порядок A1→B1→A2→B2 — от места)
-    { const c = await loadStratCfg(this.env, true); L.cfg = c.cfg; L.cfgPatch = c.patch && Object.keys(c.patch).length ? c.patch : undefined; }
+    { const c = await loadStratCfg(this.env, true); L.cfg = c.cfg; L.cfgPatch = c.patch && Object.keys(c.patch).length ? c.patch : undefined; L.cfgRev = c.rev || undefined; } // t1247: версия правил партии
     if (this.drawOn()) await this.runDraw(); // t1144: рейтинговая — расы жребием, всем сразу (одним st после старта)
     if (L.phase !== "lobby" || !L.seats.every((s) => s?.race && s.ready)) { for (const s of L.seats) if (s && !s.bot) s.ready = false; return; } // пока ждали конфиг, место освободилось
     L.game = newGame(L.size, L.seats.map((s) => s!.race!), first, L.cfg, 0, L.map, md === "1v1" ? undefined : { mode: md });
@@ -494,9 +495,10 @@ export class StratMatch extends DurableObject {
     // t1219: места — победившая команда 1; в «Все» остальные по порядку выбывания (позже выбыл — выше); 2×2 — 2
     const place = (i: number) => placeOf(g, i, L.mode);
     const players = IX.map((i) => ({ uid: seats[i].pkey, team: teamOf(g, i), place: place(i), goals: goals[i], actions: L.acts?.[i] || 0 }));
-    const R0: any = await rateFinished(env, mid, L.size, ctx, players, (goalCfg(g, this.cfg()) as any).rate);
+    const RC = ratingCfgFor(null, (this.cfg() as any).rating); // t1247: формула рейтинга — из снимка правил партии
+    const R0: any = await rateFinished(env, mid, L.size, ctx, players, (goalCfg(g, this.cfg()) as any).rate, (this.cfg() as any).rating);
     if (this.matchId() !== mid) return; // пока ждали D1, начался реванш — итог старой партии в новую не пишем
-    L.rating = { ...R0, mid }; const dup = !!R0.dup;
+    L.rating = { ...R0, mid, ...(L.cfgRev ? { cfgRev: L.cfgRev } : {}) }; const dup = !!R0.dup;
     // опыт Полководца (косметика): активные минуты × итог × xpMul; гостям — никогда; карта не офиц./одобренная — 0
     const xp: (number | null)[] = IX.map(() => null);
     const xpd: any[] = IX.map(() => null); // t1236: за что опыт — минуты × итог × множитель (или почему 0)
@@ -504,9 +506,9 @@ export class StratMatch extends DurableObject {
       const rs = res(i), min = Math.min(600, Math.floor((L.activeMs?.[i] || 0) / 60_000)), rm = rs === "win" ? 1.2 : rs === "draw" ? 1 : 0.8;
       if (!s.verified) { xpd[i] = { got: 0, why: "guest", min, res: rm }; continue; }
       if (!this.xpAllowed()) { xpd[i] = { got: 0, why: "map", min, res: rm }; continue; }
-      const btd = bots ? await botXpToday(env, s.pkey) : 0, mul = xpMul({ turns: g.turn, reason: g.reason, bots, botGamesToday: btd });
+      const btd = bots ? await botXpToday(env, s.pkey) : 0, mul = xpMul({ turns: g.turn, reason: g.reason, bots, botGamesToday: btd }, RC);
       const got = matchXp(L.activeMs?.[i] || 0, rs, mul); xp[i] = got; if (got > 0 && !dup) await addXp(env, s.pkey, got, bots > 0);
-      xpd[i] = { got, min, res: rm, mul, why: got > 0 ? null : mul === 0 ? (earlyMul(g.turn, g.reason) === 0 ? "too_early" : "bot_limit") : "idle", bot: bots > 0, early: earlyMul(g.turn, g.reason), botLeft: bots ? Math.max(0, RATING_CFG.botXpPerDay - btd - 1) : null }; }
+      xpd[i] = { got, min, res: rm, mul, why: got > 0 ? null : mul === 0 ? (earlyMul(g.turn, g.reason, RC) === 0 ? "too_early" : "bot_limit") : "idle", bot: bots > 0, early: earlyMul(g.turn, g.reason, RC), botLeft: bots ? Math.max(0, RC.botXpPerDay - btd - 1) : null }; }
     L.rating.xp = xp; L.rating.xpd = xpd;
     // монеты: только победителю рейтинговой партии
     const coins: (number | null)[] = IX.map(() => null);

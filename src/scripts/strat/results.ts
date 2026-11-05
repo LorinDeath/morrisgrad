@@ -56,7 +56,7 @@ function rateCard(R: any, me: number, s: Sum): string {
     <div class="rs-big ${d > 0 ? "up" : d < 0 ? "down" : ""}"><b>${sg(d)}</b><span>${Math.round(before)} → ${Math.round(after)}</span></div>
     <table class="rs-calc">${rows.map(([l, v, t]) => `<tr ${t ? `data-tip="${esc(t)}"` : ""}><td>${esc(l)}</td><td>${esc(v)}</td></tr>`).join("")}</table>
     ${b.base != null && b.K != null ? `<p class="rs-f">${sg(b.base)} × ${f(b.K)}${b.early !== 1 && b.early != null ? ` × ${f(b.early)}` : ""}${b.idle !== 1 && b.idle != null ? ` × ${f(b.idle)}` : ""} = <b>${sg(d)}</b></p>` : ""}
-    ${place ? `<p class="rs-note">${place}</p>` : ""}${b.prov ? `<p class="rs-note">Пока идёт калибровка, рейтинг меняется сильнее.</p>` : ""}</div>`;
+    ${place ? `<p class="rs-note">${place}</p>` : ""}${b.prov ? `<p class="rs-note">Пока идёт калибровка, рейтинг меняется сильнее.</p>` : ""}${R.cfgRev ? `<p class="rs-note" data-tip="Партия считалась по снимку правил на её старте: версия ${+R.cfgRev} из админки">Правила партии: версия ${+R.cfgRev}</p>` : ""}</div>`;
 }
 const XP_WHY: Record<string, string> = { guest: "Опыт копится только у вошедших в аккаунт.", map: "Карта не официальная и не одобрена — опыта нет.", idle: "Нет активного времени за ходом — опыта нет.", too_early: "Партия закончилась до 5-го хода — опыта нет.", bot_limit: "Лимит партий с ботом на сегодня исчерпан (3 в сутки)." };
 function xpCard(R: any, me: number): string {

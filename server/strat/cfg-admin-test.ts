@@ -7,6 +7,8 @@ import { schema, checkValue, invariants, pathsPatch, flatten, resolve, toPath, S
 import { loadStratCfg, dropOverrideCache, mergeCfg } from "./cfg";
 import { startLog, logAct, rebuild } from "./replay";
 import { adminCfgHttp } from "./admin-cfg-http";
+import { ratingCfgFor } from "./rating-db";
+import { rateMatch, RATING_CFG } from "./rating";
 let fails = 0; const ok = (c: any, m: string) => { if (!c) { fails++; console.log("FAIL", m); } };
 
 // ── схема
@@ -23,6 +25,19 @@ ok(F("techs.#horse.id").ro && F("goals.ids.0").ro, "коды элементов 
 ok(resolve(STRAT_CFG, "chiefs.#fire_lord.tree.#aura.fx.auraArm")?.join() === "chiefs,0,tree,0,fx,auraArm", "путь по id элементов");
 ok(resolve(STRAT_CFG, "techs.0.era") === null && resolve(STRAT_CFG, "techs.#nope.era") === null && resolve(STRAT_CFG, "units.pawn") === null, "неверный путь — null");
 ok(toPath(STRAT_CFG, resolve(STRAT_CFG, "sizes.8.army.1.2")!) === "sizes.8.army.1.2", "путь ↔ ключи");
+// ── t1247: формула рейтинга в админке
+{ const R = (p: string) => S.byPath.get(p)!;
+  ok(R("rating.start.rating").sec === "goals" && !R("rating.start.rating").ro && R("rating.start.rating").l === "Стартовый рейтинг", "рейтинг: раздел «Цели и рейтинг», подпись");
+  ok(!R("rating.tau").ro && R("rating.tau").t === "num" && !R("rating.margin.max").ro && R("rating.margin.max").t === "num", "τ и множитель — дробные");
+  ok(["rating.leagues.normalMax", "rating.provisional", "rating.ratedDefault", "rating.margin.win.a", "rating.botXpMul", "rating.botXpPerDay"].every((p) => R(p).ro), "лиги, порог таблицы, a/b (по лигам), константы ботов — только просмотр");
+  ok(checkValue(R("rating.tau"), 5, "rating.tau") && !checkValue(R("rating.tau"), 0.4, "rating.tau") && checkValue(R("rating.farmPerDay"), 0, "rating.farmPerDay"), "границы τ и фарма");
+  const c2 = mergeCfg(pathsPatch({ "rating.minRd": 400 })) as any; ok(c2.rating.minRd === 400 && invariants(c2).some((x: any) => /RD/.test(x.msg || x)), "связь: RD минимум ≤ стартовая ≤ максимум");
+  const c3 = mergeCfg(pathsPatch({ "rating.early.none": 30, "rating.margin.abandonD": 6, "rating.margin.dMax": 3 })) as any; ok(invariants(c3).length >= 2, "связи: ранний конец и отрыв сдачи");
+  const B = ratingCfgFor({ winA: 2 }, { ...RATING_CFG, start: { ...RATING_CFG.start, rating: 1200 }, margin: { ...RATING_CFG.margin, max: 3 } });
+  ok(B.start.rating === 1200 && B.margin.win.a === 2 && B.margin.max === 3 && B.leagues.normalMax === 35, "снимок партии + поправка лиги сливаются, лиги — из кода");
+  const ps = [{ uid: "a", team: 0, place: 1, goals: 4, actions: 30, r: { rating: 1500, rd: 200, vol: 0.06, games: 20 } }, { uid: "b", team: 1, place: 2, goals: 0, actions: 30, r: { rating: 1500, rd: 200, vol: 0.06, games: 20 } }] as any;
+  const d1 = (rateMatch(ps, 40, "goals", ratingCfgFor(null)) as any), d2 = (rateMatch(ps, 40, "goals", ratingCfgFor(null, { ...RATING_CFG, margin: { ...RATING_CFG.margin, max: 1, min: 0.2 } })) as any);
+  ok(JSON.stringify(d1) !== JSON.stringify(d2), "правка формулы меняет расчёт рейтинга"); }
 // ── проверка значений
 const e = (p: string, v: any) => checkValue(S.byPath.get(p), v, p);
 ok(!e("units.pawn.hp", 12) && e("units.pawn.hp", 0)?.includes("вне границ") && e("units.pawn.hp", 9999) && e("units.pawn.hp", 2.5)?.includes("целое") && e("units.pawn.hp", "10")?.includes("число"), "HP: целое 1…500");

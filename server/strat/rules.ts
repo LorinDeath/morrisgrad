@@ -1,6 +1,7 @@
 // «Партия Чёрных королей» — движок правил (этап 1). Чистые функции без I/O: один модуль для сервера (StratMatch),
 // клиента (подсветка ходов), бота и симулятора. Все числа — в STRAT_CFG (позже правятся в админке, game_overrides strat_*).
 
+import { RATING_CFG } from "./rating";
 import { type MapData, openMap, generateMap, tplSize, duelSpawns, seatSpawns, armyDir, placeArmy, passable, stopsSlide, blocksShot, coverArm, str as mapStr, TER_RULES } from "./terrain";
 export type { MapData } from "./terrain";
 import { NP, foe, nextSeat, roundPos, seatList, teamList, teamOf, teamsFor, isOut, drawCode, alliesOf, MODES, type ModeId } from "./seats";
@@ -26,6 +27,7 @@ export type SizeCfg = {
 
 export const STRAT_CFG = {
   version: 2,
+  rating: RATING_CFG, // t1247: формула рейтинга (Glicko-2, отрыв, ранний конец, фарм) — правится в админке, снимок в партии
   units: {
     pawn: { hp: 10, atk: 4, arm: 0, cost: 3 },
     knight: { hp: 14, atk: 6, arm: 1, cost: 7 },

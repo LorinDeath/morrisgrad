@@ -18,6 +18,7 @@ export const RATING_CFG = {
   ratedDefault: true,                    // «Рейтинговая» включена по умолчанию (с картой из пула)
   botXpMul: 0.25, botXpPerDay: 3,        // партии с ботами: рейтинга нет; опыт ×0,25 и только 3 такие партии в сутки
 };
+export type RatingCfg = typeof RATING_CFG;
 export function leagueOf(w: number, h = w, C = RATING_CFG): League | null {
   const m = Math.max(w, h); if (m <= C.leagues.quickMax) return "quick"; if (m <= C.leagues.normalMax) return "normal"; if (m <= C.leagues.tacticalMax) return "tactical"; return null;
 }

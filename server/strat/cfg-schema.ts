@@ -17,7 +17,7 @@ export const SECTIONS: { id: string; name: string; hint: string }[] = [
   { id: "build", name: "Постройки и чудеса", hint: "цены, эффекты, прочность, расовые варианты, башни" },
   { id: "econ", name: "Экономика и земля", hint: "старт, города, клетки карты, рост земли, поселения, торговля" },
   { id: "league", name: "Лиги и размеры карт", hint: "ОД по лигам, лимит ходов, время хода, армии, эпохи и население по размеру" },
-  { id: "goals", name: "Цели и рейтинг", hint: "шесть целей, пороги по размеру, сколько нужно для победы, коэффициенты рейтинга" },
+  { id: "goals", name: "Цели и рейтинг", hint: "шесть целей, пороги по размеру, сколько нужно для победы, коэффициенты и формула рейтинга (Glicko-2)" },
   { id: "xp", name: "Опыт и Слава", hint: "опыт фигур, кривая уровней, источники Славы" },
   { id: "misc", name: "Служебное", hint: "повторы и прочее" },
 ];
@@ -30,7 +30,7 @@ function secOf(k: Keys): string {
   if (a === "techs" || a === "techRace" || (a === "econ" && b === "research")) return "techs";
   if (["build", "bldHp", "buildTpl", "buildRace"].includes(a) || (a === "econ" && ["tower", "era4", "forgeMax", "fx", "glacier", "market"].includes(b))) return "build";
   if (a === "sizes" || (a === "econ" && ["sizes", "league", "leagueRules"].includes(b))) return "league";
-  if (a === "goals") return "goals";
+  if (a === "goals" || a === "rating") return "goals";
   if (a === "econ" && (b === "xp" || b === "glory" || b === "obelisk")) return "xp";
   if (a === "econ" && b !== "replay") return "econ";
   return "misc";
@@ -132,6 +132,11 @@ const RULES: [RegExp, Spec][] = [
   [/^econ\.trade\.(minRatio|maxRatio)$/, { t: "num", min: 0.05, max: 10 }], [/^econ\.found\.refund$/, { t: "num", min: 0, max: 1 }], [/^econ\.trade\.maxShare$/, { t: "num", min: 0, max: 1 }],
   [/^goals\.sizes\.[\w*]+\.need$/, { t: "int", min: 1, max: 6 }], [/^goals\.sizes\.[\w*]+\.share$/, { t: "num", min: 0, max: 0.95 }], [/^goals\.sizes\.[\w*]+\.(gold|wonderGold|wonderKnow)$/, { t: "int", min: 0, max: 100000 }],
   [/^goals\.sizes\.[\w*]+\.(holdK|holdTurns)$/, { t: "int", min: 1, max: 1000 }], [/^goals\.sizes\.[\w*]+\.rate\.(winA|loseA)$/, { t: "num", min: 0.05, max: 5 }], [/^goals\.sizes\.[\w*]+\.rate\.(winB|loseB)$/, { t: "num", min: 0, max: 1 }],
+  [/^rating\.start\.rating$/, { t: "int", min: 100, max: 4000 }], [/^rating\.start\.rd$/, { t: "int", min: 30, max: 500 }], [/^rating\.start\.vol$/, { t: "num", min: 0.01, max: 0.2 }],
+  [/^rating\.tau$/, { t: "num", min: 0.2, max: 1.2 }], [/^rating\.(minRd|maxRd)$/, { t: "int", min: 10, max: 500 }],
+  [/^rating\.margin\.(dMax|abandonD)$/, { t: "int", min: 1, max: 6 }], [/^rating\.margin\.min$/, { t: "num", min: 0, max: 1 }], [/^rating\.margin\.max$/, { t: "num", min: 1, max: 5 }],
+  [/^rating\.early\.(none|quarter)$/, { t: "int", min: 0, max: 100 }], [/^rating\.early\.mul$/, { t: "num", min: 0, max: 1 }], [/^rating\.idleLoserMul$/, { t: "num", min: 0, max: 1 }],
+  [/^rating\.farmPerDay$/, { t: "int", min: 1, max: 50 }],
   [/^goals\.(ids|hold\.points)/, { ro: "коды целей — на них ссылается логика" }], [/^techRace\.order/, { ro: "порядок узлов для расовых имён" }],
   [/^(ults|unitUlts)\.[\w*]+\.ap$/, { t: "int", min: 0, max: 20 }], [/^(ults|unitUlts)\.[\w*]+\.cd$/, { t: "int", min: 0, max: 50 }], [/^(ults|unitUlts)\.[\w*]+\.range$/, { t: "int", min: 0, max: 35 }], [/^(ults|unitUlts)\.[\w*]+\.chiefMul$/, { t: "num", min: 0, max: 5 }],
   [/^unitTree\.[\w*]+\.act\.\*\.ap$/, { t: "int", min: 0, max: 20 }], [/^unitTree\.[\w*]+\.act\.\*\.cd$/, { t: "int", min: 0, max: 50 }], [/^unitTree\.[\w*]+\.up\.pow$/, { t: "num", min: 0.1, max: 10 }],
@@ -159,6 +164,35 @@ let cached: { base: any; fields: Field[]; byPath: Map<string, Field> } | null = 
 /** Схема всех полей конфига (кэш на базовый конфиг). */
 /** t1243: «Главное» — поля, которые админ правит чаще всего; показываются отдельным блоком вверху (порядок = порядок здесь).
  *  Стартовые ОД: при включённых правилах лиг ход начинается с econ.league.<лига>.apBase (+технологии/постройки, до apMax); без них — sizes.<N>.ap. */
+/** t1247: формула рейтинга (cfg.rating = RATING_CFG): подписи и пояснения по полному пути. ro — не правится здесь (с причиной). */
+const RATING_RU: Record<string, [string, string, string?]> = {
+  "rating.start.rating": ["Стартовый рейтинг", "С какого рейтинга начинает новичок в каждой лиге."],
+  "rating.start.rd": ["Стартовая неуверенность (RD)", "Чем больше, тем сильнее меняется рейтинг в первых партиях. Между «RD: минимум» и «RD: максимум»."],
+  "rating.start.vol": ["Стартовая волатильность", "Glicko-2 σ: насколько рейтинг может «прыгать». Обычно 0,06."],
+  "rating.tau": ["τ (системная константа)", "Glicko-2: ограничивает изменение волатильности. 0,3–1,2; меньше — спокойнее."],
+  "rating.minRd": ["RD: минимум", "Ниже RD не опускается — рейтинг опытного игрока всё же меняется."],
+  "rating.maxRd": ["RD: максимум", "Потолок неуверенности."],
+  "rating.provisional": ["Партий до точного рейтинга", "", "общий порог таблицы лидеров (не по партиям) — меняется в коде"],
+  "rating.leagues.quickMax": ["Быстрая: сторона до", "", "границы лиг задают и экономику лиг — меняются в коде"],
+  "rating.leagues.normalMax": ["Обычная: сторона до", "", "границы лиг задают и экономику лиг — меняются в коде"],
+  "rating.leagues.tacticalMax": ["Тактическая: сторона до", "", "границы лиг задают и экономику лиг — меняются в коде"],
+  "rating.margin.win.a": ["Победителю: a", "", "правится по лигам: «Цели» → «Рейтинг победителю: a»"],
+  "rating.margin.win.b": ["Победителю: b", "", "правится по лигам: «Цели» → «Рейтинг победителю: b»"],
+  "rating.margin.lose.a": ["Проигравшему: a", "", "правится по лигам: «Цели» → «Рейтинг проигравшему: a»"],
+  "rating.margin.lose.b": ["Проигравшему: b", "", "правится по лигам: «Цели» → «Рейтинг проигравшему: b»"],
+  "rating.margin.dMax": ["Отрыв d: максимум", "d = цели победителя − цели проигравшего, обрезается до этого числа."],
+  "rating.margin.abandonD": ["Отрыв при сдаче/неявке", "Сдача и неявка считаются как разгром с таким d. Не больше «Отрыв d: максимум»."],
+  "rating.margin.min": ["Множитель отрыва: минимум", "Нижний предел множителя K·(a ∓ b·d)."],
+  "rating.margin.max": ["Множитель отрыва: максимум", "Верхний предел множителя. Не меньше минимума."],
+  "rating.early.none": ["Без рейтинга до хода", "Сдача/неявка раньше этого хода — партия без рейтинга и опыта."],
+  "rating.early.quarter": ["Сниженный рейтинг до хода", "Сдача/неявка от «без рейтинга» до этого хода — изменение ×«множитель раннего конца»."],
+  "rating.early.mul": ["Множитель раннего конца", "0…1: доля изменения рейтинга при раннем конце."],
+  "rating.idleLoserMul": ["Проигравший бездействовал: ×", "Проигравший не сделал ни одного действия — победителю такая доля изменения."],
+  "rating.farmPerDay": ["Партий одной пары в сутки", "Сверх — без рейтинга (защита от фарма)."],
+  "rating.ratedDefault": ["«Рейтинговая» по умолчанию", "", "переключатель лобби, а не формула — меняется в коде"],
+  "rating.botXpMul": ["Опыт за партию с ботом: ×", "", "константы ботов не в админке (решение по t1247)"],
+  "rating.botXpPerDay": ["Партий с ботом в сутки (с опытом)", "", "константы ботов не в админке (решение по t1247)"],
+};
 const PINS: [RegExp, string, string][] = [
   [/^econ\.league\.(quick|normal|tactical)\.apBase$/, "Стартовые ОД (в начале каждого хода)", "База ОД на ход; к ней добавляются ОД-технологии и Военный совет, но не выше «ОД: максимум»."],
   [/^econ\.league\.(quick|normal|tactical)\.apMax$/, "ОД: максимум за ход", "Потолок ОД с технологиями и постройками. Должен быть не меньше стартовых ОД."],
@@ -192,6 +226,8 @@ export function schema(base: any = STRAT_CFG): { fields: Field[]; byPath: Map<st
       if (v < f.min) f.min = v; if (v > f.max) f.max = v; // умолчание всегда в границах
     }
     if (rule.ro) f.ro = rule.ro;
+    if (k[0] === "rating") { const R = RATING_RU[p]; f.g = p.startsWith("rating.margin") ? "Рейтинг › отрыв по целям" : p.startsWith("rating.early") ? "Рейтинг › ранний конец" : p.startsWith("rating.leagues") ? "Рейтинг › лиги" : "Рейтинг (Glicko-2)";
+      if (R) { f.l = R[0]; if (R[1]) f.hint = R[1]; if (R[2]) f.ro = R[2]; } else f.ro = "поле формулы без подписи — меняется в коде"; }
     const pin = PINS.findIndex(([re]) => re.test(p)); if (pin >= 0) { const [, l, hint] = PINS[pin]; f.pin = pin + 1; if (l) f.l = l; if (hint) f.hint = hint; }
     fields.push(f);
   }
@@ -284,6 +320,11 @@ export function invariants(c: any): FieldErr[] {
     if (!(L.growMin <= L.grow && L.grow <= L.growMax)) e(`econ.league.${lg}.grow`, `${LEAGUE_RU[lg] || lg}: должно быть «рост: минимум» ≤ «рост» ≤ «рост: максимум» (${L.growMin} ≤ ${L.grow} ≤ ${L.growMax})`);
     if (L.apBase > L.apMax) e(`econ.league.${lg}.apBase`, `${LEAGUE_RU[lg] || lg}: ОД база (${L.apBase}) больше максимума (${L.apMax})`);
   }
+  if (c.rating) { const R = c.rating; // t1247: формула рейтинга
+    if (!(R.minRd <= R.start.rd && R.start.rd <= R.maxRd)) e("rating.start.rd", `Рейтинг: должно быть RD минимум ≤ стартовая RD ≤ RD максимум (${R.minRd} ≤ ${R.start.rd} ≤ ${R.maxRd})`);
+    if (R.early.none > R.early.quarter) e("rating.early.none", `Рейтинг: «без рейтинга до хода» (${R.early.none}) больше «сниженный до хода» (${R.early.quarter})`);
+    if (R.margin.min > R.margin.max) e("rating.margin.min", `Рейтинг: минимум множителя отрыва (${R.margin.min}) больше максимума (${R.margin.max})`);
+    if (R.margin.abandonD > R.margin.dMax) e("rating.margin.abandonD", `Рейтинг: отрыв при сдаче (${R.margin.abandonD}) больше максимального отрыва (${R.margin.dMax})`); }
   if (c.econ.trade.minRatio > c.econ.trade.maxRatio) e("econ.trade.minRatio", "Торговля: минимальный курс больше максимального");
   { const d = c.econ.raceDraw; if (d.fav + d.other !== 100) e("econ.raceDraw.fav", `Жеребьёвка рас: шансы должны давать 100% (сейчас ${d.fav} + ${d.other})`); }
   for (const [n, s] of Object.entries<any>(c.sizes)) {

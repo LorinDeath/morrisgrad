@@ -1,13 +1,17 @@
 // D1-слой рейтинга (миграция 0026). Гости ("guest:…"), боты и нерейтинговые партии сюда не попадают.
 import { RATING_CFG, leagueOf, rateMatch, mapHash, unratedReason, type League, type Rating, type RPlayer, type RatedCtx } from "./rating";
+import { loadStratCfg } from "./cfg";
 const LEAGUES: League[] = ["quick", "normal", "tactical"];
 const DAY = 86_400_000;
+/** t1247: стартовые значения для «ещё без партий» — из текущих правил админки (как у новых партий) */
+async function curStart(env: any) { try { const R: any = ((await loadStratCfg(env)).cfg as any)?.rating; return R?.start?.rating ? R.start : RATING_CFG.start; } catch { return RATING_CFG.start; } }
 export async function getRatings(env: any, uid: string) {
   const out: Record<string, any> = {}; if (!uid || uid.startsWith("guest:")) return out;
   const r = (await env.GAME_DB.prepare("SELECT league, rating, rd, games, wins, losses, draws, peak FROM strat_ratings WHERE user_id = ?").bind(uid).all()).results || [];
+  const S0 = await curStart(env);
   for (const L of LEAGUES) { const x: any = r.find((y: any) => y.league === L);
     out[L] = x ? { rating: Math.round(x.rating), rd: Math.round(x.rd), games: x.games, wins: x.wins, losses: x.losses, draws: x.draws, peak: Math.round(x.peak), provisional: x.games < RATING_CFG.provisional }
-      : { rating: RATING_CFG.start.rating, rd: RATING_CFG.start.rd, games: 0, wins: 0, losses: 0, draws: 0, peak: RATING_CFG.start.rating, provisional: true }; }
+      : { rating: S0.rating, rd: S0.rd, games: 0, wins: 0, losses: 0, draws: 0, peak: S0.rating, provisional: true }; }
   return out;
 }
 /** топ-100 лиги; предварительные (меньше 10 партий) не показываются */
@@ -24,7 +28,7 @@ export async function myPlace(env: any, uid: string, league: string) {
   if (!uid || uid.startsWith("guest:") || !LEAGUES.includes(league as League)) return null;
   const x: any = await env.GAME_DB.prepare("SELECT rating, rd, games, wins, losses, draws FROM strat_ratings WHERE user_id = ? AND league = ?").bind(uid, league).first();
   const tot: any = await env.GAME_DB.prepare("SELECT COUNT(*) AS n FROM strat_ratings WHERE league = ? AND games >= ?").bind(league, RATING_CFG.provisional).first();
-  if (!x) return { place: null, prov: true, rating: RATING_CFG.start.rating, rd: RATING_CFG.start.rd, games: 0, wins: 0, losses: 0, draws: 0, left: RATING_CFG.provisional, total: tot?.n || 0 };
+  if (!x) { const S0 = await curStart(env); return { place: null, prov: true, rating: S0.rating, rd: S0.rd, games: 0, wins: 0, losses: 0, draws: 0, left: RATING_CFG.provisional, total: tot?.n || 0 }; }
   const prov = x.games < RATING_CFG.provisional;
   const above: any = prov ? null : await env.GAME_DB.prepare("SELECT COUNT(*) AS n FROM strat_ratings WHERE league = ? AND games >= ? AND rating > ?").bind(league, RATING_CFG.provisional, x.rating).first();
   return { place: prov ? null : (above?.n || 0) + 1, prov, rating: Math.round(x.rating), rd: Math.round(x.rd), games: x.games, wins: x.wins, losses: x.losses, draws: x.draws, left: prov ? RATING_CFG.provisional - x.games : 0, total: tot?.n || 0 };
@@ -48,11 +52,14 @@ export async function pairToday(env: any, a: string, b: string): Promise<number>
 }
 /** Итог партии → рейтинги. players: uid, команда, место, счёт целей, число действий. Возвращает {reason} или изменения. */
 /** G (t1209): коэффициенты по d из снимка партии (goals.sizes[n].rate; правятся в админке «Цели и лиги»). */
-export function ratingCfgFor(rate?: { winA?: number; winB?: number; loseA?: number; loseB?: number } | null) {
-  if (!rate) return RATING_CFG; const M = RATING_CFG.margin;
-  return { ...RATING_CFG, margin: { ...M, win: { a: rate.winA ?? M.win.a, b: rate.winB ?? M.win.b }, lose: { a: rate.loseA ?? M.lose.a, b: rate.loseB ?? M.lose.b } } };
+/** t1247: base — формула рейтинга из снимка партии (cfg.rating, админка «Цели и рейтинг» → «Рейтинг»); по умолчанию — код. */
+export function ratingCfgFor(rate?: { winA?: number; winB?: number; loseA?: number; loseB?: number } | null, base: any = RATING_CFG): typeof RATING_CFG {
+  const B = base && typeof base === "object" ? { ...RATING_CFG, ...base, leagues: RATING_CFG.leagues } : RATING_CFG; // лиги — только в коде (по ним и экономика)
+  if (!rate) return B; const M = B.margin;
+  return { ...B, margin: { ...M, win: { a: rate.winA ?? M.win.a, b: rate.winB ?? M.win.b }, lose: { a: rate.loseA ?? M.lose.a, b: rate.loseB ?? M.lose.b } } };
 }
-export async function rateFinished(env: any, matchId: string, size: number, ctx: RatedCtx, players: Omit<RPlayer, "r">[], rate?: any) {
+export async function rateFinished(env: any, matchId: string, size: number, ctx: RatedCtx, players: Omit<RPlayer, "r">[], rate?: any, base?: any) {
+  const C = ratingCfgFor(rate, base);
   const league = leagueOf(size); if (!league) return { unrated: "size" };
   // t1236: идемпотентно — повторный вызов по той же партии (перезапуск DO, повторный finish) рейтинг второй раз не меняет; проверка ДО лимита фарма (иначе сама партия попала бы в счёт)
   if (players[0]?.uid && !players[0].uid.startsWith("guest:")) {
@@ -61,11 +68,11 @@ export async function rateFinished(env: any, matchId: string, size: number, ctx:
       return { league, dup: true, changes: Object.fromEntries(all.map((x: any) => [x.user_id, { rating: Math.round(x.after), delta: Math.round(x.after - x.before), before: Math.round(x.before) }])) }; }
   }
   if (players.length === 2) ctx = { ...ctx, pairToday: await pairToday(env, players[0].uid, players[1].uid) };
-  const why = unratedReason(ctx); if (why) return { unrated: why };
-  const S = RATING_CFG.start, ps: RPlayer[] = [];
+  const why = unratedReason(ctx, C); if (why) return { unrated: why };
+  const S = C.start, ps: RPlayer[] = [];
   for (const p of players) { const x: any = await env.GAME_DB.prepare("SELECT rating, rd, vol, games FROM strat_ratings WHERE user_id = ? AND league = ?").bind(p.uid, league).first();
     ps.push({ ...p, r: x ? { rating: x.rating, rd: x.rd, vol: x.vol, games: x.games } : { ...S, games: 0 } }); }
-  const res = rateMatch(ps, ctx.turns, ctx.reason, ratingCfgFor(rate)); if (!Object.keys(res).length) return { unrated: "too_early" };
+  const res = rateMatch(ps, ctx.turns, ctx.reason, C); if (!Object.keys(res).length) return { unrated: "too_early" };
   const now = Date.now(), st: any[] = [];
   for (const p of ps) { const n = res[p.uid]; if (!n) continue;
     const best = Math.min(...ps.map((q) => q.place)), worst = Math.max(...ps.map((q) => q.place));
