@@ -7,7 +7,7 @@ import { loadProfile, saveProfile } from "./db";
 import { beginRun, clampStrike, finishRun, floorByN, floorLock, floorNeed, makeScript, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
 import { eliteHp, eliteName, floorKit } from "../../src/scripts/musou/tune";
 
-type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number };
+type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[] };
 type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number };
 type Lob = {
   code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; nonce: string; started: number;
@@ -59,7 +59,11 @@ export class MusouRoom extends DurableObject {
     const L = this.L!;
     return {
       type: "lobby", code: L.code, pub: L.pub, phase: L.phase, floor: L.floor, hostId: L.host,
-      seats: L.seats.map((s) => ({ id: s.pkey, nick: s.nick, hero: s.hero, lvl: s.lvl | 0, online: this.ctx.getWebSockets().some((w) => w !== skip && (w.deserializeAttachment() as Att)?.pkey === s.pkey) })),
+      seats: L.seats.map((s) => ({
+        id: s.pkey, nick: s.nick, hero: s.hero, lvl: s.lvl | 0,
+        passed: !!(s.passed && s.passed[(L.floor | 0) - 1]),
+        online: this.ctx.getWebSockets().some((w) => w !== skip && (w.deserializeAttachment() as Att)?.pkey === s.pkey),
+      })),
       need: floorNeed(L.floor),
     };
   }
@@ -83,13 +87,14 @@ export class MusouRoom extends DurableObject {
         if (L.phase !== "lobby" || L.seats.length >= 4) return this.send(ws, { type: "err", err: "Комната полна или бой уже идёт" });
         const prof = await loadProfile(this.env.GAME_DB, key);
         if (!prof.hero) return this.send(ws, { type: "err", err: "Сначала выбери героя" });
-        seat = { pkey: key, nick: id.nick, hero: prof.hero, verified: id.verified, dmg: 8, lvl: prof.lvl | 0 };
+        seat = { pkey: key, nick: id.nick, hero: prof.hero, verified: id.verified, dmg: 8, lvl: prof.lvl | 0, passed: prof.clears.map((c) => c > 0) };
         L.seats.push(seat);
         if (!L.host) L.host = key;
       } else {
         seat.nick = id.nick || seat.nick;
         const prof = await loadProfile(this.env.GAME_DB, key);
         seat.lvl = prof.lvl | 0;
+        seat.passed = prof.clears.map((c) => c > 0);
       }
       a.pkey = key;
       ws.serializeAttachment(a);
@@ -110,6 +115,7 @@ export class MusouRoom extends DurableObject {
       if (n < 1 || n > 13) return;
       const prof = await loadProfile(this.env.GAME_DB, seat.pkey);
       seat.lvl = prof.lvl | 0;
+      seat.passed = prof.clears.map((c) => c > 0);
       const lock = floorLock(prof, n);
       if (lock) return this.send(ws, { type: "err", err: lock });
       L.floor = n;
@@ -152,12 +158,13 @@ export class MusouRoom extends DurableObject {
     for (const s of L.seats) {
       const p = await loadProfile(this.env.GAME_DB, s.pkey);
       s.lvl = p.lvl | 0;
+      s.passed = p.clears.map((c) => c > 0);
       loaded.push({ s, p });
-      if (p.lvl < need) short.push(`${s.nick} ур. ${p.lvl}`);
+      if (floorLock(p, L.floor)) short.push(`${s.nick} ур. ${p.lvl}`);
     }
     if (short.length) {
       const f = floorByN(L.floor);
-      return this.broadcast({ type: "err", err: `Данж «${f.name}» требует уровень ${need} у каждого в группе. Не дотягивают: ${short.join(", ")}.` });
+      return this.broadcast({ type: "err", err: `Данж «${f.name}» открыт с уровня ${need} или после своего прохождения. Не дотягивают: ${short.join(", ")}.` });
     }
     for (const { s, p } of loaded) {
       const opened = beginRun(p, L.floor, now, nonce, s.pkey !== L.host);

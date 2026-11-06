@@ -18,6 +18,10 @@ export type OrdaTune = {
     bossBase: number;
     bossPerFloor: number;
     partyGold: number;
+    /** Доля платы за босса и зачистку на повторе. Первый проход всегда 1. */
+    replayGold: number;
+    /** Доля опыта данжа на повторе. Опыт тварей не режется. */
+    replayXp: number;
   };
   combat: {
     mobHp: [number, number, number];
@@ -86,6 +90,8 @@ export const DEFAULT_TUNE: OrdaTune = {
     bossBase: 46,
     bossPerFloor: 12,
     partyGold: 1.1,
+    replayGold: 0.4,
+    replayXp: 0.25,
   },
   combat: {
     mobHp: [8, 5, 16],
@@ -157,6 +163,8 @@ const BOUNDS: Record<string, Bound> = {
   "economy.bossBase": { min: 0, max: 500, int: true },
   "economy.bossPerFloor": { min: 0, max: 200, int: true },
   "economy.partyGold": { min: 1, max: 1.25 },
+  "economy.replayGold": { min: 0.15, max: 0.6 },
+  "economy.replayXp": { min: 0.1, max: 0.5 },
   "combat.mobHpPerFloor": { min: 0, max: 20, int: true },
   "combat.contactIframe": { min: 0.15, max: 1.2 },
   "combat.generalHp": { min: 100, max: 8000, int: true },

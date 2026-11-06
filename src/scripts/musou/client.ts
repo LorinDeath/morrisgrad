@@ -197,19 +197,20 @@ function renderHub() {
     </section>
     <section class="panel">
       <h2>Кампания подвала</h2>
-      <p class="derived">Данж открывает уровень героя, не галочка прошлого этажа. Сейчас уровень ${profile.lvl}.</p>
+      <p class="derived">Первый вход открывает уровень героя. Пройденный данж можно брать снова: опыт и золото этажа меньше, квест сдаётся один раз. Сейчас уровень ${profile.lvl}.</p>
       <div class="campaign">${FLOORS.map((f) => {
         const why = floorLock(profile, f.n);
         const clr = (profile.clears[f.n - 1] || 0) > 0;
-        return `<button type="button" class="dungeon${f.n === openF ? " on" : ""}${why ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}"><span class="n">${f.n}</span><span class="dn"><b>${f.name}</b><small>ур. ${floorNeed(f.n)} · ${f.place}${why ? " · закрыт" : clr ? " · зачищен" : " · открыт"}</small></span></button>`;
+        const state = why ? "Закрыт" : clr ? "Пройден" : "Доступен";
+        return `<button type="button" class="dungeon${f.n === openF ? " on" : ""}${why ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}"><span class="n">${f.n}</span><span class="dn"><b>${f.name}</b><small>ур. ${floorNeed(f.n)} · ${f.place}</small><em class="state ${why ? "lock" : clr ? "pass" : "open"}">${state}</em></span></button>`;
       }).join("")}</div>
+      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : (profile.clears[openF - 1] || 0) > 0 ? `<p class="derived">Пройден. Повтор не закрывает следующие данжи и не выдаёт награду квеста второй раз.</p>` : `<p class="derived">Доступен для первого прохода.</p>`}
+      <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${floorOpen(profile, openF) ? "" : "disabled"}>${floorOpen(profile, openF) ? ((profile.clears[openF - 1] || 0) > 0 ? `Ещё раз · ${FLOORS[openF - 1].name}` : `В бой · ${FLOORS[openF - 1].name}`) : `Закрыто до уровня ${floorNeed(openF)}`}</button></div>
       <p class="dungeon-lead"><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].desc}</p>
       <p>Ярусы: ${FLOORS[openF - 1].stages.join(" → ")}. Толпа «${FLOORS[openF - 1].mob}». Генерал ${FLOORS[openF - 1].general}. Босс: ${FLOORS[openF - 1].boss}, ${FLOORS[openF - 1].bossTitle}.${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}.` : ""}</p>
-      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : ""}
       <p class="derived">Режим на этот заход. Клятва меняет бой. Кубок списывает ${getTune().oath.stake} зл до старта.</p>
       <div class="row modes">${OATHS.map((o) => `<button type="button" class="btn${profile.oath === o.id ? " gold" : ""}" data-oath="${o.id}" title="${o.note}">${o.name}</button>`).join("")}</div>
       <p class="derived" id="oath-note">${OATHS.find((o) => o.id === profile.oath)?.note || ""}</p>
-      <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${floorOpen(profile, openF) ? "" : "disabled"}>${floorOpen(profile, openF) ? `В бой · ${FLOORS[openF - 1].name}` : `Закрыто до уровня ${floorNeed(openF)}`}</button></div>
       ${quests.map((q) => `<div class="quest${q.ready ? " ready" : ""}"><b>${q.name}</b><span>${q.desc}</span><div class="bar"><i style="width:${Math.min(100, q.p / q.need * 100)}%"></i></div><span>${q.p}/${q.need}${q.ready ? " · награда готова" : ""}</span>${q.ready ? `<div class="row"><button class="btn gold" data-claim="${q.id}" type="button">Забрать</button></div>` : ""}</div>`).join("")}
       ${ready.filter((q) => q.floor !== openF && q.floor !== 0).map((q) => `<div class="quest ready"><b>${q.name}</b><button class="btn gold" data-claim="${q.id}" type="button">Забрать награду</button></div>`).join("")}
     </section>
@@ -419,9 +420,15 @@ async function connect(code: string, fromDrop = false) {
       room = { code: m.code, host: m.hostId === youId, seats: m.seats };
       const box = $<HTMLElement>("room-box");
       const need = m.need | 0;
-      const low = (m.seats as { nick: string; lvl?: number }[]).filter((s) => (s.lvl | 0) < need);
-      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · нужен уровень ${need} у каждого.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${(s.lvl | 0) < need ? " · не дотягивает" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">В группе не хватает уровня: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Уровень группы проверяет сервер.</p>"}`;
+      const low = (m.seats as { nick: string; lvl?: number; passed?: boolean }[]).filter((s) => (s.lvl | 0) < need && !s.passed);
+      const chips = room.host ? FLOORS.filter((f) => floorOpen(profile, f.n)).map((f) => {
+        const passed = (profile.clears[f.n - 1] || 0) > 0;
+        const on = (m.floor | 0) === f.n;
+        return `<button type="button" class="btn${on ? " gold" : ""}" data-room-floor="${f.n}">${f.n} · ${passed ? "Пройден" : "Доступен"}</button>`;
+      }).join("") : "";
+      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · уровень ${need} для тех, кто его ещё не проходил.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}<ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${(s.lvl | 0) < need && !s.passed ? " · не дотягивает" : s.passed ? " · пройден" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">В группе не хватает уровня: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Уровень группы проверяет сервер.</p>"}`;
       $<HTMLButtonElement>("room-start") && ($<HTMLButtonElement>("room-start").onclick = () => ws?.send(JSON.stringify({ type: "start" })));
+      document.querySelectorAll<HTMLButtonElement>("[data-room-floor]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "floor", floor: Number(b.dataset.roomFloor) })));
     }
     if (m.type === "err") toast(m.err || "Ошибка комнаты");
     if (m.type === "go") {
@@ -596,7 +603,7 @@ function showResult(report: RunReport | null, phase: string, reason?: RunReport[
   $<HTMLElement>("pause").hidden = true;
   show("result");
   const why = report?.reason || reason || (phase === "won" ? "win" : "dead");
-  const title = why === "win" ? "Этаж зачищен" : why === "surrender" ? "Сдача" : "Поражение";
+  const title = why === "win" ? (report?.replay ? "Повтор засчитан" : "Этаж зачищен") : why === "surrender" ? "Сдача" : "Поражение";
   const items = report && "items" in report ? report.items : [];
   const pay = report && "gold" in report ? (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : (err ? `Награда не засчитана: ${err}.` : "Награда не засчитана.");
   paintPills();

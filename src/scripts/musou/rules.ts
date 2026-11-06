@@ -432,8 +432,12 @@ export function floorNeed(n: number) {
   const row = getTune().floors[(n | 0) - 1];
   return row ? row.need | 0 : 99;
 }
+export function floorPassed(p: Profile, n: number) {
+  return ((p.clears[Math.max(0, (n | 0) - 1)] || 0) > 0);
+}
 export function floorLock(p: Profile, n: number): string | null {
   if ((n | 0) < 1 || (n | 0) > 13) return "Нет такого данжа";
+  if (floorPassed(p, n)) return null;
   const need = floorNeed(n);
   if ((p.lvl | 0) >= need) return null;
   const f = FLOORS[(n | 0) - 1];
@@ -925,6 +929,8 @@ export type LootNote = { item: Item; sold: boolean; gold: number; held?: boolean
 export type RunReport = {
   gold: number; xp: number; levels: number; items: LootNote[];
   quests: string[]; note: string | null; boss: boolean; reason: RunReason;
+  /** Повтор уже пройденного данжа: квест не сдаётся снова, опыт и плата этажа урезаны. */
+  replay: boolean;
 };
 
 export type ChestView = {
@@ -1018,35 +1024,42 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
   const v = validateRun({ ...raw, boss: asked === "win" && raw.boss });
   const cleared = asked === "win" && v.boss;
   const reason: RunReason = cleared ? "win" : asked === "surrender" ? "surrender" : "dead";
+  const replay = cleared && (p.clears[floor - 1] || 0) > 0;
   const quests: string[] = [];
-  if (markQuest(p, `k${floor}`, v.kills)) quests.push(`k${floor}`);
-  if (markQuest(p, `g${floor}`, v.generals)) quests.push(`g${floor}`);
-  if (cleared && markQuest(p, `b${floor}`, 1)) quests.push(`b${floor}`);
+  if (!replay && markQuest(p, `k${floor}`, v.kills)) quests.push(`k${floor}`);
+  if (!replay && markQuest(p, `g${floor}`, v.generals)) quests.push(`g${floor}`);
+  if (cleared && !replay && markQuest(p, `b${floor}`, 1)) quests.push(`b${floor}`);
   p.kills += v.kills;
   if (cleared) p.clears[floor - 1] = (p.clears[floor - 1] || 0) + 1;
   const eco = getTune().economy;
-  const clearPay = cleared ? eco.clearBase + floor * eco.clearPerFloor + eco.bossBase + floor * eco.bossPerFloor : 0;
+  const flat = eco.clearBase + floor * eco.clearPerFloor + eco.bossBase + floor * eco.bossPerFloor;
+  const clearPay = cleared ? Math.round(flat * (replay ? eco.replayGold : 1)) : 0;
   let gold = Math.round((clearPay + v.kills * eco.killGold + v.generals * eco.generalGold) * (1 + goldFind(p)));
   if ((raw.party | 0) >= 2) gold = Math.round(gold * eco.partyGold);
   p.gold += gold;
   const killXp = Math.floor(v.kills * 0.2);
-  const clearXp = cleared ? (getTune().floors[floor - 1]?.xp | 0) : 0;
+  const clearXp = cleared ? Math.round((getTune().floors[floor - 1]?.xp | 0) * (replay ? eco.replayXp : 1)) : 0;
   const xp = killXp + clearXp;
   const levels = xp > 0 ? addXp(p, xp) : 0;
   const items: LootNote[] = [];
   if (cleared) {
-    const rarity = rng() < (floor >= 10 ? 0.18 : 0.08) ? "rare" : rng() < 0.55 ? "magic" : "common";
+    const rarity = replay
+      ? (rng() < 0.35 ? "magic" : "common")
+      : rng() < (floor >= 10 ? 0.18 : 0.08) ? "rare" : rng() < 0.55 ? "magic" : "common";
     items.push(giveItem(p, rollItem(rng, { ilvl: Math.max(p.lvl, floor + 1), floor, rarity })));
   }
   const partial = v.kills + v.generals > 0
     ? "В золото вошли только уже сбитые твари и генералы."
     : "Сбитых целей нет, золота за этаж нет.";
+  const pass = replay
+    ? "Повтор. Опыт и золото этажа урезаны, редкая вещь и квест этого данжа больше не выдаются."
+    : "Первый проход.";
   const note = reason === "win"
-    ? `${v.note ? v.note + " " : ""}Опыт зачистки ${clearXp}, за тварей ${killXp}.`
+    ? `${v.note ? v.note + " " : ""}${pass} Опыт зачистки ${clearXp}, за тварей ${killXp}.`
     : reason === "surrender"
       ? `Сдача. ${partial} Босс не засчитан. Опыт только за уже сбитых тварей.`
       : `Поражение: герой пал. ${partial} Босс не засчитан. Опыт только за уже сбитых тварей.`;
-  return { gold, xp, levels, items, quests, note, boss: cleared, reason };
+  return { gold, xp, levels, items, quests, note, boss: cleared, reason, replay };
 }
 
 export type ClaimReport = { gold: number; xp: number; levels: number; item: LootNote | null };
