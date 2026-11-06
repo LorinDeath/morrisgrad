@@ -4,12 +4,13 @@
 import { DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
 import { UPG, upgCost, upgStats } from "../../../server/meta/upgrade.ts";
 import { MAT_NAME } from "./mats";
+import { FLOOR_N, SW_DUNGEONS, SW_FLOORS, SW_QUESTS, fightScale } from "./sw-catalog";
 
 export const BAG_START = 12;
 export const BAG_STEP = 4;
 export const BAG_MAX = 48;
 export const BAG_PRICES = [80, 700, 1400, 2500, 4200, 7000, 11000, 17000, 26000];
-export const MAX_LVL = 60;
+export const MAX_LVL = 300;
 export const START_GOLD = 150;
 
 export type Stat = "str" | "dex" | "vit" | "ene";
@@ -97,8 +98,9 @@ export type FloorDef = {
   sw: string;
   name: string;
   place: string;
+  dungeonName: string;
   desc: string;
-  /** Три яруса волны. У башен — имена generateTowerStages, у коротких данжей — имена stages. */
+  /** Три волны одной мусо-комнаты. Имена этапа, не список этажей данжа. */
   stages: [string, string, string];
   tint: string;
   ember: string;
@@ -106,7 +108,16 @@ export type FloorDef = {
   general: string;
   boss: string;
   bossTitle: string;
-  /** Приём генерала и босса из данжа Тёмного мира. */
+  goal: "pack" | "elite" | "boss";
+  dungeon: number;
+  stage: number;
+  stagesInDungeon: number;
+  srcHp: number;
+  srcAtk: number;
+  file: string;
+  spawnGeneral: 0 | 1;
+  story?: string;
+  /** Приём генерала и босса. В файлах Тёмного мира приёма нет: там скорость атаки и защита. */
   gSig: Sig;
   bSig: Sig;
   /** Ряды bestiary_atlas: генерал, босс, три поведения толпы. */
@@ -224,21 +235,14 @@ export const HEROES: HeroDef[] = [
   },
 ];
 
-export const FLOORS: FloorDef[] = [
-  { n: 1, sw: "dungeon_intro_1", name: "Подвалы Старого Замка", place: "Альказак", desc: "Тренировочные подвалы замка.", stages: ["Сектор Мишеней", "Оружейный зал", "Трон хранителя"], tint: "#4a3034", ember: "#ff8a50", mob: "Манекен", general: "Манекен I", boss: "Теневой Страж", bossTitle: "призрачный хранитель замка", gSig: "circle", bSig: "cone", gRow: 35, bRow: 41, mobRows: [6, 2, 18] },
-  { n: 2, sw: "dungeon_intro_2", name: "Заброшенный Тракт Альказака", place: "Альказак", desc: "Дикие тракты мародёров.", stages: ["Дикий тракт", "Обоз мародёров", "Лагерь Атамана"], tint: "#4a3828", ember: "#ffb060", mob: "Мародёр", general: "Головорез тракта", boss: "Атаман Мародёров", bossTitle: "главарь банды", gSig: "cone", bSig: "line", gRow: 34, bRow: 54, mobRows: [26, 4, 32] },
-  { n: 3, sw: "dungeon_intro_3", name: "Чёрные Чумные Топи", place: "Топи", desc: "Заболоченная низина.", stages: ["Гнилая кромка", "Трясина", "Гнилая Топь"], tint: "#1c3428", ember: "#7dff9a", mob: "Болотная слизь", general: "Чумной сгусток", boss: "Болотный Ужас", bossTitle: "ядовитый монстр топей", gSig: "line", bSig: "circle", gRow: 30, bRow: 11, mobRows: [0, 27, 29] },
-  { n: 4, sw: "dungeon_1", name: "Катакомбы Скорби", place: "Порт", desc: "Заброшенные склепы.", stages: ["Склеп", "Галерея праха", "Трон Праха"], tint: "#322838", ember: "#c9b6ff", mob: "Могильная тварь", general: "Могильный Упырь", boss: "Чёрный Жнец", bossTitle: "повелитель склепов", gSig: "curse", bSig: "summon", gRow: 28, bRow: 48, mobRows: [28, 25, 31] },
-  { n: 5, sw: "dungeon_storm_tower", name: "Башня Бесконечного Шторма", place: "ДаргСирром", desc: "Шпиль бури, двенадцать ярусов башни.", stages: ["Ярус 1: Шторм", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#243044", ember: "#d0e6ff", mob: "Грозовой Дух", general: "Громовержец", boss: "Райдзин", bossTitle: "повелитель бурь", gSig: "line", bSig: "cone", gRow: 39, bRow: 42, mobRows: [46, 3, 38] },
-  { n: 6, sw: "dungeon_soul_labyrinth", name: "Лабиринт Забытых Душ", place: "Эзернис", desc: "Призрачные орды лабиринта.", stages: ["Ярус 1: Лабиринт", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#241430", ember: "#e7b6ff", mob: "Блуждающий Призрак", general: "Пожиратель Сущностей", boss: "Танатос", bossTitle: "владыка забвения", gSig: "curse", bSig: "circle", gRow: 51, bRow: 57, mobRows: [1, 44, 22] },
-  { n: 7, sw: "dungeon_chaos_inferno", name: "Пекло Первородного Хаоса", place: "Пламя", desc: "Лавовые демоны инферно.", stages: ["Ярус 1: Инферно", "Орда (Этаж 8)", "Чертог Владыки"], tint: "#3a1814", ember: "#ff4a32", mob: "Лавовый Скорпион", general: "Магма-Голем", boss: "Суртур", bossTitle: "владыка хаоса", gSig: "circle", bSig: "summon", gRow: 42, bRow: 58, mobRows: [46, 30, 49] },
-  { n: 8, sw: "dungeon_abyss", name: "Затонувший Храм Бездны", place: "Порт", desc: "Глубинные ужасы святилища.", stages: ["Подход к святилищу", "Глубинная галерея", "Святилище Левиафана"], tint: "#142433", ember: "#7ec8ff", mob: "Бездонная тварь", general: "Бездонный Страж", boss: "Левиафан", bossTitle: "хозяин бездны", gSig: "summon", bSig: "cone", gRow: 63, bRow: 49, mobRows: [0, 53, 21] },
-  { n: 9, sw: "dungeon_5", name: "Разрыв Антиматрицы", place: "Петля Сэйлора", desc: "Цифровой сбой решётки.", stages: ["Сбой решётки", "Фрактальный коридор", "Фрактальный Трон"], tint: "#341428", ember: "#ff3d8a", mob: "Цифровой фантом", general: "Коррумпированное Ядро", boss: "Творец Искажения", bossTitle: "первородный баг", gSig: "line", bSig: "curse", gRow: 5, bRow: 65, mobRows: [5, 41, 66] },
-  { n: 10, sw: "dungeon_void_rift", name: "Разлом Вечной Тьмы", place: "Пути Айтрейна", desc: "Существа антиматерии, десять ярусов тьмы.", stages: ["Ярус 1: Тьма", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#1c1830", ember: "#c8c0ff", mob: "Абсолютный Фантом", general: "Страж Нулевой Точки", boss: "Азатот", bossTitle: "ходок бездны", gSig: "curse", bSig: "summon", gRow: 52, bRow: 37, mobRows: [66, 51, 40] },
-  { n: 11, sw: "dungeon_blood_citadel", name: "Кровавая Цитадель Кармиллы", place: "Альказак", desc: "Вампирские лорды цитадели.", stages: ["Ярус 1: Кровь", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#3a1420", ember: "#ff6080", mob: "Кровавый Рыцарь", general: "Жрец Крови", boss: "Кармилла", bossTitle: "королева цитадели", gSig: "cone", bSig: "curse", gRow: 45, bRow: 59, mobRows: [20, 16, 34] },
-  { n: 12, sw: "dungeon_spectral_cathedral", name: "Спектральный Собор", place: "Обитель", desc: "Святилище иллюзий.", stages: ["Ярус 1: Спектр", "Орда (Этаж 8)", "Чертог Владыки"], tint: "#281428", ember: "#f0e6ff", mob: "Инквизитор", general: "Каратель", boss: "Призрачный Понтифик", bossTitle: "призрачный понтифик собора", gSig: "cone", bSig: "line", gRow: 36, bRow: 56, mobRows: [22, 7, 14] },
-  { n: 13, sw: "dungeon_titan_cradle", name: "Колыбель Забытых Титанов", place: "Купол", desc: "Древнейшие колоссы.", stages: ["Ярус 1: Титаны", "Орда (Этаж 8)", "Чертог Владыки"], tint: "#3a301c", ember: "#ffd76a", mob: "Осколок титана", general: "Каменный Страж", boss: "Титан Атлас", bossTitle: "титанический колосс", gSig: "circle", bSig: "summon", gRow: 32, bRow: 67, mobRows: [10, 19, 18] },
-];
+export { FLOOR_N, SW_DUNGEONS, SW_QUESTS };
+export const FLOORS: FloorDef[] = SW_FLOORS.map((f) => ({
+  n: f.n, sw: f.sw, name: f.name, place: f.dungeonName, dungeonName: f.dungeonName, desc: f.desc, stages: f.wave,
+  tint: f.tint, ember: f.ember, mob: f.mob, general: f.general, boss: f.boss, bossTitle: f.bossTitle,
+  goal: f.goal, dungeon: f.dungeon, stage: f.stage, stagesInDungeon: f.stagesInDungeon,
+  srcHp: f.srcHp, srcAtk: f.srcAtk, file: f.file, spawnGeneral: f.spawnGeneral, story: f.story,
+  gSig: f.gSig, bSig: f.bSig, gRow: f.gRow, bRow: f.bRow, mobRows: f.mobRows,
+}));
 
 export const RARITY_NAME: Record<Rarity, string> = {
   common: "обычный", magic: "магический", rare: "редкий", legendary: "легендарный", set: "комплект",
@@ -304,7 +308,7 @@ export type QuestDef = {
   name: string; desc: string; gold: number; xp: number; chest: Rarity | null;
 };
 
-export function killNeed(floor: number) { return 80 + floor * 20; }
+export function killNeed(floor: number) { return 80 + Math.round(fightScale(floor)) * 20; }
 
 export function questDefs(): QuestDef[] {
   const out: QuestDef[] = [{
@@ -330,7 +334,7 @@ export function questDefs(): QuestDef[] {
     out.push({
       id: `b${f.n}`, floor: f.n, kind: "boss", need: 1,
       name: `Зачистить: ${f.name}`,
-      desc: `Одолеть босса «${f.boss}», ${f.bossTitle}.`,
+      desc: f.goal === "boss" ? `Одолеть босса «${f.boss}». ${f.bossTitle}.` : `Зачистить этап. Цель: «${f.boss}». ${f.bossTitle}.`,
       gold: 180 + f.n * 50, xp: 90 + f.n * 28, chest: f.n >= 7 ? "rare" : "magic",
     });
   }
@@ -405,7 +409,7 @@ export type Sheet = {
 export function heroById(id: string | null | undefined): HeroDef {
   return HEROES.find((h) => h.id === id) || HEROES[0];
 }
-export function floorByN(n: number) { return FLOORS[Math.max(0, Math.min(12, (n | 0) - 1))]; }
+export function floorByN(n: number) { return FLOORS[Math.max(0, Math.min(FLOOR_N - 1, (n | 0) - 1))]; }
 
 export function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -428,8 +432,8 @@ export function newProfile(seed = 1): Profile {
     alloc: { str: 0, dex: 0, vit: 0, ene: 0 },
     bagSize: BAG_START, nextId: 1, shopSeed: seed >>> 0,
     equip: emptyEquip(), bag: [], inbox: [], quests: {},
-    clears: Array.from({ length: 13 }, () => 0),
-    chain: Array.from({ length: 13 }, () => 0),
+    clears: Array.from({ length: FLOOR_N }, () => 0),
+    chain: Array.from({ length: FLOOR_N }, () => 0),
     kills: 0, pending: null, oath: "none", roster: [], res: {},
   };
 }
@@ -437,8 +441,8 @@ export function newProfile(seed = 1): Profile {
 function freshCard(id: HeroId): HeroCard {
   return {
     id, lvl: 1, xp: 0, unspent: 0, alloc: { str: 0, dex: 0, vit: 0, ene: 0 },
-    clears: Array.from({ length: 13 }, () => 0),
-    chain: Array.from({ length: 13 }, () => 0),
+    clears: Array.from({ length: FLOOR_N }, () => 0),
+    chain: Array.from({ length: FLOOR_N }, () => 0),
     quests: {}, equip: emptyEquip(), kills: 0, oath: "none",
   };
 }
@@ -502,12 +506,16 @@ export function floorPassed(p: Profile, n: number) {
   return ((p.clears[Math.max(0, (n | 0) - 1)] || 0) > 0);
 }
 export function floorLock(p: Profile, n: number): string | null {
-  if ((n | 0) < 1 || (n | 0) > 13) return "Нет такого данжа";
+  if ((n | 0) < 1 || (n | 0) > FLOOR_N) return "Нет такого этапа";
   if (floorPassed(p, n)) return null;
+  const f = FLOORS[(n | 0) - 1];
+  if (f.stage > 1 && !floorPassed(p, n - 1)) {
+    const prev = FLOORS[n - 2];
+    return `«${f.name}» открывается после этапа «${prev.name}» в данже «${f.dungeonName}». Уровень открывает данж и не пропускает его этажи.`;
+  }
   const need = floorNeed(n);
   if ((p.lvl | 0) >= need) return null;
-  const f = FLOORS[(n | 0) - 1];
-  return `«${f.name}» открывается с уровня ${need}. Сейчас ${p.lvl}. Уровень копится опытом зачистки и квестами, номер пройденного этажа его не заменяет.`;
+  return `«${f.dungeonName}» открывается с уровня ${need}. Сейчас ${p.lvl}. Уровень копится опытом зачистки и квестами, номер пройденного этажа его не заменяет.`;
 }
 export function floorOpen(p: Profile, n: number) { return floorLock(p, n) === null; }
 
@@ -543,8 +551,9 @@ export function normalize(raw: any): Profile {
   p.nextId = Math.max(1, raw.nextId | 0 || 1);
   p.shopSeed = (raw.shopSeed >>> 0) || 1;
   p.kills = Math.max(0, raw.kills | 0);
-  p.clears = Array.from({ length: 13 }, (_, i) => Math.max(0, raw.clears?.[i] | 0));
-  p.chain = Array.from({ length: 13 }, (_, i) => Math.max(0, Math.min(7, Math.max(raw.chain?.[i] | 0, p.clears[i] > 0 ? 1 : 0))));
+  const prog = progressOf(raw.clears, raw.chain);
+  p.clears = prog.clears;
+  p.chain = prog.chain;
   const eq = emptyEquip();
   for (const slot of Object.keys(eq) as Paper[]) {
     const it = raw.equip?.[slot];
@@ -600,8 +609,9 @@ function readCard(raw: any): HeroCard | null {
   card.unspent = Math.max(0, raw.unspent | 0);
   for (const s of ["str", "dex", "vit", "ene"] as Stat[]) card.alloc[s] = Math.max(0, Math.min(400, raw.alloc?.[s] | 0));
   card.kills = Math.max(0, raw.kills | 0);
-  card.clears = Array.from({ length: 13 }, (_, i) => Math.max(0, raw.clears?.[i] | 0));
-  card.chain = Array.from({ length: 13 }, (_, i) => Math.max(0, Math.min(7, Math.max(raw.chain?.[i] | 0, card.clears[i] > 0 ? 1 : 0))));
+  const prog = progressOf(raw.clears, raw.chain);
+  card.clears = prog.clears;
+  card.chain = prog.chain;
   card.oath = oathOf(raw.oath);
   if (raw.quests && typeof raw.quests === "object") {
     for (const [id, q] of Object.entries(raw.quests as Record<string, any>)) {
@@ -1109,11 +1119,13 @@ export function spawnBudget(floor: number) {
 export type WaveScript = { floor: number; seed: number; waves: number[]; genAt: number[]; bossAt: number };
 
 export function makeScript(floor: number, seed: number): WaveScript {
-  const b = spawnBudget(Math.max(1, Math.min(13, floor | 0)));
+  const n = Math.max(1, Math.min(FLOOR_N, floor | 0));
+  const b = spawnBudget(n);
   const w1 = Math.round(b.spawns * 0.3);
   const w2 = Math.round(b.spawns * 0.34);
   const w3 = Math.max(0, b.spawns - w1 - w2);
-  return { floor: Math.max(1, Math.min(13, floor | 0)), seed: seed >>> 0, waves: [w1, w2, w3], genAt: [7000, 18000, 30000], bossAt: 36000 };
+  const pack = FLOORS[n - 1]?.goal === "pack";
+  return { floor: n, seed: seed >>> 0, waves: [w1, w2, w3], genAt: [7000, 18000, 30000], bossAt: pack ? 8000 : 36000 };
 }
 
 export function mobCredit(script: WaveScript, elapsedMs: number) {
@@ -1125,7 +1137,10 @@ export function mobCredit(script: WaveScript, elapsedMs: number) {
 
 export function roomOutcome(script: WaveScript, elapsedMs: number, elites: { id: string; alive: boolean; spawned: boolean }[]) {
   const generals = elites.filter((e) => e.id.startsWith("g") && e.spawned && !e.alive).length;
-  const boss = elites.some((e) => e.id === "boss" && e.spawned && !e.alive);
+  const art = FLOORS[script.floor - 1];
+  const boss = art?.goal === "pack"
+    ? elapsedMs >= script.bossAt && mobCredit(script, elapsedMs) > 0
+    : elites.some((e) => e.id === "boss" && e.spawned && !e.alive);
   return { kills: mobCredit(script, elapsedMs), generals: Math.min(3, generals), boss };
 }
 
@@ -1145,13 +1160,14 @@ export function clampStrike(dmg: number, kind: string) {
 }
 
 export function validateRun(r: RunIn): RunCheck {
-  const floor = Math.max(1, Math.min(13, r.floor | 0));
+  const floor = Math.max(1, Math.min(FLOOR_N, r.floor | 0));
   const b = spawnBudget(floor);
   let kills = Math.max(0, Math.min(b.spawns, r.kills | 0));
   let generals = Math.max(0, Math.min(3, r.generals | 0));
   let boss = !!r.boss;
   const elapsed = Math.max(0, r.elapsedMs | 0);
-  const min = kills * 45 + generals * 1600 + (boss ? 5000 + floor * 250 : 0);
+  const pace = Math.max(1, Math.round(fightScale(floor)));
+  const min = kills * 45 + generals * 1600 + (boss ? 5000 + pace * 250 : 0);
   let note: string | null = null;
   if (elapsed < min) {
     const allow = Math.floor(elapsed / 90);
@@ -1268,7 +1284,7 @@ function markQuest(p: Profile, id: string, add: number): boolean {
 }
 
 export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: string } {
-  const floor = Math.max(1, Math.min(13, raw.floor | 0));
+  const floor = Math.max(1, Math.min(FLOOR_N, raw.floor | 0));
   if (!p.hero) return { err: "Нет героя" };
   const asked: RunReason = raw.reason === "surrender" || raw.reason === "dead" || raw.reason === "win" ? raw.reason : (raw.boss ? "win" : "dead");
   const v = validateRun({ ...raw, boss: asked === "win" && raw.boss });
@@ -1387,18 +1403,46 @@ export function startNonce() {
   return [...rnd].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
+function progressOf(rawClears: unknown, rawChain: unknown): { clears: number[]; chain: number[] } {
+  const clears = Array.from({ length: FLOOR_N }, () => 0);
+  const chain = Array.from({ length: FLOOR_N }, () => 0);
+  const srcC = Array.isArray(rawClears) ? rawClears : [];
+  const srcH = Array.isArray(rawChain) ? rawChain : [];
+  if (srcC.length === 13) {
+    for (let d = 0; d < 13; d++) {
+      if ((srcC[d] | 0) <= 0) continue;
+      for (const f of SW_FLOORS) {
+        if (f.dungeon !== d + 1) continue;
+        clears[f.n - 1] = Math.max(1, srcC[d] | 0);
+        const kept = f.stage === f.stagesInDungeon ? (srcH[d] | 0) : 1;
+        chain[f.n - 1] = Math.max(1, Math.min(7, kept || 1));
+      }
+    }
+    return { clears, chain };
+  }
+  for (let i = 0; i < FLOOR_N; i++) {
+    clears[i] = Math.max(0, srcC[i] | 0);
+    chain[i] = Math.max(0, Math.min(7, Math.max(srcH[i] | 0, clears[i] > 0 ? 1 : 0)));
+  }
+  return { clears, chain };
+}
+
 export function chainAt(src: { chain?: number[]; clears?: number[] }, floor: number) {
-  const i = Math.max(0, Math.min(12, (floor | 0) - 1));
+  const i = Math.max(0, Math.min(FLOOR_N - 1, (floor | 0) - 1));
   const saved = src.chain?.[i] | 0;
   const fromClear = (src.clears?.[i] || 0) > 0 ? 1 : 0;
   return Math.max(0, Math.min(7, Math.max(saved, fromClear)));
 }
 
-export function memberDiffLock(lvl: number, floorPassed: boolean, floor: number, diff: number, chain = 0): string | null {
-  const n = Math.max(1, Math.min(13, floor | 0));
+export function memberDiffLock(lvl: number, floorPassed: boolean, floor: number, diff: number, chain = 0, prevPassed = true): string | null {
+  const n = Math.max(1, Math.min(FLOOR_N, floor | 0));
   const row = diffRow(diff);
+  const f = floorByN(n);
+  if (!floorPassed && f.stage > 1 && !prevPassed) {
+    return `«${f.name}» открывается после предыдущего этапа данжа «${f.dungeonName}».`;
+  }
   if (!floorPassed && (lvl | 0) < floorNeed(n)) {
-    return `«${floorByN(n).name}» открывается с уровня ${floorNeed(n)}. Сейчас ${lvl | 0}. Уровень копится опытом зачистки и квестами, номер пройденного этажа его не заменяет.`;
+    return `«${f.dungeonName}» открывается с уровня ${floorNeed(n)}. Сейчас ${lvl | 0}. Уровень копится опытом зачистки и квестами, номер пройденного этажа его не заменяет.`;
   }
   const have = chain | 0;
   if (row.id > 1 && have < row.id - 1) {
@@ -1409,7 +1453,7 @@ export function memberDiffLock(lvl: number, floorPassed: boolean, floor: number,
   return null;
 }
 export function diffLock(p: Profile, floor: number, diff: number): string | null {
-  return memberDiffLock(p.lvl | 0, floorPassed(p, floor), floor, diff, chainAt(p, floor));
+  return memberDiffLock(p.lvl | 0, floorPassed(p, floor), floor, diff, chainAt(p, floor), floor <= 1 || floorPassed(p, floor - 1));
 }
 export type RunOffer = {
   id: number; name: string; open: boolean; why: string | null;
@@ -1421,7 +1465,7 @@ export type RunOffer = {
   partyGold: number; partyHp: number;
 };
 export function runOffer(p: Profile, floor: number, diff: number, party = 1): RunOffer {
-  const n = Math.max(1, Math.min(13, floor | 0));
+  const n = Math.max(1, Math.min(FLOOR_N, floor | 0));
   const row = diffRow(diff);
   const why = diffLock(p, n, row.id);
   const eco = getTune().economy;
@@ -1468,7 +1512,7 @@ function clearRarity(rng: Rng, floor: number, diff: number, replay: boolean): Ra
 export function beginRun(p: Profile, floor: number, now: number, nonce = startNonce(), carry = false, diff = 1): { nonce: string } | { err: string } {
   void carry;
   if (!p.hero) return { err: "Сначала выбери героя" };
-  if (floor < 1 || floor > 13) return { err: "Нет такого данжа" };
+  if (floor < 1 || floor > FLOOR_N) return { err: "Нет такого этапа" };
   const row = diffRow(diff);
   const lock = diffLock(p, floor, row.id);
   if (lock) return { err: lock };

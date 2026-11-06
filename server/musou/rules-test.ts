@@ -6,6 +6,9 @@ import {
 import { Battle } from "../../src/scripts/musou/sim";
 import { pickShard } from "./plaza";
 import { DEFAULT_TUNE, DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, floorMut, getTune, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
+import { FLOOR_N } from "../../src/scripts/musou/sw-catalog";
+import { fightScale } from "../../src/scripts/musou/sw-catalog";
+import { auditShadowCatalog } from "./sw-audit";
 
 let fails = 0, n = 0;
 const ok = (c: unknown, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -66,7 +69,11 @@ while (t < 12) {
   t += 1 / 30;
 }
 ok(fight.kills > 15, "за 12 секунд комбо косит толпу, убито " + fight.kills);
-ok(fight.elites.some((e) => e.kind === "general"), "на волне выходит генерал");
+ok(!fight.elites.some((e) => e.kind === "general"), "сектор мишеней без генерала: в файле только толпа");
+const throne = new Battle(24, [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(heroP) }], 24);
+let tg = 0;
+while (tg < 12) { throne.press("you", { mx: 1, my: 0, aim: 0, hold: true, heavy: false, skill: 0 }); throne.step(1 / 30); tg += 1 / 30; }
+ok(throne.elites.some((e) => e.kind === "general" && e.name.includes("Страж Трона")), "чертог башни выпускает Стража Трона из файла");
 ok(fight.fx.length >= 0, "эффекты ударов живут в бою");
 
 const wind = new Battle(1, [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(heroP) }], 4);
@@ -152,8 +159,11 @@ function armed(cursed: 0 | 1) {
 }
 ok(armed(1).dmg > armed(0).dmg && armed(1).speed < armed(0).speed, "проклятие множит урон и режет скорость");
 
-ok(FLOORS[0].sw === "dungeon_intro_1" && FLOORS[0].general === "Манекен I" && FLOORS[0].boss === "Теневой Страж" && FLOORS[2].name === "Чёрные Чумные Топи" && FLOORS[12].sw === "dungeon_titan_cradle" && FLOORS[12].boss === "Титан Атлас", "13 этажей — данжи Тёмного мира, не чужая пещера");
-ok(new Set(FLOORS.map((f) => f.gRow + ":" + f.bRow)).size === 13, "у этажей разные пары обликов элиты");
+ok(auditShadowCatalog() === null, auditShadowCatalog() || "снимок данжей совпал с файлами Тёмного мира");
+ok(FLOOR_N === 169 && FLOORS.length === 169 && new Set(FLOORS.map((f) => f.sw)).size === 17, "в игре 17 данжей и 169 этапов, не тринадцать комнат");
+ok(FLOORS.find((f) => f.sw === "dungeon_intro_3")?.dungeonName === "Хрустальные Пещеры" && floorNeed(FLOORS.find((f) => f.sw === "dungeon_intro_3")!.n) === 6, "третий данж — Хрустальные Пещеры с 6 уровня, как в файле замены");
+ok(FLOORS[FLOOR_N - 1].sw === "dungeon_null_dimension" && FLOORS[FLOOR_N - 1].boss.includes("Архитектор") && floorNeed(FLOOR_N) === 300, "последний этап — Архитектор Нуль-Измерения, уровень 300");
+ok(new Set(FLOORS.filter((f, i) => FLOORS.findIndex((x) => x.dungeon === f.dungeon) === i).map((f) => f.gRow + ":" + f.bRow)).size === 17, "у семнадцати данжей разные пары обликов элиты");
 const renamed = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 renamed.floors[0].general = "Тестовый Командир";
 const renamedOk = validateTune(renamed);
@@ -216,25 +226,17 @@ const blackBlade = trade({ ench: 6 });
 ok(cursedBlade.dmg > plainBlade.dmg && cursedBlade.speed < plainBlade.speed, "проклятый клинок поднимает урон и режет шаг");
 ok(blackBlade.dmg > cursedBlade.dmg && blackBlade.speed < cursedBlade.speed, "чёрный ярус сильнее проклятия и ещё медленнее");
 
-const names = new Set<string>();
 let roster = true;
-for (let fl = 1; fl <= 13; fl++) {
-  const def = FLOORS[fl - 1];
-  const kit = floorKit(fl);
+for (const def of FLOORS) {
+  const kit = floorKit(def.n);
   if (def.general !== kit.general || def.boss !== kit.boss) roster = false;
   if (!["circle", "cone", "line", "curse", "summon"].includes(kit.gSig)) roster = false;
-  if (def.gRow < 0 || def.bRow < 0) roster = false;
-  names.add(kit.general);
-  names.add(kit.boss);
-  const b = new Battle(fl, [{ id: "you", name: "t", hero: "lorin", sheet: sheet(chooser) }], fl);
-  b.party[0].hp = 99999;
-  b.party[0].maxHp = 99999;
-  for (let i = 0; i < 200 && b.elites.length === 0; i++) b.step(0.05);
-  if (!b.elites[0] || !b.elites[0].name.includes(kit.general)) roster = false;
 }
-ok(roster && names.size === 26, "все 13 этажей зовут своих генерала и босса и ставят их в бой");
-ok(eliteName("boss", 13).includes("Абсолютный") && floorMut(13)?.name === "Абсолютный", "последний этаж носит мутацию Абсолютный в потолке Орды");
-ok(eliteHp("boss", 13, 1) === Math.round((DEFAULT_TUNE.combat.bossHp + 13 * DEFAULT_TUNE.combat.bossHpPerFloor) * 2.3), "мутация множит здоровье, но не на ×360");
+const bossFloor = FLOORS.find((f) => f.goal === "boss")!;
+ok(roster && bossFloor.boss === "Теневой Страж" && bossFloor.file.endsWith("01_intro_castle.js") && makeScript(bossFloor.n, 1).bossAt === 36000, "этап с боссом берёт имя из файла и оставляет явку босса");
+ok(eliteName("boss", FLOOR_N).includes("Абсолютный") && floorMut(FLOOR_N)?.name === "Абсолютный", "чертог Нуля носит мутацию Абсолютный");
+const nullScale = fightScale(FLOOR_N);
+ok(eliteHp("boss", FLOOR_N, 1) === Math.round((DEFAULT_TUNE.combat.bossHp + nullScale * DEFAULT_TUNE.combat.bossHpPerFloor) * 2.3), "мутация множит здоровье, но не на ×360");
 const wild = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 wild.mut.mult[9] = 360;
 ok(!validateTune(wild).ok, "×360 Тёмного мира правило не пускает");
@@ -266,26 +268,34 @@ ok((cup.quests.b1?.p || 0) === 1, "победа двигает квест бос
 const locked = newProfile(20);
 setHero(locked, "lorin");
 locked.clears = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-ok(floorOpen(locked, 2) && locked.lvl === 1, "уже пройденный данж открыт для повтора даже на 1 уровне");
+const roadN = FLOORS.find((f) => f.sw === "dungeon_intro_2")!.n;
+const legacy = JSON.parse(JSON.stringify(locked));
+legacy.clears = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+legacy.chain = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3];
+legacy.roster = [];
+const kept = normalize(legacy);
+ok(floorOpen(kept, roadN) && kept.lvl === 1 && kept.clears.length === FLOOR_N, "старые 13 зачисток открывают те же данжи для повтора даже на 1 уровне");
 const fresh = newProfile(23);
 setHero(fresh, "lorin");
-const low = floorLock(fresh, 2);
-ok(!!low && low.includes("уровня 2") && fresh.lvl === 1 && floorOpen(fresh, 1), "непройденный тракт на 1 уровне закрыт, первый данж открыт");
+const low = floorLock(fresh, roadN);
+ok(!!low && low.includes("уровня 2") && fresh.lvl === 1 && floorOpen(fresh, 1) && !floorOpen(fresh, 2), "непройденный тракт на 1 уровне закрыт, второй этап замка закрыт до первого");
+const titan = FLOORS.find((f) => f.sw === "dungeon_titan_cradle")!;
 const gifted = newProfile(21);
 setHero(gifted, "lorelin");
-gifted.lvl = floorNeed(13);
-ok(floorOpen(gifted, 13) && gifted.clears.every((c) => !c), "уровень 15 открывает колыбель титанов без единой зачистки");
+gifted.lvl = floorNeed(titan.n);
+ok(floorOpen(gifted, titan.n) && !floorOpen(gifted, titan.n + 1) && gifted.clears.every((c) => !c), "уровень колыбели открывает её первый этаж и не пропускает второй");
 const heir = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 for (const row of heir.floors) { delete row.need; delete row.xp; }
 const heirOk = validateTune(heir);
-ok(heirOk.ok && heirOk.ok && heirOk.tune.floors[2].need === 4 && heirOk.tune.floors[9].xp === 2830, "старый набор этажей получает порог уровня и опыт по умолчанию");
+const crystal = FLOORS.find((f) => f.sw === "dungeon_intro_3")!;
+ok(heirOk.ok && heirOk.tune.floors.length === FLOOR_N && heirOk.tune.floors[crystal.n - 1].need === 6 && heirOk.tune.floors[0].xp === 55, "набор без порога получает уровень и опыт из снимка данжей");
 
 const walker = newProfile(22);
 setHero(walker, "listaf");
 let chain = true;
-for (let f = 1; f <= 13; f++) {
+for (let f = 1; f <= FLOOR_N; f++) {
   if (!floorOpen(walker, f)) chain = false;
-  if (f < 13 && floorOpen(walker, f + 1)) chain = false;
+  if (f < FLOOR_N && FLOORS[f].dungeon === FLOORS[f - 1].dungeon && floorOpen(walker, f + 1)) chain = false;
   const go = beginRun(walker, f, 10_000 * f);
   if ("err" in go) { chain = false; break; }
   const done = finishRun(walker, { nonce: go.nonce, reason: "win", boss: true }, 10_000 * f + 40_000, mulberry32(f), { kills: killNeed(f), generals: 3, boss: true });
@@ -295,7 +305,7 @@ for (let f = 1; f <= 13; f++) {
     if ("err" in got) chain = false;
   }
 }
-ok(chain && walker.lvl >= floorNeed(13) && floorOpen(walker, 13), `кампания 13 данжей доводит уровень до ${walker.lvl}, каждый следующий был закрыт до награды`);
+ok(chain && walker.lvl >= 300 && floorOpen(walker, FLOOR_N), `кампания всех этапов доводит уровень до ${walker.lvl}, следующий этаж того же данжа был закрыт до награды`);
 const bare = newProfile(30);
 setHero(bare, "lorin");
 const bareGo = beginRun(bare, 1, 1000);
@@ -344,12 +354,13 @@ ok(DIFF_NAME.join(",") === "Базовая,Необычный,Редкий,Ст�
 let matrix = true;
 const ratiosHp = DEFAULT_TUNE.diff.hp;
 const ratiosDmg = DEFAULT_TUNE.diff.dmg;
-for (let f = 1; f <= 13; f++) {
+for (let f = 1; f <= FLOOR_N; f++) {
   let prevGold = 0, prevXp = 0, prevHp = 0;
   for (let d = 1; d <= 7; d++) {
     const who = newProfile(1000 + f * 10 + d);
     setHero(who, "lorin");
     who.lvl = Math.max(who.lvl, floorNeed(f));
+    if (f > 1) who.clears[f - 2] = 1;
     who.chain[f - 1] = d - 1;
     const o = runOffer(who, f, d, 1);
     if (o.hp !== ratiosHp[d - 1] || o.dmg !== ratiosDmg[d - 1] || o.name !== DIFF_NAME[d - 1]) matrix = false;
@@ -363,7 +374,7 @@ for (let f = 1; f <= 13; f++) {
     prevHp = o.bossHp; prevGold = o.goldFirst; prevXp = o.xpFirst;
   }
 }
-ok(matrix, "матрица 13 этажей × 7 цветов: опасность растёт, следующий цвет закрыт");
+ok(matrix, "матрица всех этапов × 7 цветов: опасность растёт, следующий цвет закрыт");
 
 const junior = newProfile(70);
 setHero(junior, "veles");
@@ -458,6 +469,7 @@ ok(highGear.affixes.some((a) => a.stat === "ls" || a.stat === "dmg"), "чёрн�
 const smith = newProfile(77);
 setHero(smith, "lorin");
 smith.lvl = 12;
+smith.clears[0] = 1;
 smith.chain[1] = 1;
 const forged = beginRun(smith, 2, 8000, undefined, false, 2);
 const forgedRun = !("err" in forged) ? finishRun(smith, { nonce: forged.nonce, reason: "win", boss: true, diff: 1 }, 8000 + 40_000, mulberry32(15), { kills: killNeed(2), generals: 1, boss: true }) : forged;

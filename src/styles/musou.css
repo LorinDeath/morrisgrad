@@ -77,7 +77,9 @@ button { cursor: pointer; }
 .plus { width: 26px; height: 26px; border: 1px solid var(--gold); background: transparent; color: var(--gold-2); }
 .derived { color: var(--muted); font-size: 0.82rem; line-height: 1.45; margin-top: 8px; }
 
-.campaign { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; margin: 8px 0 12px; }
+.campaign { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow: auto; margin: 8px 0 8px; }
+.stage-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.stage-row .stage { font-size: 12px; text-align: left; }
 .dungeon {
   display: flex; gap: 10px; align-items: center; width: 100%; text-align: left;
   padding: 8px 10px; color: var(--text); background: rgba(0,0,0,.28);

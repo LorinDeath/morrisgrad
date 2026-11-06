@@ -304,9 +304,9 @@ export class Battle {
     this.spawnAcc = 0;
     this.generalOut = false;
     this.waveNeed = this.budgets[this.wave] || 0;
-    if (this.wave < 3) {
-      const stage = this.floor.stages[this.wave] || `Волна ${this.wave + 1}`;
-      this.say(stage, this.floor.desc, 1.15);
+    if (this.wave < 3 || (this.wave === 3 && this.floor.goal === "pack")) {
+      const stage = this.floor.stages[Math.min(2, this.wave)] || this.floor.name;
+      this.say(stage, this.floor.goal === "pack" && this.wave === 3 ? "На этапе нет босса: зачистка — сбить именную толпу" : this.floor.desc, 1.15);
       const burst = Math.min(10, this.waveNeed);
       for (let i = 0; i < burst; i++) this.spawnMob();
       this.spawned = burst;
@@ -318,15 +318,15 @@ export class Battle {
 
   private spawn(dt: number) {
     if (this.wave > 3) return;
-    if (this.wave < 3) {
-      this.spawnAcc = Math.min(6, this.spawnAcc + dt * (14 + this.floor.n));
+    if (this.wave < 3 || (this.wave === 3 && this.floor.goal === "pack")) {
+      this.spawnAcc = Math.min(6, this.spawnAcc + dt * (14 + this.floor.stage));
       const alive = this.countAlive();
       while (this.spawnAcc >= 1 && this.spawned < this.waveNeed && alive + (this.spawned % 3) < 150) {
         this.spawnAcc -= 1;
         this.spawnMob();
         this.spawned++;
       }
-      if (!this.generalOut && this.spawned > this.waveNeed * 0.45 && !this.remote) {
+      if (!this.generalOut && this.floor.spawnGeneral && this.spawned > this.waveNeed * 0.45 && !this.remote) {
         this.generalOut = true;
         this.spawnElite("general");
         this.say(this.floor.general, `Генерал волны ${this.wave + 1}`, 1.35);
@@ -334,8 +334,15 @@ export class Battle {
         this.flashCol = "#ffb0a0";
       }
       if (this.spawned >= this.waveNeed && this.countAlive() === 0 && this.waveClear()) {
-        this.wave++;
-        this.beginWave();
+        if (this.wave === 3) {
+          this.bossDown = true;
+          this.phase = "won";
+          this.reason = "win";
+          this.say("Этаж зачищен", this.floor.name, 2.4);
+        } else {
+          this.wave++;
+          this.beginWave();
+        }
       }
     } else if (this.bossDown) {
       this.killAllPretty();

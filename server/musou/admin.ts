@@ -126,7 +126,7 @@ export async function musouAdminHttp(request: Request, env: any, repo?: TuneRepo
   const ctype = request.headers.get("content-type") || "";
   if (!ctype.toLowerCase().includes("application/json")) return J({ err: "type", msg: "Нужен application/json" }, 415);
   const text = await request.text();
-  if (text.length > 20_000) return J({ err: "size" }, 413);
+  if (text.length > 80_000) return J({ err: "size" }, 413);
   let body: any;
   try { body = JSON.parse(text); } catch { return J({ err: "json" }, 400); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return J({ err: "json" }, 400);

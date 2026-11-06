@@ -4,7 +4,7 @@ import { identify } from "../strat/ident";
 import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limits";
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
-import { beginRun, chainAt, clampStrike, diffLock, finishRun, floorByN, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
+import { beginRun, chainAt, clampStrike, diffLock, finishRun, FLOOR_N, floorByN, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
 import { diffRow, eliteHp, eliteName, floorKit, getTune } from "../../src/scripts/musou/tune";
 
 type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[]; chain?: number[] };
@@ -119,7 +119,7 @@ export class MusouRoom extends DurableObject {
     if (!seat) return;
     if (m.type === "floor" && L.host === seat.pkey && L.phase === "lobby") {
       const n = m.floor | 0;
-      if (n < 1 || n > 13) return;
+      if (n < 1 || n > FLOOR_N) return;
       const prof = await loadProfile(this.env.GAME_DB, seat.pkey);
       seat.lvl = prof.lvl | 0;
       seat.passed = prof.clears.map((c) => c > 0);
@@ -185,7 +185,7 @@ export class MusouRoom extends DurableObject {
       s.passed = p.clears.map((c) => c > 0);
       s.chain = p.chain;
       loaded.push({ s, p });
-      const why = memberDiffLock(p.lvl | 0, (p.clears[L.floor - 1] || 0) > 0, L.floor, L.diff || 1, chainAt(p, L.floor));
+      const why = memberDiffLock(p.lvl | 0, (p.clears[L.floor - 1] || 0) > 0, L.floor, L.diff || 1, chainAt(p, L.floor), L.floor <= 1 || (p.clears[L.floor - 2] || 0) > 0);
       if (why) short.push(`${s.nick}: ${why}`);
     }
     if (short.length) {
@@ -223,14 +223,16 @@ export class MusouRoom extends DurableObject {
     L.reports = L.reports || {};
     const elapsed = Date.now() - L.started;
     const script = makeScript(L.floor, L.seed);
+    const art = floorByN(L.floor);
     const plan = [
-      { id: "g0", at: script.genAt[0], kind: "general" as const },
-      { id: "g1", at: script.genAt[1], kind: "general" as const },
-      { id: "g2", at: script.genAt[2], kind: "general" as const },
-      { id: "boss", at: script.bossAt, kind: "boss" as const },
+      ...(art.spawnGeneral ? [
+        { id: "g0", at: script.genAt[0], kind: "general" as const },
+        { id: "g1", at: script.genAt[1], kind: "general" as const },
+        { id: "g2", at: script.genAt[2], kind: "general" as const },
+      ] : []),
+      ...(art.goal === "pack" ? [] : [{ id: "boss", at: script.bossAt, kind: "boss" as const }]),
     ];
     const kit = floorKit(L.floor);
-    const art = floorByN(L.floor);
     let changed = false;
     plan.forEach((s) => {
       if (elapsed < s.at || L.elites.some((e) => e.id === s.id)) return;

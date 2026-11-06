@@ -4,6 +4,7 @@
 // За скорость платит герой: чем выше ярус, тем медленнее шаг.
 // Мутации Тёмного мира носят те же десять имён, но множитель режется
 // потолком 2.4: ×360 стирает ручной бой и правилом не проходит.
+import { FLOOR_N, SW_FLOORS, fightScale } from "./sw-catalog";
 
 export type OrdaTune = {
   v: 1;
@@ -197,21 +198,7 @@ export const DEFAULT_TUNE: OrdaTune = {
     regen: [0, 0.01, 0.01, 0.012, 0.012, 0.02, 0.02],
   },
   forge: { on: 1, drop: 3, max: 58 },
-  floors: [
-    { general: "Манекен I", boss: "Теневой Страж", gSig: "circle", bSig: "cone", mut: 0, need: 1, xp: 135 },
-    { general: "Головорез тракта", boss: "Атаман Мародёров", gSig: "cone", bSig: "line", mut: 0, need: 2, xp: 190 },
-    { general: "Чумной сгусток", boss: "Болотный Ужас", gSig: "line", bSig: "circle", mut: 0, need: 4, xp: 245 },
-    { general: "Могильный Упырь", boss: "Чёрный Жнец", gSig: "curse", bSig: "summon", mut: 0, need: 6, xp: 300 },
-    { general: "Громовержец", boss: "Райдзин", gSig: "line", bSig: "cone", mut: 1, need: 7, xp: 355 },
-    { general: "Пожиратель Сущностей", boss: "Танатос", gSig: "curse", bSig: "circle", mut: 2, need: 8, xp: 410 },
-    { general: "Магма-Голем", boss: "Суртур", gSig: "circle", bSig: "summon", mut: 3, need: 9, xp: 465 },
-    { general: "Бездонный Страж", boss: "Левиафан", gSig: "summon", bSig: "cone", mut: 4, need: 10, xp: 520 },
-    { general: "Коррумпированное Ядро", boss: "Творец Искажения", gSig: "line", bSig: "curse", mut: 5, need: 11, xp: 575 },
-    { general: "Страж Нулевой Точки", boss: "Азатот", gSig: "curse", bSig: "summon", mut: 6, need: 12, xp: 2830 },
-    { general: "Жрец Крови", boss: "Кармилла", gSig: "cone", bSig: "curse", mut: 7, need: 13, xp: 685 },
-    { general: "Каратель", boss: "Призрачный Понтифик", gSig: "cone", bSig: "line", mut: 8, need: 14, xp: 1640 },
-    { general: "Каменный Страж", boss: "Титан Атлас", gSig: "circle", bSig: "summon", mut: 10, need: 15, xp: 795 },
-  ],
+  floors: SW_FLOORS.map((f) => ({ general: f.general, boss: f.boss, gSig: f.gSig, bSig: f.bSig, mut: f.mut, need: f.minLvl, xp: f.xp })),
 };
 
 const NUM = new Set(["number"]);
@@ -425,31 +412,54 @@ function readDiff(raw: unknown): DiffTune | string {
   return out;
 }
 
+function readFloorRow(rec: Record<string, unknown>, i: number, fallback: FloorTune): FloorTune | string {
+  for (const k of Object.keys(rec)) if (!["general", "boss", "gSig", "bSig", "mut", "need", "xp"].includes(k)) return `floors[${i}]: лишнее поле ${k}`;
+  const general = rec.general == null ? fallback.general : cleanNote(rec.general);
+  const boss = rec.boss == null ? fallback.boss : cleanNote(rec.boss);
+  if (general.length < 2 || boss.length < 2) return `floors[${i}]: имя короче 2`;
+  const gSig = rec.gSig == null ? fallback.gSig : rec.gSig;
+  const bSig = rec.bSig == null ? fallback.bSig : rec.bSig;
+  if (!SIGS.has(String(gSig)) || !SIGS.has(String(bSig))) return `floors[${i}]: приём circle, cone, line, curse или summon`;
+  const mut = rec.mut == null ? fallback.mut : rec.mut;
+  if (typeof mut !== "number" || !Number.isInteger(mut) || mut < 0 || mut > MUT_NAMES.length) return `floors[${i}]: мутация 0…${MUT_NAMES.length}`;
+  const need = rec.need == null ? fallback.need : rec.need;
+  const xp = rec.xp == null ? fallback.xp : rec.xp;
+  if (typeof need !== "number" || !Number.isInteger(need) || need < 1 || need > 300) return `floors[${i}]: уровень входа 1…300`;
+  if (typeof xp !== "number" || !Number.isInteger(xp) || xp < 0 || xp > 20000000) return `floors[${i}]: опыт зачистки 0…20000000`;
+  return { general, boss, gSig: gSig as Sig, bSig: bSig as Sig, mut, need, xp };
+}
+
 function readFloors(raw: unknown): FloorTune[] | string {
-  if (!Array.isArray(raw) || raw.length !== 13) return "floors: ровно 13 этажей";
+  if (!Array.isArray(raw)) return "floors: нужен список";
+  if (raw.length === 13) {
+    const out = DEFAULT_TUNE.floors.map((row) => ({ ...row }));
+    for (let d = 0; d < 13; d++) {
+      const row = raw[d];
+      if (!row || typeof row !== "object" || Array.isArray(row)) return `floors[${d}]: нужен объект`;
+      const stages = SW_FLOORS.filter((f) => f.dungeon === d + 1);
+      const boss = stages.filter((f) => f.goal === "boss").pop() || stages[stages.length - 1];
+      for (const f of stages) {
+        const parsed = readFloorRow(row as Record<string, unknown>, d, out[f.n - 1]);
+        if (typeof parsed === "string") return parsed;
+        out[f.n - 1] = f.n === boss.n ? parsed : { ...out[f.n - 1], need: parsed.need };
+      }
+    }
+    return out;
+  }
+  if (raw.length !== FLOOR_N) return `floors: ${FLOOR_N} этапов или старые 13 данжей`;
   const out: FloorTune[] = [];
-  for (let i = 0; i < 13; i++) {
+  for (let i = 0; i < FLOOR_N; i++) {
     const row = raw[i];
     if (!row || typeof row !== "object" || Array.isArray(row)) return `floors[${i}]: нужен объект`;
-    const rec = row as Record<string, unknown>;
-    for (const k of Object.keys(rec)) if (!["general", "boss", "gSig", "bSig", "mut", "need", "xp"].includes(k)) return `floors[${i}]: лишнее поле ${k}`;
-    const general = cleanNote(rec.general);
-    const boss = cleanNote(rec.boss);
-    if (general.length < 2 || boss.length < 2) return `floors[${i}]: имя короче 2`;
-    if (!SIGS.has(String(rec.gSig)) || !SIGS.has(String(rec.bSig))) return `floors[${i}]: приём circle, cone, line, curse или summon`;
-    const mut = rec.mut == null ? 0 : rec.mut;
-    if (typeof mut !== "number" || !Number.isInteger(mut) || mut < 0 || mut > MUT_NAMES.length) return `floors[${i}]: мутация 0…${MUT_NAMES.length}`;
-    const need = rec.need == null ? DEFAULT_TUNE.floors[i].need : rec.need;
-    const xp = rec.xp == null ? DEFAULT_TUNE.floors[i].xp : rec.xp;
-    if (typeof need !== "number" || !Number.isInteger(need) || need < 1 || need > 60) return `floors[${i}]: уровень входа 1…60`;
-    if (typeof xp !== "number" || !Number.isInteger(xp) || xp < 0 || xp > 8000) return `floors[${i}]: опыт зачистки 0…8000`;
-    out.push({ general, boss, gSig: rec.gSig as Sig, bSig: rec.bSig as Sig, mut, need, xp });
+    const parsed = readFloorRow(row as Record<string, unknown>, i, DEFAULT_TUNE.floors[i]);
+    if (typeof parsed === "string") return parsed;
+    out.push(parsed);
   }
   return out;
 }
 
 export function floorKit(n: number, t = active): FloorTune {
-  const i = Math.max(1, Math.min(13, n | 0)) - 1;
+  const i = Math.max(1, Math.min(FLOOR_N, n | 0)) - 1;
   return t.floors[i];
 }
 
@@ -509,7 +519,7 @@ export function chestTotal(diff = 1, t = active) {
 
 export function mobHp(kind: number, floor: number, t = active, diff = 1) {
   const i = ((kind % 3) + 3) % 3;
-  const base = t.combat.mobHp[i] + Math.max(1, floor | 0) * t.combat.mobHpPerFloor;
+  const base = t.combat.mobHp[i] + fightScale(floor) * t.combat.mobHpPerFloor;
   return Math.max(1, Math.round(base * diffRow(diff, t).hp));
 }
 export function mobDmg(kind: number, t = active, diff = 1) {
@@ -521,16 +531,18 @@ export function partyHpMult(party = 1, t = active) {
   return Math.min(t.combat.partyHpCap, 1 + t.combat.partyHpPerExtra * extra);
 }
 export function eliteHp(kind: "general" | "boss", floor: number, party = 1, t = active, diff = 1) {
-  const n = Math.max(1, Math.min(13, floor | 0));
+  const n = Math.max(1, Math.min(FLOOR_N, floor | 0));
+  const scale = fightScale(n);
   const base = kind === "boss"
-    ? t.combat.bossHp + n * t.combat.bossHpPerFloor
-    : t.combat.generalHp + n * t.combat.generalHpPerFloor;
+    ? t.combat.bossHp + scale * t.combat.bossHpPerFloor
+    : t.combat.generalHp + scale * t.combat.generalHpPerFloor;
   const grown = floorMut(n, t)?.mult || 1;
   return Math.round(base * partyHpMult(party, t) * grown * diffRow(diff, t).hp);
 }
 export function eliteDmg(kind: "general" | "boss", floor: number, t = active, diff = 1) {
-  const n = Math.max(1, Math.min(13, floor | 0));
-  const base = kind === "boss" ? t.combat.bossDmg + n * t.combat.bossDmgPerFloor : t.combat.generalDmg + n * t.combat.generalDmgPerFloor;
+  const n = Math.max(1, Math.min(FLOOR_N, floor | 0));
+  const scale = fightScale(n);
+  const base = kind === "boss" ? t.combat.bossDmg + scale * t.combat.bossDmgPerFloor : t.combat.generalDmg + scale * t.combat.generalDmgPerFloor;
   return base * (floorMut(n, t)?.mult || 1) * diffRow(diff, t).dmg;
 }
 

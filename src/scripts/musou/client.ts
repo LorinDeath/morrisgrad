@@ -257,10 +257,30 @@ function goLabel(floor: number, diff: number) {
   return `${(profile.clears[floor - 1] || 0) > 0 ? "Ещё раз" : "В бой"} · ${name} · ${mode}`;
 }
 
+function dungeonHeads(profile: Profile, current: number) {
+  const heads: typeof FLOORS = [];
+  for (const f of FLOORS) if (!heads.some((d) => d.dungeon === f.dungeon)) heads.push(f);
+  return heads.map((d) => {
+    const rows = FLOORS.filter((f) => f.dungeon === d.dungeon);
+    const done = rows.filter((f) => (profile.clears[f.n - 1] || 0) > 0).length;
+    const open = rows.some((f) => !floorLock(profile, f.n));
+    return `<button type="button" class="dungeon${d.dungeon === current ? " on" : ""}${open ? "" : " lock"}" data-dungeon="${d.dungeon}"><span class="n">${d.dungeon}</span><span class="dn"><b>${d.dungeonName}</b><small>ур. ${floorNeed(d.n)} · ${done}/${rows.length} этажей</small></span></button>`;
+  }).join("");
+}
+
+function stageChips(profile: Profile, dungeon: number, current: number) {
+  return FLOORS.filter((f) => f.dungeon === dungeon).map((f) => {
+    const why = floorLock(profile, f.n);
+    const clr = (profile.clears[f.n - 1] || 0) > 0;
+    return `<button type="button" class="btn stage${f.n === current ? " gold" : ""}${why ? " lock" : ""}" data-floor="${f.n}">${f.stage}. ${f.name}${clr ? " · пройден" : why ? " · закрыт" : ""}</button>`;
+  }).join("");
+}
+
 function renderHub() {
   const s = sheet(profile);
   const hero = heroById(profile.hero);
   const openF = floorPick;
+  const open = FLOORS[openF - 1] || FLOORS[0];
   const quests = questViews(profile, openF);
   const ready = readyQuests(profile);
   const set = setBonus(profile);
@@ -291,15 +311,11 @@ function renderHub() {
       <div class="row"><button class="btn" id="open-heroes" type="button">Герои</button><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
     </section>
     <section class="panel">
-      <h2>Кампания подвала</h2>
-      <p class="derived">Первый вход открывает уровень героя. Пройденный данж можно брать снова: опыт и золото этажа меньше, квест сдаётся один раз. Сейчас уровень ${profile.lvl}.</p>
-      <div class="campaign">${FLOORS.map((f) => {
-        const why = floorLock(profile, f.n);
-        const clr = (profile.clears[f.n - 1] || 0) > 0;
-        const state = why ? "Закрыт" : clr ? "Пройден" : "Доступен";
-        return `<button type="button" class="dungeon${f.n === openF ? " on" : ""}${why ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}"><span class="n">${f.n}</span><span class="dn"><b>${f.name}</b><small>ур. ${floorNeed(f.n)} · ${f.place}</small><em class="state ${why ? "lock" : clr ? "pass" : "open"}">${state}</em></span></button>`;
-      }).join("")}</div>
-      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : (profile.clears[openF - 1] || 0) > 0 ? `<p class="derived">Пройден. Повтор не закрывает следующие данжи. Квест сдаётся один раз, сложность выбирается заново.</p>` : `<p class="derived">Доступен для первого прохода.</p>`}
+      <h2>Кампания</h2>
+      <p class="derived">Семнадцать данжей Тёмного мира. Внутри данжа его этажи, у этажа цвет чар. Данж открывает уровень из файла. Следующий этаж того же данжа — после предыдущего. Пройденный этаж можно брать снова. Сейчас уровень ${profile.lvl}.</p>
+      <div class="campaign">${dungeonHeads(profile, open.dungeon)}</div>
+      <div class="stage-row">${stageChips(profile, open.dungeon, openF)}</div>
+      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : (profile.clears[openF - 1] || 0) > 0 ? `<p class="derived">Этап пройден. Повтор не открывает следующий цвет и не сдаёт квест второй раз.</p>` : `<p class="derived">Этап доступен для первого прохода.</p>`}
       <div class="diffs">${DIFF_NAME.map((name, i) => {
         const id = i + 1;
         const why = diffLock(profile, openF, id);
@@ -309,8 +325,8 @@ function renderHub() {
       ${compareHtml(openF)}
       <p class="offer">${offerText(openF, diffPick)}</p>
       <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${diffLock(profile, openF, diffPick) ? "disabled" : ""}>${goLabel(openF, diffPick)}</button></div>
-      <p class="dungeon-lead"><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].desc}</p>
-      <p>Ярусы: ${FLOORS[openF - 1].stages.join(" → ")}. Толпа «${FLOORS[openF - 1].mob}». Генерал ${FLOORS[openF - 1].general}. Босс: ${FLOORS[openF - 1].boss}, ${FLOORS[openF - 1].bossTitle}.${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}.` : ""}</p>
+      <p class="dungeon-lead"><b>${open.dungeonName}</b> → этаж ${open.stage} из ${open.stagesInDungeon}: ${open.name}. ${open.desc}</p>
+      <p>Толпа «${open.mob}». ${open.goal === "boss" ? "Босс" : open.goal === "elite" ? "Элита" : "Цель толпы"}: ${open.boss}. ${open.bossTitle}. В файле у цели ${open.srcHp} здоровья и ${open.srcAtk} урона. Бой Орды считает свою кривую и эти числа в удар не подставляет.${open.spawnGeneral ? ` Генерал: ${open.general}.` : ""}${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}.` : ""} Источник: ${open.file}.</p>
       <p class="derived">Режим на этот заход. Клятва меняет бой. Кубок списывает ${getTune().oath.stake} зл до старта.</p>
       <div class="row modes">${OATHS.map((o) => `<button type="button" class="btn${profile.oath === o.id ? " gold" : ""}" data-oath="${o.id}" title="${o.note}">${o.name}</button>`).join("")}</div>
       <p class="derived" id="oath-note">${OATHS.find((o) => o.id === profile.oath)?.note || ""}</p>
@@ -335,6 +351,13 @@ function renderHub() {
     </section>
   </div>`;
   root.querySelectorAll<HTMLButtonElement>("[data-floor]").forEach((b) => b.onclick = () => { floorPick = Number(b.dataset.floor); renderHub(); });
+  root.querySelectorAll<HTMLButtonElement>("[data-dungeon]").forEach((b) => b.onclick = () => {
+    const d = Number(b.dataset.dungeon);
+    const rows = FLOORS.filter((f) => f.dungeon === d);
+    const next = rows.find((f) => !floorLock(profile, f.n) && !(profile.clears[f.n - 1])) || rows.find((f) => !floorLock(profile, f.n)) || rows[0];
+    floorPick = next?.n || 1;
+    renderHub();
+  });
   root.querySelectorAll<HTMLButtonElement>("[data-diff]").forEach((b) => b.onclick = () => { diffPick = Number(b.dataset.diff) || 1; renderHub(); });
   root.querySelectorAll<HTMLButtonElement>("[data-oath]").forEach((b) => b.onclick = async () => {
     const id = b.dataset.oath || "none";
@@ -548,10 +571,11 @@ async function connect(code: string, fromDrop = false) {
       const box = $<HTMLElement>("room-box");
       const mode = m.diff | 0 || 1;
       const low = (m.seats as { nick: string; lvl?: number; passed?: boolean; chain?: number }[]).filter((s) => memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode, s.chain | 0));
-      const chips = room.host ? FLOORS.filter((f) => floorOpen(profile, f.n)).map((f) => {
+      const here = FLOORS[Math.max(0, (m.floor | 0) - 1)] || FLOORS[0];
+      const chips = room.host ? FLOORS.filter((f) => f.dungeon === here.dungeon && floorOpen(profile, f.n)).map((f) => {
         const passed = (profile.clears[f.n - 1] || 0) > 0;
         const on = (m.floor | 0) === f.n;
-        return `<button type="button" class="btn${on ? " gold" : ""}" data-room-floor="${f.n}">${f.n} · ${passed ? "Пройден" : "Доступен"}</button>`;
+        return `<button type="button" class="btn${on ? " gold" : ""}" data-room-floor="${f.n}">${f.stage}. ${f.name}${passed ? " · пройден" : ""}</button>`;
       }).join("") : "";
       const modes = room.host ? DIFF_NAME.map((name, i) => {
         const id = i + 1;
