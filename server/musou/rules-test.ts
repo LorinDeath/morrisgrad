@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, rollDropTier, rollItem, roomOutcome, runOffer, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
+  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, normalize, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, takeInbox, unequip,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
 import { pickShard } from "./plaza";
@@ -473,6 +473,51 @@ ok(rollDropTier(mulberry32(3), 1) === 0 && sawHome && sawLower, "база рон
 const roomy = pickShard([24, 24, 3, 0, 0, 0, 0, 0]);
 const packed = pickShard([24, 24, 24, 24, 24, 24, 24, 24]);
 ok("shard" in roomy && roomy.shard === 3 && "err" in packed && packed.err === "Двор обители полон", "двор сажает на самый свободный осколок и закрывается, когда все места заняты");
+
+const cast = newProfile(81);
+setHero(cast, "lorin");
+cast.lvl = 8;
+cast.unspent = 2;
+spendStat(cast, "str");
+cast.clears[0] = 1;
+cast.chain[0] = 1;
+cast.gold = 400;
+const blade = rollItem(mulberry32(4), { ilvl: 12, floor: 1, rarity: "rare", bare: true, id: "blade-a" });
+blade.slot = "weapon";
+blade.dmg = 40;
+blade.req = 10;
+cast.bag = [blade];
+const bareDmg = sheet(cast).dmg;
+ok(!!equipItem(cast, blade.id) && cast.bag.length === 1 && sheet(cast).dmg === bareDmg, "герой ниже требуемого уровня не надевает вещь и не получает её статы");
+blade.req = 1;
+ok(equipItem(cast, blade.id) === null && cast.bag.length === 0 && cast.equip.weapon?.id === "blade-a", "подходящий уровень надевает и убирает вещь из общей сумки");
+setHero(cast, "veles");
+ok(cast.hero === "veles" && cast.lvl === 1 && cast.unspent === 0 && cast.clears[0] === 0 && !cast.equip.weapon && cast.bag.length === 0 && cast.gold === 400, "новый герой с нуля, чужое надетое не в сумке, золото общее");
+cast.lvl = 4;
+const second = rollItem(mulberry32(5), { ilvl: 3, floor: 1, rarity: "magic", bare: true, id: "helm-b" });
+second.slot = "helm";
+second.req = 1;
+cast.bag.push(second);
+ok(equipItem(cast, second.id) === null && cast.equip.helm?.id === "helm-b", "надеть пишет на активного героя");
+setHero(cast, "lorin");
+ok(cast.lvl === 8 && cast.alloc.str === 1 && cast.clears[0] === 1 && cast.equip.weapon?.id === "blade-a" && !cast.equip.helm && cast.bag.length === 0, "возврат к первому герою возвращает его уровень и клинок");
+setHero(cast, "veles");
+ok(unequip(cast, "helm") === null && cast.bag.some((it) => it.id === "helm-b") && !cast.roster.find((r) => r.id === "lorin")?.equip.weapon === false, "снятие кладёт вещь в общую сумку и не трогает чужой слот");
+setHero(cast, "lorin");
+ok(cast.equip.weapon?.id === "blade-a" && cast.bag.some((it) => it.id === "helm-b"), "клинок первого героя не уехал в сумку вместе со шлемом второго");
+const round = normalize(JSON.parse(JSON.stringify(seal(cast) || cast)));
+ok(round.hero === "lorin" && round.bag.length === 1 && round.roster.length === 2 && round.roster.find((r) => r.id === "veles")?.lvl === 4, "снимок не удваивает сумку и не смешивает уровни");
+const old = { hero: "lorin", lvl: 6, bag: [second], equip: { weapon: blade, helm: null, chest: null, gloves: null, boots: null, amulet: null, ring1: null, ring2: null }, clears: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
+const migrated = normalize(old);
+ok(migrated.hero === "lorin" && migrated.lvl === 6 && migrated.equip.weapon?.id === "blade-a" && !migrated.bag.some((it) => it.id === "blade-a") && migrated.roster.length === 1, "старое сохранение становится одним слотом, надетое не дублируется в сумке");
+cast.res.soul_shard = 1;
+const poor = forgeItem(cast, "blade-a", 0);
+ok("err" in poor && (cast.equip.weapon?.up || 0) === 0 && cast.res.soul_shard === 1, "кузница без материала не повышает вещь и ничего не списывает");
+cast.res.soul_shard = 3;
+const worn = sheet(cast).dmg;
+const honed = forgeItem(cast, "blade-a", 0);
+ok(!("err" in honed) && honed.up === 1 && !cast.res.soul_shard && sheet(cast).dmg > worn, "плюс Петра поднимает урон надетого клинка");
+ok("err" in forgeItem(cast, "blade-a", 0), "повтор с устаревшим уровнем отклонён");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

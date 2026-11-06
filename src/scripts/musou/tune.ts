@@ -69,6 +69,8 @@ export type OrdaTune = {
   floors: FloorTune[];
   /** Семь ступеней: базовая и шесть цветов чар Проклятых, до Чёрного. */
   diff: DiffTune;
+  /** Кузница Петра: включена, сколько материала за зачистку, потолок плюса. */
+  forge: { on: number; drop: number; max: number };
 };
 
 export const DIFF_N = 7;
@@ -194,6 +196,7 @@ export const DEFAULT_TUNE: OrdaTune = {
     soak: [0, 0, 0.12, 0.12, 0.18, 0.22, 0.28],
     regen: [0, 0.01, 0.01, 0.012, 0.012, 0.02, 0.02],
   },
+  forge: { on: 1, drop: 3, max: 58 },
   floors: [
     { general: "Манекен I", boss: "Теневой Страж", gSig: "circle", bSig: "cone", mut: 0, need: 1, xp: 135 },
     { general: "Головорез тракта", boss: "Атаман Мародёров", gSig: "cone", bSig: "line", mut: 0, need: 2, xp: 190 },
@@ -261,6 +264,9 @@ const BOUNDS: Record<string, Bound> = {
   "oath.stake": { min: 0, max: 500, int: true },
   "xp.base": { min: 10, max: 400, int: true },
   "xp.pow": { min: 1, max: 1.8 },
+  "forge.on": { min: 0, max: 1, int: true },
+  "forge.drop": { min: 0, max: 20, int: true },
+  "forge.max": { min: 1, max: 58, int: true },
 };
 
 const TRIPLE: Record<string, Bound> = {
@@ -295,7 +301,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
   if ("floors" in src) {
@@ -308,10 +314,11 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
     if (typeof diff === "string") return { ok: false, err: diff };
     out.diff = diff;
   }
-  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp"] as const;
+  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge"] as const;
   for (const sec of sections) {
     const block = src[sec];
-    if (!block || typeof block !== "object" || Array.isArray(block)) return { ok: false, err: `${sec}: нужен объект` };
+    if (!block) continue;
+    if (typeof block !== "object" || Array.isArray(block)) return { ok: false, err: `${sec}: нужен объект` };
     const rec = block as Record<string, unknown>;
     const known = new Set(Object.keys((DEFAULT_TUNE as any)[sec]));
     for (const k of Object.keys(rec)) {

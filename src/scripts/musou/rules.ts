@@ -2,6 +2,8 @@
 // Тот же модуль считает награды на сервере (D1) и рисует их в клиенте.
 // Числа экономики и лута — в tune.ts. Меняет их только проверенный набор админки.
 import { DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
+import { UPG, upgCost, upgStats } from "../../../server/meta/upgrade.ts";
+import { MAT_NAME } from "./mats";
 
 export const BAG_START = 12;
 export const BAG_STEP = 4;
@@ -35,6 +37,8 @@ export type Item = {
   cursed?: 0 | 1;
   /** Ярус зачарования 1…6, имена как у «Проклятых». 0 и отсутствие — без чар. */
   ench?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  /** Уровень улучшения у Петра, 0 — вещь ещё не точили. */
+  up?: number;
 };
 
 export const ENCH_NAME = ["Необычный", "Редкий", "Странный", "Легендарный", "Божественный", "Чёрный"] as const;
@@ -338,11 +342,27 @@ export function questById(id: string) { return QUEST_BY.get(id) || null; }
 
 export type QuestState = { p: number; done: 0 | 1; claimed: 0 | 1 };
 export type Equip = Record<Paper, Item | null>;
-export type Pending = { floor: number; at: number; nonce: string; chests?: number; oath?: OathId; diff: number };
+export type Pending = { floor: number; at: number; nonce: string; chests?: number; oath?: OathId; diff: number; hero?: HeroId };
+
+export type HeroCard = {
+  id: HeroId;
+  lvl: number;
+  xp: number;
+  unspent: number;
+  alloc: Record<Stat, number>;
+  clears: number[];
+  chain: number[];
+  quests: Record<string, QuestState>;
+  equip: Equip;
+  kills: number;
+  oath: OathId;
+};
 
 export type Profile = {
   v: 1;
   hero: HeroId | null;
+  /** Слоты героев. Сумка, золото и материалы в карточку не входят. */
+  roster: HeroCard[];
   lvl: number;
   xp: number;
   gold: number;
@@ -362,6 +382,8 @@ export type Profile = {
   pending: Pending | null;
   /** Клятва на следующий забег. В бою действует копия внутри pending. */
   oath: OathId;
+  /** Материалы Петра. Общие на аккаунт, не на героя. */
+  res: Record<string, number>;
 };
 
 export type Sheet = {
@@ -408,8 +430,49 @@ export function newProfile(seed = 1): Profile {
     equip: emptyEquip(), bag: [], inbox: [], quests: {},
     clears: Array.from({ length: 13 }, () => 0),
     chain: Array.from({ length: 13 }, () => 0),
-    kills: 0, pending: null, oath: "none",
+    kills: 0, pending: null, oath: "none", roster: [], res: {},
   };
+}
+
+function freshCard(id: HeroId): HeroCard {
+  return {
+    id, lvl: 1, xp: 0, unspent: 0, alloc: { str: 0, dex: 0, vit: 0, ene: 0 },
+    clears: Array.from({ length: 13 }, () => 0),
+    chain: Array.from({ length: 13 }, () => 0),
+    quests: {}, equip: emptyEquip(), kills: 0, oath: "none",
+  };
+}
+
+function snapshot(p: Profile): HeroCard {
+  return JSON.parse(JSON.stringify({
+    id: p.hero, lvl: p.lvl, xp: p.xp, unspent: p.unspent, alloc: p.alloc,
+    clears: p.clears, chain: p.chain, quests: p.quests, equip: p.equip, kills: p.kills, oath: p.oath,
+  }));
+}
+
+export function seal(p: Profile) {
+  if (!p.hero) return;
+  const card = snapshot(p);
+  const i = p.roster.findIndex((r) => r.id === p.hero);
+  if (i < 0) p.roster.push(card);
+  else p.roster[i] = card;
+}
+
+function mount(p: Profile, id: HeroId) {
+  const card = p.roster.find((r) => r.id === id);
+  if (!card) return;
+  const c = JSON.parse(JSON.stringify(card)) as HeroCard;
+  p.hero = c.id;
+  p.lvl = c.lvl;
+  p.xp = c.xp;
+  p.unspent = c.unspent;
+  p.alloc = c.alloc;
+  p.clears = c.clears;
+  p.chain = c.chain;
+  p.quests = c.quests;
+  p.equip = c.equip;
+  p.kills = c.kills;
+  p.oath = c.oath;
 }
 
 export function xpNeed(lvl: number) {
@@ -461,6 +524,8 @@ function sanitizeItem(it: Item): Item {
   const next: Item = { ...it, affixes: it.affixes.slice(0, 6) };
   if (cursed) next.cursed = 1; else delete next.cursed;
   if (ench) next.ench = ench; else delete next.ench;
+  const up = Math.max(0, Math.min(UPG.maxLvl | 0, it.up | 0));
+  if (up) next.up = up; else delete next.up;
   return next;
 }
 
@@ -501,11 +566,72 @@ export function normalize(raw: any): Profile {
   }
   if (raw.pending && typeof raw.pending.nonce === "string" && (raw.pending.floor | 0) >= 1) {
     const oath = oathOf(raw.pending.oath);
-    const diff = Math.max(1, Math.min(4, raw.pending.diff | 0 || 1));
-    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0, diff, ...(oath !== "none" ? { oath } : {}) };
+    const diff = Math.max(1, Math.min(7, raw.pending.diff | 0 || 1));
+    const who = HEROES.some((h) => h.id === raw.pending.hero) ? raw.pending.hero as HeroId : undefined;
+    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0, diff, ...(oath !== "none" ? { oath } : {}), ...(who ? { hero: who } : {}) };
   }
   p.oath = oathOf(raw.oath);
+  if (raw.res && typeof raw.res === "object") {
+    for (const [k, v] of Object.entries(raw.res as Record<string, unknown>)) {
+      if (!MAT_NAME[k]) continue;
+      const n = Math.max(0, Math.min(9999, (v as number) | 0));
+      if (n) p.res[k] = n;
+    }
+  }
+  const cards = Array.isArray(raw.roster) ? raw.roster.map(readCard).filter((c): c is HeroCard => !!c) : [];
+  if (cards.length) {
+    const seen = new Set<string>();
+    p.roster = cards.filter((c) => seen.has(c.id) ? false : (seen.add(c.id), true));
+    if (p.hero && p.roster.some((c) => c.id === p.hero)) mount(p, p.hero);
+    else if (!p.hero && p.roster[0]) mount(p, p.roster[0].id);
+  } else if (p.hero) {
+    p.roster = [snapshot(p)];
+  }
+  pullWorn(p);
+  seal(p);
   return p;
+}
+
+function readCard(raw: any): HeroCard | null {
+  if (!raw || !HEROES.some((h) => h.id === raw.id)) return null;
+  const card = freshCard(raw.id);
+  card.lvl = Math.max(1, Math.min(MAX_LVL, raw.lvl | 0 || 1));
+  card.xp = Math.max(0, raw.xp | 0);
+  card.unspent = Math.max(0, raw.unspent | 0);
+  for (const s of ["str", "dex", "vit", "ene"] as Stat[]) card.alloc[s] = Math.max(0, Math.min(400, raw.alloc?.[s] | 0));
+  card.kills = Math.max(0, raw.kills | 0);
+  card.clears = Array.from({ length: 13 }, (_, i) => Math.max(0, raw.clears?.[i] | 0));
+  card.chain = Array.from({ length: 13 }, (_, i) => Math.max(0, Math.min(7, Math.max(raw.chain?.[i] | 0, card.clears[i] > 0 ? 1 : 0))));
+  card.oath = oathOf(raw.oath);
+  if (raw.quests && typeof raw.quests === "object") {
+    for (const [id, q] of Object.entries(raw.quests as Record<string, any>)) {
+      if (!questById(id) || !q) continue;
+      card.quests[id] = { p: Math.max(0, q.p | 0), done: q.done ? 1 : 0, claimed: q.claimed ? 1 : 0 };
+    }
+  }
+  for (const slot of Object.keys(card.equip) as Paper[]) {
+    const it = raw.equip?.[slot];
+    if (validItem(it)) card.equip[slot] = sanitizeItem({ ...it, affixes: it.affixes.slice(0, 6) });
+  }
+  return card;
+}
+
+function pullWorn(p: Profile) {
+  const worn = new Set<string>();
+  for (const card of p.roster) {
+    for (const slot of Object.keys(card.equip) as Paper[]) {
+      const it = card.equip[slot];
+      if (!it) continue;
+      if (worn.has(it.id)) card.equip[slot] = null;
+      else worn.add(it.id);
+    }
+  }
+  if (p.hero) {
+    const live = p.roster.find((c) => c.id === p.hero);
+    if (live) p.equip = JSON.parse(JSON.stringify(live.equip));
+  }
+  p.bag = p.bag.filter((it) => !worn.has(it.id));
+  p.inbox = p.inbox.filter((it) => !worn.has(it.id));
 }
 
 function oathOf(raw: unknown): OathId {
@@ -544,8 +670,10 @@ export function spendStat(p: Profile, stat: Stat): string | null {
 
 export function setHero(p: Profile, id: HeroId): string | null {
   if (!HEROES.some((h) => h.id === id)) return "Нет такого героя";
-  if (p.hero && bestFloor(p) > 0) return "Герой закреплён после первой зачистки";
-  p.hero = id;
+  if (p.hero === id) { seal(p); return null; }
+  seal(p);
+  if (!p.roster.some((r) => r.id === id)) p.roster.push(freshCard(id));
+  mount(p, id);
   return null;
 }
 
@@ -581,13 +709,16 @@ export function sheet(p: Profile): Sheet {
   const tune = getTune();
   for (const it of equipped(p)) {
     if (p.lvl < it.req) continue;
+    const up = Math.max(0, it.up | 0);
+    const grown = up ? upgStats({ dmg: it.dmg || 0, armor: it.armor || 0 }, up, false) : null;
     const mult = (it.cursed === 1 ? tune.curse.statMult : 1) * (it.ench ? tune.ench.stat[it.ench - 1] || 1 : 1);
     if (it.cursed === 1) speedMul *= tune.curse.speed;
     if (it.ench) speedMul *= tune.ench.speed[it.ench - 1] || 1;
-    dmg += it.dmg * mult;
-    armor += it.armor * mult;
+    dmg += (grown ? Number(grown.dmg) : it.dmg) * mult;
+    armor += (grown ? Number(grown.armor) : it.armor) * mult;
     for (const a of it.affixes) {
-      const val = a.val * mult;
+      const base = up ? Number(upgStats({ v: a.val }, up, false).v) : a.val;
+      const val = base * mult;
       if (a.stat === "str") str += val;
       else if (a.stat === "dex") dex += val;
       else if (a.stat === "vit") vit += val;
@@ -881,7 +1012,7 @@ export function equipItem(p: Profile, itemId: string): string | null {
   const idx = p.bag.findIndex((it) => it.id === itemId);
   if (idx < 0) return "Вещи нет в сумке";
   const it = p.bag[idx];
-  if (p.lvl < it.req) return `Нужен ${it.req} уровень`;
+  if (p.lvl < it.req) return `«${it.name}» требует уровень ${it.req}. У ${heroById(p.hero).name} сейчас ${p.lvl}. Статы не применятся.`;
   const slot = paperFor(it, p.equip);
   if (!slot) return "Некуда надеть";
   const prev = p.equip[slot];
@@ -889,6 +1020,47 @@ export function equipItem(p: Profile, itemId: string): string | null {
   p.bag.splice(idx, 1);
   if (prev) p.bag.push(prev);
   return null;
+}
+
+function findOwned(p: Profile, id: string): Item | null {
+  const bag = p.bag.find((it) => it.id === id);
+  if (bag) return bag;
+  for (const slot of Object.keys(p.equip) as Paper[]) if (p.equip[slot]?.id === id) return p.equip[slot];
+  return null;
+}
+
+export function matLabel(id: string) { return MAT_NAME[id] || id; }
+
+export function forgePreview(p: Profile, it: Item) {
+  const cap = Math.min(UPG.maxLvl | 0, getTune().forge.max | 0);
+  const cur = Math.max(0, it.up | 0);
+  const cost = cur >= cap ? null : upgCost(cur + 1, it.cursed === 1, UPG, it.ench || 0);
+  const lines = cost ? Object.entries(cost).map(([id, n]) => ({ id, name: matLabel(id), n, have: p.res[id] || 0 })) : [];
+  const next = upgStats({ dmg: it.dmg || 0, armor: it.armor || 0 }, Math.min(cap, cur + 1), false);
+  const miss = !getTune().forge.on ? "Кузница закрыта в наборе" : cur >= cap ? `Дальше +${cap} набор не пускает` : lines.some((l) => l.have < l.n) ? "Не хватает материалов" : null;
+  return { cur, cap, lines, nextDmg: Math.round(Number(next.dmg) || 0), nextArmor: Math.round(Number(next.armor) || 0), miss };
+}
+
+export function forgeItem(p: Profile, id: string, expect?: number): { up: number } | { err: string } {
+  if (!p.hero) return { err: "Сначала выбери героя" };
+  if (!getTune().forge.on) return { err: "Кузница закрыта в наборе" };
+  const it = findOwned(p, id);
+  if (!it) return { err: "Вещи нет у этого героя" };
+  const cap = Math.min(UPG.maxLvl | 0, getTune().forge.max | 0);
+  const cur = Math.max(0, it.up | 0);
+  if (expect != null && (expect | 0) !== cur) return { err: "Уровень вещи уже изменился" };
+  if (cur >= cap) return { err: `Дальше +${cap} набор не пускает` };
+  const cost = upgCost(cur + 1, it.cursed === 1, UPG, it.ench || 0);
+  if (!cost) return { err: "Улучшение недоступно" };
+  const miss = Object.entries(cost).filter(([k, n]) => (p.res[k] || 0) < n);
+  if (miss.length) return { err: "Не хватает: " + miss.map(([k, n]) => `${matLabel(k)} ${p.res[k] || 0}/${n}`).join(", ") };
+  for (const [k, n] of Object.entries(cost)) {
+    p.res[k] = (p.res[k] || 0) - n;
+    if (p.res[k] <= 0) delete p.res[k];
+  }
+  it.up = cur + 1;
+  seal(p);
+  return { up: it.up };
 }
 
 export function unequip(p: Profile, slot: Paper): string | null {
@@ -1113,6 +1285,9 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
   if (cleared) {
     p.clears[floor - 1] = (p.clears[floor - 1] || 0) + 1;
     p.chain[floor - 1] = Math.max(p.chain[floor - 1] || 0, rowEarly.id);
+    const forge = getTune().forge;
+    const mat = UPG.order[Math.max(0, Math.min(UPG.order.length - 1, floor - 1))];
+    if (forge.on && forge.drop > 0 && mat) p.res[mat] = Math.min(9999, (p.res[mat] || 0) + (forge.drop | 0));
   }
   const eco = getTune().economy;
   const row = rowEarly;
@@ -1304,7 +1479,7 @@ export function beginRun(p: Profile, floor: number, now: number, nonce = startNo
     if (p.gold < stake) return { err: "На кубок не хватает золота" };
     p.gold -= stake;
   }
-  p.pending = { floor, at: now, nonce, chests: 0, diff: row.id, ...(oath !== "none" ? { oath } : {}) };
+  p.pending = { floor, at: now, nonce, chests: 0, diff: row.id, hero: p.hero || undefined, ...(oath !== "none" ? { oath } : {}) };
   return { nonce };
 }
 
@@ -1312,6 +1487,7 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
   const pend = p.pending;
   if (!pend) return { err: "Забег не начат" };
   if (!body.nonce || body.nonce !== pend.nonce) return { err: "Чужой забег" };
+  if (pend.hero && pend.hero !== p.hero) { seal(p); mount(p, pend.hero); }
   const elapsed = Math.max(0, now - (pend.at || now));
   const vow = pend.oath;
   p.pending = null;

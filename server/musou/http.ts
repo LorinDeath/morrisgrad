@@ -5,7 +5,7 @@ import { FriendStore } from "../meta/friends";
 import { loadProfile, saveProfile } from "./db";
 import { readPublishedTune } from "./admin";
 import {
-  beginRun, buyOffer, claimChest, claimQuest, equipItem, finishRun, mulberry32, parseChestPick, refreshShop, salvage, setHero, setOath, spendStat, takeInbox, unequip,
+  beginRun, buyOffer, claimChest, claimQuest, equipItem, finishRun, forgeItem, mulberry32, parseChestPick, refreshShop, salvage, setHero, setOath, spendStat, takeInbox, unequip,
   type HeroId, type Paper, type Stat,
 } from "../../src/scripts/musou/rules";
 
@@ -102,6 +102,9 @@ async function act(env: any, key: string, body: any, cors: Record<string, string
     const r = claimQuest(p, String(body.id || ""), rng);
     if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });
     report = r;
+  } else if (op === "upgrade") {
+    const r = forgeItem(p, String(body.id || ""), body.at == null ? undefined : body.at | 0);
+    if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });
   } else if (op === "start") {
     const r = beginRun(p, body.floor | 0, Date.now(), undefined, false, body.diff | 0 || 1);
     if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });

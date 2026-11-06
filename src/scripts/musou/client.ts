@@ -2,7 +2,7 @@
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer,
+  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer, seal,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
   type ChestPick, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
@@ -68,7 +68,7 @@ function toast(t: string) {
   el.textContent = t;
   toastT = 3.2;
 }
-function saveLocal() { localStorage.setItem(SAVE, JSON.stringify(profile)); }
+function saveLocal() { seal(profile); localStorage.setItem(SAVE, JSON.stringify(profile)); }
 function loadLocal() {
   try { return normalize(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch { return newProfile(1); }
 }
@@ -135,14 +135,17 @@ function paintPicks() {
 
 function renderPick() {
   const root = $<HTMLElement>("v-pick");
-  root.innerHTML = `<p class="tag">Класс</p><h1>Кто сойдёт в подвал</h1><p class="lead">Восемь героев МоррисГрада. Класс выбирается здесь, до данжа. Уровень и очки растут в хабе, на этаже только бой.</p><div class="pick-grid" id="pick-grid"></div><div class="row" style="margin-top:14px"><button class="btn gold" id="pick-go" type="button" disabled>Войти в Обитель</button></div>`;
+  root.innerHTML = `<p class="tag">Герои</p><h1>Кто сойдёт в подвал</h1><p class="lead">На одном аккаунте несколько героев. У каждого свой уровень, очки, этажи, цвета и надетое. Сумка, золото и материалы общие. Новый герой начинается с нуля, старый ничего не теряет.</p><div class="pick-grid" id="pick-grid"></div><div class="row" style="margin-top:14px"><button class="btn gold" id="pick-go" type="button" disabled>Войти этим героем</button></div>`;
   const grid = $<HTMLElement>("pick-grid");
   let chosen: HeroId | null = profile.hero;
   for (const h of HEROES) {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "hero-card" + (chosen === h.id ? " on" : "");
-    card.innerHTML = `<canvas data-hero="${h.id}"></canvas><div class="tag">${h.faction}</div><h3>${h.name}</h3><div class="tag">${h.title}</div><p>${h.blurb}</p>`;
+    const cardSave = profile.roster.find((r) => r.id === h.id);
+    const worn = cardSave ? (Object.values(cardSave.equip).filter(Boolean) as Item[]).map((it) => it.name).slice(0, 3).join(", ") : "";
+    const line = cardSave ? `ур. ${cardSave.lvl} · сила ${h.base.str + cardSave.alloc.str} · ${worn || "без брони"}` : "новый, с нуля";
+    card.innerHTML = `<canvas data-hero="${h.id}"></canvas><div class="tag">${h.faction}</div><h3>${h.name}</h3><div class="tag">${h.title}</div><p>${line}</p>`;
     card.onclick = () => {
       chosen = h.id;
       grid.querySelectorAll(".hero-card").forEach((el) => el.classList.remove("on"));
@@ -285,7 +288,7 @@ function renderHub() {
         return `<div class="stat"><span>${name}</span><span><b>${base}</b> ${profile.unspent ? `<button class="plus" data-stat="${k}" type="button">+</button>` : ""}</span></div>`;
       }).join("")}
       <p class="derived">Свободно очков: ${profile.unspent}. Урон ${s.dmg} · здоровье ${s.hp} · крит ${Math.round(s.crit * 100)}% · атака ×${s.aspd.toFixed(2)} · броня ${s.armor} · вампиризм ${Math.round(s.ls * 100)}% · золото с этажа +${Math.round(s.gold * 100)}%${set.got.map((g) => `<br>${g.name}: ${g.text}`).join("")}</p>
-      <div class="row"><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
+      <div class="row"><button class="btn" id="open-heroes" type="button">Герои</button><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
     </section>
     <section class="panel">
       <h2>Кампания подвала</h2>
@@ -326,6 +329,7 @@ function renderHub() {
         <button class="btn" id="equip" type="button">Надеть</button>
         <button class="btn" id="sell" type="button">Продать</button>
         <button class="btn" id="unequip" type="button">Снять</button>
+        <button class="btn" id="forge" type="button">Улучшить</button>
       </div>
       <p class="derived">Предел сумки — ${BAG_MAX}. Расширение продаётся в лавке, не в бою.</p>
     </section>
@@ -392,6 +396,21 @@ function renderHub() {
     if (online) { await act({ op: "unequip", slot: paper }); renderHub(); }
     else { const err = unequip(profile, paper); if (err) toast(err); else { saveLocal(); renderHub(); } }
   };
+  $<HTMLButtonElement>("open-heroes").onclick = () => { renderPick(); show("pick"); };
+  $<HTMLButtonElement>("forge").onclick = async () => {
+    const it = selected || (paper ? profile.equip[paper] : null);
+    if (!it) return toast("Выбери вещь в сумке или слот на герое");
+    if (online) {
+      const r = await act({ op: "upgrade", id: it.id, at: it.up | 0 });
+      if (!r?.err) toast("Вещь улучшена");
+      renderHub();
+    } else {
+      const r = forgeItem(profile, it.id, it.up | 0);
+      if ("err" in r) toast(r.err);
+      else { saveLocal(); toast("Вещь +" + r.up); }
+      renderHub();
+    }
+  };
   $<HTMLButtonElement>("open-shop").onclick = () => openShop();
   const inbox = async (mode: "bag" | "sell" | "drop") => {
     if (mode === "sell" && profile.inbox[0] && !confirm("Продать редкую вещь у входа?")) return;
@@ -422,7 +441,11 @@ function tipHtml(it: Item | null) {
   const curse = it.cursed ? `<div class="tag">Проклята: статы вещи ×${tune.curse.statMult}, шаг ×${tune.curse.speed}. Надетая вещь режет скорость всего героя.</div>` : "";
   const tier = it.ench ? ENCH_NAME[it.ench - 1] : "";
   const ench = it.ench ? `<div class="tag">${tier}: статы вещи ×${tune.ench.stat[it.ench - 1]}, шаг ×${tune.ench.speed[it.ench - 1]}. Чем выше ярус, тем тяжелее шаг.</div>` : "";
-  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${curse}${ench}`;
+  const low = profile.lvl < it.req ? `<div class="tag">Требует уровень ${it.req}. У ${heroById(profile.hero).name} сейчас ${profile.lvl}. Надеть нельзя, статы не придут.</div>` : `<div class="tag">Требует уровень ${it.req}.</div>`;
+  const look = forgePreview(profile, it);
+  const cost = look.lines.length ? look.lines.map((l) => `${l.name} ${l.have}/${l.n}`).join(", ") : "потолок";
+  const forge = `<div class="tag">Пётр, сейчас +${look.cur}. Следующий клинок около ${look.nextDmg}, броня около ${look.nextArmor}. Цена: ${cost}.${look.miss ? " " + look.miss + "." : ""}</div>`;
+  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${curse}${ench}${low}${forge}`;
 }
 function rewardLine(r: any) {
   const item = r.item;

@@ -1,5 +1,5 @@
 // Сумка «Орды» лежит в той же D1, что и остальной сайт (GAME_DB, morrisgrad_db).
-import { bestFloor, newProfile, normalize, type Profile } from "../../src/scripts/musou/rules";
+import { bestFloor, newProfile, normalize, seal, type Profile } from "../../src/scripts/musou/rules";
 
 export async function loadProfile(db: any, pkey: string): Promise<Profile> {
   if (!db) return newProfile(1);
@@ -10,6 +10,7 @@ export async function loadProfile(db: any, pkey: string): Promise<Profile> {
 
 export async function saveProfile(db: any, pkey: string, p: Profile) {
   if (!db) return;
+  seal(p);
   await db.prepare(`INSERT INTO orda_saves (pkey, hero, lvl, best_floor, data, updated_at)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(pkey) DO UPDATE SET

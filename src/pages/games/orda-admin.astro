@@ -103,6 +103,9 @@ const title = "Орда · набор чисел";
     ["oath", "stake", "Ставка кубка"],
     ["xp", "base", "База опыта"],
     ["xp", "pow", "Степень опыта"],
+    ["forge", "on", "Кузница: 1 включена, 0 нет"],
+    ["forge", "drop", "Материала Петра за зачистку"],
+    ["forge", "max", "Потолок плюса, не выше 58"],
   ];
 
   function draft() {
@@ -166,7 +169,7 @@ const title = "Орда · набор чисел";
   function build() {
     const buckets = { economy: $("f-economy"), combat: $("f-combat"), loot: $("f-loot"), mark: $("f-mark"), xp: $("f-xp") };
     for (const [sec, key, label] of FIELDS) {
-      const where = sec === "curse" || sec === "ench" ? buckets.mark : buckets[sec];
+      const where = sec === "curse" || sec === "ench" || sec === "forge" ? buckets.mark : buckets[sec];
       const lab = document.createElement("label");
       lab.textContent = label;
       const input = document.createElement("input");

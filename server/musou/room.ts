@@ -98,6 +98,7 @@ export class MusouRoom extends DurableObject {
       } else {
         seat.nick = id.nick || seat.nick;
         const prof = await loadProfile(this.env.GAME_DB, key);
+        seat.hero = prof.hero || seat.hero;
         seat.lvl = prof.lvl | 0;
         seat.passed = prof.clears.map((c) => c > 0);
         seat.chain = prof.chain;
@@ -179,6 +180,7 @@ export class MusouRoom extends DurableObject {
     const loaded: { s: Seat; p: Awaited<ReturnType<typeof loadProfile>> }[] = [];
     for (const s of L.seats) {
       const p = await loadProfile(this.env.GAME_DB, s.pkey);
+      s.hero = p.hero || s.hero;
       s.lvl = p.lvl | 0;
       s.passed = p.clears.map((c) => c > 0);
       s.chain = p.chain;
