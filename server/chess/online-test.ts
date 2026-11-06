@@ -105,20 +105,24 @@ ok(stA.side && jB.side && stA.side !== jB.side, "стороны разные " +
 const mmCode = jB.code;
 function mmClient(uid: string, nick: string) {
   const ws = new WebSocket(WSU + "/chess/m/" + mmCode);
-  const c: any = { ws, state: null as Game | null, side: null, result: null, clock: null };
+  const c: any = { ws, state: null as Game | null, side: null, result: null, clock: null, lobbyPhase: null as string | null };
   c.ready = new Promise<void>((res) => ws.addEventListener("open", () => { ws.send(JSON.stringify({ type: "hello", userId: uid, nick })); res(); }));
   ws.addEventListener("message", (e: any) => {
     const m = JSON.parse(e.data);
     if (m.type === "hello_ok") c.side = m.you.side;
+    if (m.type === "lobby") c.lobbyPhase = m.lobby?.phase || null;
     if (m.type === "state") { c.state = m.state; if (m.clock) c.clock = m.clock; }
     if (m.type === "result") c.result = m.result;
   });
   return c;
 }
 const ma = mmClient(mmA, "ММ-Альфа"); await ma.ready;
+await sleep(400);
+ok(!ma.state, "один в mm — ещё без state");
+ok(ma.lobbyPhase === "lobby", "один в mm — phase lobby: " + ma.lobbyPhase);
 const mb = mmClient(mmB, "ММ-Бета"); await mb.ready;
 await sleep(500);
-ok(ma.state && mb.state, "MM партия стартовала");
+ok(ma.state && mb.state, "MM партия стартовала после обоих WS");
 ok(ma.clock?.turnDeadline && ma.clock?.matchDeadline, "clock в state");
 const turnLeft = ma.clock.turnDeadline - ma.clock.now;
 const matchLeft = ma.clock.matchDeadline - ma.clock.now;

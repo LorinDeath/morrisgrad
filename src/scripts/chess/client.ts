@@ -431,7 +431,12 @@ async function connectOnline(code: string) {
     else if (!G || screen === "wait") { toast("Соединение закрыто"); stopMatchmaking(false); show("home"); refreshOpen(); }
   });
 }
-async function reconnect() { const c = netCode; const keepG = G; await connectOnline(c); G = keepG; online = true; }
+async function reconnect() {
+  const c = netCode;
+  // Не затираем G после connectOnline: hello/state могут прийти во время await и дать свежий снимок.
+  await connectOnline(c);
+  online = true;
+}
 
 function applyClock(c: any) {
   if (!c) return;
@@ -450,11 +455,18 @@ function tickClocks() {
   const srvNow = Date.now() + clockSkew;
   const turnEl = $("#tm-turn"), matchEl = $("#tm-match");
   const turnWrap = turnEl?.parentElement, matchWrap = matchEl?.parentElement;
+  const mine = !!(G && G.side === mySide);
+  if (turnWrap) {
+    const lab = turnWrap.querySelector("i");
+    if (lab) lab.textContent = mine ? "ваш ход" : "ход соперника";
+    turnWrap.classList.toggle("idle", !mine);
+    turnWrap.title = mine ? "Ваш ход · макс 5 мин" : "Ход соперника · макс 5 мин";
+  }
   if (turnEl && clockTurnAt != null) {
     const left = clockTurnAt - srvNow;
     turnEl.textContent = fmtLeft(left);
-    turnWrap?.classList.toggle("low", left <= 60_000);
-    turnWrap?.classList.toggle("crit", left <= 15_000);
+    turnWrap?.classList.toggle("low", mine && left <= 60_000);
+    turnWrap?.classList.toggle("crit", mine && left <= 15_000);
   }
   if (matchEl && clockMatchAt != null) {
     const left = clockMatchAt - srvNow;
@@ -463,9 +475,16 @@ function tickClocks() {
     matchWrap?.classList.toggle("crit", left <= 60_000);
   }
 }
+let clockPingAt = 0;
 function ensureClockUi() {
   clearInterval(clockUiT);
-  if (online && (clockTurnAt || clockMatchAt)) clockUiT = window.setInterval(tickClocks, 250);
+  if (online && (clockTurnAt || clockMatchAt)) {
+    clockUiT = window.setInterval(() => {
+      tickClocks();
+      // Пинг будит enforceDeadlines на сервере (alarm один и мог быть сдвинут forfeit-ом).
+      if (Date.now() - clockPingAt > 15_000) { clockPingAt = Date.now(); netSend({ type: "ping" }); }
+    }, 250);
+  }
 }
 
 function onNet(m: any) {

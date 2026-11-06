@@ -51,17 +51,32 @@ export class ChessMatch extends DurableObject {
     const L = this.L!;
     return { turnDeadline: L.turnDeadline, matchDeadline: L.matchDeadline, now: Date.now() };
   }
-  async armAlarm() {
+  seatOnline(pkey: string) {
+    return this.ctx.getWebSockets().some((w: WebSocket) => (w.deserializeAttachment() as Att)?.pkey === pkey);
+  }
+  bothSeatedOnline() {
+    const L = this.L; if (!L || L.seats.length < 2) return false;
+    return L.seats.every((s) => this.seatOnline(s.pkey));
+  }
+  async armAlarm(extraAt?: number) {
     const L = this.L; if (!L) return;
     const now = Date.now();
     let next = Infinity;
+    if (typeof extraAt === "number") next = Math.min(next, extraAt);
     if (L.phase === "lobby") next = Math.min(next, L.at + EMPTY_LOBBY_MS);
     if (L.phase === "play") {
       if (L.turnDeadline) next = Math.min(next, L.turnDeadline);
       if (L.matchDeadline) next = Math.min(next, L.matchDeadline);
-      // disconnect forfeit checked via separate alarm set in gone()
     }
     if (next < Infinity) await this.ctx.storage.setAlarm(Math.max(now + 250, next));
+  }
+  /** Таймауты не только по alarm (его может перебить forfeit), а и на каждом сообщении. */
+  async enforceDeadlines() {
+    const L = this.L; if (!L || L.phase !== "play" || !L.g) return false;
+    const now = Date.now();
+    if (L.matchDeadline && now >= L.matchDeadline) { await this.finish(L.g.side === "w" ? "b" : "w", "timeout"); return true; }
+    if (L.turnDeadline && now >= L.turnDeadline) { await this.finish(L.g.side === "w" ? "b" : "w", "timeout"); return true; }
+    return false;
   }
   startClocks() {
     const L = this.L!;
@@ -92,7 +107,7 @@ export class ChessMatch extends DurableObject {
         host: seats[0]?.nick || "", result: null, at: Date.now(), mm: !!b.mm,
         turnDeadline: null, matchDeadline: null,
       };
-      // матчмейкинг: оба места заранее — ждём WS, часы стартуют при первом state/обоих online
+      // матчмейкинг: оба места заранее — партия и часы стартуют только когда оба WS online
       await this.save();
       await this.armAlarm();
       return new Response("ok");
@@ -139,7 +154,8 @@ export class ChessMatch extends DurableObject {
       }
       a.pkey = id.pkey; ws.serializeAttachment(a);
       let started = false;
-      if (L.phase === "lobby" && L.seats.length === 2) {
+      // Ждём оба живых WS — иначе mm-префил стартует партию «в одиночку», соперник «офлайн», часы тикают впустую.
+      if (L.phase === "lobby" && L.seats.length === 2 && this.bothSeatedOnline()) {
         L.g = newGame(); L.phase = "play"; this.startClocks(); started = true;
       }
       await this.save(); await this.report(); await this.armAlarm();
@@ -154,6 +170,7 @@ export class ChessMatch extends DurableObject {
     }
     const seat = L.seats.find((s) => s.pkey === a.pkey);
     if (!seat) return;
+    if (await this.enforceDeadlines()) return;
     if (m.type === "ping") return this.send(ws, { type: "pong", clock: this.clock() });
 
     // отмена поиска / выход из лобби до старта
@@ -237,7 +254,8 @@ export class ChessMatch extends DurableObject {
       return;
     }
     this.broadcast({ type: "lobby", lobby: this.lobbyView(ws) });
-    if (L.phase === "play") await this.ctx.storage.setAlarm(Date.now() + FORFEIT_MS);
+    // Один alarm на DO: не затираем turn/match deadline, а берём ближайший из forfeit и часов.
+    if (L.phase === "play") await this.armAlarm(Date.now() + FORFEIT_MS);
   }
 
   async alarm() {
@@ -258,16 +276,9 @@ export class ChessMatch extends DurableObject {
 
     if (L.phase !== "play" || !L.g) return;
 
-    if (L.matchDeadline && now >= L.matchDeadline) {
-      await this.finish(L.g.side === "w" ? "b" : "w", "timeout");
-      return;
-    }
-    if (L.turnDeadline && now >= L.turnDeadline) {
-      await this.finish(L.g.side === "w" ? "b" : "w", "timeout");
-      return;
-    }
+    if (await this.enforceDeadlines()) return;
 
-    const off = L.seats.filter((s) => !this.online(s.pkey));
+    const off = L.seats.filter((s) => !this.seatOnline(s.pkey));
     if (off.length === 1) await this.finish(off[0].side === "w" ? "b" : "w", "forfeit");
     else if (off.length === 2) { L.phase = "done"; L.turnDeadline = null; L.matchDeadline = null; await this.save(); await this.report(); }
     else await this.armAlarm();
