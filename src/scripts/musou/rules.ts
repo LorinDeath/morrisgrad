@@ -1,7 +1,7 @@
 // «Орда Обители» — правила хаба. Прокачка, лут и сумка живут здесь, не в бою.
 // Тот же модуль считает награды на сервере (D1) и рисует их в клиенте.
 // Числа экономики и лута — в tune.ts. Меняет их только проверенный набор админки.
-import { getTune } from "./tune";
+import { chestTotal, diffRow, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
 
 export const BAG_START = 12;
 export const BAG_STEP = 4;
@@ -338,7 +338,7 @@ export function questById(id: string) { return QUEST_BY.get(id) || null; }
 
 export type QuestState = { p: number; done: 0 | 1; claimed: 0 | 1 };
 export type Equip = Record<Paper, Item | null>;
-export type Pending = { floor: number; at: number; nonce: string; chests?: number; oath?: OathId };
+export type Pending = { floor: number; at: number; nonce: string; chests?: number; oath?: OathId; diff: number };
 
 export type Profile = {
   v: 1;
@@ -497,7 +497,8 @@ export function normalize(raw: any): Profile {
   }
   if (raw.pending && typeof raw.pending.nonce === "string" && (raw.pending.floor | 0) >= 1) {
     const oath = oathOf(raw.pending.oath);
-    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0, ...(oath !== "none" ? { oath } : {}) };
+    const diff = Math.max(1, Math.min(4, raw.pending.diff | 0 || 1));
+    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0, diff, ...(oath !== "none" ? { oath } : {}) };
   }
   p.oath = oathOf(raw.oath);
   return p;
@@ -664,7 +665,7 @@ export function itemPrice(it: Item) {
 }
 export function salvageValue(it: Item) { return Math.max(1, Math.round(itemPrice(it) * 0.4)); }
 
-export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: boolean; rarity?: Rarity; id?: string; bare?: boolean }): Item {
+export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: boolean; rarity?: Rarity; id?: string; bare?: boolean; extraAffix?: number; curseMul?: number; enchMul?: number }): Item {
   const ilvl = Math.max(1, Math.min(60, Math.round(o.ilvl)));
   const rarity = o.rarity || rarityRoll(rng, o.floor, !!o.shop);
   const slots = Object.keys(BASES) as Slot[];
@@ -688,7 +689,8 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
   }
   const slot = slots[Math.floor(rng() * slots.length)];
   const base = BASES[slot][Math.floor(rng() * BASES[slot].length)];
-  const nAff = rarity === "common" ? 0 : rarity === "magic" ? 1 + (rng() < 0.45 ? 1 : 0) : rarity === "rare" ? 3 + (rng() < 0.4 ? 1 : 0) : 4;
+  const extra = Math.max(0, Math.min(3, o.extraAffix | 0));
+  const nAff = (rarity === "common" ? 0 : rarity === "magic" ? 1 + (rng() < 0.45 ? 1 : 0) : rarity === "rare" ? 3 + (rng() < 0.4 ? 1 : 0) : 4) + (rarity === "common" ? 0 : extra);
   const affixes = fillAffixes(rng, ilvl, nAff);
   let name = base.name;
   if (rarity === "magic" && affixes[0]) name = `${base.name} ${affixes[0].name}`;
@@ -698,14 +700,14 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
   return markItem({
     id: o.id || "x", base: base.id, name, slot, rarity, ilvl, req: Math.max(1, ilvl - 3),
     dmg: scaleBase(base.dmg, ilvl), armor: scaleBase(base.armor, ilvl), affixes,
-  }, rng, !!o.shop, !!o.bare);
+  }, rng, !!o.shop, !!o.bare, o.curseMul, o.enchMul);
 }
 
-function markItem(it: Item, rng: Rng, shop: boolean, bare = false): Item {
+function markItem(it: Item, rng: Rng, shop: boolean, bare = false, curseMul = 1, enchMul = 1): Item {
   if (bare) return it;
   const loot = getTune().loot;
-  const curseP = shop ? loot.curseChance * 0.25 : loot.curseChance;
-  const enchP = shop ? loot.enchChance * 0.25 : loot.enchChance;
+  const curseP = Math.min(0.75, (shop ? loot.curseChance * 0.25 : loot.curseChance) * (curseMul || 1));
+  const enchP = Math.min(0.75, (shop ? loot.enchChance * 0.25 : loot.enchChance) * (enchMul || 1));
   if (curseP > 0 && rng() < curseP) curseItem(it);
   if (enchP > 0 && rng() < enchP) enchantItem(it, rollEnchTier(rng));
   return it;
@@ -859,7 +861,7 @@ export function salvage(p: Profile, itemId: string): { gold: number } | { err: s
 }
 
 export type RunReason = "win" | "dead" | "surrender";
-export type RunIn = { floor: number; kills: number; generals: number; boss: boolean; elapsedMs: number; party: number; reason?: RunReason };
+export type RunIn = { floor: number; kills: number; generals: number; boss: boolean; elapsedMs: number; party: number; reason?: RunReason; diff?: number };
 export type RunCheck = { kills: number; generals: number; boss: boolean; note: string | null };
 
 export function spawnBudget(floor: number) {
@@ -931,6 +933,9 @@ export type RunReport = {
   quests: string[]; note: string | null; boss: boolean; reason: RunReason;
   /** Повтор уже пройденного данжа: квест не сдаётся снова, опыт и плата этажа урезаны. */
   replay: boolean;
+  /** Сложность, записанная в забег. Тело запроса её не подменяет. */
+  diff: number;
+  diffName: string;
 };
 
 export type ChestView = {
@@ -942,7 +947,7 @@ export type ChestView = {
 
 function chestGate(p: Profile, index: number): string | null {
   if (!p.pending) return "Сундук открывается только в забеге";
-  const n = getTune().loot.chestCount | 0;
+  const n = chestTotal(p.pending.diff || 1);
   const i = index | 0;
   if (i < 0 || i >= n) return "Такого сундука нет";
   if ((p.pending.chests || 0) & (1 << i)) return "Сундук уже открыт";
@@ -950,7 +955,13 @@ function chestGate(p: Profile, index: number): string | null {
 }
 
 function chestBase(p: Profile, rng: Rng): Item {
-  return rollItem(rng, { ilvl: Math.max(1, p.lvl), floor: p.pending?.floor || 1, bare: true });
+  const diff = p.pending?.diff || 1;
+  const row = diffRow(diff);
+  return rollItem(rng, {
+    ilvl: Math.max(1, p.lvl), floor: p.pending?.floor || 1, bare: true,
+    rarity: clearRarity(rng, p.pending?.floor || 1, diff, false),
+    extraAffix: row.affix,
+  });
 }
 
 export function chestChoices(p: Profile, index: number, rng: Rng): ChestView | { err: string } {
@@ -1032,34 +1043,39 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
   p.kills += v.kills;
   if (cleared) p.clears[floor - 1] = (p.clears[floor - 1] || 0) + 1;
   const eco = getTune().economy;
+  const row = diffRow(raw.diff || 1);
   const flat = eco.clearBase + floor * eco.clearPerFloor + eco.bossBase + floor * eco.bossPerFloor;
-  const clearPay = cleared ? Math.round(flat * (replay ? eco.replayGold : 1)) : 0;
-  let gold = Math.round((clearPay + v.kills * eco.killGold + v.generals * eco.generalGold) * (1 + goldFind(p)));
+  const clearPay = cleared ? Math.round(flat * row.gold * (replay ? eco.replayGold : 1)) : 0;
+  const hunt = (v.kills * eco.killGold + v.generals * eco.generalGold) * row.gold;
+  let gold = Math.round((clearPay + hunt) * (1 + goldFind(p)));
   if ((raw.party | 0) >= 2) gold = Math.round(gold * eco.partyGold);
   p.gold += gold;
-  const killXp = Math.floor(v.kills * 0.2);
-  const clearXp = cleared ? Math.round((getTune().floors[floor - 1]?.xp | 0) * (replay ? eco.replayXp : 1)) : 0;
+  const killXp = Math.floor(v.kills * 0.2 * row.xp);
+  const clearXp = cleared ? Math.round((getTune().floors[floor - 1]?.xp | 0) * row.xp * (replay ? eco.replayXp : 1)) : 0;
   const xp = killXp + clearXp;
   const levels = xp > 0 ? addXp(p, xp) : 0;
   const items: LootNote[] = [];
   if (cleared) {
-    const rarity = replay
-      ? (rng() < 0.35 ? "magic" : "common")
-      : rng() < (floor >= 10 ? 0.18 : 0.08) ? "rare" : rng() < 0.55 ? "magic" : "common";
-    items.push(giveItem(p, rollItem(rng, { ilvl: Math.max(p.lvl, floor + 1), floor, rarity })));
+    const rarity = clearRarity(rng, floor, row.id, replay);
+    items.push(giveItem(p, rollItem(rng, {
+      ilvl: Math.max(p.lvl, floor + 1), floor, rarity,
+      extraAffix: row.affix, curseMul: row.curse, enchMul: row.ench,
+    })));
   }
   const partial = v.kills + v.generals > 0
     ? "В золото вошли только уже сбитые твари и генералы."
     : "Сбитых целей нет, золота за этаж нет.";
   const pass = replay
-    ? "Повтор. Опыт и золото этажа урезаны, редкая вещь и квест этого данжа больше не выдаются."
-    : "Первый проход.";
+    ? (row.id <= 1
+      ? "Повтор. Опыт и золото этажа урезаны, редкая вещь и квест этого данжа больше не выдаются."
+      : `Повтор на сложности «${row.name}». Опыт и золото этажа урезаны, квест не сдаётся снова. Редкость дропа остаётся от сложности.`)
+    : `Первый проход, сложность «${row.name}».`;
   const note = reason === "win"
     ? `${v.note ? v.note + " " : ""}${pass} Опыт зачистки ${clearXp}, за тварей ${killXp}.`
     : reason === "surrender"
       ? `Сдача. ${partial} Босс не засчитан. Опыт только за уже сбитых тварей.`
       : `Поражение: герой пал. ${partial} Босс не засчитан. Опыт только за уже сбитых тварей.`;
-  return { gold, xp, levels, items, quests, note, boss: cleared, reason, replay };
+  return { gold, xp, levels, items, quests, note, boss: cleared, reason, replay, diff: row.id, diffName: row.name };
 }
 
 export type ClaimReport = { gold: number; xp: number; levels: number; item: LootNote | null };
@@ -1122,11 +1138,74 @@ export function startNonce() {
   return [...rnd].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-export function beginRun(p: Profile, floor: number, now: number, nonce = startNonce(), carry = false): { nonce: string } | { err: string } {
+export function memberDiffLock(lvl: number, floorPassed: boolean, floor: number, diff: number): string | null {
+  const n = Math.max(1, Math.min(13, floor | 0));
+  const row = diffRow(diff);
+  if (!floorPassed && (lvl | 0) < floorNeed(n)) {
+    return `«${floorByN(n).name}» открывается с уровня ${floorNeed(n)}. Сейчас ${lvl | 0}. Уровень копится опытом зачистки и квестами, номер пройденного этажа его не заменяет.`;
+  }
+  if ((lvl | 0) < row.need) {
+    return `Сложность «${row.name}» открывается с уровня ${row.need}. Сейчас ${lvl | 0}. Пройденный данж сам по себе её не открывает.`;
+  }
+  return null;
+}
+export function diffLock(p: Profile, floor: number, diff: number): string | null {
+  return memberDiffLock(p.lvl | 0, floorPassed(p, floor), floor, diff);
+}
+export type RunOffer = {
+  id: number; name: string; need: number; open: boolean; why: string | null;
+  hp: number; dmg: number; mobHp: number; bossHp: number; bossDmg: number; bossHpParty4: number;
+  goldFirst: number; goldReplay: number; xpFirst: number; xpReplay: number;
+  rare: number; leg: number; affix: number; curse: number; ench: number; chests: number;
+  partyGold: number; partyHp: number;
+};
+export function runOffer(p: Profile, floor: number, diff: number, party = 1): RunOffer {
+  const n = Math.max(1, Math.min(13, floor | 0));
+  const row = diffRow(diff);
+  const why = diffLock(p, n, row.id);
+  const eco = getTune().economy;
+  const flat = eco.clearBase + n * eco.clearPerFloor + eco.bossBase + n * eco.bossPerFloor;
+  const xp = getTune().floors[n - 1]?.xp | 0;
+  const loot = getTune().loot;
+  return {
+    id: row.id, name: row.name, need: row.need, open: !why, why,
+    hp: row.hp, dmg: row.dmg,
+    mobHp: mobHp(0, n, getTune(), row.id),
+    bossHp: eliteHp("boss", n, party, getTune(), row.id),
+    bossDmg: Math.round(eliteDmg("boss", n, getTune(), row.id)),
+    bossHpParty4: eliteHp("boss", n, 4, getTune(), row.id),
+    goldFirst: Math.round(flat * row.gold),
+    goldReplay: Math.round(flat * row.gold * eco.replayGold),
+    xpFirst: Math.round(xp * row.xp),
+    xpReplay: Math.round(xp * row.xp * eco.replayXp),
+    rare: Math.min(0.75, (n >= 10 ? 0.18 : 0.08) + row.rare),
+    leg: row.leg,
+    affix: row.affix,
+    curse: Math.min(0.75, loot.curseChance * row.curse),
+    ench: Math.min(0.75, loot.enchChance * row.ench),
+    chests: chestTotal(row.id),
+    partyGold: eco.partyGold,
+    partyHp: partyHpMult(4),
+  };
+}
+
+function clearRarity(rng: Rng, floor: number, diff: number, replay: boolean): Rarity {
+  const row = diffRow(diff);
+  if (replay && row.id <= 1) return rng() < 0.35 ? "magic" : "common";
+  const rare = Math.min(0.75, (floor >= 10 ? 0.18 : 0.08) + row.rare);
+  const x = rng();
+  if (x < row.leg) return "legendary";
+  if (x < row.leg + rare) return "rare";
+  if (x < row.leg + rare + 0.55) return "magic";
+  return "common";
+}
+
+export function beginRun(p: Profile, floor: number, now: number, nonce = startNonce(), carry = false, diff = 1): { nonce: string } | { err: string } {
   void carry;
   if (!p.hero) return { err: "Сначала выбери героя" };
   if (floor < 1 || floor > 13) return { err: "Нет такого данжа" };
-  const lock = floorLock(p, floor);
+  const row = diffRow(diff);
+  const lock = diffLock(p, floor, row.id);
   if (lock) return { err: lock };
   const tune = getTune();
   const oath: OathId = tune.oath.on ? p.oath : "none";
@@ -1135,7 +1214,7 @@ export function beginRun(p: Profile, floor: number, now: number, nonce = startNo
     if (p.gold < stake) return { err: "На кубок не хватает золота" };
     p.gold -= stake;
   }
-  p.pending = { floor, at: now, nonce, chests: 0, ...(oath !== "none" ? { oath } : {}) };
+  p.pending = { floor, at: now, nonce, chests: 0, diff: row.id, ...(oath !== "none" ? { oath } : {}) };
   return { nonce };
 }
 
@@ -1156,6 +1235,7 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
     elapsedMs: elapsed,
     party: body.party || 1,
     reason,
+    diff: pend.diff | 0 || 1,
   }, rng);
   if ("err" in report) return report;
   if (vow === "pawn") {

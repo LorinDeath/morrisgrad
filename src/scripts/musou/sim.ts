@@ -5,7 +5,7 @@ import {
   floorByN, heroById, mulberry32, spawnBudget,
   type FloorDef, type HeroId, type Rng, type Sheet, type Sig, type SkillDef,
 } from "./rules";
-import { eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
+import { chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
 
 export const ARENA_W = 2400;
 export const ARENA_H = 1560;
@@ -115,6 +115,8 @@ function len(x: number, y: number) { return Math.hypot(x, y) || 1; }
 
 export class Battle {
   floor: FloorDef;
+  diff = 1;
+  lastMobHp = 0;
   party: Actor[];
   elites: Elite[] = [];
   chests: Chest[] = [];
@@ -170,8 +172,9 @@ export class Battle {
   private wantChest = false;
   private opened: number[] = [];
 
-  constructor(floor: number, members: Member[], seed = 1) {
+  constructor(floor: number, members: Member[], seed = 1, diff = 1) {
     this.floor = floorByN(floor);
+    this.diff = diffRow(diff).id;
     this.rng = mulberry32(seed || 1);
     const f = this.floor;
     this.party = members.slice(0, 4).map((m, i) => {
@@ -193,7 +196,7 @@ export class Battle {
     this.budgets = [a, c, b.spawns - a - c, 14];
     this.banner = f.name;
     const spots: [number, number][] = [[ARENA_W / 2 - 320, ARENA_H / 2 - 140], [ARENA_W / 2 + 300, ARENA_H / 2 + 160], [ARENA_W / 2 - 80, ARENA_H / 2 + 280], [ARENA_W / 2 + 40, ARENA_H / 2 - 300]];
-    const chests = Math.max(0, Math.min(spots.length, getTune().loot.chestCount | 0));
+    const chests = Math.min(spots.length, chestTotal(this.diff));
     for (let i = 0; i < chests; i++) this.chests.push({ id: i, x: spots[i][0], y: spots[i][1], open: false });
     this.bannerSub = f.place;
     this.bannerT = 1.35;
@@ -359,7 +362,8 @@ export class Battle {
     this.mobY[slot] = py;
     const kind = Math.floor(this.rng() * 3);
     this.mobKind[slot] = kind;
-    this.mobHp[slot] = mobHp(kind, this.floor.n);
+    this.mobHp[slot] = mobHp(kind, this.floor.n, getTune(), this.diff);
+    this.lastMobHp = this.mobHp[slot];
     this.mobAlive[slot] = 1;
     this.mobFace[slot] = this.rng() * Math.PI * 2;
     this.mobTx[slot] = px;
@@ -376,7 +380,7 @@ export class Battle {
     const boss = kind === "boss";
     const kit = floorKit(n);
     const sig = boss ? kit.bSig : kit.gSig;
-    const hp = eliteHp(kind, n, this.party.length);
+    const hp = eliteHp(kind, n, this.party.length, getTune(), this.diff);
     this.elites.push({
       kind, name: eliteName(kind, n),
       title: boss ? this.floor.bossTitle : "генерал волны",
@@ -446,7 +450,7 @@ export class Battle {
       const kind = this.mobKind[i];
       const reach = kind === 1 ? 22 : 30;
       if (bd > reach * reach || best.iframe > 0) continue;
-      const dmg = mobDmg(kind) * (best.curse > 0 ? 1.25 : 1);
+      const dmg = mobDmg(kind, getTune(), this.diff) * (best.curse > 0 ? 1.25 : 1);
       best.hp -= dmg;
       best.hurt = 0.22;
       best.iframe = Math.max(best.iframe, getTune().combat.contactIframe);
@@ -912,7 +916,7 @@ export class Battle {
     const cone = sig === "cone";
     const radius = cone || line ? 168 : boss ? 118 : 96;
     const ang = cone ? 1.05 : Math.PI;
-    const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n);
+    const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n, getTune(), this.diff);
     this.fxPush({ k: cone || line ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang: line ? 0.18 : ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
     this.shake = Math.max(this.shake, boss ? 7 : 4);
     for (const p of this.party) {

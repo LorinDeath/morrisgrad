@@ -126,6 +126,7 @@ const title = "Орда · набор чисел";
     if (enchSpeed.every(Number.isFinite)) tune.ench.speed = enchSpeed;
     if (mut.length === 10 && mut.every(Number.isFinite)) tune.mut.mult = mut;
     try { tune.floors = JSON.parse($("floors").value); } catch { tune.floors = null; }
+    try { tune.diff = JSON.parse($("diffs").value); } catch { tune.diff = null; }
     return tune;
   }
 
@@ -141,6 +142,7 @@ const title = "Орда · набор чисел";
     tune.ench.speed.forEach((n, i) => { document.querySelector(`[data-k="ench.speed.${i}"]`).value = String(n); });
     $("muts").value = tune.mut.mult.join(", ");
     $("floors").value = JSON.stringify(tune.floors, null, 1);
+    $("diffs").value = JSON.stringify(tune.diff, null, 1);
     showPreview();
   }
 
@@ -155,6 +157,7 @@ const title = "Орда · набор чисел";
       `Ближняя тварь: ${p.mobHp} здоровья`,
       `Босс соло: ${p.bossHpSolo}`,
       `Босс вчетвером: ${p.bossHpParty4}`,
+      `Кошмар, босс соло: ${p.bossNightmare}`,
       `Опыт до 2 уровня: ${p.xp1}`,
       `Скорость с проклятой вещью: ×${p.curseSpeed}`,
     ].join("\n");
@@ -211,6 +214,14 @@ const title = "Орда · набор чисел";
     area.addEventListener("input", showPreview);
     names.append(area);
     buckets.mark.append(names);
+    const diffLab = document.createElement("label");
+    diffLab.textContent = "Сложности: Обычная, Сложная, Героическая, Кошмар. need, hp, dmg, gold, xp, rare, leg, affix, curse, ench, chest";
+    const diffBox = document.createElement("textarea");
+    diffBox.id = "diffs";
+    diffBox.rows = 8;
+    diffBox.addEventListener("input", showPreview);
+    diffLab.append(diffBox);
+    buckets.mark.append(diffLab);
     paint(DEFAULT_TUNE);
   }
 

@@ -103,7 +103,7 @@ async function act(env: any, key: string, body: any, cors: Record<string, string
     if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });
     report = r;
   } else if (op === "start") {
-    const r = beginRun(p, body.floor | 0, Date.now());
+    const r = beginRun(p, body.floor | 0, Date.now(), undefined, false, body.diff | 0 || 1);
     if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });
     await saveProfile(env.GAME_DB, key, p);
     return Response.json({ nonce: r.nonce, profile: p }, { headers: cors });

@@ -2,14 +2,14 @@
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, mulberry32, newProfile,
+  finishRun, diffLock, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
   type ChestPick, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
 } from "./rules";
 import { Battle, type Btn } from "./sim";
 import { drawBattle, drawPortrait, type Cam } from "./draw";
-import { floorMut, getTune, setTune, validateTune } from "./tune";
+import { DIFF_NAME, floorMut, getTune, setTune, validateTune } from "./tune";
 
 const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const SITE = location.hostname === "morrisgrad.com" || location.hostname === "www.morrisgrad.com";
@@ -26,6 +26,7 @@ let nick = "Гость";
 let verified = false;
 let view = "boot";
 let floorPick = 1;
+let diffPick = 1;
 let selected: Item | null = null;
 let battle: Battle | null = null;
 let nonce = "";
@@ -168,6 +169,27 @@ function slotHtml(it: Item | null, empty: string) {
   return `<i style="color:${col}">${RARITY_NAME[it.rarity]}${mark}</i><b style="color:${col}">${it.name}</b>`;
 }
 
+function pct(n: number) { return `${Math.round(n * 100)}%`; }
+function offerText(floor: number, diff: number) {
+  const o = runOffer(profile, floor, diff, 1);
+  const four = runOffer(profile, floor, diff, 4);
+  const tune = getTune();
+  return [
+    `${o.name}: враги ×${o.hp}, урон ×${o.dmg}. Тварь ${o.mobHp}, босс ${o.bossHp} здоровья и ${o.bossDmg} урона.`,
+    `Первый проход: ${o.goldFirst} золота этажа и ${o.xpFirst} опыта данжа. Повтор: ${o.goldReplay} золота и ${o.xpReplay} опыта.`,
+    `Редкость до ${pct(o.rare)}, легендарное ${pct(o.leg)}, аффиксов +${o.affix}. Проклятие ${pct(o.curse)}, чары ${pct(o.ench)}, сундуков ${o.chests}.`,
+    `Вчетвером босс ${four.bossHp} здоровья (за союзника +${tune.combat.partyHpPerExtra}, потолок ×${tune.combat.partyHpCap}), золото группы ×${o.partyGold}. Награда этой сложности, не уровня старшего.`,
+    o.why || "",
+  ].filter(Boolean).join(" ");
+}
+function goLabel(floor: number, diff: number) {
+  const why = diffLock(profile, floor, diff);
+  const name = FLOORS[floor - 1]?.name || "Данж";
+  const mode = DIFF_NAME[(diff | 0) - 1] || DIFF_NAME[0];
+  if (why) return floorLock(profile, floor) ? `Закрыто до уровня ${floorNeed(floor)}` : `«${mode}» с уровня ${runOffer(profile, floor, diff).need}`;
+  return `${(profile.clears[floor - 1] || 0) > 0 ? "Ещё раз" : "В бой"} · ${name} · ${mode}`;
+}
+
 function renderHub() {
   const s = sheet(profile);
   const hero = heroById(profile.hero);
@@ -204,8 +226,14 @@ function renderHub() {
         const state = why ? "Закрыт" : clr ? "Пройден" : "Доступен";
         return `<button type="button" class="dungeon${f.n === openF ? " on" : ""}${why ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}"><span class="n">${f.n}</span><span class="dn"><b>${f.name}</b><small>ур. ${floorNeed(f.n)} · ${f.place}</small><em class="state ${why ? "lock" : clr ? "pass" : "open"}">${state}</em></span></button>`;
       }).join("")}</div>
-      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : (profile.clears[openF - 1] || 0) > 0 ? `<p class="derived">Пройден. Повтор не закрывает следующие данжи и не выдаёт награду квеста второй раз.</p>` : `<p class="derived">Доступен для первого прохода.</p>`}
-      <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${floorOpen(profile, openF) ? "" : "disabled"}>${floorOpen(profile, openF) ? ((profile.clears[openF - 1] || 0) > 0 ? `Ещё раз · ${FLOORS[openF - 1].name}` : `В бой · ${FLOORS[openF - 1].name}`) : `Закрыто до уровня ${floorNeed(openF)}`}</button></div>
+      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : (profile.clears[openF - 1] || 0) > 0 ? `<p class="derived">Пройден. Повтор не закрывает следующие данжи. Квест сдаётся один раз, сложность выбирается заново.</p>` : `<p class="derived">Доступен для первого прохода.</p>`}
+      <div class="diffs">${DIFF_NAME.map((name, i) => {
+        const id = i + 1;
+        const why = diffLock(profile, openF, id);
+        return `<button type="button" class="btn${diffPick === id ? " gold" : ""}${why ? " lock" : ""}" data-diff="${id}">${name}${why ? ` · ур. ${runOffer(profile, openF, id).need}` : ""}</button>`;
+      }).join("")}</div>
+      <p class="offer">${offerText(openF, diffPick)}</p>
+      <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${diffLock(profile, openF, diffPick) ? "disabled" : ""}>${goLabel(openF, diffPick)}</button></div>
       <p class="dungeon-lead"><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].desc}</p>
       <p>Ярусы: ${FLOORS[openF - 1].stages.join(" → ")}. Толпа «${FLOORS[openF - 1].mob}». Генерал ${FLOORS[openF - 1].general}. Босс: ${FLOORS[openF - 1].boss}, ${FLOORS[openF - 1].bossTitle}.${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}.` : ""}</p>
       <p class="derived">Режим на этот заход. Клятва меняет бой. Кубок списывает ${getTune().oath.stake} зл до старта.</p>
@@ -231,6 +259,7 @@ function renderHub() {
     </section>
   </div>`;
   root.querySelectorAll<HTMLButtonElement>("[data-floor]").forEach((b) => b.onclick = () => { floorPick = Number(b.dataset.floor); renderHub(); });
+  root.querySelectorAll<HTMLButtonElement>("[data-diff]").forEach((b) => b.onclick = () => { diffPick = Number(b.dataset.diff) || 1; renderHub(); });
   root.querySelectorAll<HTMLButtonElement>("[data-oath]").forEach((b) => b.onclick = async () => {
     const id = b.dataset.oath || "none";
     if (online) {
@@ -420,15 +449,23 @@ async function connect(code: string, fromDrop = false) {
       room = { code: m.code, host: m.hostId === youId, seats: m.seats };
       const box = $<HTMLElement>("room-box");
       const need = m.need | 0;
-      const low = (m.seats as { nick: string; lvl?: number; passed?: boolean }[]).filter((s) => (s.lvl | 0) < need && !s.passed);
+      const mode = m.diff | 0 || 1;
+      const low = (m.seats as { nick: string; lvl?: number; passed?: boolean }[]).filter((s) => memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode));
       const chips = room.host ? FLOORS.filter((f) => floorOpen(profile, f.n)).map((f) => {
         const passed = (profile.clears[f.n - 1] || 0) > 0;
         const on = (m.floor | 0) === f.n;
         return `<button type="button" class="btn${on ? " gold" : ""}" data-room-floor="${f.n}">${f.n} · ${passed ? "Пройден" : "Доступен"}</button>`;
       }).join("") : "";
-      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · уровень ${need} для тех, кто его ещё не проходил.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}<ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${(s.lvl | 0) < need && !s.passed ? " · не дотягивает" : s.passed ? " · пройден" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">В группе не хватает уровня: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Уровень группы проверяет сервер.</p>"}`;
+      const modes = room.host ? DIFF_NAME.map((name, i) => {
+        const id = i + 1;
+        const why = diffLock(profile, m.floor | 0, id);
+        return `<button type="button" class="btn${mode === id ? " gold" : ""}" data-room-diff="${id}" ${why ? "disabled" : ""}>${name}</button>`;
+      }).join("") : "";
+      const offer = runOffer(profile, m.floor | 0 || 1, mode, Math.max(1, m.seats.length));
+      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · ${DIFF_NAME[mode - 1] || "Обычная"}. Уровень этажа ${need}, сложность с ${offer.need}.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}${modes ? `<div class="diffs">${modes}</div>` : ""}<p class="offer">Босс ${offer.bossHp} здоровья и ${offer.bossDmg} урона. Первый проход ${offer.goldFirst} золота и ${offer.xpFirst} опыта, повтор ${offer.goldReplay} и ${offer.xpReplay}. Сундуков ${offer.chests}, проклятие ${Math.round(offer.curse * 100)}%, чары ${Math.round(offer.ench * 100)}%. Золото группы ×${offer.partyGold}. Выше сложности, которую не открыл кто-то из группы, старт не идёт.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode) ? " · не дотягивает" : s.passed ? " · пройден" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">В группе не хватает уровня: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Уровень и сложность группы проверяет сервер.</p>"}`;
       $<HTMLButtonElement>("room-start") && ($<HTMLButtonElement>("room-start").onclick = () => ws?.send(JSON.stringify({ type: "start" })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-floor]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "floor", floor: Number(b.dataset.roomFloor) })));
+      document.querySelectorAll<HTMLButtonElement>("[data-room-diff]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "diff", diff: Number(b.dataset.roomDiff) })));
     }
     if (m.type === "err") toast(m.err || "Ошибка комнаты");
     if (m.type === "go") {
@@ -437,7 +474,7 @@ async function connect(code: string, fromDrop = false) {
         mirror = false;
         nonce = m.nonce;
         const members = m.party.map((p: any) => ({ id: p.id, name: p.nick, hero: p.hero, sheet: p.sheet }));
-        beginBattle(m.floor, members, m.seed || 1, true);
+        beginBattle(m.floor, members, m.seed || 1, true, m.diff | 0 || 1);
       }
     }
     if (m.type === "who" && battle) battle.applyWho(m.id, m.x, m.y, m.aim);
@@ -474,16 +511,16 @@ async function pullTune() {
 }
 
 async function startSolo(floor: number) {
-  const lock = floorLock(profile, floor);
+  const lock = diffLock(profile, floor, diffPick);
   if (lock) return toast(lock);
   await pullTune();
   mirror = false;
   youId = "you";
   if (online) {
-    const r = await act({ op: "start", floor });
+    const r = await act({ op: "start", floor, diff: diffPick });
     if (r?.nonce) {
       nonce = r.nonce;
-      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false);
+      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, diffPick);
       return;
     }
     if (r?.err) return;
@@ -493,16 +530,16 @@ async function startSolo(floor: number) {
     $<HTMLElement>("net-pill").classList.add("warn");
   }
   {
-    const b = beginRun(profile, floor, Date.now());
+    const b = beginRun(profile, floor, Date.now(), undefined, false, diffPick);
     if ("err" in b) return toast(b.err);
     nonce = b.nonce;
     saveLocal();
-    beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false);
+    beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, diffPick);
   }
 }
 
-function beginBattle(floor: number, members: { id: string; name: string; hero: HeroId; sheet: any }[], seed: number, remote: boolean) {
-  battle = new Battle(floor, members, seed);
+function beginBattle(floor: number, members: { id: string; name: string; hero: HeroId; sheet: any }[], seed: number, remote: boolean, diff = 1) {
+  battle = new Battle(floor, members, seed, diff);
   battle.mirror = false;
   battle.remote = remote;
   battle.localId = youId || members[0].id;
@@ -581,7 +618,7 @@ function hud() {
   $<HTMLElement>("ms").style.width = me.musou + "%";
   const f = battle.floor;
   const wave = battle.wave < 3 ? (f.stages[battle.wave] || `Волна ${battle.wave + 1}`) : "Босс";
-  $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b><div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown ? " · босс пал" : ""}</div>`;
+  $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b> · ${DIFF_NAME[(battle.diff | 0) - 1] || "Обычная"}<div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown ? " · босс пал" : ""}</div>`;
   $<HTMLButtonElement>("pause-btn").hidden = !!battle.remote;
   const chest = $<HTMLElement>("chest-hint");
   if (chest) chest.hidden = !battle.nearChest;
@@ -604,8 +641,9 @@ function showResult(report: RunReport | null, phase: string, reason?: RunReport[
   show("result");
   const why = report?.reason || reason || (phase === "won" ? "win" : "dead");
   const title = why === "win" ? (report?.replay ? "Повтор засчитан" : "Этаж зачищен") : why === "surrender" ? "Сдача" : "Поражение";
+  const mode = report?.diffName ? `Сложность «${report.diffName}». ` : "";
   const items = report && "items" in report ? report.items : [];
-  const pay = report && "gold" in report ? (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : (err ? `Награда не засчитана: ${err}.` : "Награда не засчитана.");
+  const pay = report && "gold" in report ? mode + (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : (err ? `Награда не засчитана: ${err}.` : "Награда не засчитана.");
   paintPills();
   const xpLine = report && "xp" in report ? `Уровень ${profile.lvl}${report.levels ? ` · новых ${report.levels}` : ""}. Опыт хода: ${report.xp}.` : `Уровень ${profile.lvl}.`;
   $<HTMLElement>("v-result").innerHTML = `<article class="result-card"><p class="tag">${why === "win" ? "Победа" : why === "surrender" ? "Выход" : "Падение"}</p><h2>${title}</h2>

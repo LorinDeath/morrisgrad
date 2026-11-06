@@ -4,13 +4,13 @@ import { identify } from "../strat/ident";
 import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limits";
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
-import { beginRun, clampStrike, finishRun, floorByN, floorLock, floorNeed, makeScript, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
-import { eliteHp, eliteName, floorKit } from "../../src/scripts/musou/tune";
+import { beginRun, clampStrike, diffLock, finishRun, floorByN, floorNeed, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
+import { diffRow, eliteHp, eliteName, floorKit, getTune } from "../../src/scripts/musou/tune";
 
 type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[] };
 type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number };
 type Lob = {
-  code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; nonce: string; started: number;
+  code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; diff: number; nonce: string; started: number;
   seed: number; elites: Elite[]; pos: Record<string, { x: number; y: number; aim: number; at: number }>; paid: boolean; reports: Record<string, any>;
   party?: any[];
 };
@@ -20,7 +20,11 @@ export class MusouRoom extends DurableObject {
   env: any;
   L: Lob | null = null;
   constructor(ctx: any, env: any) { super(ctx, env); this.env = env; }
-  async load() { if (!this.L) this.L = (await this.ctx.storage.get("L")) || null; return this.L; }
+  async load() {
+    if (!this.L) this.L = (await this.ctx.storage.get("L")) || null;
+    if (this.L && !(this.L.diff >= 1)) this.L.diff = 1;
+    return this.L;
+  }
   async save() { if (this.L) await this.ctx.storage.put("L", this.L); }
   send(ws: WebSocket, o: any) { try { ws.send(JSON.stringify(o)); } catch { /* closed */ } }
   broadcast(o: any, skip?: WebSocket) {
@@ -40,7 +44,7 @@ export class MusouRoom extends DurableObject {
     if (url.hostname === "internal" && url.pathname === "/init" && request.method === "POST") {
       if (await this.load()) return new Response("exists", { status: 409 });
       const b: any = await request.json().catch(() => ({}));
-      this.L = { code: String(b.code), pub: !!b.pub, phase: "lobby", seats: [], host: "", floor: 1, nonce: "", started: 0, seed: 1, elites: [], pos: {}, paid: false, reports: {} };
+      this.L = { code: String(b.code), pub: !!b.pub, phase: "lobby", seats: [], host: "", floor: 1, diff: 1, nonce: "", started: 0, seed: 1, elites: [], pos: {}, paid: false, reports: {} };
       await this.save();
       return new Response("ok");
     }
@@ -58,7 +62,7 @@ export class MusouRoom extends DurableObject {
   seatView(skip?: WebSocket) {
     const L = this.L!;
     return {
-      type: "lobby", code: L.code, pub: L.pub, phase: L.phase, floor: L.floor, hostId: L.host,
+      type: "lobby", code: L.code, pub: L.pub, phase: L.phase, floor: L.floor, diff: L.diff || 1, hostId: L.host,
       seats: L.seats.map((s) => ({
         id: s.pkey, nick: s.nick, hero: s.hero, lvl: s.lvl | 0,
         passed: !!(s.passed && s.passed[(L.floor | 0) - 1]),
@@ -103,7 +107,7 @@ export class MusouRoom extends DurableObject {
       this.send(ws, { type: "you", id: key, nick: seat.nick, host: L.host === key });
       this.broadcast(this.seatView());
       if (L.phase === "fight" && L.party) {
-        this.send(ws, { type: "go", floor: L.floor, nonce: L.nonce, seed: L.seed, hostId: L.host, party: L.party });
+        this.send(ws, { type: "go", floor: L.floor, diff: L.diff || 1, nonce: L.nonce, seed: L.seed, hostId: L.host, party: L.party });
         this.send(ws, { type: "elite", elites: L.elites || [] });
       }
       return;
@@ -119,6 +123,21 @@ export class MusouRoom extends DurableObject {
       const lock = floorLock(prof, n);
       if (lock) return this.send(ws, { type: "err", err: lock });
       L.floor = n;
+      const keep = diffLock(prof, n, L.diff || 1);
+      if (keep) L.diff = 1;
+      await this.save();
+      this.broadcast(this.seatView());
+      return;
+    }
+    if (m.type === "diff" && L.host === seat.pkey && L.phase === "lobby") {
+      const d = m.diff | 0;
+      if (d < 1 || d > 4) return;
+      const prof = await loadProfile(this.env.GAME_DB, seat.pkey);
+      seat.lvl = prof.lvl | 0;
+      seat.passed = prof.clears.map((c) => c > 0);
+      const lock = diffLock(prof, L.floor, d);
+      if (lock) return this.send(ws, { type: "err", err: lock });
+      L.diff = diffRow(d).id;
       await this.save();
       this.broadcast(this.seatView());
       return;
@@ -160,14 +179,16 @@ export class MusouRoom extends DurableObject {
       s.lvl = p.lvl | 0;
       s.passed = p.clears.map((c) => c > 0);
       loaded.push({ s, p });
-      if (floorLock(p, L.floor)) short.push(`${s.nick} ур. ${p.lvl}`);
+      const why = memberDiffLock(p.lvl | 0, (p.clears[L.floor - 1] || 0) > 0, L.floor, L.diff || 1);
+      if (why) short.push(`${s.nick} ур. ${p.lvl}`);
     }
     if (short.length) {
       const f = floorByN(L.floor);
-      return this.broadcast({ type: "err", err: `Данж «${f.name}» открыт с уровня ${need} или после своего прохождения. Не дотягивают: ${short.join(", ")}.` });
+      const row = diffRow(L.diff || 1);
+      return this.broadcast({ type: "err", err: `«${f.name}», сложность «${row.name}» (уровень этажа ${need}, сложность с ${row.need}). Не дотягивают: ${short.join(", ")}.` });
     }
     for (const { s, p } of loaded) {
-      const opened = beginRun(p, L.floor, now, nonce, s.pkey !== L.host);
+      const opened = beginRun(p, L.floor, now, nonce, s.pkey !== L.host, L.diff || 1);
       if ("err" in opened) return this.broadcast({ type: "err", err: opened.err });
       const sh = sheet(p);
       await saveProfile(this.env.GAME_DB, s.pkey, p);
@@ -185,7 +206,7 @@ export class MusouRoom extends DurableObject {
     L.party = party;
     await this.save();
     await this.report();
-    this.broadcast({ type: "go", floor: L.floor, nonce, seed: L.seed, hostId: L.host, party });
+    this.broadcast({ type: "go", floor: L.floor, diff: L.diff || 1, nonce, seed: L.seed, hostId: L.host, party });
   }
 
   pump() {
@@ -207,7 +228,7 @@ export class MusouRoom extends DurableObject {
     let changed = false;
     plan.forEach((s) => {
       if (elapsed < s.at || L.elites.some((e) => e.id === s.id)) return;
-      const hp = eliteHp(s.kind, L.floor, L.seats.length);
+      const hp = eliteHp(s.kind, L.floor, L.seats.length, getTune(), L.diff || 1);
       const boss = s.kind === "boss";
       const sig = boss ? kit.bSig : kit.gSig;
       L.elites.push({

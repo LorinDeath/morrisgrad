@@ -67,7 +67,26 @@ export type OrdaTune = {
   oath: { on: number; stake: number };
   xp: { base: number; pow: number };
   floors: FloorTune[];
+  /** Четыре сложности Тёмного мира, которые помещаются в потолок 60 уровня. */
+  diff: DiffTune;
 };
+
+export type DiffTune = {
+  need: [number, number, number, number];
+  hp: [number, number, number, number];
+  dmg: [number, number, number, number];
+  gold: [number, number, number, number];
+  xp: [number, number, number, number];
+  rare: [number, number, number, number];
+  leg: [number, number, number, number];
+  affix: [number, number, number, number];
+  curse: [number, number, number, number];
+  ench: [number, number, number, number];
+  chest: [number, number, number, number];
+};
+
+/** Имена Тёмного мира. Инферно ×35, Сингулярность ×100 и Абсолютный хаос ×360 требуют уровни 100–200 и в Орду не входят. */
+export const DIFF_NAME = ["Обычная", "Сложная", "Героическая", "Кошмар"] as const;
 
 export type FloorTune = { general: string; boss: string; gSig: Sig; bSig: Sig; mut: number; need: number; xp: number };
 
@@ -132,6 +151,19 @@ export const DEFAULT_TUNE: OrdaTune = {
   mut: { mult: [1.12, 1.22, 1.32, 1.44, 1.56, 1.7, 1.84, 2, 2.15, 2.3] },
   oath: { on: 1, stake: 25 },
   xp: { base: 50, pow: 1.45 },
+  diff: {
+    need: [1, 10, 30, 60],
+    hp: [1, 2.2, 5, 12],
+    dmg: [1, 2.2, 5, 12],
+    gold: [1, 1.45, 1.9, 2.4],
+    xp: [1, 1.35, 1.7, 2.1],
+    rare: [0, 0.07, 0.14, 0.22],
+    leg: [0, 0, 0.03, 0.07],
+    affix: [0, 1, 1, 2],
+    curse: [1, 1.4, 1.8, 2.2],
+    ench: [1, 1.4, 1.8, 2.2],
+    chest: [0, 0, 1, 1],
+  },
   floors: [
     { general: "Манекен I", boss: "Теневой Страж", gSig: "circle", bSig: "cone", mut: 0, need: 1, xp: 135 },
     { general: "Головорез тракта", boss: "Атаман Мародёров", gSig: "cone", bSig: "line", mut: 0, need: 2, xp: 190 },
@@ -233,13 +265,18 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
   if ("floors" in src) {
     const names = readFloors(src.floors);
     if (typeof names === "string") return { ok: false, err: names };
     out.floors = names;
+  }
+  if ("diff" in src) {
+    const diff = readDiff(src.diff);
+    if (typeof diff === "string") return { ok: false, err: diff };
+    out.diff = diff;
   }
   const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp"] as const;
   for (const sec of sections) {
@@ -304,6 +341,44 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
 
 const SIGS = new Set(["circle", "cone", "line", "curse", "summon"]);
 
+const DIFF_KEYS = ["need", "hp", "dmg", "gold", "xp", "rare", "leg", "affix", "curse", "ench", "chest"] as const;
+const DIFF_BOUND: Record<(typeof DIFF_KEYS)[number], Bound> = {
+  need: { min: 1, max: 60, int: true },
+  hp: { min: 1, max: 12 },
+  dmg: { min: 1, max: 12 },
+  gold: { min: 1, max: 3 },
+  xp: { min: 1, max: 2.5 },
+  rare: { min: 0, max: 0.4 },
+  leg: { min: 0, max: 0.15 },
+  affix: { min: 0, max: 3, int: true },
+  curse: { min: 1, max: 2.5 },
+  ench: { min: 1, max: 2.5 },
+  chest: { min: 0, max: 2, int: true },
+};
+
+function readDiff(raw: unknown): DiffTune | string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "diff: нужен объект";
+  const rec = raw as Record<string, unknown>;
+  for (const k of Object.keys(rec)) if (!DIFF_KEYS.includes(k as (typeof DIFF_KEYS)[number])) return `лишнее поле diff.${k}`;
+  const out = {} as DiffTune;
+  for (const key of DIFF_KEYS) {
+    const arr = rec[key];
+    if (!Array.isArray(arr) || arr.length !== 4) return `diff.${key}: 4 числа, по сложности Тёмного мира`;
+    const got: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const n = num(arr[i], DIFF_BOUND[key], `diff.${key}[${i}]`);
+      if (typeof n === "string") return n;
+      if (i > 0 && n < got[i - 1]) return `diff.${key}: ступени не убывают`;
+      got.push(n);
+    }
+    (out as any)[key] = got;
+  }
+  if (out.need[0] !== 1) return "diff.need[0]: обычная сложность открыта с 1 уровня";
+  for (let i = 1; i < 4; i++) if (out.need[i] <= out.need[i - 1]) return "diff.need: уровни строго растут";
+  if (out.hp[0] !== 1 || out.dmg[0] !== 1 || out.gold[0] !== 1 || out.xp[0] !== 1) return "обычная сложность держит множители ×1";
+  return out;
+}
+
 function readFloors(raw: unknown): FloorTune[] | string {
   if (!Array.isArray(raw) || raw.length !== 13) return "floors: ровно 13 этажей";
   const out: FloorTune[] = [];
@@ -347,28 +422,58 @@ export function eliteName(kind: "general" | "boss", floor: number, t = active) {
   return m ? `${m.name} · ${base}` : base;
 }
 
-export function mobHp(kind: number, floor: number, t = active) {
-  const i = ((kind % 3) + 3) % 3;
-  return t.combat.mobHp[i] + Math.max(1, floor | 0) * t.combat.mobHpPerFloor;
+export function diffIndex(n: number) {
+  const i = (n | 0) - 1;
+  return i < 0 ? 0 : i > 3 ? 3 : i;
 }
-export function mobDmg(kind: number, t = active) {
-  const i = ((kind % 3) + 3) % 3;
-  return t.combat.mobDmg[i];
+export function diffRow(n: number, t = active) {
+  const i = diffIndex(n);
+  const d = t.diff;
+  return {
+    id: i + 1,
+    name: DIFF_NAME[i],
+    need: d.need[i],
+    hp: d.hp[i],
+    dmg: d.dmg[i],
+    gold: d.gold[i],
+    xp: d.xp[i],
+    rare: d.rare[i],
+    leg: d.leg[i],
+    affix: d.affix[i] | 0,
+    curse: d.curse[i],
+    ench: d.ench[i],
+    chest: d.chest[i] | 0,
+  };
 }
-export function eliteHp(kind: "general" | "boss", floor: number, party = 1, t = active) {
+export function chestTotal(diff = 1, t = active) {
+  return Math.max(0, Math.min(4, (t.loot.chestCount | 0) + diffRow(diff, t).chest));
+}
+
+export function mobHp(kind: number, floor: number, t = active, diff = 1) {
+  const i = ((kind % 3) + 3) % 3;
+  const base = t.combat.mobHp[i] + Math.max(1, floor | 0) * t.combat.mobHpPerFloor;
+  return Math.max(1, Math.round(base * diffRow(diff, t).hp));
+}
+export function mobDmg(kind: number, t = active, diff = 1) {
+  const i = ((kind % 3) + 3) % 3;
+  return Math.max(1, Math.round(t.combat.mobDmg[i] * diffRow(diff, t).dmg));
+}
+export function partyHpMult(party = 1, t = active) {
+  const extra = Math.max(0, (party | 0) - 1);
+  return Math.min(t.combat.partyHpCap, 1 + t.combat.partyHpPerExtra * extra);
+}
+export function eliteHp(kind: "general" | "boss", floor: number, party = 1, t = active, diff = 1) {
   const n = Math.max(1, Math.min(13, floor | 0));
   const base = kind === "boss"
     ? t.combat.bossHp + n * t.combat.bossHpPerFloor
     : t.combat.generalHp + n * t.combat.generalHpPerFloor;
-  const extra = Math.max(0, (party | 0) - 1);
-  const mult = Math.min(t.combat.partyHpCap, 1 + t.combat.partyHpPerExtra * extra);
   const grown = floorMut(n, t)?.mult || 1;
-  return Math.round(base * mult * grown);
+  return Math.round(base * partyHpMult(party, t) * grown * diffRow(diff, t).hp);
 }
-export function eliteDmg(kind: "general" | "boss", floor: number, t = active) {
+export function eliteDmg(kind: "general" | "boss", floor: number, t = active, diff = 1) {
   const n = Math.max(1, Math.min(13, floor | 0));
   const base = kind === "boss" ? t.combat.bossDmg + n * t.combat.bossDmgPerFloor : t.combat.generalDmg + n * t.combat.generalDmgPerFloor;
-  return base * (floorMut(n, t)?.mult || 1);
+  return base * (floorMut(n, t)?.mult || 1) * diffRow(diff, t).dmg;
 }
 
 export type TunePreview = {
@@ -379,6 +484,7 @@ export type TunePreview = {
   mobHp: number;
   bossHpSolo: number;
   bossHpParty4: number;
+  bossNightmare: number;
   xp1: number;
   curseSpeed: number;
 };
@@ -395,6 +501,7 @@ export function previewTune(t: OrdaTune, floor = 1): TunePreview {
     mobHp: mobHp(0, floor, t),
     bossHpSolo: eliteHp("boss", floor, 1, t),
     bossHpParty4: eliteHp("boss", floor, 4, t),
+    bossNightmare: eliteHp("boss", floor, 1, t, 4),
     xp1: Math.round(t.xp.base * Math.pow(1, t.xp.pow)),
     curseSpeed: t.curse.speed,
   };

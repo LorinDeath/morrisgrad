@@ -1,10 +1,10 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, floorLock, floorNeed, floorOpen, killNeed, makeScript, mulberry32, newProfile, roomOutcome, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
+  finishRun, diffLock, floorLock, floorNeed, floorOpen, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, roomOutcome, runOffer, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
-import { DEFAULT_TUNE, eliteHp, eliteName, floorKit, floorMut, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
+import { DEFAULT_TUNE, DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, floorMut, getTune, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
 
 let fails = 0, n = 0;
 const ok = (c: unknown, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -327,6 +327,111 @@ ok(!!drop && (drop.rarity === "common" || drop.rarity === "magic") && !drop.uniq
 ok(floorOpen(replayP, 7) && (!nextOpen || floorOpen(replayP, 8)), "повтор не закрывает ни этот данж, ни уже открытый следующий");
 const still = claimQuest(replayP, "b7", mulberry32(74));
 ok("err" in still && still.err === "Награда уже взята", "квест после повтора остаётся сданным");
+
+const oldTune = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+delete oldTune.diff;
+const oldOk = validateTune(oldTune);
+ok(oldOk.ok && oldOk.tune.diff.hp[3] === 12 && oldOk.tune.diff.need[1] === 10, "старый набор получает четыре сложности Тёмного мира");
+const chaos = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+chaos.diff.hp[3] = 360;
+ok(!validateTune(chaos).ok, "×360 сложности правило не пускает");
+ok(DIFF_NAME.join(",") === "Обычная,Сложная,Героическая,Кошмар", "имена сложностей взяты из Тёмного мира");
+
+let matrix = true;
+for (let f = 1; f <= 13; f++) {
+  let prevGold = 0, prevXp = 0, prevHp = 0;
+  for (let d = 1; d <= 4; d++) {
+    const who = newProfile(1000 + f * 10 + d);
+    setHero(who, "lorin");
+    who.lvl = 60;
+    who.clears[f - 1] = 1;
+    const o = runOffer(who, f, d, 1);
+    const ratios = [1, 2.2, 5, 12];
+    if (o.hp !== ratios[d - 1] || o.dmg !== ratios[d - 1] || o.name !== DIFF_NAME[d - 1]) matrix = false;
+    if (!(o.bossHp > prevHp && o.goldFirst > prevGold && o.xpFirst > prevXp)) matrix = false;
+    if (o.bossHp !== eliteHp("boss", f, 1, getTune(), d) || o.mobHp !== mobHp(0, f, getTune(), d)) matrix = false;
+    if (o.chests !== chestTotal(d) || (d >= 3 && o.chests !== 3) || (d < 3 && o.chests !== 2)) matrix = false;
+    if (d > 1 && (o.rare <= runOffer(who, f, d - 1).rare || o.affix < runOffer(who, f, d - 1).affix)) matrix = false;
+    prevHp = o.bossHp; prevGold = o.goldFirst; prevXp = o.xpFirst;
+    const low = newProfile(2000 + f * 10 + d);
+    setHero(low, "lorin");
+    low.lvl = Math.max(1, o.need - 1);
+    low.clears[0] = 1;
+    if (d > 1 && !diffLock(low, 1, d)?.includes(`уровня ${o.need}`)) matrix = false;
+    const high = newProfile(3000 + f * 10 + d);
+    setHero(high, "lorin");
+    high.lvl = Math.max(o.need, floorNeed(f));
+    if (diffLock(high, f, d)) matrix = false;
+  }
+}
+ok(matrix, "матрица 13 этажей × 4 сложности: опасность, награда и порог уровня");
+
+const junior = newProfile(70);
+setHero(junior, "veles");
+junior.lvl = 9;
+junior.clears[0] = 1;
+const senior = newProfile(71);
+setHero(senior, "lorin");
+senior.lvl = 60;
+senior.clears[0] = 1;
+ok(!!memberDiffLock(junior.lvl, true, 1, 2) && !memberDiffLock(senior.lvl, true, 1, 4), "младший не открывает сложную, старший открывает кошмар");
+ok("err" in beginRun(junior, 1, 1000, undefined, false, 2) && !("err" in beginRun(senior, 1, 1000, undefined, false, 4)), "сервер не пускает младшего на чужую сложность");
+const liedDiff = finishRun(senior, { nonce: senior.pending?.nonce, reason: "win", boss: true, diff: 1 } as any, 1000 + 40_000, mulberry32(81), { kills: 20, generals: 1, boss: true });
+const nightRow = diffRow(4);
+const flat1 = DEFAULT_TUNE.economy.clearBase + DEFAULT_TUNE.economy.clearPerFloor + DEFAULT_TUNE.economy.bossBase + DEFAULT_TUNE.economy.bossPerFloor;
+const expectNight = Math.round(Math.round(flat1 * nightRow.gold * DEFAULT_TUNE.economy.replayGold) + (20 * DEFAULT_TUNE.economy.killGold + DEFAULT_TUNE.economy.generalGold) * nightRow.gold);
+ok(!("err" in liedDiff) && liedDiff.diff === 4 && liedDiff.diffName === "Кошмар" && liedDiff.gold === expectNight, "итог платит кошмар, даже если тело просит обычную");
+ok(eliteDmg("boss", 1, getTune(), 4) === eliteDmg("boss", 1) * 12, "урон босса кошмара ×12");
+
+const ordinary = newProfile(72);
+setHero(ordinary, "lorin");
+const oGo = beginRun(ordinary, 1, 2000);
+const oWin = finishRun(ordinary, { nonce: (oGo as { nonce: string }).nonce, reason: "win", boss: true }, 2000 + 40_000, mulberry32(82), { kills: 20, generals: 1, boss: true });
+const expectOrdinary = Math.round(flat1 + 20 * DEFAULT_TUNE.economy.killGold + DEFAULT_TUNE.economy.generalGold);
+ok(!("err" in oWin) && oWin.diff === 1 && oWin.gold === expectOrdinary && oWin.gold < expectNight, "обычная плата меньше кошмара при тех же целях");
+
+let hardRare = false, plainRare = false;
+for (let seed = 1; seed <= 40 && (!hardRare || !plainRare); seed++) {
+  const farm = newProfile(800 + seed);
+  setHero(farm, "lorin");
+  farm.lvl = 60;
+  farm.clears[0] = 1;
+  const stay = beginRun(farm, 1, 3000, undefined, false, 1);
+  const plain = finishRun(farm, { nonce: (stay as { nonce: string }).nonce, reason: "win", boss: true }, 3000 + 40_000, mulberry32(seed), { kills: 10, generals: 1, boss: true });
+  if (!("err" in plain) && plain.replay && (plain.items[0].item.rarity === "rare" || plain.items[0].item.rarity === "legendary")) plainRare = true;
+  const up = newProfile(900 + seed);
+  setHero(up, "lorin");
+  up.lvl = 60;
+  up.clears[0] = 1;
+  up.quests.b1 = { p: 1, done: 1, claimed: 1 };
+  const go = beginRun(up, 1, 4000, undefined, false, 4);
+  const won = finishRun(up, { nonce: (go as { nonce: string }).nonce, reason: "win", boss: true }, 4000 + 40_000, mulberry32(seed + 90), { kills: 10, generals: 1, boss: true });
+  const item = !("err" in won) ? won.items[0].item : null;
+  if (item && won.replay && won.quests.length === 0 && item.affixes.length >= 2 && (item.rarity === "rare" || item.rarity === "legendary")) hardRare = true;
+}
+ok(!plainRare && hardRare, "обычный повтор не даёт редкое, кошмарный повтор даёт и не сдаёт квест");
+
+const box = newProfile(73);
+setHero(box, "lorin");
+box.lvl = 60;
+const boxed = beginRun(box, 1, 5000, undefined, false, 4);
+ok(!("err" in boxed) && !("err" in chestChoices(box, 2, mulberry32(3))) && "err" in chestChoices(box, 3, mulberry32(4)), "кошмар открывает третий сундук и не четвёртый сверх лимита");
+
+const grown = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+grown.combat.partyHpPerExtra = 0.2;
+const grownOk = validateTune(grown);
+if (grownOk.ok) setTune(grownOk.tune);
+const partyBoss = eliteHp("boss", 1, 4, getTune(), 4);
+const soloBoss = eliteHp("boss", 1, 1, getTune(), 4);
+ok(grownOk.ok && partyBoss === Math.round(2120 * 1.6 * 12) && partyBoss > soloBoss, "кошмар умножается на долю группы, а не вместо неё");
+resetTune();
+
+const member = [{ id: "you", name: "Лорин", hero: "lorin" as const, sheet: sheet(senior) }];
+const calm = new Battle(1, member, 5, 1);
+const nightmare = new Battle(1, member, 5, 4);
+let walked = 0;
+while (calm.phase !== "fight" && walked < 3) { calm.step(0.05); nightmare.step(0.05); walked += 0.05; }
+ok(calm.lastMobHp > 0 && nightmare.lastMobHp === calm.lastMobHp * 12 && nightmare.chests.length === calm.chests.length + 1, "в бою кошмарная тварь ×12 и сундук на один больше");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

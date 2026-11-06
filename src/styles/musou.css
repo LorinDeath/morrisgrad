@@ -96,6 +96,9 @@ button { cursor: pointer; }
 .dungeon .state.open { color: var(--gold-2); }
 .dungeon .state.lock { color: #ffb4a8; }
 .room-floors { flex-wrap: wrap; margin: 8px 0; }
+.diffs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.diffs .btn.lock { opacity: 0.72; }
+.offer { color: var(--text); font-size: 0.84rem; line-height: 1.45; margin: 0 0 10px; }
 .lock-why { color: #ffb4a8; }
 .dungeon-lead { margin-bottom: 4px; }
 .modes { margin-bottom: 8px; }
