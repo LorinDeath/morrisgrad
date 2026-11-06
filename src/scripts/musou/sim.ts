@@ -5,7 +5,7 @@ import {
   floorByN, heroById, mulberry32, spawnBudget,
   type FloorDef, type HeroId, type Rng, type Sheet, type Sig, type SkillDef,
 } from "./rules";
-import { eliteDmg, eliteHp, floorKit, getTune, mobDmg, mobHp } from "./tune";
+import { eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
 
 export const ARENA_W = 2400;
 export const ARENA_H = 1560;
@@ -377,7 +377,7 @@ export class Battle {
     const sig = boss ? kit.bSig : kit.gSig;
     const hp = eliteHp(kind, n, this.party.length);
     this.elites.push({
-      kind, name: boss ? kit.boss : kit.general,
+      kind, name: eliteName(kind, n),
       title: boss ? this.floor.bossTitle : "генерал волны",
       x: clamp((lead?.x ?? ARENA_W / 2) + Math.cos(ang) * dist, 120, ARENA_W - 120),
       y: clamp((lead?.y ?? ARENA_H / 2) + Math.sin(ang) * dist, 120, ARENA_H - 120),

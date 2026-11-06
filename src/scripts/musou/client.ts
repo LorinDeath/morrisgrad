@@ -1,15 +1,15 @@
 // Хаб, лавка, отряд и бой «Орды Обители».
 import {
-  BAG_MAX, FLOORS, HEROES, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
-  affixText, bagFree, bagPrice, beginRun, bestFloor, buyOffer, claimChest, claimQuest, equipItem,
+  BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
+  affixText, bagFree, bagPrice, beginRun, bestFloor, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
   finishRun, floorOpen, goldFind, heroById, itemBlurb, itemPrice, mulberry32, newProfile,
-  normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, takeInbox,
+  normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
-  type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
+  type ChestPick, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
 } from "./rules";
 import { Battle, type Btn } from "./sim";
 import { drawBattle, drawPortrait, type Cam } from "./draw";
-import { setTune, validateTune } from "./tune";
+import { floorMut, getTune, setTune, validateTune } from "./tune";
 
 const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const SITE = location.hostname === "morrisgrad.com" || location.hostname === "www.morrisgrad.com";
@@ -164,7 +164,7 @@ function renderPick() {
 function slotHtml(it: Item | null, empty: string) {
   if (!it) return `<span>${empty}</span>`;
   const col = RARITY_COLOR[it.rarity];
-  const mark = it.cursed ? " · проклята" : it.ench ? " · чары" : "";
+  const mark = it.cursed ? " · проклята" : it.ench ? " · " + ENCH_NAME[it.ench - 1] : "";
   return `<i style="color:${col}">${RARITY_NAME[it.rarity]}${mark}</i><b style="color:${col}">${it.name}</b>`;
 }
 
@@ -202,7 +202,10 @@ function renderHub() {
         const clr = (profile.clears[f.n - 1] || 0) > 0;
         return `<button type="button" title="${f.name}" class="floor${f.n === openF ? " on" : ""}${lock ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}"><span class="n">${f.n}</span></button>`;
       }).join("")}</div>
-      <p><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].place}. Толпа «${FLOORS[openF - 1].mob}»: кто-то лезет в упор, кто-то быстрее, кто-то толще. Генерал ${FLOORS[openF - 1].general} на каждой волне. Босс: ${FLOORS[openF - 1].boss}.</p>
+      <p><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].place}. Толпа «${FLOORS[openF - 1].mob}»: кто-то лезет в упор, кто-то быстрее, кто-то толще. Генерал ${FLOORS[openF - 1].general} на каждой волне. Босс: ${FLOORS[openF - 1].boss}.${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}: элита толще и бьёт больнее.` : ""}</p>
+      <p class="derived">Клятва на этот заход. Она меняет бой, а не висит кнопкой. Кубок списывает ${getTune().oath.stake} зл до старта.</p>
+      <div class="row" style="margin-bottom:12px">${OATHS.map((o) => `<button type="button" class="btn${profile.oath === o.id ? " gold" : ""}" data-oath="${o.id}" title="${o.note}">${o.name}</button>`).join("")}</div>
+      <p class="derived" id="oath-note">${OATHS.find((o) => o.id === profile.oath)?.note || ""}</p>
       <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${floorOpen(profile, openF) ? "" : "disabled"}>В бой · этаж ${openF}</button></div>
       ${quests.map((q) => `<div class="quest${q.ready ? " ready" : ""}"><b>${q.name}</b><span>${q.desc}</span><div class="bar"><i style="width:${Math.min(100, q.p / q.need * 100)}%"></i></div><span>${q.p}/${q.need}${q.ready ? " · награда готова" : ""}</span>${q.ready ? `<div class="row"><button class="btn gold" data-claim="${q.id}" type="button">Забрать</button></div>` : ""}</div>`).join("")}
       ${ready.filter((q) => q.floor !== openF && q.floor !== 0).map((q) => `<div class="quest ready"><b>${q.name}</b><button class="btn gold" data-claim="${q.id}" type="button">Забрать награду</button></div>`).join("")}
@@ -224,6 +227,17 @@ function renderHub() {
     </section>
   </div>`;
   root.querySelectorAll<HTMLButtonElement>("[data-floor]").forEach((b) => b.onclick = () => { floorPick = Number(b.dataset.floor); renderHub(); });
+  root.querySelectorAll<HTMLButtonElement>("[data-oath]").forEach((b) => b.onclick = async () => {
+    const id = b.dataset.oath || "none";
+    if (online) {
+      const r = await act({ op: "oath", oath: id });
+      if (r?.err) return;
+      renderHub();
+    } else {
+      const err = setOath(profile, id);
+      if (err) toast(err); else { saveLocal(); renderHub(); }
+    }
+  });
   root.querySelectorAll<HTMLButtonElement>("[data-stat]").forEach((b) => b.onclick = async () => {
     const stat = b.dataset.stat as Stat;
     if (online) { const r = await act({ op: "stat", stat }); if (!r?.err) renderHub(); }
@@ -298,9 +312,11 @@ function renderHub() {
 
 function tipHtml(it: Item | null) {
   if (!it) return "Выбери вещь. Редкость видна рамкой, как в Диабло: серое, синее, жёлтое, оранжевое, зелёный комплект.";
-  const mark = it.cursed ? "<div class=\"tag\">Проклята: статы ×1.5, скорость ×0.92</div>" : "";
-  const ench = it.ench ? `<div class="tag">Чары ${it.ench}: статы выше</div>` : "";
-  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${mark}${ench}`;
+  const tune = getTune();
+  const curse = it.cursed ? `<div class="tag">Проклята: статы вещи ×${tune.curse.statMult}, шаг ×${tune.curse.speed}. Надетая вещь режет скорость всего героя.</div>` : "";
+  const tier = it.ench ? ENCH_NAME[it.ench - 1] : "";
+  const ench = it.ench ? `<div class="tag">${tier}: статы вещи ×${tune.ench.stat[it.ench - 1]}, шаг ×${tune.ench.speed[it.ench - 1]}. Чем выше ярус, тем тяжелее шаг.</div>` : "";
+  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${curse}${ench}`;
 }
 function rewardLine(r: any) {
   const item = r.item;
@@ -454,10 +470,18 @@ async function startSolo(floor: number) {
   youId = "you";
   if (online) {
     const r = await act({ op: "start", floor });
-    if (!r?.nonce) return;
-    nonce = r.nonce;
-    beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false);
-  } else {
+    if (r?.nonce) {
+      nonce = r.nonce;
+      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false);
+      return;
+    }
+    if (r?.err) return;
+    online = false;
+    toast("Сервер не ответил. Этот забег сохранится на устройстве.");
+    $<HTMLElement>("net-pill").textContent = "сеть молчит";
+    $<HTMLElement>("net-pill").classList.add("warn");
+  }
+  {
     const b = beginRun(profile, floor, Date.now());
     if ("err" in b) return toast(b.err);
     nonce = b.nonce;
@@ -483,7 +507,13 @@ function beginBattle(floor: number, members: { id: string; name: string; hero: H
 function buildSkills(heroId: HeroId) {
   const hero = heroById(heroId);
   $<HTMLElement>("skills").innerHTML = hero.skills.map((sk, i) => `<button type="button" class="skill" data-sk="${i + 1}"><small>${sk.key}</small><b>${sk.name}</b><i class="cd" hidden></i></button>`).join("");
-  document.querySelectorAll<HTMLButtonElement>(".skill").forEach((b) => b.onclick = () => { holding = false; queueSkill(Number(b.dataset.sk)); });
+  document.querySelectorAll<HTMLButtonElement>(".skill").forEach((b) => {
+    b.onclick = () => { holding = false; queueSkill(Number(b.dataset.sk)); };
+  });
+  hero.skills.forEach((sk, i) => {
+    const b = document.getElementById("m-sk" + (i + 1));
+    if (b) b.textContent = sk.key + " " + sk.name;
+  });
 }
 
 let queued = 0;
@@ -545,12 +575,14 @@ function hud() {
   if (chest) chest.hidden = !battle.nearChest;
   $<HTMLElement>("party").innerHTML = battle.party.map((p) => `<div><b>${p.name.split(" ")[0]}</b><div class="bar"><i style="width:${Math.max(0, p.hp / p.maxHp * 100)}%"></i></div></div>`).join("");
   const hero = heroById(me.hero);
-  document.querySelectorAll<HTMLButtonElement>(".skill").forEach((b) => {
+  document.querySelectorAll<HTMLButtonElement>(".skill, .skill-touch").forEach((b) => {
     const i = Number(b.dataset.sk) - 1;
     const cd = me.cd[i] || 0;
-    const musouLock = !!hero.skills[i].musou && me.musou < 100;
-    const veil = b.querySelector(".cd") as HTMLElement;
-    veil.hidden = cd <= 0 && !musouLock;
+    const musouLock = !!hero.skills[i]?.musou && me.musou < 100;
+    const veil = b.querySelector(".cd") as HTMLElement | null;
+    if (veil) veil.hidden = cd <= 0 && !musouLock;
+    b.disabled = cd > 0 || musouLock;
+    b.classList.toggle("cooling", cd > 0 || musouLock);
   });
 }
 
@@ -646,19 +678,55 @@ function aimFrom(ev: { clientX: number; clientY: number }) {
   pointerAim = Math.atan2(y - me.y, x - me.x);
 }
 
+const chestWait: number[] = [];
+
+function chestSeed(index: number) {
+  return mulberry32((profile.nextId * 997 + index * 13) >>> 0);
+}
+
 function grantChest(index: number) {
+  if (document.getElementById("chest-card")) { chestWait.push(index); return; }
   if (!profile.pending) return;
+  const view = chestChoices(profile, index, chestSeed(index));
+  if ("err" in view) { toast(view.err); return; }
+  if (battle && !battle.remote) battle.paused = true;
+  const it = view.item;
+  const line = (stat: number, speed: number) => `статы ×${stat}, шаг ×${speed}`;
+  openModal(`<div id="chest-card"><h2 style="font-family:Cinzel,serif;color:var(--gold-2);margin:0 0 8px">Сундук этажа</h2>
+  <p>Внутри ${it.name}. Забрать как есть, проклясть или выбрать ярус чар. Проклятие и чары меняют надетую вещь сразу: сила растёт, шаг тяжелеет. Это не тост — без выбора вещь не попадает в сумку.</p>
+  <div class="shop-grid">
+    <article class="offer"><h3>${it.name}</h3><p>Как есть. Скорость героя не режется этой вещью.</p><button class="btn gold" type="button" data-pick="plain">Забрать как есть</button></article>
+    <article class="offer"><h3>Проклясть</h3><p>${line(view.curse.stat, view.curse.speed)}. Вещь станет сильнее и будет тормозить героя, пока надета.</p><button class="btn" type="button" data-pick="curse">Проклясть и взять</button></article>
+    ${view.tiers.map((t) => `<article class="offer"><h3>${t.name}</h3><p>Ярус ${t.n}. ${line(t.stat, t.speed)}. ${t.n === 6 ? "Чёрный ярус Проклятых: статы ×10, шаг едва тянется." : "Чем выше ярус, тем дороже шаг."}</p><button class="btn" type="button" data-pick="${t.n}">Взять «${t.name}»</button></article>`).join("")}
+  </div></div>`);
+  document.querySelectorAll<HTMLButtonElement>("#chest-card [data-pick]").forEach((b) => b.onclick = () => {
+    const pick = (b.dataset.pick === "plain" || b.dataset.pick === "curse" ? b.dataset.pick : Number(b.dataset.pick)) as ChestPick;
+    void takeChest(index, pick);
+  });
+}
+
+async function takeChest(index: number, pick: ChestPick) {
+  let note: { item: Item } | { err: string } | null = null;
   if (online) {
-    void act({ op: "chest", index }).then((data) => {
-      const item = data?.report?.item;
-      if (item?.name) toast("Сундук: " + item.name + (item.cursed ? " · проклята" : item.ench ? " · зачарована" : ""));
-    });
-    return;
+    const data = await act({ op: "chest", index, pick });
+    if (!data) {
+      toast("Сервер не принял выбор. Сундук ещё закрыт.");
+      return;
+    }
+    if (data.err) return;
+    note = data.report || null;
+  } else {
+    const got = claimChest(profile, index, chestSeed(index), pick);
+    saveLocal();
+    if ("err" in got) { toast(got.err); return; }
+    note = got;
   }
-  const note = claimChest(profile, index, mulberry32((profile.nextId * 997 + index * 13) >>> 0));
-  saveLocal();
-  if ("err" in note) toast(note.err);
-  else toast("Сундук: " + note.item.name + (note.item.cursed ? " · проклята" : note.item.ench ? " · зачарована" : ""));
+  closeModal();
+  if (battle && !battle.remote) battle.paused = false;
+  const item = note && "item" in note ? note.item : null;
+  if (item?.name) toast("В сумке: " + item.name);
+  const next = chestWait.shift();
+  if (next != null) grantChest(next);
 }
 
 function bind() {
@@ -709,7 +777,7 @@ function bind() {
   const holdBtn = (id: string, down: () => void, up?: () => void) => {
     const el = $<HTMLButtonElement>(id);
     if (!el) return;
-    el.addEventListener("pointerdown", (e) => { e.preventDefault(); down(); });
+    el.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); down(); });
     if (up) el.addEventListener("pointerup", up);
     el.addEventListener("pointerleave", () => up?.());
   };
@@ -717,6 +785,7 @@ function bind() {
   holdBtn("m-heavy", () => { heavyQ = true; });
   holdBtn("m-dodge", () => { dodgeQ = true; });
   holdBtn("m-chest", () => { chestQ = true; });
+  for (let i = 1; i <= 4; i++) holdBtn("m-sk" + i, () => { holding = false; queueSkill(i); });
 }
 
 async function boot() {

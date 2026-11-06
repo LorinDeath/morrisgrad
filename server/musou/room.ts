@@ -5,8 +5,7 @@ import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limit
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
 import { beginRun, clampStrike, finishRun, floorByN, floorOpen, makeScript, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
-import { floorKit } from "../../src/scripts/musou/tune";
-import { eliteHp } from "../../src/scripts/musou/tune";
+import { eliteHp, eliteName, floorKit } from "../../src/scripts/musou/tune";
 
 type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number };
 type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number };
@@ -138,9 +137,9 @@ export class MusouRoom extends DurableObject {
     for (const s of L.seats) {
       const p = await loadProfile(this.env.GAME_DB, s.pkey);
       if (s.pkey === L.host && !floorOpen(p, L.floor)) return this.broadcast({ type: "err", err: "У хоста закрыт этот этаж" });
-      const sh = sheet(p);
       const opened = beginRun(p, L.floor, now, nonce, s.pkey !== L.host);
       if ("err" in opened) return this.broadcast({ type: "err", err: opened.err });
+      const sh = sheet(p);
       await saveProfile(this.env.GAME_DB, s.pkey, p);
       s.dmg = sh.dmg;
       party.push({ id: s.pkey, nick: s.nick, hero: p.hero, sheet: sh });
@@ -182,7 +181,7 @@ export class MusouRoom extends DurableObject {
       const boss = s.kind === "boss";
       const sig = boss ? kit.bSig : kit.gSig;
       L.elites.push({
-        id: s.id, kind: s.kind, name: boss ? kit.boss : kit.general, x: 1200, y: 700, hp, maxHp: hp,
+        id: s.id, kind: s.kind, name: eliteName(s.kind, L.floor), x: 1200, y: 700, hp, maxHp: hp,
         facing: 0, wind: 0, alive: true, spawned: true, cd: 0.8, pat: 0,
         tint: sig === "curse" ? "#c9b6ff" : boss ? "#ffd76a" : "#ff6a4a",
         sig, row: boss ? art.bRow : art.gRow,
@@ -240,7 +239,9 @@ export class MusouRoom extends DurableObject {
     const rngBase = (Date.now() ^ L.started) >>> 0;
     for (const s of L.seats) {
       const p = await loadProfile(this.env.GAME_DB, s.pkey);
-      const r = finishRun(p, { nonce: L.nonce, party: L.seats.length, reason, boss: reason === "win" }, Date.now(), mulberry32((rngBase + s.pkey.length * 13) >>> 0), outcome);
+      let salt = 2166136261;
+      for (let i = 0; i < s.pkey.length; i++) salt = Math.imul(salt ^ s.pkey.charCodeAt(i), 16777619);
+      const r = finishRun(p, { nonce: L.nonce, party: L.seats.length, reason, boss: reason === "win" }, Date.now(), mulberry32((rngBase ^ salt) >>> 0), outcome);
       if (!("err" in r)) await saveProfile(this.env.GAME_DB, s.pkey, p);
       L.reports[s.pkey] = "err" in r ? null : r;
       this.sendTo(s.pkey, { type: "loot", report: L.reports[s.pkey], profile: p, err: "err" in r ? r.err : null });

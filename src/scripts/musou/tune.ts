@@ -1,6 +1,9 @@
 // Единый числовой набор «Орды». Его читают хаб, симулятор и комната.
-// Админка пишет только сюда, после проверки диапазонов. Ярусы зачарования 4–6
-// «Проклятых» (до ×10) в Орду не входят: потолок яруса — 3.
+// Админка пишет только сюда, после проверки диапазонов.
+// Ярусы чар 1–6 носят имена «Проклятых», включая Чёрный ×10.
+// За скорость платит герой: чем выше ярус, тем медленнее шаг.
+// Мутации Тёмного мира носят те же десять имён, но множитель режется
+// потолком 2.4: ×360 стирает ручной бой и правилом не проходит.
 
 export type OrdaTune = {
   v: 1;
@@ -53,12 +56,21 @@ export type OrdaTune = {
     chestCount: number;
   };
   curse: { statMult: number; speed: number };
-  ench: { stat: [number, number, number] };
+  ench: { stat: [number, number, number, number, number, number]; speed: [number, number, number, number, number, number] };
+  /** Десять имён мутаций Тёмного мира. Множитель — только в этом потолке. */
+  mut: { mult: [number, number, number, number, number, number, number, number, number, number] };
+  /** Клятва выбирается в хабе до боя. Кубок списывает ставку. */
+  oath: { on: number; stake: number };
   xp: { base: number; pow: number };
   floors: FloorTune[];
 };
 
-export type FloorTune = { general: string; boss: string; gSig: Sig; bSig: Sig };
+export type FloorTune = { general: string; boss: string; gSig: Sig; bSig: Sig; mut: number };
+
+export const MUT_NAMES = [
+  "Сильный", "Ужасный", "Опасный", "Невероятный", "Божественный",
+  "Колоссальный", "Титанический", "Первородный", "Сингулярный", "Абсолютный",
+] as const;
 type Sig = "circle" | "cone" | "line" | "curse" | "summon";
 
 export const DEFAULT_TUNE: OrdaTune = {
@@ -110,22 +122,24 @@ export const DEFAULT_TUNE: OrdaTune = {
     chestCount: 2,
   },
   curse: { statMult: 1.5, speed: 0.92 },
-  ench: { stat: [1.5, 1.8, 2] },
+  ench: { stat: [1.5, 1.8, 2, 3, 4, 10], speed: [0.97, 0.94, 0.9, 0.82, 0.72, 0.55] },
+  mut: { mult: [1.12, 1.22, 1.32, 1.44, 1.56, 1.7, 1.84, 2, 2.15, 2.3] },
+  oath: { on: 1, stake: 25 },
   xp: { base: 50, pow: 1.45 },
   floors: [
-    { general: "Осколок Командира", boss: "Теневой Страж", gSig: "circle", bSig: "cone" },
-    { general: "Наёмник-Головорез", boss: "Атаман Мародёров", gSig: "cone", bSig: "line" },
-    { general: "Кристальный Страж", boss: "Кристальная Владычица", gSig: "line", bSig: "circle" },
-    { general: "Могильный Упырь", boss: "Чёрный Жнец", gSig: "curse", bSig: "summon" },
-    { general: "Громовержец", boss: "Райдзин", gSig: "line", bSig: "cone" },
-    { general: "Пожиратель Сущностей", boss: "Танатос", gSig: "curse", bSig: "circle" },
-    { general: "Магма-Голем", boss: "Суртур", gSig: "circle", bSig: "summon" },
-    { general: "Бездонный Страж", boss: "Левиафан", gSig: "summon", bSig: "cone" },
-    { general: "Коррумпированное Ядро", boss: "Творец Искажения", gSig: "line", bSig: "curse" },
-    { general: "Страж Нулевой Точки", boss: "Азатот", gSig: "curse", bSig: "summon" },
-    { general: "Жрец Крови", boss: "Кармилла", gSig: "cone", bSig: "curse" },
-    { general: "Каратель", boss: "Призрачный Понтифик", gSig: "cone", bSig: "line" },
-    { general: "Пробужденный Страж", boss: "Титан Атлас", gSig: "circle", bSig: "summon" },
+    { general: "Осколок Командира", boss: "Теневой Страж", gSig: "circle", bSig: "cone", mut: 0 },
+    { general: "Наёмник-Головорез", boss: "Атаман Мародёров", gSig: "cone", bSig: "line", mut: 0 },
+    { general: "Кристальный Страж", boss: "Кристальная Владычица", gSig: "line", bSig: "circle", mut: 0 },
+    { general: "Могильный Упырь", boss: "Чёрный Жнец", gSig: "curse", bSig: "summon", mut: 0 },
+    { general: "Громовержец", boss: "Райдзин", gSig: "line", bSig: "cone", mut: 1 },
+    { general: "Пожиратель Сущностей", boss: "Танатос", gSig: "curse", bSig: "circle", mut: 2 },
+    { general: "Магма-Голем", boss: "Суртур", gSig: "circle", bSig: "summon", mut: 3 },
+    { general: "Бездонный Страж", boss: "Левиафан", gSig: "summon", bSig: "cone", mut: 4 },
+    { general: "Коррумпированное Ядро", boss: "Творец Искажения", gSig: "line", bSig: "curse", mut: 5 },
+    { general: "Страж Нулевой Точки", boss: "Азатот", gSig: "curse", bSig: "summon", mut: 6 },
+    { general: "Жрец Крови", boss: "Кармилла", gSig: "cone", bSig: "curse", mut: 7 },
+    { general: "Каратель", boss: "Призрачный Понтифик", gSig: "cone", bSig: "line", mut: 8 },
+    { general: "Пробужденный Страж", boss: "Титан Атлас", gSig: "circle", bSig: "summon", mut: 10 },
   ],
 };
 
@@ -173,6 +187,8 @@ const BOUNDS: Record<string, Bound> = {
   "loot.chestCount": { min: 0, max: 4, int: true },
   "curse.statMult": { min: 1, max: 2 },
   "curse.speed": { min: 0.7, max: 1 },
+  "oath.on": { min: 0, max: 1, int: true },
+  "oath.stake": { min: 0, max: 500, int: true },
   "xp.base": { min: 10, max: 400, int: true },
   "xp.pow": { min: 1, max: 1.8 },
 };
@@ -180,7 +196,12 @@ const BOUNDS: Record<string, Bound> = {
 const TRIPLE: Record<string, Bound> = {
   "combat.mobHp": { min: 1, max: 80, int: true },
   "combat.mobDmg": { min: 1, max: 30, int: true },
-  "ench.stat": { min: 1, max: 2.5 },
+};
+
+const ROW: Record<string, { n: number; b: Bound }> = {
+  "ench.stat": { n: 6, b: { min: 1, max: 10 } },
+  "ench.speed": { n: 6, b: { min: 0.5, max: 1 } },
+  "mut.mult": { n: 10, b: { min: 1, max: 2.4 } },
 };
 
 function clone(t: OrdaTune): OrdaTune {
@@ -204,7 +225,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "xp", "floors"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
   if ("floors" in src) {
@@ -212,7 +233,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
     if (typeof names === "string") return { ok: false, err: names };
     out.floors = names;
   }
-  const sections = ["economy", "combat", "loot", "curse", "ench", "xp"] as const;
+  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp"] as const;
   for (const sec of sections) {
     const block = src[sec];
     if (!block || typeof block !== "object" || Array.isArray(block)) return { ok: false, err: `${sec}: нужен объект` };
@@ -232,6 +253,19 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
           prices.push(n);
         }
         out.economy.bagPrices = prices;
+        continue;
+      }
+      const row = ROW[path];
+      if (row) {
+        const arr = rec[k];
+        if (!Array.isArray(arr) || arr.length !== row.n) return { ok: false, err: `${path}: ${row.n} чисел` };
+        const got: number[] = [];
+        for (let i = 0; i < row.n; i++) {
+          const n = num(arr[i], row.b, `${path}[${i}]`);
+          if (typeof n === "string") return { ok: false, err: n };
+          got.push(n);
+        }
+        (out as any)[sec][k] = got;
         continue;
       }
       const triple = TRIPLE[path];
@@ -269,12 +303,14 @@ function readFloors(raw: unknown): FloorTune[] | string {
     const row = raw[i];
     if (!row || typeof row !== "object" || Array.isArray(row)) return `floors[${i}]: нужен объект`;
     const rec = row as Record<string, unknown>;
-    for (const k of Object.keys(rec)) if (!["general", "boss", "gSig", "bSig"].includes(k)) return `floors[${i}]: лишнее поле ${k}`;
+    for (const k of Object.keys(rec)) if (!["general", "boss", "gSig", "bSig", "mut"].includes(k)) return `floors[${i}]: лишнее поле ${k}`;
     const general = cleanNote(rec.general);
     const boss = cleanNote(rec.boss);
     if (general.length < 2 || boss.length < 2) return `floors[${i}]: имя короче 2`;
     if (!SIGS.has(String(rec.gSig)) || !SIGS.has(String(rec.bSig))) return `floors[${i}]: приём circle, cone, line, curse или summon`;
-    out.push({ general, boss, gSig: rec.gSig as Sig, bSig: rec.bSig as Sig });
+    const mut = rec.mut == null ? 0 : rec.mut;
+    if (typeof mut !== "number" || !Number.isInteger(mut) || mut < 0 || mut > MUT_NAMES.length) return `floors[${i}]: мутация 0…${MUT_NAMES.length}`;
+    out.push({ general, boss, gSig: rec.gSig as Sig, bSig: rec.bSig as Sig, mut });
   }
   return out;
 }
@@ -282,6 +318,21 @@ function readFloors(raw: unknown): FloorTune[] | string {
 export function floorKit(n: number, t = active): FloorTune {
   const i = Math.max(1, Math.min(13, n | 0)) - 1;
   return t.floors[i];
+}
+
+export function floorMut(n: number, t = active): { id: number; name: string; mult: number } | null {
+  const i = floorKit(n, t).mut | 0;
+  if (i < 1 || i > MUT_NAMES.length) return null;
+  const mult = t.mut.mult[i - 1];
+  if (!(mult > 0)) return null;
+  return { id: i, name: MUT_NAMES[i - 1], mult };
+}
+
+export function eliteName(kind: "general" | "boss", floor: number, t = active) {
+  const kit = floorKit(floor, t);
+  const base = kind === "boss" ? kit.boss : kit.general;
+  const m = floorMut(floor, t);
+  return m ? `${m.name} · ${base}` : base;
 }
 
 export function mobHp(kind: number, floor: number, t = active) {
@@ -299,11 +350,13 @@ export function eliteHp(kind: "general" | "boss", floor: number, party = 1, t = 
     : t.combat.generalHp + n * t.combat.generalHpPerFloor;
   const extra = Math.max(0, (party | 0) - 1);
   const mult = Math.min(t.combat.partyHpCap, 1 + t.combat.partyHpPerExtra * extra);
-  return Math.round(base * mult);
+  const grown = floorMut(n, t)?.mult || 1;
+  return Math.round(base * mult * grown);
 }
 export function eliteDmg(kind: "general" | "boss", floor: number, t = active) {
   const n = Math.max(1, Math.min(13, floor | 0));
-  return kind === "boss" ? t.combat.bossDmg + n * t.combat.bossDmgPerFloor : t.combat.generalDmg + n * t.combat.generalDmgPerFloor;
+  const base = kind === "boss" ? t.combat.bossDmg + n * t.combat.bossDmgPerFloor : t.combat.generalDmg + n * t.combat.generalDmgPerFloor;
+  return base * (floorMut(n, t)?.mult || 1);
 }
 
 export type TunePreview = {

@@ -5,7 +5,7 @@ import { FriendStore } from "../meta/friends";
 import { loadProfile, saveProfile } from "./db";
 import { readPublishedTune } from "./admin";
 import {
-  beginRun, buyOffer, claimChest, claimQuest, equipItem, finishRun, mulberry32, refreshShop, salvage, setHero, spendStat, takeInbox, unequip,
+  beginRun, buyOffer, claimChest, claimQuest, equipItem, finishRun, mulberry32, parseChestPick, refreshShop, salvage, setHero, setOath, spendStat, takeInbox, unequip,
   type HeroId, type Paper, type Stat,
 } from "../../src/scripts/musou/rules";
 
@@ -88,8 +88,14 @@ async function act(env: any, key: string, body: any, cors: Record<string, string
   } else if (op === "refresh") {
     const err = refreshShop(p);
     if (err) return Response.json({ err, profile: p }, { headers: cors });
+  } else if (op === "oath") {
+    const err = setOath(p, String(body.oath || "none"));
+    if (err) return Response.json({ err, profile: p }, { headers: cors });
   } else if (op === "chest") {
-    const r = claimChest(p, body.index | 0, rng);
+    const index = body.index | 0;
+    const pick = parseChestPick(body.pick);
+    if (!pick) return Response.json({ err: "Выбери, что забрать из сундука", profile: p }, { headers: cors });
+    const r = claimChest(p, index, mulberry32((p.nextId * 997 + index * 13) >>> 0), pick);
     if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });
     report = r;
   } else if (op === "claim") {

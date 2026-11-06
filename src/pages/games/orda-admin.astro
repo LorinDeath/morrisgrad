@@ -97,6 +97,8 @@ const title = "Орда · набор чисел";
     ["loot", "rareDrop", "Редкий дроп"],
     ["curse", "statMult", "Проклятие × статы"],
     ["curse", "speed", "Проклятие × скорость"],
+    ["oath", "on", "Клятвы: 1 включены, 0 нет"],
+    ["oath", "stake", "Ставка кубка"],
     ["xp", "base", "База опыта"],
     ["xp", "pow", "Степень опыта"],
   ];
@@ -113,10 +115,14 @@ const title = "Орда · набор чисел";
     if (prices.length === 9 && prices.every((n) => Number.isFinite(n))) tune.economy.bagPrices = prices;
     const mobHp = [0, 1, 2].map((i) => Number(document.querySelector(`[data-k="combat.mobHp.${i}"]`).value));
     const mobDmg = [0, 1, 2].map((i) => Number(document.querySelector(`[data-k="combat.mobDmg.${i}"]`).value));
-    const ench = [0, 1, 2].map((i) => Number(document.querySelector(`[data-k="ench.stat.${i}"]`).value));
+    const ench = [0, 1, 2, 3, 4, 5].map((i) => Number(document.querySelector(`[data-k="ench.stat.${i}"]`).value));
+    const enchSpeed = [0, 1, 2, 3, 4, 5].map((i) => Number(document.querySelector(`[data-k="ench.speed.${i}"]`).value));
+    const mut = $("muts").value.split(",").map((s) => Number(s.trim()));
     if (mobHp.every(Number.isFinite)) tune.combat.mobHp = mobHp;
     if (mobDmg.every(Number.isFinite)) tune.combat.mobDmg = mobDmg;
     if (ench.every(Number.isFinite)) tune.ench.stat = ench;
+    if (enchSpeed.every(Number.isFinite)) tune.ench.speed = enchSpeed;
+    if (mut.length === 10 && mut.every(Number.isFinite)) tune.mut.mult = mut;
     try { tune.floors = JSON.parse($("floors").value); } catch { tune.floors = null; }
     return tune;
   }
@@ -130,6 +136,8 @@ const title = "Орда · набор чисел";
     tune.combat.mobHp.forEach((n, i) => { document.querySelector(`[data-k="combat.mobHp.${i}"]`).value = String(n); });
     tune.combat.mobDmg.forEach((n, i) => { document.querySelector(`[data-k="combat.mobDmg.${i}"]`).value = String(n); });
     tune.ench.stat.forEach((n, i) => { document.querySelector(`[data-k="ench.stat.${i}"]`).value = String(n); });
+    tune.ench.speed.forEach((n, i) => { document.querySelector(`[data-k="ench.speed.${i}"]`).value = String(n); });
+    $("muts").value = tune.mut.mult.join(", ");
     $("floors").value = JSON.stringify(tune.floors, null, 1);
     showPreview();
   }
@@ -170,17 +178,29 @@ const title = "Орда · набор чисел";
     box.addEventListener("input", showPreview);
     price.append(box);
     buckets.economy.append(price);
-    for (const [key, label] of [["combat.mobHp", "Здоровье трёх поведений"], ["combat.mobDmg", "Урон трёх поведений"], ["ench.stat", "Чары ×1 ×2 ×3"]]) {
-      for (let i = 0; i < 3; i++) {
+    for (const [key, label, n, where] of [
+      ["combat.mobHp", "Здоровье трёх поведений", 3, buckets.combat],
+      ["combat.mobDmg", "Урон трёх поведений", 3, buckets.combat],
+      ["ench.stat", "Чары, статы яруса", 6, buckets.mark],
+      ["ench.speed", "Чары, шаг яруса", 6, buckets.mark],
+    ]) {
+      for (let i = 0; i < n; i++) {
         const lab = document.createElement("label");
         lab.textContent = `${label} ${i + 1}`;
         const input = document.createElement("input");
         input.dataset.k = `${key}.${i}`;
         input.addEventListener("input", showPreview);
         lab.append(input);
-        (key.startsWith("ench") ? buckets.mark : buckets.combat).append(lab);
+        where.append(lab);
       }
     }
+    const mutLab = document.createElement("label");
+    mutLab.textContent = "Мутации Тёмного мира, 10 множителей до 2.4";
+    const mutBox = document.createElement("input");
+    mutBox.id = "muts";
+    mutBox.addEventListener("input", showPreview);
+    mutLab.append(mutBox);
+    buckets.mark.append(mutLab);
     const names = document.createElement("label");
     names.textContent = "Имена и приёмы 13 этажей, JSON";
     const area = document.createElement("textarea");

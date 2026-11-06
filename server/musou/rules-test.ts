@@ -1,10 +1,10 @@
 // bun server/musou/rules-test.ts
 import {
-  BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, claimChest, claimQuest, equipItem,
-  finishRun, killNeed, makeScript, mulberry32, newProfile, roomOutcome, setHero, sheet, shopOffers, spendStat, takeInbox,
+  BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
+  finishRun, killNeed, makeScript, mulberry32, newProfile, roomOutcome, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
-import { DEFAULT_TUNE, eliteHp, floorKit, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
+import { DEFAULT_TUNE, eliteHp, eliteName, floorKit, floorMut, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
 
 let fails = 0, n = 0;
 const ok = (c: unknown, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -189,6 +189,78 @@ me.y = marked.chests[0].y;
 let dwell = 0;
 while (!marked.chests[0].open && dwell < 2) { marked.step(0.05); dwell += 0.05; }
 ok(marked.chests[0].open && marked.takeChests().length === 1, "стояние у сундука открывает его");
+
+const chooser = newProfile(11);
+setHero(chooser, "lorin");
+beginRun(chooser, 1, 5000);
+const offer = chestChoices(chooser, 1, mulberry32((chooser.nextId * 997 + 1 * 13) >>> 0));
+ok(!("err" in offer) && offer.tiers.length === 6 && offer.tiers[5].name === "Чёрный" && offer.tiers[5].stat === 10, "сундук показывает шесть ярусов, включая Чёрный");
+const cursed = claimChest(chooser, 1, mulberry32((chooser.nextId * 997 + 1 * 13) >>> 0), "curse");
+ok(!("err" in cursed) && cursed.item.cursed === 1, "выбор проклятия пишет метку на вещь");
+const blackWho = newProfile(12);
+setHero(blackWho, "lorin");
+beginRun(blackWho, 1, 5000);
+const black = claimChest(blackWho, 0, mulberry32(3), 6);
+ok(!("err" in black) && black.item.ench === 6 && black.item.name.startsWith("Чёрный"), "чёрный ярус выбирается, а не выпадает молча");
+const trade = (mark: { cursed?: 1; ench?: 6 }) => {
+  const who = newProfile(15);
+  setHero(who, "lorin");
+  who.bag.push({ id: "w", base: "blade", name: "Клинок", slot: "weapon", rarity: "common", req: 1, ilvl: 1, dmg: 20, armor: 0, affixes: [], ...mark });
+  equipItem(who, "w");
+  return sheet(who);
+};
+const plainBlade = trade({});
+const cursedBlade = trade({ cursed: 1 });
+const blackBlade = trade({ ench: 6 });
+ok(cursedBlade.dmg > plainBlade.dmg && cursedBlade.speed < plainBlade.speed, "проклятый клинок поднимает урон и режет шаг");
+ok(blackBlade.dmg > cursedBlade.dmg && blackBlade.speed < cursedBlade.speed, "чёрный ярус сильнее проклятия и ещё медленнее");
+
+const names = new Set<string>();
+let roster = true;
+for (let fl = 1; fl <= 13; fl++) {
+  const def = FLOORS[fl - 1];
+  const kit = floorKit(fl);
+  if (def.general !== kit.general || def.boss !== kit.boss) roster = false;
+  if (!["circle", "cone", "line", "curse", "summon"].includes(kit.gSig)) roster = false;
+  if (def.gRow < 0 || def.bRow < 0) roster = false;
+  names.add(kit.general);
+  names.add(kit.boss);
+  const b = new Battle(fl, [{ id: "you", name: "t", hero: "lorin", sheet: sheet(chooser) }], fl);
+  b.party[0].hp = 99999;
+  b.party[0].maxHp = 99999;
+  for (let i = 0; i < 200 && b.elites.length === 0; i++) b.step(0.05);
+  if (!b.elites[0] || !b.elites[0].name.includes(kit.general)) roster = false;
+}
+ok(roster && names.size === 26, "все 13 этажей зовут своих генерала и босса и ставят их в бой");
+ok(eliteName("boss", 13).includes("Абсолютный") && floorMut(13)?.name === "Абсолютный", "последний этаж носит мутацию Абсолютный в потолке Орды");
+ok(eliteHp("boss", 13, 1) === Math.round((DEFAULT_TUNE.combat.bossHp + 13 * DEFAULT_TUNE.combat.bossHpPerFloor) * 2.3), "мутация множит здоровье, но не на ×360");
+const wild = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+wild.mut.mult[9] = 360;
+ok(!validateTune(wild).ok, "×360 Тёмного мира правило не пускает");
+wild.mut.mult[9] = 2.3;
+wild.ench.stat = [1.5, 1.8, 2];
+ok(!validateTune(wild).ok, "урезанные три яруса чар больше не проходят");
+
+const cup = newProfile(13);
+setHero(cup, "veles");
+cup.gold = 100;
+ok(setOath(cup, "cup") === null, "кубок выбирается в хабе");
+const broke = newProfile(14);
+setHero(broke, "veles");
+broke.gold = 10;
+broke.oath = "cup";
+ok("err" in beginRun(broke, 1, 1), "кубок без ставки не начинается");
+const opened = beginRun(cup, 1, 1000);
+ok(!("err" in opened) && cup.gold === 75, "ставка кубка списывается до боя");
+const nonce = (opened as { nonce: string }).nonce;
+const lost = finishRun(cup, { nonce, reason: "dead", boss: false }, 9000, mulberry32(1), { kills: 0, generals: 0, boss: false });
+ok(!("err" in lost) && lost.reason === "dead" && cup.gold === 75, "поражение кубка ставку не возвращает");
+setOath(cup, "cup");
+const cupAgain = beginRun(cup, 1, 20000);
+const winNonce = (cupAgain as { nonce: string }).nonce;
+const won = finishRun(cup, { nonce: winNonce, reason: "win", boss: true }, 40000, mulberry32(2), { kills: 12, generals: 1, boss: true });
+ok(!("err" in won) && won.boss && cup.gold === 75 - 25 + won.gold, "победа кубка возвращает ставку дважды и пишет её в отчёт");
+ok((cup.quests.b1?.p || 0) === 1, "победа двигает квест босса");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

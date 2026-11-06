@@ -33,9 +33,22 @@ export type Item = {
   set?: string;
   /** 1 — проклятый экземпляр: статы × curse.statMult, скорость героя × curse.speed. */
   cursed?: 0 | 1;
-  /** Ярус зачарования 1…3. 0 и отсутствие — без чар. Ярусы 4–6 сюда не входят. */
-  ench?: 0 | 1 | 2 | 3;
+  /** Ярус зачарования 1…6, имена как у «Проклятых». 0 и отсутствие — без чар. */
+  ench?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
 };
+
+export const ENCH_NAME = ["Необычный", "Редкий", "Странный", "Легендарный", "Божественный", "Чёрный"] as const;
+export type ChestPick = "plain" | "curse" | 1 | 2 | 3 | 4 | 5 | 6;
+export const OATHS = [
+  { id: "none", name: "Без клятвы", note: "Этаж как есть" },
+  { id: "pawn", name: "Пешка", note: "Золото этажа ×1.2, шаг ×0.9" },
+  { id: "knight", name: "Конь", note: "Шаг ×1.12, здоровье ×0.88" },
+  { id: "rook", name: "Ладья", note: "+12 брони, шаг ×0.86" },
+  { id: "harvest", name: "Руна жатвы", note: "Вампиризм +6%, урон ×0.92" },
+  { id: "haste", name: "Руна спешки", note: "Скорость атаки ×1.12, здоровье ×0.9" },
+  { id: "cup", name: "Кубок", note: "Ставка до боя: победа возвращает её дважды, поражение забирает" },
+] as const;
+export type OathId = (typeof OATHS)[number]["id"];
 
 export type SkillDef = {
   id: string;
@@ -320,7 +333,7 @@ export function questById(id: string) { return QUEST_BY.get(id) || null; }
 
 export type QuestState = { p: number; done: 0 | 1; claimed: 0 | 1 };
 export type Equip = Record<Paper, Item | null>;
-export type Pending = { floor: number; at: number; nonce: string; chests?: number };
+export type Pending = { floor: number; at: number; nonce: string; chests?: number; oath?: OathId };
 
 export type Profile = {
   v: 1;
@@ -340,6 +353,8 @@ export type Profile = {
   clears: number[];
   kills: number;
   pending: Pending | null;
+  /** Клятва на следующий забег. В бою действует копия внутри pending. */
+  oath: OathId;
 };
 
 export type Sheet = {
@@ -385,7 +400,7 @@ export function newProfile(seed = 1): Profile {
     bagSize: BAG_START, nextId: 1, shopSeed: seed >>> 0,
     equip: emptyEquip(), bag: [], inbox: [], quests: {},
     clears: Array.from({ length: 13 }, () => 0),
-    kills: 0, pending: null,
+    kills: 0, pending: null, oath: "none",
   };
 }
 
@@ -417,7 +432,7 @@ function validItem(it: any): it is Item {
 
 function sanitizeItem(it: Item): Item {
   const n = it.ench | 0;
-  const ench = n >= 1 && n <= 3 ? n as 1 | 2 | 3 : 0;
+  const ench = n >= 1 && n <= 6 ? n as 1 | 2 | 3 | 4 | 5 | 6 : 0;
   const cursed = it.cursed === 1 ? 1 : 0;
   const next: Item = { ...it, affixes: it.affixes.slice(0, 6) };
   if (cursed) next.cursed = 1; else delete next.cursed;
@@ -460,9 +475,23 @@ export function normalize(raw: any): Profile {
     }
   }
   if (raw.pending && typeof raw.pending.nonce === "string" && (raw.pending.floor | 0) >= 1) {
-    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0 };
+    const oath = oathOf(raw.pending.oath);
+    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0, ...(oath !== "none" ? { oath } : {}) };
   }
+  p.oath = oathOf(raw.oath);
   return p;
+}
+
+function oathOf(raw: unknown): OathId {
+  const id = String(raw || "none");
+  return OATHS.some((o) => o.id === id) ? id as OathId : "none";
+}
+
+export function setOath(p: Profile, id: string): string | null {
+  if (!getTune().oath.on && id !== "none") return "Клятвы выключены в наборе чисел";
+  if (!OATHS.some((o) => o.id === id)) return "Нет такой клятвы";
+  p.oath = id as OathId;
+  return null;
 }
 
 export function addXp(p: Profile, n: number) {
@@ -522,12 +551,13 @@ export function sheet(p: Profile): Sheet {
   let vit = h.base.vit + p.alloc.vit;
   let ene = h.base.ene + p.alloc.ene;
   let dmg = 0, armor = 0, hp = 0, aspd = 0, crit = 0, ls = 0, skill = 0;
-  let slowed = false;
+  let speedMul = 1;
   const tune = getTune();
   for (const it of equipped(p)) {
     if (p.lvl < it.req) continue;
     const mult = (it.cursed === 1 ? tune.curse.statMult : 1) * (it.ench ? tune.ench.stat[it.ench - 1] || 1 : 1);
-    if (it.cursed === 1) slowed = true;
+    if (it.cursed === 1) speedMul *= tune.curse.speed;
+    if (it.ench) speedMul *= tune.ench.speed[it.ench - 1] || 1;
     dmg += it.dmg * mult;
     armor += it.armor * mult;
     for (const a of it.affixes) {
@@ -546,19 +576,31 @@ export function sheet(p: Profile): Sheet {
     }
   }
   const set = setBonus(p);
+  let hpOut = Math.round(90 + vit * 14 + hp);
+  let dmgOut = Math.round((8 + str * 1.15 + dmg) * (1 + set.dmg));
+  let armorOut = Math.round(armor + set.armor);
+  let aspdOut = Math.min(2.2, 1 + dex * 0.0065 + aspd + set.aspd);
+  let lsOut = Math.min(0.25, ls);
+  let goldOut = goldFind(p);
+  const vow = p.pending?.oath;
+  if (vow === "pawn") { goldOut *= 1.2; speedMul *= 0.9; }
+  else if (vow === "knight") { speedMul *= 1.12; hpOut = Math.round(hpOut * 0.88); }
+  else if (vow === "rook") { armorOut += 12; speedMul *= 0.86; }
+  else if (vow === "harvest") { lsOut = Math.min(0.25, lsOut + 0.06); dmgOut = Math.round(dmgOut * 0.92); }
+  else if (vow === "haste") { aspdOut = Math.min(2.2, aspdOut * 1.12); hpOut = Math.round(hpOut * 0.9); }
   return {
     hero: h.id,
     name: h.name,
-    hp: Math.round(90 + vit * 14 + hp),
-    dmg: Math.round((8 + str * 1.15 + dmg) * (1 + set.dmg)),
-    armor: Math.round(armor + set.armor),
-    aspd: Math.min(2.2, 1 + dex * 0.0065 + aspd + set.aspd),
+    hp: hpOut,
+    dmg: dmgOut,
+    armor: armorOut,
+    aspd: aspdOut,
     crit: Math.min(0.6, 0.04 + dex * 0.0025 + crit),
-    speed: Math.round((214 + dex * 0.4) * (slowed ? tune.curse.speed : 1)),
+    speed: Math.round((214 + dex * 0.4) * Math.max(0.45, speedMul)),
     skill: 1 + ene * 0.012 + skill,
-    ls: Math.min(0.25, ls),
+    ls: lsOut,
     heal: 1 + set.heal,
-    gold: goldFind(p),
+    gold: goldOut,
     accent: h.accent,
   };
 }
@@ -601,7 +643,7 @@ export function itemPrice(it: Item) {
 }
 export function salvageValue(it: Item) { return Math.max(1, Math.round(itemPrice(it) * 0.4)); }
 
-export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: boolean; rarity?: Rarity; id?: string }): Item {
+export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: boolean; rarity?: Rarity; id?: string; bare?: boolean }): Item {
   const ilvl = Math.max(1, Math.min(60, Math.round(o.ilvl)));
   const rarity = o.rarity || rarityRoll(rng, o.floor, !!o.shop);
   const slots = Object.keys(BASES) as Slot[];
@@ -611,7 +653,7 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
       id: o.id || "x", base: u.id, name: u.name, slot: u.slot, rarity, ilvl, req: Math.max(1, ilvl - 2),
       dmg: scaleBase(u.dmg, ilvl), armor: scaleBase(u.armor, ilvl), unique: u.id,
       affixes: u.affixes.map((a) => ({ ...a })),
-    }, rng, !!o.shop);
+    }, rng, !!o.shop, !!o.bare);
   }
   if (rarity === "set") {
     const set = SETS[Math.floor(rng() * SETS.length)];
@@ -621,7 +663,7 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
       id: o.id || "x", base: base.id, name: piece.name, slot: piece.slot, rarity, ilvl,
       req: Math.max(1, ilvl - 2), dmg: scaleBase(base.dmg + 3, ilvl), armor: scaleBase(base.armor + 2, ilvl),
       set: set.id, affixes: fillAffixes(rng, ilvl, 2),
-    }, rng, !!o.shop);
+    }, rng, !!o.shop, !!o.bare);
   }
   const slot = slots[Math.floor(rng() * slots.length)];
   const base = BASES[slot][Math.floor(rng() * BASES[slot].length)];
@@ -635,25 +677,38 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
   return markItem({
     id: o.id || "x", base: base.id, name, slot, rarity, ilvl, req: Math.max(1, ilvl - 3),
     dmg: scaleBase(base.dmg, ilvl), armor: scaleBase(base.armor, ilvl), affixes,
-  }, rng, !!o.shop);
+  }, rng, !!o.shop, !!o.bare);
 }
 
-const ENCH_NAME = ["Необычный", "Редкий", "Странный"];
-
-function markItem(it: Item, rng: Rng, shop: boolean): Item {
+function markItem(it: Item, rng: Rng, shop: boolean, bare = false): Item {
+  if (bare) return it;
   const loot = getTune().loot;
   const curseP = shop ? loot.curseChance * 0.25 : loot.curseChance;
   const enchP = shop ? loot.enchChance * 0.25 : loot.enchChance;
-  if (curseP > 0 && rng() < curseP) {
-    it.cursed = 1;
-    it.name = "Проклятый " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
-  }
-  if (enchP > 0 && rng() < enchP) {
-    const tier = (1 + Math.floor(rng() * 3)) as 1 | 2 | 3;
-    it.ench = tier;
-    it.name = ENCH_NAME[tier - 1] + " " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
-  }
+  if (curseP > 0 && rng() < curseP) curseItem(it);
+  if (enchP > 0 && rng() < enchP) enchantItem(it, rollEnchTier(rng));
   return it;
+}
+
+function rollEnchTier(rng: Rng): 1 | 2 | 3 | 4 | 5 | 6 {
+  const w = [0.46, 0.28, 0.14, 0.07, 0.04, 0.01];
+  let x = rng();
+  for (let i = 0; i < w.length; i++) {
+    x -= w[i];
+    if (x <= 0) return (i + 1) as 1 | 2 | 3 | 4 | 5 | 6;
+  }
+  return 1;
+}
+
+function curseItem(it: Item) {
+  it.cursed = 1;
+  if (!it.name.startsWith("Проклятый ")) it.name = "Проклятый " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
+}
+
+function enchantItem(it: Item, tier: 1 | 2 | 3 | 4 | 5 | 6) {
+  it.ench = tier;
+  const label = ENCH_NAME[tier - 1];
+  if (!it.name.startsWith(label + " ")) it.name = label + " " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
 }
 
 function fillAffixes(rng: Rng, ilvl: number, n: number): Affix[] {
@@ -855,22 +910,59 @@ export type RunReport = {
   quests: string[]; note: string | null; boss: boolean; reason: RunReason;
 };
 
-export function claimChest(p: Profile, index: number, rng: Rng): LootNote | { err: string } {
-  if (!p.pending) return { err: "Сундук открывается только в забеге" };
+export type ChestView = {
+  index: number;
+  item: Item;
+  curse: { stat: number; speed: number };
+  tiers: { n: 1 | 2 | 3 | 4 | 5 | 6; name: string; stat: number; speed: number }[];
+};
+
+function chestGate(p: Profile, index: number): string | null {
+  if (!p.pending) return "Сундук открывается только в забеге";
   const n = getTune().loot.chestCount | 0;
   const i = index | 0;
-  if (i < 0 || i >= n) return { err: "Такого сундука нет" };
-  const bit = 1 << i;
-  if ((p.pending.chests || 0) & bit) return { err: "Сундук уже открыт" };
-  p.pending.chests = (p.pending.chests || 0) | bit;
-  const it = rollItem(rng, { ilvl: Math.max(1, p.lvl), floor: p.pending.floor });
-  if (!it.cursed && rng() < 0.55) {
-    it.cursed = 1;
-    it.name = "Проклятый " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
-  } else if (!it.ench && rng() < 0.5) {
-    it.ench = 1;
-    it.name = "Необычный " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
-  }
+  if (i < 0 || i >= n) return "Такого сундука нет";
+  if ((p.pending.chests || 0) & (1 << i)) return "Сундук уже открыт";
+  return null;
+}
+
+function chestBase(p: Profile, rng: Rng): Item {
+  return rollItem(rng, { ilvl: Math.max(1, p.lvl), floor: p.pending?.floor || 1, bare: true });
+}
+
+export function chestChoices(p: Profile, index: number, rng: Rng): ChestView | { err: string } {
+  const err = chestGate(p, index);
+  if (err) return { err };
+  const tune = getTune();
+  return {
+    index: index | 0,
+    item: chestBase(p, rng),
+    curse: { stat: tune.curse.statMult, speed: tune.curse.speed },
+    tiers: ENCH_NAME.map((name, i) => ({
+      n: (i + 1) as 1 | 2 | 3 | 4 | 5 | 6,
+      name,
+      stat: tune.ench.stat[i],
+      speed: tune.ench.speed[i],
+    })),
+  };
+}
+
+export function parseChestPick(raw: unknown): ChestPick | null {
+  if (raw === "plain" || raw === "curse") return raw;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5 || n === 6) return n;
+  return null;
+}
+
+export function claimChest(p: Profile, index: number, rng: Rng, pick: ChestPick = "plain"): LootNote | { err: string } {
+  const err = chestGate(p, index);
+  if (err) return { err };
+  const chosen = parseChestPick(pick);
+  if (!chosen) return { err: "Выбери, что забрать из сундука" };
+  const it = chestBase(p, rng);
+  if (chosen === "curse") curseItem(it);
+  else if (chosen !== "plain") enchantItem(it, chosen);
+  p.pending!.chests = (p.pending!.chests || 0) | (1 << (index | 0));
   return giveItem(p, it);
 }
 
@@ -1000,7 +1092,14 @@ export function beginRun(p: Profile, floor: number, now: number, nonce = startNo
   if (!p.hero) return { err: "Сначала выбери героя" };
   if (!carry && !floorOpen(p, floor)) return { err: "Этаж закрыт" };
   if (floor < 1 || floor > 13) return { err: "Нет такого этажа" };
-  p.pending = { floor, at: now, nonce, chests: 0 };
+  const tune = getTune();
+  const oath: OathId = tune.oath.on ? p.oath : "none";
+  if (oath === "cup") {
+    const stake = tune.oath.stake | 0;
+    if (p.gold < stake) return { err: "На кубок не хватает золота" };
+    p.gold -= stake;
+  }
+  p.pending = { floor, at: now, nonce, chests: 0, ...(oath !== "none" ? { oath } : {}) };
   return { nonce };
 }
 
@@ -1009,10 +1108,11 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
   if (!pend) return { err: "Забег не начат" };
   if (!body.nonce || body.nonce !== pend.nonce) return { err: "Чужой забег" };
   const elapsed = Math.max(0, now - (pend.at || now));
+  const vow = pend.oath;
   p.pending = null;
   const counted = trusted || boundedSolo(pend.floor, elapsed, body.kills || 0, body.generals || 0, !!body.boss);
   const reason: RunReason = body.reason === "surrender" || body.reason === "dead" || body.reason === "win" ? body.reason : (counted.boss ? "win" : "dead");
-  return applyRun(p, {
+  const report = applyRun(p, {
     floor: pend.floor,
     kills: counted.kills,
     generals: counted.generals,
@@ -1021,4 +1121,16 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
     party: body.party || 1,
     reason,
   }, rng);
+  if ("err" in report) return report;
+  if (vow === "pawn") {
+    const extra = Math.round(report.gold * 0.2);
+    p.gold += extra;
+    report.gold += extra;
+  }
+  if (vow === "cup" && report.boss) {
+    const back = (getTune().oath.stake | 0) * 2;
+    p.gold += back;
+    report.gold += back;
+  }
+  return report;
 }
