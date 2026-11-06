@@ -1,8 +1,8 @@
 // Хаб, лавка, отряд и бой «Орды Обители».
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
-  affixText, bagFree, bagPrice, beginRun, bestFloor, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, floorOpen, goldFind, heroById, itemBlurb, itemPrice, mulberry32, newProfile,
+  affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
+  finishRun, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, mulberry32, newProfile,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
   type ChestPick, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
@@ -132,7 +132,7 @@ function paintPicks() {
 
 function renderPick() {
   const root = $<HTMLElement>("v-pick");
-  root.innerHTML = `<h1>Кто выйдет на площадь</h1><p>Герои МоррисГрада. Прокачка — в хабе, на этаже только бой.</p><div class="pick-grid" id="pick-grid"></div><div class="row" style="margin-top:14px"><button class="btn gold" id="pick-go" type="button" disabled>Войти в Обитель</button></div>`;
+  root.innerHTML = `<p class="tag">Класс</p><h1>Кто сойдёт в подвал</h1><p class="lead">Восемь героев МоррисГрада. Класс выбирается здесь, до данжа. Уровень и очки растут в хабе, на этаже только бой.</p><div class="pick-grid" id="pick-grid"></div><div class="row" style="margin-top:14px"><button class="btn gold" id="pick-go" type="button" disabled>Войти в Обитель</button></div>`;
   const grid = $<HTMLElement>("pick-grid");
   let chosen: HeroId | null = profile.hero;
   for (const h of HEROES) {
@@ -196,17 +196,20 @@ function renderHub() {
       <div class="row"><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
     </section>
     <section class="panel">
-      <h2>Тринадцать этажей</h2>
-      <div class="floors">${FLOORS.map((f) => {
-        const lock = !floorOpen(profile, f.n);
+      <h2>Кампания подвала</h2>
+      <p class="derived">Данж открывает уровень героя, не галочка прошлого этажа. Сейчас уровень ${profile.lvl}.</p>
+      <div class="campaign">${FLOORS.map((f) => {
+        const why = floorLock(profile, f.n);
         const clr = (profile.clears[f.n - 1] || 0) > 0;
-        return `<button type="button" title="${f.name}" class="floor${f.n === openF ? " on" : ""}${lock ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}"><span class="n">${f.n}</span></button>`;
+        return `<button type="button" class="dungeon${f.n === openF ? " on" : ""}${why ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}"><span class="n">${f.n}</span><span class="dn"><b>${f.name}</b><small>ур. ${floorNeed(f.n)} · ${f.place}${why ? " · закрыт" : clr ? " · зачищен" : " · открыт"}</small></span></button>`;
       }).join("")}</div>
-      <p><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].place}. Толпа «${FLOORS[openF - 1].mob}»: кто-то лезет в упор, кто-то быстрее, кто-то толще. Генерал ${FLOORS[openF - 1].general} на каждой волне. Босс: ${FLOORS[openF - 1].boss}.${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}: элита толще и бьёт больнее.` : ""}</p>
-      <p class="derived">Клятва на этот заход. Она меняет бой, а не висит кнопкой. Кубок списывает ${getTune().oath.stake} зл до старта.</p>
-      <div class="row" style="margin-bottom:12px">${OATHS.map((o) => `<button type="button" class="btn${profile.oath === o.id ? " gold" : ""}" data-oath="${o.id}" title="${o.note}">${o.name}</button>`).join("")}</div>
+      <p class="dungeon-lead"><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].desc}</p>
+      <p>Ярусы: ${FLOORS[openF - 1].stages.join(" → ")}. Толпа «${FLOORS[openF - 1].mob}». Генерал ${FLOORS[openF - 1].general}. Босс: ${FLOORS[openF - 1].boss}, ${FLOORS[openF - 1].bossTitle}.${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}.` : ""}</p>
+      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : ""}
+      <p class="derived">Режим на этот заход. Клятва меняет бой. Кубок списывает ${getTune().oath.stake} зл до старта.</p>
+      <div class="row modes">${OATHS.map((o) => `<button type="button" class="btn${profile.oath === o.id ? " gold" : ""}" data-oath="${o.id}" title="${o.note}">${o.name}</button>`).join("")}</div>
       <p class="derived" id="oath-note">${OATHS.find((o) => o.id === profile.oath)?.note || ""}</p>
-      <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${floorOpen(profile, openF) ? "" : "disabled"}>В бой · этаж ${openF}</button></div>
+      <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${floorOpen(profile, openF) ? "" : "disabled"}>${floorOpen(profile, openF) ? `В бой · ${FLOORS[openF - 1].name}` : `Закрыто до уровня ${floorNeed(openF)}`}</button></div>
       ${quests.map((q) => `<div class="quest${q.ready ? " ready" : ""}"><b>${q.name}</b><span>${q.desc}</span><div class="bar"><i style="width:${Math.min(100, q.p / q.need * 100)}%"></i></div><span>${q.p}/${q.need}${q.ready ? " · награда готова" : ""}</span>${q.ready ? `<div class="row"><button class="btn gold" data-claim="${q.id}" type="button">Забрать</button></div>` : ""}</div>`).join("")}
       ${ready.filter((q) => q.floor !== openF && q.floor !== 0).map((q) => `<div class="quest ready"><b>${q.name}</b><button class="btn gold" data-claim="${q.id}" type="button">Забрать награду</button></div>`).join("")}
     </section>
@@ -303,9 +306,7 @@ function renderHub() {
   $<HTMLButtonElement>("open-party").onclick = () => openParty();
   $<HTMLButtonElement>("open-friends").onclick = () => openFriends();
   $<HTMLButtonElement>("go-floor").onclick = () => startSolo(openF);
-  $<HTMLElement>("gold-pill").textContent = profile.gold + " зл";
-  $<HTMLElement>("bag-pill").textContent = profile.bag.length + "/" + profile.bagSize;
-  $<HTMLElement>("net-pill").textContent = online ? (verified ? "аккаунт" : "гость на сервере") : "это устройство";
+  paintPills();
   $<HTMLElement>("net-pill").classList.toggle("warn", !online);
   requestAnimationFrame(paintPicks);
 }
@@ -417,7 +418,9 @@ async function connect(code: string, fromDrop = false) {
     if (m.type === "lobby") {
       room = { code: m.code, host: m.hostId === youId, seats: m.seats };
       const box = $<HTMLElement>("room-box");
-      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. Этаж ${m.floor}. ${m.seats.map((s: any) => s.nick).join(", ") || ""}</p>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button">Начать этаж ${m.floor}</button></div>` : "<p>Ждём хоста.</p>"}`;
+      const need = m.need | 0;
+      const low = (m.seats as { nick: string; lvl?: number }[]).filter((s) => (s.lvl | 0) < need);
+      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · нужен уровень ${need} у каждого.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${(s.lvl | 0) < need ? " · не дотягивает" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">В группе не хватает уровня: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Уровень группы проверяет сервер.</p>"}`;
       $<HTMLButtonElement>("room-start") && ($<HTMLButtonElement>("room-start").onclick = () => ws?.send(JSON.stringify({ type: "start" })));
     }
     if (m.type === "err") toast(m.err || "Ошибка комнаты");
@@ -464,7 +467,8 @@ async function pullTune() {
 }
 
 async function startSolo(floor: number) {
-  if (!floorOpen(profile, floor)) return toast("Этаж закрыт");
+  const lock = floorLock(profile, floor);
+  if (lock) return toast(lock);
   await pullTune();
   mirror = false;
   youId = "you";
@@ -569,8 +573,9 @@ function hud() {
   $<HTMLElement>("hp-num").textContent = hpNow + " / " + me.maxHp;
   $<HTMLElement>("ms").style.width = me.musou + "%";
   const f = battle.floor;
-  const wave = battle.wave < 3 ? `Волна ${battle.wave + 1}/3` : "Босс";
+  const wave = battle.wave < 3 ? (f.stages[battle.wave] || `Волна ${battle.wave + 1}`) : "Босс";
   $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b><div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown ? " · босс пал" : ""}</div>`;
+  $<HTMLButtonElement>("pause-btn").hidden = !!battle.remote;
   const chest = $<HTMLElement>("chest-hint");
   if (chest) chest.hidden = !battle.nearChest;
   $<HTMLElement>("party").innerHTML = battle.party.map((p) => `<div><b>${p.name.split(" ")[0]}</b><div class="bar"><i style="width:${Math.max(0, p.hp / p.maxHp * 100)}%"></i></div></div>`).join("");
@@ -586,19 +591,21 @@ function hud() {
   });
 }
 
-function showResult(report: RunReport | null, phase: string, reason?: RunReport["reason"]) {
+function showResult(report: RunReport | null, phase: string, reason?: RunReport["reason"], err?: string) {
   battle = null;
+  $<HTMLElement>("pause").hidden = true;
   show("result");
   const why = report?.reason || reason || (phase === "won" ? "win" : "dead");
   const title = why === "win" ? "Этаж зачищен" : why === "surrender" ? "Сдача" : "Поражение";
   const items = report && "items" in report ? report.items : [];
-  const pay = report && "gold" in report ? (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : "Награда не засчитана.";
-  $<HTMLElement>("gold-pill").textContent = profile.gold + " зл";
-  $<HTMLElement>("bag-pill").textContent = profile.bag.length + "/" + profile.bagSize;
-  $<HTMLElement>("v-result").innerHTML = `<h2>${title}</h2>
-  <p>${pay} Квесты, которые уже выполнены, сдаются в хабе.</p>
+  const pay = report && "gold" in report ? (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : (err ? `Награда не засчитана: ${err}.` : "Награда не засчитана.");
+  paintPills();
+  const xpLine = report && "xp" in report ? `Уровень ${profile.lvl}${report.levels ? ` · новых ${report.levels}` : ""}. Опыт хода: ${report.xp}.` : `Уровень ${profile.lvl}.`;
+  $<HTMLElement>("v-result").innerHTML = `<article class="result-card"><p class="tag">${why === "win" ? "Победа" : why === "surrender" ? "Выход" : "Падение"}</p><h2>${title}</h2>
+  <p class="lvl-line">${xpLine}</p>
+  <p>${pay} Квесты, которые уже выполнены, сдаются в хабе и тоже дают уровень.</p>
   <div class="result-grid">${items.map((n) => `<article class="loot${n.sold ? " sold" : ""}" style="border-color:${RARITY_COLOR[n.item.rarity]}"><b style="color:${RARITY_COLOR[n.item.rarity]}">${n.item.name}</b><div>${itemBlurb(n.item)}</div>${n.held ? "<div>Редкая вещь ждёт у входа в хаб — сумка была полна.</div>" : n.sold ? `<div>Обычная вещь не влезла и ушла за ${n.gold} золота.</div>` : n.item.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}</article>`).join("") || "<p>Трофеев нет. Генералы и босс оставляют вещь, если сумка пускает.</p>"}</div>
-  <div class="row" style="margin-top:14px"><button class="btn gold" id="back-hub" type="button">В хаб</button></div>`;
+  <div class="row" style="margin-top:14px"><button class="btn gold" id="back-hub" type="button">В хаб</button></div></article>`;
   $<HTMLButtonElement>("back-hub").onclick = () => { renderHub(); show("hub"); };
 }
 
@@ -614,7 +621,7 @@ async function endFight() {
   }
   if (online) {
     const r = await act({ op: "finish", nonce, kills: b.kills, generals: b.genKills, boss: reason === "win", reason, party: b.party.length });
-    showResult(r?.report || null, b.phase, reason);
+    showResult(r?.report || null, b.phase, reason, r?.err);
   } else {
     const r = finishRun(profile, { nonce, kills: b.kills, generals: b.genKills, boss: reason === "win", reason, party: 1 }, Date.now(), mulberry32((Date.now() ^ b.kills) >>> 0));
     if (!("err" in r)) saveLocal();
@@ -729,7 +736,33 @@ async function takeChest(index: number, pick: ChestPick) {
   if (next != null) grantChest(next);
 }
 
+function openFloor() {
+  let n = 1;
+  for (const f of FLOORS) if (floorOpen(profile, f.n)) n = f.n;
+  return n;
+}
+
+function paintPills() {
+  $<HTMLElement>("gold-pill").textContent = profile.gold + " зл";
+  $<HTMLElement>("bag-pill").textContent = profile.bag.length + "/" + profile.bagSize;
+  $<HTMLElement>("lvl-pill").textContent = "ур. " + profile.lvl;
+  $<HTMLElement>("net-pill").textContent = online ? (verified ? "аккаунт" : "гость на сервере") : "это устройство";
+}
+
+function togglePause() {
+  if (!battle || battle.remote) return;
+  battle.paused = !battle.paused;
+  const box = $<HTMLElement>("pause");
+  box.hidden = !battle.paused;
+}
+
 function bind() {
+  const shake = $<HTMLInputElement>("opt-shake");
+  shake.checked = localStorage.getItem("orda.shake") !== "0";
+  shake.onchange = () => localStorage.setItem("orda.shake", shake.checked ? "1" : "0");
+  $<HTMLButtonElement>("pause-go").onclick = () => { if (battle) { battle.paused = false; $<HTMLElement>("pause").hidden = true; } };
+  $<HTMLButtonElement>("pause-btn").onclick = () => togglePause();
+  $<HTMLButtonElement>("pause-leave").onclick = () => { $<HTMLElement>("pause").hidden = true; $<HTMLButtonElement>("flee").click(); };
   $<HTMLButtonElement>("flee").onclick = () => {
     if (!battle) return;
     battle.reason = "surrender";
@@ -742,7 +775,7 @@ function bind() {
     keys.add(key);
     if (view !== "fight") return;
     if (key === " " || key === "spacebar") { e.preventDefault(); if (fresh) dodgeQ = true; }
-    if (fresh && key === "p" && !room && battle) { battle.paused = !battle.paused; toast(battle.paused ? "Пауза" : "Бой"); }
+    if (fresh && key === "p" && !room && battle) togglePause();
     if (key === "j") holding = true;
     if (fresh && key === "k") heavyQ = true;
     if (fresh && key === "g") chestQ = true;
@@ -804,7 +837,7 @@ async function boot() {
     profile = loadLocal();
   }
   if (!profile.hero) { renderPick(); show("pick"); }
-  else { floorPick = Math.min(13, bestFloor(profile) + 1); renderHub(); show("hub"); }
+  else { floorPick = openFloor(); renderHub(); show("hub"); }
   (window as any).__orda = { get battle() { return battle; }, get profile() { return profile; } };
   requestAnimationFrame(loop);
 }

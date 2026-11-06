@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, killNeed, makeScript, mulberry32, newProfile, roomOutcome, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
+  finishRun, floorLock, floorNeed, floorOpen, killNeed, makeScript, mulberry32, newProfile, roomOutcome, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
 import { DEFAULT_TUNE, eliteHp, eliteName, floorKit, floorMut, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
@@ -151,7 +151,7 @@ function armed(cursed: 0 | 1) {
 }
 ok(armed(1).dmg > armed(0).dmg && armed(1).speed < armed(0).speed, "проклятие множит урон и режет скорость");
 
-ok(FLOORS[0].general === "Осколок Командира" && FLOORS[0].boss === "Теневой Страж" && FLOORS[12].boss === "Титан Атлас", "13 этажей носят имена данжей Тёмного мира");
+ok(FLOORS[0].sw === "dungeon_intro_1" && FLOORS[0].general === "Манекен I" && FLOORS[0].boss === "Теневой Страж" && FLOORS[2].name === "Чёрные Чумные Топи" && FLOORS[12].sw === "dungeon_titan_cradle" && FLOORS[12].boss === "Титан Атлас", "13 этажей — данжи Тёмного мира, не чужая пещера");
 ok(new Set(FLOORS.map((f) => f.gRow + ":" + f.bRow)).size === 13, "у этажей разные пары обликов элиты");
 const renamed = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 renamed.floors[0].general = "Тестовый Командир";
@@ -261,6 +261,42 @@ const winNonce = (cupAgain as { nonce: string }).nonce;
 const won = finishRun(cup, { nonce: winNonce, reason: "win", boss: true }, 40000, mulberry32(2), { kills: 12, generals: 1, boss: true });
 ok(!("err" in won) && won.boss && cup.gold === 75 - 25 + won.gold, "победа кубка возвращает ставку дважды и пишет её в отчёт");
 ok((cup.quests.b1?.p || 0) === 1, "победа двигает квест босса");
+
+const locked = newProfile(20);
+setHero(locked, "lorin");
+locked.clears = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+const low = floorLock(locked, 2);
+ok(!!low && low.includes("уровня 2") && locked.lvl === 1, "тринадцать зачисток без уровня второй данж не открывают");
+const gifted = newProfile(21);
+setHero(gifted, "lorelin");
+gifted.lvl = floorNeed(13);
+ok(floorOpen(gifted, 13) && gifted.clears.every((c) => !c), "уровень 15 открывает колыбель титанов без единой зачистки");
+const heir = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+for (const row of heir.floors) { delete row.need; delete row.xp; }
+const heirOk = validateTune(heir);
+ok(heirOk.ok && heirOk.ok && heirOk.tune.floors[2].need === 4 && heirOk.tune.floors[9].xp === 2830, "старый набор этажей получает порог уровня и опыт по умолчанию");
+
+const walker = newProfile(22);
+setHero(walker, "listaf");
+let chain = true;
+for (let f = 1; f <= 13; f++) {
+  if (!floorOpen(walker, f)) chain = false;
+  if (f < 13 && floorOpen(walker, f + 1)) chain = false;
+  const go = beginRun(walker, f, 10_000 * f);
+  if ("err" in go) { chain = false; break; }
+  const done = finishRun(walker, { nonce: go.nonce, reason: "win", boss: true }, 10_000 * f + 40_000, mulberry32(f), { kills: killNeed(f), generals: 3, boss: true });
+  if ("err" in done || !done.boss || done.xp <= 0) chain = false;
+  for (const id of [`k${f}`, `g${f}`, `b${f}`]) {
+    const got = claimQuest(walker, id, mulberry32(f + 3));
+    if ("err" in got) chain = false;
+  }
+}
+ok(chain && walker.lvl >= floorNeed(13) && floorOpen(walker, 13), `кампания 13 данжей доводит уровень до ${walker.lvl}, каждый следующий был закрыт до награды`);
+const bare = newProfile(30);
+setHero(bare, "lorin");
+const bareGo = beginRun(bare, 1, 1000);
+const bareWin = finishRun(bare, { nonce: (bareGo as { nonce: string }).nonce, reason: "win", boss: true, kills: 0, generals: 0 }, 1000 + 40_000, mulberry32(9));
+ok(!("err" in bareWin) && bareWin.boss && bare.lvl >= 2, "победа на 40-й секунде даёт уровень даже без толпы");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

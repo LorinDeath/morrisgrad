@@ -65,7 +65,7 @@ export type OrdaTune = {
   floors: FloorTune[];
 };
 
-export type FloorTune = { general: string; boss: string; gSig: Sig; bSig: Sig; mut: number };
+export type FloorTune = { general: string; boss: string; gSig: Sig; bSig: Sig; mut: number; need: number; xp: number };
 
 export const MUT_NAMES = [
   "Сильный", "Ужасный", "Опасный", "Невероятный", "Божественный",
@@ -127,19 +127,19 @@ export const DEFAULT_TUNE: OrdaTune = {
   oath: { on: 1, stake: 25 },
   xp: { base: 50, pow: 1.45 },
   floors: [
-    { general: "Осколок Командира", boss: "Теневой Страж", gSig: "circle", bSig: "cone", mut: 0 },
-    { general: "Наёмник-Головорез", boss: "Атаман Мародёров", gSig: "cone", bSig: "line", mut: 0 },
-    { general: "Кристальный Страж", boss: "Кристальная Владычица", gSig: "line", bSig: "circle", mut: 0 },
-    { general: "Могильный Упырь", boss: "Чёрный Жнец", gSig: "curse", bSig: "summon", mut: 0 },
-    { general: "Громовержец", boss: "Райдзин", gSig: "line", bSig: "cone", mut: 1 },
-    { general: "Пожиратель Сущностей", boss: "Танатос", gSig: "curse", bSig: "circle", mut: 2 },
-    { general: "Магма-Голем", boss: "Суртур", gSig: "circle", bSig: "summon", mut: 3 },
-    { general: "Бездонный Страж", boss: "Левиафан", gSig: "summon", bSig: "cone", mut: 4 },
-    { general: "Коррумпированное Ядро", boss: "Творец Искажения", gSig: "line", bSig: "curse", mut: 5 },
-    { general: "Страж Нулевой Точки", boss: "Азатот", gSig: "curse", bSig: "summon", mut: 6 },
-    { general: "Жрец Крови", boss: "Кармилла", gSig: "cone", bSig: "curse", mut: 7 },
-    { general: "Каратель", boss: "Призрачный Понтифик", gSig: "cone", bSig: "line", mut: 8 },
-    { general: "Пробужденный Страж", boss: "Титан Атлас", gSig: "circle", bSig: "summon", mut: 10 },
+    { general: "Манекен I", boss: "Теневой Страж", gSig: "circle", bSig: "cone", mut: 0, need: 1, xp: 135 },
+    { general: "Головорез тракта", boss: "Атаман Мародёров", gSig: "cone", bSig: "line", mut: 0, need: 2, xp: 190 },
+    { general: "Чумной сгусток", boss: "Болотный Ужас", gSig: "line", bSig: "circle", mut: 0, need: 4, xp: 245 },
+    { general: "Могильный Упырь", boss: "Чёрный Жнец", gSig: "curse", bSig: "summon", mut: 0, need: 6, xp: 300 },
+    { general: "Громовержец", boss: "Райдзин", gSig: "line", bSig: "cone", mut: 1, need: 7, xp: 355 },
+    { general: "Пожиратель Сущностей", boss: "Танатос", gSig: "curse", bSig: "circle", mut: 2, need: 8, xp: 410 },
+    { general: "Магма-Голем", boss: "Суртур", gSig: "circle", bSig: "summon", mut: 3, need: 9, xp: 465 },
+    { general: "Бездонный Страж", boss: "Левиафан", gSig: "summon", bSig: "cone", mut: 4, need: 10, xp: 520 },
+    { general: "Коррумпированное Ядро", boss: "Творец Искажения", gSig: "line", bSig: "curse", mut: 5, need: 11, xp: 575 },
+    { general: "Страж Нулевой Точки", boss: "Азатот", gSig: "curse", bSig: "summon", mut: 6, need: 12, xp: 2830 },
+    { general: "Жрец Крови", boss: "Кармилла", gSig: "cone", bSig: "curse", mut: 7, need: 13, xp: 685 },
+    { general: "Каратель", boss: "Призрачный Понтифик", gSig: "cone", bSig: "line", mut: 8, need: 14, xp: 1640 },
+    { general: "Каменный Страж", boss: "Титан Атлас", gSig: "circle", bSig: "summon", mut: 10, need: 15, xp: 795 },
   ],
 };
 
@@ -303,14 +303,18 @@ function readFloors(raw: unknown): FloorTune[] | string {
     const row = raw[i];
     if (!row || typeof row !== "object" || Array.isArray(row)) return `floors[${i}]: нужен объект`;
     const rec = row as Record<string, unknown>;
-    for (const k of Object.keys(rec)) if (!["general", "boss", "gSig", "bSig", "mut"].includes(k)) return `floors[${i}]: лишнее поле ${k}`;
+    for (const k of Object.keys(rec)) if (!["general", "boss", "gSig", "bSig", "mut", "need", "xp"].includes(k)) return `floors[${i}]: лишнее поле ${k}`;
     const general = cleanNote(rec.general);
     const boss = cleanNote(rec.boss);
     if (general.length < 2 || boss.length < 2) return `floors[${i}]: имя короче 2`;
     if (!SIGS.has(String(rec.gSig)) || !SIGS.has(String(rec.bSig))) return `floors[${i}]: приём circle, cone, line, curse или summon`;
     const mut = rec.mut == null ? 0 : rec.mut;
     if (typeof mut !== "number" || !Number.isInteger(mut) || mut < 0 || mut > MUT_NAMES.length) return `floors[${i}]: мутация 0…${MUT_NAMES.length}`;
-    out.push({ general, boss, gSig: rec.gSig as Sig, bSig: rec.bSig as Sig, mut });
+    const need = rec.need == null ? DEFAULT_TUNE.floors[i].need : rec.need;
+    const xp = rec.xp == null ? DEFAULT_TUNE.floors[i].xp : rec.xp;
+    if (typeof need !== "number" || !Number.isInteger(need) || need < 1 || need > 60) return `floors[${i}]: уровень входа 1…60`;
+    if (typeof xp !== "number" || !Number.isInteger(xp) || xp < 0 || xp > 8000) return `floors[${i}]: опыт зачистки 0…8000`;
+    out.push({ general, boss, gSig: rec.gSig as Sig, bSig: rec.bSig as Sig, mut, need, xp });
   }
   return out;
 }

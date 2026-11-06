@@ -29,14 +29,15 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
   const zoom = Math.min(w, h) / 820;
   ctx.clearRect(0, 0, w, h);
   const sky = ctx.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, "#1a0c14");
-  sky.addColorStop(0.42, rgba(b.floor.tint, 0.55));
-  sky.addColorStop(1, "#070406");
+  sky.addColorStop(0, "#07060a");
+  sky.addColorStop(0.5, rgba(b.floor.tint, 0.22));
+  sky.addColorStop(1, "#050308");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
-  const shakeX = b.shake ? Math.sin(now * 0.05) * b.shake : 0;
-  const shakeY = b.shake ? Math.cos(now * 0.07) * b.shake * 0.6 : 0;
+  const shakeOn = typeof localStorage === "undefined" || localStorage.getItem("orda.shake") !== "0";
+  const shakeX = shakeOn && b.shake ? Math.sin(now * 0.05) * b.shake : 0;
+  const shakeY = shakeOn && b.shake ? Math.cos(now * 0.07) * b.shake * 0.6 : 0;
   ctx.save();
   ctx.translate(shakeX, shakeY);
 
@@ -126,6 +127,12 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
   if (b.combo >= 2 && b.phase === "fight") comboMark(ctx, w, b.combo);
 }
 
+function cellHash(tx: number, ty: number, n: number) {
+  let h = Math.imul(tx, 374761393) ^ Math.imul(ty, 668265263) ^ (n * 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
 function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: number, cam: Cam, zoom: number, now: number) {
   const tint = b.floor.tint;
   const left = cam.x - w / zoom;
@@ -137,6 +144,7 @@ function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: numbe
   const x1 = Math.ceil(right / S) + 1;
   const y0 = Math.floor(top / S) - 1;
   const y1 = Math.ceil(bot / S) + 1;
+  const props: { sx: number; sy: number; tile: number; s: number }[] = [];
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
       const p = project(tx * S + S / 2, ty * S + S / 2, cam, w, h, zoom);
@@ -153,9 +161,11 @@ function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: numbe
       ctx.closePath();
       ctx.clip();
       if (!blitTile(ctx, tile, p.sx, p.sy, tw * 2, th * 2)) {
-        ctx.fillStyle = alt ? rgba(tint, 0.34) : "rgba(36,18,22,0.9)";
+        ctx.fillStyle = alt ? "#16141a" : "#0c0a10";
         ctx.fillRect(p.sx - tw, p.sy - th, tw * 2, th * 2);
       }
+      ctx.fillStyle = alt ? "rgba(5,4,8,0.74)" : "rgba(2,2,5,0.5)";
+      ctx.fillRect(p.sx - tw, p.sy - th, tw * 2, th * 2);
       ctx.restore();
       ctx.beginPath();
       ctx.moveTo(p.sx, p.sy - th);
@@ -163,29 +173,43 @@ function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: numbe
       ctx.lineTo(p.sx, p.sy + th);
       ctx.lineTo(p.sx - tw, p.sy);
       ctx.closePath();
-      ctx.strokeStyle = alt ? "rgba(224,192,122,0.16)" : "rgba(224,192,122,0.08)";
+      ctx.strokeStyle = alt ? "rgba(70,62,58,0.1)" : "rgba(0,0,0,0.35)";
       ctx.stroke();
+      const hsh = cellHash(tx, ty, b.floor.n);
+      if (hsh % 11 === 0) props.push({ sx: p.sx, sy: p.sy, tile: [35, 45, 33, 23, 36][hsh % 5], s: (0.55 + (hsh % 5) * 0.08) * Math.min(tw, th) });
     }
   }
-  const pool = project(ARENA_W / 2, ARENA_H / 2, cam, w, h, zoom);
-  const glow = ctx.createRadialGradient(pool.sx, pool.sy, 12 * zoom, pool.sx, pool.sy, 460 * zoom);
-  glow.addColorStop(0, rgba(b.floor.ember, 0.28));
-  glow.addColorStop(0.42, rgba(tint, 0.1));
-  glow.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = glow;
+  ctx.fillStyle = rgba(tint, 0.16);
   ctx.fillRect(0, 0, w, h);
+  for (const prop of props) blitTile(ctx, prop.tile, prop.sx, prop.sy + prop.s * 0.2, prop.s * 2.2, prop.s * 1.5);
+
+  const torches = [
+    [ARENA_W / 2 - 280, ARENA_H / 2 - 40],
+    [ARENA_W / 2 + 260, ARENA_H / 2 + 30],
+    [ARENA_W / 2 - 40, ARENA_H / 2 + 220],
+    [ARENA_W / 2 + 30, ARENA_H / 2 - 240],
+    [ARENA_W / 2 - 460, ARENA_H / 2 + 160],
+    [ARENA_W / 2 + 440, ARENA_H / 2 - 150],
+  ];
+  for (const [tx, ty] of torches) {
+    const p = project(tx, ty, cam, w, h, zoom);
+    const flicker = 0.85 + Math.sin(now / 140 + tx) * 0.08;
+    const rad = 210 * zoom * flicker;
+    const glow = ctx.createRadialGradient(p.sx, p.sy, 4, p.sx, p.sy, rad);
+    glow.addColorStop(0, rgba(b.floor.ember, 0.22));
+    glow.addColorStop(0.35, rgba(tint, 0.08));
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(p.sx - rad, p.sy - rad, rad * 2, rad * 2);
+  }
+
   const c = project(ARENA_W / 2, ARENA_H / 2, cam, w, h, zoom);
   ctx.beginPath();
   ctx.ellipse(c.sx, c.sy, 430 * zoom, 430 * zoom * 0.78, 0, 0, TAU);
-  ctx.strokeStyle = rgba(b.floor.ember, 0.28);
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = rgba(b.floor.ember, 0.12);
+  ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.beginPath();
-  ctx.ellipse(c.sx, c.sy, 80 * zoom, 80 * zoom * 0.78, 0, 0, TAU);
-  ctx.strokeStyle = "rgba(224,192,122,0.35)";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  medallion(ctx, c.sx, c.sy, 34 * zoom, b.floor.n);
+  medallion(ctx, c.sx, c.sy, 28 * zoom, b.floor.n);
 
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * TAU + 0.2;
@@ -211,7 +235,7 @@ function medallion(ctx: CanvasRenderingContext2D, x: number, y: number, r: numbe
   }
   ctx.closePath();
   ctx.stroke();
-  ctx.fillStyle = "rgba(224,192,122,0.75)";
+  ctx.fillStyle = "rgba(196,168,112,0.55)";
   ctx.font = `700 ${Math.max(10, r * 0.7)}px Cinzel, serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -225,27 +249,27 @@ function pillar(ctx: CanvasRenderingContext2D, x: number, y: number, z: number) 
   ctx.ellipse(x, y + 2 * z, 16 * z, 6 * z, 0, 0, TAU);
   ctx.fill();
   const g = ctx.createLinearGradient(x - 7 * z, 0, x + 7 * z, 0);
-  g.addColorStop(0, "#0e090b");
-  g.addColorStop(0.45, "#3a2a28");
-  g.addColorStop(1, "#120c0e");
+  g.addColorStop(0, "#070608");
+  g.addColorStop(0.45, "#1c1618");
+  g.addColorStop(1, "#0a080a");
   ctx.fillStyle = g;
   ctx.fillRect(x - 7 * z, y - 78 * z, 14 * z, 78 * z);
-  ctx.fillStyle = "#5a4632";
+  ctx.fillStyle = "#2a221c";
   ctx.fillRect(x - 12 * z, y - 86 * z, 24 * z, 10 * z);
   ctx.fillRect(x - 12 * z, y - 8 * z, 24 * z, 8 * z);
-  ctx.fillStyle = "rgba(231,201,138,0.7)";
+  ctx.fillStyle = "rgba(180,150,96,0.35)";
   ctx.fillRect(x - 12 * z, y - 84 * z, 24 * z, 2 * z);
   ctx.fillRect(x - 1 * z, y - 76 * z, 2 * z, 68 * z);
 }
 
 function embers(ctx: CanvasRenderingContext2D, cam: Cam, w: number, h: number, zoom: number, now: number, col: string) {
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < 16; i++) {
     const x = (i * 173) % ARENA_W;
     const base = (i * 97) % ARENA_H;
     const rise = (now * 0.035 + i * 40) % 260;
     const p = project(x, base - rise, cam, w, h, zoom);
     if (p.sx < -8 || p.sy < -8 || p.sx > w + 8 || p.sy > h + 8) continue;
-    const a = 0.18 + (i % 5) * 0.1;
+    const a = 0.08 + (i % 4) * 0.04;
     ctx.fillStyle = rgba(i % 3 === 0 ? "#fff4d0" : col, a);
     const s = (1.2 + (i % 3)) * Math.max(0.6, zoom);
     ctx.fillRect(p.sx, p.sy, s, s);
@@ -437,9 +461,10 @@ function nameplate(ctx: CanvasRenderingContext2D, x: number, y: number, name: st
 }
 
 function vignette(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
+  const g = ctx.createRadialGradient(w / 2, h * 0.46, Math.min(w, h) * 0.18, w / 2, h * 0.5, Math.max(w, h) * 0.72);
   g.addColorStop(0, "rgba(0,0,0,0)");
-  g.addColorStop(1, "rgba(0,0,0,0.55)");
+  g.addColorStop(0.55, "rgba(0,0,0,0.18)");
+  g.addColorStop(1, "rgba(0,0,0,0.78)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 }
@@ -449,7 +474,7 @@ function banner(ctx: CanvasRenderingContext2D, w: number, title: string, sub: st
   ctx.globalAlpha = Math.min(1, a * 1.4);
   const bw = Math.min(560, w - 28);
   const x = (w - bw) / 2;
-  const y = w < 720 ? 148 : 48;
+  const y = w < 720 ? 168 : 96;
   ctx.fillStyle = "rgba(8,4,6,0.78)";
   ctx.fillRect(x, y, bw, w < 720 ? 64 : 86);
   ctx.strokeStyle = "rgba(231,201,138,0.85)";

@@ -89,8 +89,13 @@ export type HeroDef = {
 export type Sig = "circle" | "cone" | "line" | "curse" | "summon";
 export type FloorDef = {
   n: number;
+  /** id данжа из public/shadow-world/js/data.js */
+  sw: string;
   name: string;
   place: string;
+  desc: string;
+  /** Три яруса волны. У башен — имена generateTowerStages, у коротких данжей — имена stages. */
+  stages: [string, string, string];
   tint: string;
   ember: string;
   mob: string;
@@ -216,19 +221,19 @@ export const HEROES: HeroDef[] = [
 ];
 
 export const FLOORS: FloorDef[] = [
-  { n: 1, name: "Подвалы замка", place: "Альказак", tint: "#6a3a3a", ember: "#ff8a50", mob: "Подвальная тварь", general: "Осколок Командира", boss: "Теневой Страж", bossTitle: "хранитель старого снаряжения", gSig: "circle", bSig: "cone", gRow: 35, bRow: 41, mobRows: [6, 2, 18] },
-  { n: 2, name: "Тракт Альказака", place: "Альказак", tint: "#5a4030", ember: "#ffb060", mob: "Мародёр", general: "Наёмник-Головорез", boss: "Атаман Мародёров", bossTitle: "заброшенный тракт", gSig: "cone", bSig: "line", gRow: 34, bRow: 54, mobRows: [26, 4, 32] },
-  { n: 3, name: "Хрустальные пещеры", place: "Эдем", tint: "#2f5a58", ember: "#9ff6ff", mob: "Осколок кристалла", general: "Кристальный Страж", boss: "Кристальная Владычица", bossTitle: "пещеры под садами", gSig: "line", bSig: "circle", gRow: 67, bRow: 55, mobRows: [17, 15, 27] },
-  { n: 4, name: "Катакомбы Скорби", place: "Порт", tint: "#3a3048", ember: "#c9b6ff", mob: "Могильная тварь", general: "Могильный Упырь", boss: "Чёрный Жнец", bossTitle: "катакомбы", gSig: "curse", bSig: "summon", gRow: 28, bRow: 48, mobRows: [28, 25, 31] },
-  { n: 5, name: "Грозовая башня", place: "ДаргСирром", tint: "#3a4a6a", ember: "#d0e6ff", mob: "Грозовая искра", general: "Громовержец", boss: "Райдзин", bossTitle: "повелитель бурь", gSig: "line", bSig: "cone", gRow: 39, bRow: 42, mobRows: [46, 3, 38] },
-  { n: 6, name: "Лабиринт душ", place: "Эзернис", tint: "#2a1848", ember: "#e7b6ff", mob: "Блуждающий дух", general: "Пожиратель Сущностей", boss: "Танатос", bossTitle: "владыка забвения", gSig: "curse", bSig: "circle", gRow: 51, bRow: 57, mobRows: [1, 44, 22] },
-  { n: 7, name: "Инферно хаоса", place: "Пламя", tint: "#6a2818", ember: "#ff4a32", mob: "Лавовый скорпион", general: "Магма-Голем", boss: "Суртур", bossTitle: "владыка хаоса", gSig: "circle", bSig: "summon", gRow: 42, bRow: 58, mobRows: [46, 30, 49] },
-  { n: 8, name: "Храм Бездны", place: "Порт", tint: "#1a3050", ember: "#7ec8ff", mob: "Бездонная тварь", general: "Бездонный Страж", boss: "Левиафан", bossTitle: "затонувший храм", gSig: "summon", bSig: "cone", gRow: 63, bRow: 49, mobRows: [0, 53, 21] },
-  { n: 9, name: "Антиматрица", place: "Петля Сэйлора", tint: "#5a1850", ember: "#ff3d8a", mob: "Цифровой фантом", general: "Коррумпированное Ядро", boss: "Творец Искажения", bossTitle: "сбой решётки", gSig: "line", bSig: "curse", gRow: 5, bRow: 65, mobRows: [5, 41, 66] },
-  { n: 10, name: "Разлом пустоты", place: "Пути Айтрейна", tint: "#2a2440", ember: "#c8c0ff", mob: "Абсолютный фантом", general: "Страж Нулевой Точки", boss: "Азатот", bossTitle: "ходок бездны", gSig: "curse", bSig: "summon", gRow: 52, bRow: 37, mobRows: [66, 51, 40] },
-  { n: 11, name: "Кровавая цитадель", place: "Альказак", tint: "#6a1830", ember: "#ff6080", mob: "Кровавый рыцарь", general: "Жрец Крови", boss: "Кармилла", bossTitle: "королева цитадели", gSig: "cone", bSig: "curse", gRow: 45, bRow: 59, mobRows: [20, 16, 34] },
-  { n: 12, name: "Спектральный собор", place: "Обитель", tint: "#3a1848", ember: "#f0e6ff", mob: "Инквизитор", general: "Каратель", boss: "Призрачный Понтифик", bossTitle: "собор", gSig: "cone", bSig: "line", gRow: 36, bRow: 56, mobRows: [22, 7, 14] },
-  { n: 13, name: "Колыбель титана", place: "Купол", tint: "#6a5030", ember: "#ffd76a", mob: "Каменный осколок", general: "Пробужденный Страж", boss: "Титан Атлас", bossTitle: "колыбель", gSig: "circle", bSig: "summon", gRow: 32, bRow: 67, mobRows: [10, 19, 18] },
+  { n: 1, sw: "dungeon_intro_1", name: "Подвалы Старого Замка", place: "Альказак", desc: "Тренировочные подвалы замка.", stages: ["Сектор Мишеней", "Оружейный зал", "Трон хранителя"], tint: "#4a3034", ember: "#ff8a50", mob: "Манекен", general: "Манекен I", boss: "Теневой Страж", bossTitle: "призрачный хранитель замка", gSig: "circle", bSig: "cone", gRow: 35, bRow: 41, mobRows: [6, 2, 18] },
+  { n: 2, sw: "dungeon_intro_2", name: "Заброшенный Тракт Альказака", place: "Альказак", desc: "Дикие тракты мародёров.", stages: ["Дикий тракт", "Обоз мародёров", "Лагерь Атамана"], tint: "#4a3828", ember: "#ffb060", mob: "Мародёр", general: "Головорез тракта", boss: "Атаман Мародёров", bossTitle: "главарь банды", gSig: "cone", bSig: "line", gRow: 34, bRow: 54, mobRows: [26, 4, 32] },
+  { n: 3, sw: "dungeon_intro_3", name: "Чёрные Чумные Топи", place: "Топи", desc: "Заболоченная низина.", stages: ["Гнилая кромка", "Трясина", "Гнилая Топь"], tint: "#1c3428", ember: "#7dff9a", mob: "Болотная слизь", general: "Чумной сгусток", boss: "Болотный Ужас", bossTitle: "ядовитый монстр топей", gSig: "line", bSig: "circle", gRow: 30, bRow: 11, mobRows: [0, 27, 29] },
+  { n: 4, sw: "dungeon_1", name: "Катакомбы Скорби", place: "Порт", desc: "Заброшенные склепы.", stages: ["Склеп", "Галерея праха", "Трон Праха"], tint: "#322838", ember: "#c9b6ff", mob: "Могильная тварь", general: "Могильный Упырь", boss: "Чёрный Жнец", bossTitle: "повелитель склепов", gSig: "curse", bSig: "summon", gRow: 28, bRow: 48, mobRows: [28, 25, 31] },
+  { n: 5, sw: "dungeon_storm_tower", name: "Башня Бесконечного Шторма", place: "ДаргСирром", desc: "Шпиль бури, двенадцать ярусов башни.", stages: ["Ярус 1: Шторм", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#243044", ember: "#d0e6ff", mob: "Грозовой Дух", general: "Громовержец", boss: "Райдзин", bossTitle: "повелитель бурь", gSig: "line", bSig: "cone", gRow: 39, bRow: 42, mobRows: [46, 3, 38] },
+  { n: 6, sw: "dungeon_soul_labyrinth", name: "Лабиринт Забытых Душ", place: "Эзернис", desc: "Призрачные орды лабиринта.", stages: ["Ярус 1: Лабиринт", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#241430", ember: "#e7b6ff", mob: "Блуждающий Призрак", general: "Пожиратель Сущностей", boss: "Танатос", bossTitle: "владыка забвения", gSig: "curse", bSig: "circle", gRow: 51, bRow: 57, mobRows: [1, 44, 22] },
+  { n: 7, sw: "dungeon_chaos_inferno", name: "Пекло Первородного Хаоса", place: "Пламя", desc: "Лавовые демоны инферно.", stages: ["Ярус 1: Инферно", "Орда (Этаж 8)", "Чертог Владыки"], tint: "#3a1814", ember: "#ff4a32", mob: "Лавовый Скорпион", general: "Магма-Голем", boss: "Суртур", bossTitle: "владыка хаоса", gSig: "circle", bSig: "summon", gRow: 42, bRow: 58, mobRows: [46, 30, 49] },
+  { n: 8, sw: "dungeon_abyss", name: "Затонувший Храм Бездны", place: "Порт", desc: "Глубинные ужасы святилища.", stages: ["Подход к святилищу", "Глубинная галерея", "Святилище Левиафана"], tint: "#142433", ember: "#7ec8ff", mob: "Бездонная тварь", general: "Бездонный Страж", boss: "Левиафан", bossTitle: "хозяин бездны", gSig: "summon", bSig: "cone", gRow: 63, bRow: 49, mobRows: [0, 53, 21] },
+  { n: 9, sw: "dungeon_5", name: "Разрыв Антиматрицы", place: "Петля Сэйлора", desc: "Цифровой сбой решётки.", stages: ["Сбой решётки", "Фрактальный коридор", "Фрактальный Трон"], tint: "#341428", ember: "#ff3d8a", mob: "Цифровой фантом", general: "Коррумпированное Ядро", boss: "Творец Искажения", bossTitle: "первородный баг", gSig: "line", bSig: "curse", gRow: 5, bRow: 65, mobRows: [5, 41, 66] },
+  { n: 10, sw: "dungeon_void_rift", name: "Разлом Вечной Тьмы", place: "Пути Айтрейна", desc: "Существа антиматерии, десять ярусов тьмы.", stages: ["Ярус 1: Тьма", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#1c1830", ember: "#c8c0ff", mob: "Абсолютный Фантом", general: "Страж Нулевой Точки", boss: "Азатот", bossTitle: "ходок бездны", gSig: "curse", bSig: "summon", gRow: 52, bRow: 37, mobRows: [66, 51, 40] },
+  { n: 11, sw: "dungeon_blood_citadel", name: "Кровавая Цитадель Кармиллы", place: "Альказак", desc: "Вампирские лорды цитадели.", stages: ["Ярус 1: Кровь", "Орда (Этаж 4)", "Чертог Владыки"], tint: "#3a1420", ember: "#ff6080", mob: "Кровавый Рыцарь", general: "Жрец Крови", boss: "Кармилла", bossTitle: "королева цитадели", gSig: "cone", bSig: "curse", gRow: 45, bRow: 59, mobRows: [20, 16, 34] },
+  { n: 12, sw: "dungeon_spectral_cathedral", name: "Спектральный Собор", place: "Обитель", desc: "Святилище иллюзий.", stages: ["Ярус 1: Спектр", "Орда (Этаж 8)", "Чертог Владыки"], tint: "#281428", ember: "#f0e6ff", mob: "Инквизитор", general: "Каратель", boss: "Призрачный Понтифик", bossTitle: "призрачный понтифик собора", gSig: "cone", bSig: "line", gRow: 36, bRow: 56, mobRows: [22, 7, 14] },
+  { n: 13, sw: "dungeon_titan_cradle", name: "Колыбель Забытых Титанов", place: "Купол", desc: "Древнейшие колоссы.", stages: ["Ярус 1: Титаны", "Орда (Этаж 8)", "Чертог Владыки"], tint: "#3a301c", ember: "#ffd76a", mob: "Осколок титана", general: "Каменный Страж", boss: "Титан Атлас", bossTitle: "титанический колосс", gSig: "circle", bSig: "summon", gRow: 32, bRow: 67, mobRows: [10, 19, 18] },
 ];
 
 export const RARITY_NAME: Record<Rarity, string> = {
@@ -422,7 +427,19 @@ export function bestFloor(p: Profile) {
   for (let i = 0; i < p.clears.length; i++) if (p.clears[i] > 0) n = i + 1;
   return n;
 }
-export function floorOpen(p: Profile, n: number) { return n === 1 || (p.clears[n - 2] || 0) > 0; }
+/** Уровень, с которого данж открыт. Число из админки, не номер прошлой зачистки. */
+export function floorNeed(n: number) {
+  const row = getTune().floors[(n | 0) - 1];
+  return row ? row.need | 0 : 99;
+}
+export function floorLock(p: Profile, n: number): string | null {
+  if ((n | 0) < 1 || (n | 0) > 13) return "Нет такого данжа";
+  const need = floorNeed(n);
+  if ((p.lvl | 0) >= need) return null;
+  const f = FLOORS[(n | 0) - 1];
+  return `«${f.name}» открывается с уровня ${need}. Сейчас ${p.lvl}. Уровень копится опытом зачистки и квестами, номер пройденного этажа его не заменяет.`;
+}
+export function floorOpen(p: Profile, n: number) { return floorLock(p, n) === null; }
 
 function mint(p: Profile) { return "i" + (p.nextId++); }
 
@@ -1012,6 +1029,10 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
   let gold = Math.round((clearPay + v.kills * eco.killGold + v.generals * eco.generalGold) * (1 + goldFind(p)));
   if ((raw.party | 0) >= 2) gold = Math.round(gold * eco.partyGold);
   p.gold += gold;
+  const killXp = Math.floor(v.kills * 0.2);
+  const clearXp = cleared ? (getTune().floors[floor - 1]?.xp | 0) : 0;
+  const xp = killXp + clearXp;
+  const levels = xp > 0 ? addXp(p, xp) : 0;
   const items: LootNote[] = [];
   if (cleared) {
     const rarity = rng() < (floor >= 10 ? 0.18 : 0.08) ? "rare" : rng() < 0.55 ? "magic" : "common";
@@ -1021,11 +1042,11 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
     ? "В золото вошли только уже сбитые твари и генералы."
     : "Сбитых целей нет, золота за этаж нет.";
   const note = reason === "win"
-    ? v.note
+    ? `${v.note ? v.note + " " : ""}Опыт зачистки ${clearXp}, за тварей ${killXp}.`
     : reason === "surrender"
-      ? `Сдача. ${partial} Босс и следующий этаж не засчитаны.`
-      : `Поражение: герой пал. ${partial} Босс и следующий этаж не засчитаны.`;
-  return { gold, xp: 0, levels: 0, items, quests, note, boss: cleared, reason };
+      ? `Сдача. ${partial} Босс не засчитан. Опыт только за уже сбитых тварей.`
+      : `Поражение: герой пал. ${partial} Босс не засчитан. Опыт только за уже сбитых тварей.`;
+  return { gold, xp, levels, items, quests, note, boss: cleared, reason };
 }
 
 export type ClaimReport = { gold: number; xp: number; levels: number; item: LootNote | null };
@@ -1089,9 +1110,11 @@ export function startNonce() {
 }
 
 export function beginRun(p: Profile, floor: number, now: number, nonce = startNonce(), carry = false): { nonce: string } | { err: string } {
+  void carry;
   if (!p.hero) return { err: "Сначала выбери героя" };
-  if (!carry && !floorOpen(p, floor)) return { err: "Этаж закрыт" };
-  if (floor < 1 || floor > 13) return { err: "Нет такого этажа" };
+  if (floor < 1 || floor > 13) return { err: "Нет такого данжа" };
+  const lock = floorLock(p, floor);
+  if (lock) return { err: lock };
   const tune = getTune();
   const oath: OathId = tune.oath.on ? p.oath : "none";
   if (oath === "cup") {

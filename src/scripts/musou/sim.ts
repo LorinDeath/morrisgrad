@@ -296,7 +296,8 @@ export class Battle {
     this.generalOut = false;
     this.waveNeed = this.budgets[this.wave] || 0;
     if (this.wave < 3) {
-      this.say(`Волна ${this.wave + 1}`, "Твари выходят на площадь", 1.15);
+      const stage = this.floor.stages[this.wave] || `Волна ${this.wave + 1}`;
+      this.say(stage, this.floor.desc, 1.15);
       const burst = Math.min(10, this.waveNeed);
       for (let i = 0; i < burst; i++) this.spawnMob();
       this.spawned = burst;
