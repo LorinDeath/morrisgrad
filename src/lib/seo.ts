@@ -61,6 +61,7 @@ export const PAGE_DESC: Record<string, string> = {
   "/games/cherta": "«Черта купола» — мини-игра МоррисГрада.",
   "/games/zaglushka": "«Заглушка» — экспериментальная мини-игра МоррисГрада.",
   "/games/strategy": "«Партия Чёрных королей» — пошаговая стратегия МоррисГрада: доска 8×8 или 15×15, расы и Вожди, игра с другом или с ботом.",
+  "/games/orda": "«Орда Обители» — мусоу МоррисГрада: герои вселенной против толпы, 13 этажей, генералы и босс, лут и лавка с сумкой.",
 };
 const HERO = (n: string) => `${n} — персонаж вселенной МоррисГрада: образ, история и место в мире тёмного фэнтези Lorin Death.`;
 for (const [p, n] of Object.entries({
@@ -84,7 +85,7 @@ export const STATIC_PAGES: { path: string; priority?: number; changefreq?: strin
   ...["/konkurs", "/zayavka", "/allkonrass"].map((path) => ({ path, priority: 0.4 })),
   ...["veles", "chronos", "lorin-death", "white-fox", "itrain", "crazy-alex-seylor", "lorelin-seylor", "listaf-elfdid"].map((h) => ({ path: "/heroes/" + h, priority: 0.6 })),
   ...["char2", "char3", "char4", "char5", "char6", "char7", "char8", "elfdid"].map((h) => ({ path: "/art%20hero/" + h, priority: 0.4 })),
-  ...["sanctuary", "ascetics", "crate", "dungeon", "roguelike", "geometry-rogue", "echo", "cherta", "zaglushka", "strategy"].map((g) => ({ path: "/games/" + g, priority: 0.6 })),
+  ...["sanctuary", "ascetics", "crate", "dungeon", "roguelike", "geometry-rogue", "echo", "cherta", "zaglushka", "strategy", "orda"].map((g) => ({ path: "/games/" + g, priority: 0.6 })),
   ...["crate", "dungeon", "echo", "geometria", "roguelike", "zaglushka"].map((g) => ({ path: "/changelog-" + g, priority: 0.3 })),
 ];
 

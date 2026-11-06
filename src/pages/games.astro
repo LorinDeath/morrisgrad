@@ -33,6 +33,21 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
+            <div class="game-card orda-card"
+                 data-title="Орда Обители"
+                 data-desc="Мусоу по героям МоррисГрада. Один персонаж против толпы: твари только бродят, генералы и босс дерутся. Тринадцать этажей, волны и комбо. Прокачка, лут и конечная сумка — в хабе и лавке, как в Диабло. Онлайн-комната до четырёх и друзья с аккаунта сайта."
+                 data-game-url="/games/orda"
+                 data-changelog-url="/games/orda">
+                <span class="cherta-badge">новое</span>
+                <img src="/orda/cover.svg" width="600" height="400" alt="Орда Обители" class="game-icon" style="object-fit: cover; background:#14080c;" />
+                <span class="game-title" style="color: #ffb089;">Орда Обители</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(226, 75, 59, 0.2); color: #ffb089; border: 1px solid rgba(226,75,59,0.45);">⚔ Мусоу · 13 этажей</span>
+                    <span class="platform-tag" title="PC">🖥️ PC</span>
+                    <span class="platform-tag" title="Mobile">📱 Mobile</span>
+                </div>
+            </div>
+
             <div class="game-card strat-card"
                  data-title="Партия Чёрных королей"
                  data-desc="Шахматная пошаговая стратегия: 6 рас, Вожди со своими умениями, борьба за землю и три пути к победе. Играйте с ботом или онлайн с живым соперником — в рейтинге, с другом по ссылке или коду."
@@ -486,6 +501,22 @@ import geometriaImg from '../assets/geometria.png';
         color: #ffd700;
     }
 
+    .orda-card {
+        border-color: #e24b3b;
+        box-shadow: 0 0 18px rgba(226, 75, 59, 0.28);
+        background: linear-gradient(180deg, rgba(36, 12, 16, 0.94) 0%, rgba(10, 6, 8, 0.98) 100%);
+    }
+    .orda-card:hover { border-color: #ffd76a; box-shadow: 0 0 28px rgba(255, 176, 120, 0.45); }
+    .orda-card .game-title { color: #ffb089; }
+    .modal-content.orda-theme {
+        border-color: #e7c98a;
+        background: linear-gradient(180deg, rgba(32, 14, 16, 0.97) 0%, rgba(8, 4, 6, 0.99) 100%);
+        box-shadow: 0 0 40px rgba(226, 75, 59, 0.35);
+    }
+    .modal-content.orda-theme #modal-title { color: #ffd76a; }
+    .modal-content.orda-theme .start-btn { border-color: #e7c98a; color: #ffd76a; }
+    .modal-content.orda-theme .start-btn:hover { background: #e7c98a; color: #1a0c0c; }
+
     /* Geometry Card Style */
     .geometry-card {
         border-color: #00ffcc;
@@ -837,30 +868,19 @@ import geometriaImg from '../assets/geometria.png';
                 if (changelogLink && changelogUrl) changelogLink.setAttribute('href', changelogUrl);
 
                 // Apply Theme based on card class
-                if (card.classList.contains('dungeon-card') && modalContent) {
-                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
-                    modalContent.classList.add('dungeon-theme');
-                } else if (card.classList.contains('sanctuary-card') && modalContent) {
-                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'cherta-theme');
-                    modalContent.classList.add('sanctuary-theme');
-                } else if (card.classList.contains('ascetic-card') && modalContent) {
-                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'sanctuary-theme', 'cherta-theme');
-                    modalContent.classList.add('ascetic-theme');
-                } else if (card.classList.contains('geometry-card') && modalContent) {
-                    modalContent.classList.remove('crate-theme', 'neon-theme', 'sanctuary-theme', 'cherta-theme');
-                    modalContent.classList.add('geometry-theme');
-                } else if (card.classList.contains('neon-card') && modalContent) {
-                    modalContent.classList.remove('crate-theme', 'geometry-theme', 'sanctuary-theme', 'cherta-theme');
-                    modalContent.classList.add('neon-theme');
-                } else if (card.classList.contains('cherta-card') && modalContent) {
-                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
-                    modalContent.classList.add('cherta-theme');
-                } else if (card.classList.contains('crate-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme', 'dungeon-theme');
-                    modalContent.classList.add('crate-theme');
-                } else if (modalContent) {
-                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme');
-                }
+                const themes = ['crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme', 'dungeon-theme', 'orda-theme'];
+                if (modalContent) modalContent.classList.remove(...themes);
+                const themeOf = (name: string) => card.classList.contains(name);
+                const theme = themeOf('orda-card') ? 'orda-theme'
+                  : themeOf('dungeon-card') ? 'dungeon-theme'
+                  : themeOf('sanctuary-card') ? 'sanctuary-theme'
+                  : themeOf('ascetic-card') ? 'ascetic-theme'
+                  : themeOf('geometry-card') ? 'geometry-theme'
+                  : themeOf('neon-card') ? 'neon-theme'
+                  : themeOf('cherta-card') ? 'cherta-theme'
+                  : themeOf('crate-card') ? 'crate-theme'
+                  : '';
+                if (theme && modalContent) modalContent.classList.add(theme);
 
                 modal.classList.add('active');
             });

@@ -8,20 +8,32 @@ import { adminGoalsHttp } from "./strat/admin-http";
 import { adminCfgHttp } from "./strat/admin-cfg-http";
 import { chessAdminGateHttp } from "./chess/admin-gate";
 import { chessHttp } from "./chess/http";
+import { MusouRoom } from "./musou/room";
+import { MusouIndex } from "./musou/hub";
+import { musouHttp } from "./musou/http";
 import type { Env } from "./types";
 import { fetchRoom } from "./meta/doRetry";
 
 // Обязательный реэкспорт для Cloudflare Durable Objects runtime
-export { GameRoom, StratMatch, StratIndex, ChessMatch, ChessIndex };
+export { GameRoom, StratMatch, StratIndex, ChessMatch, ChessIndex, MusouRoom, MusouIndex };
 
 const STRAT_MATCH_PATH = /^\/strat\/m\/([A-HJ-NP-Z2-9]{6})$/;
 const CHESS_MATCH_PATH = /^\/chess\/m\/([A-HJ-NP-Z2-9]{6})$/;
+const MUSOU_ROOM_PATH = /^\/musou\/m\/([A-HJ-NP-Z2-9]{6})$/;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       const path = new URL(request.url).pathname;
       // «Боевые шахматы»: отдельные DO ChessMatch / ChessIndex. Strat и GameRoom не затрагиваются.
+      if (path.startsWith("/musou/")) {
+        const e: any = env;
+        if (path === "/musou/hello" || path === "/musou/act" || path === "/musou/friends" || path === "/musou/invite") return await musouHttp(request, env, path);
+        if (!e.MUSOU_ROOM || !e.MUSOU_INDEX) return new Response("not found", { status: 404 });
+        const orda = MUSOU_ROOM_PATH.exec(path);
+        if (orda) return await fetchRoom(() => e.MUSOU_ROOM.get(e.MUSOU_ROOM.idFromName(orda[1])), request);
+        return await fetchRoom(() => e.MUSOU_INDEX.get(e.MUSOU_INDEX.idFromName("index")), request);
+      }
       if (path.startsWith("/chess/")) {
         const e: any = env;
         if (path === "/chess/admin/gate") return await chessAdminGateHttp(request, env);

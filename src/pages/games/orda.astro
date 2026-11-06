@@ -1,0 +1,60 @@
+---
+// «Орда Обители» — мусоу на 13 этажей. Хаб, лавка и сумка: src/scripts/musou. Бой на канвасе.
+import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/musou.css';
+const title = 'Орда Обители | Моррис Град';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Орда Обители — мусоу МоррисГрада: один герой против толпы, 13 этажей, генералы и босс, лут как в Диабло, лавка и сумка с пределом. Комнаты на четверых." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+<main id="orda">
+  <header class="top" id="top">
+    <a href="/games">← Мини-игры</a>
+    <div class="brand"><b>Орда Обители</b><small>тринадцать этажей</small></div>
+    <div class="pills">
+      <span class="pill" id="gold-pill">0 зл</span>
+      <span class="pill" id="bag-pill">0/12</span>
+      <span class="pill" id="net-pill">…</span>
+    </div>
+  </header>
+  <section id="v-boot" class="view boot on"><div class="spinner"></div><h1>Обитель открывает площадь</h1><p>Собираем героя, сумку и этаж.</p></section>
+  <section id="v-pick" class="view pick"></section>
+  <section id="v-hub" class="view"></section>
+  <section id="v-fight" class="view fight">
+    <canvas id="field"></canvas>
+    <div class="fight-top">
+      <button class="btn danger" id="flee" type="button">Сдаться</button>
+      <div class="obj" id="obj"></div>
+      <div class="party" id="party"></div>
+    </div>
+    <div class="stick" id="stick"><i></i></div>
+    <div class="pad">
+      <button type="button" id="m-light">Удар</button>
+      <button type="button" id="m-heavy">Тяж</button>
+      <button type="button" id="m-dodge">Рывок</button>
+    </div>
+    <div class="dock">
+      <div class="vitals"><div class="hp"><i id="hp"></i></div><div class="ms"><i id="ms"></i></div><span>мусоу</span></div>
+      <div class="skills" id="skills"></div>
+    </div>
+    <p class="hintkeys">WASD — шаг, мышь — взгляд, ЛКМ или J — следующий удар серии, K или ПКМ — тяжёлый, Q E R — навыки, F — мусоу, пробел — рывок. Удержание не бьёт само, пока серия не дошла до удара. Красный круг — замах генерала. P — пауза в одиночке.</p>
+  </section>
+  <section id="v-result" class="view result"></section>
+  <div id="modal" class="modal" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+</main>
+<script>
+  import '../../scripts/musou/client';
+</script>
+</body>
+</html>

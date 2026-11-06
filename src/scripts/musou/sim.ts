@@ -1,0 +1,952 @@
+// Бой «Орды»: толпа болванчиков бродит, генералы и босс дерутся.
+// Удары ищут цели по клеткам, а не по всему полю — так живёт большая волна.
+
+import {
+  floorByN, heroById, mulberry32, spawnBudget,
+  type FloorDef, type HeroId, type Rng, type Sheet, type SkillDef,
+} from "./rules";
+
+export const ARENA_W = 2400;
+export const ARENA_H = 1560;
+const MAX_MOBS = 180;
+const CELL = 96;
+
+export type Anim = "idle" | "run" | "swing" | "hurt" | "down";
+export type Btn = { mx: number; my: number; aim: number; hold?: boolean; light?: boolean; heavy?: boolean; skill?: number; dodge?: boolean };
+
+export type Actor = {
+  id: string;
+  name: string;
+  hero: HeroId;
+  sheet: Sheet;
+  x: number;
+  y: number;
+  facing: number;
+  hp: number;
+  maxHp: number;
+  musou: number;
+  anim: Anim;
+  swing: number;
+  lock: number;
+  step: number;
+  stepT: number;
+  cd: number[];
+  iframe: number;
+  downT: number;
+  revives: number;
+  hurt: number;
+  bufSkill: number;
+  bufLight: boolean;
+  bufHeavy: boolean;
+  bufDodge: boolean;
+  hold: boolean;
+  holdLight: boolean;
+  dodgeCd: number;
+  pose: number;
+  atk: null | { kind: "light" | "heavy" | "skill" | "dodge"; step: number; phase: "startup" | "active" | "recovery"; left: number; hit: boolean; idx?: number };
+  mx: number;
+  my: number;
+  aim: number;
+};
+
+export type Elite = {
+  id?: string;
+  kind: "general" | "boss";
+  name: string;
+  title: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  facing: number;
+  alive: boolean;
+  wind: number;
+  windMax: number;
+  cd: number;
+  pattern: number;
+  swing: number;
+  stun: number;
+  tint: string;
+  r: number;
+};
+
+export type Fx = {
+  k: "slash" | "ring" | "spark" | "beam" | "nova" | "zone" | "text" | "ghost" | "flash";
+  x: number;
+  y: number;
+  a: number;
+  r: number;
+  ang: number;
+  life: number;
+  max: number;
+  col: string;
+  col2: string;
+  txt?: string;
+  hero?: HeroId;
+  facing?: number;
+  swing?: number;
+  thick?: number;
+};
+
+export type Member = { id: string; name: string; hero: HeroId; sheet: Sheet };
+
+const LIGHT = [
+  { r: 100, ang: 0.85, mul: 0.85, startup: 0.07, active: 0.05, recovery: 0.13 },
+  { r: 124, ang: 1.2, mul: 1.05, startup: 0.06, active: 0.05, recovery: 0.12 },
+  { r: 148, ang: 1.55, mul: 1.3, startup: 0.08, active: 0.06, recovery: 0.14 },
+  { r: 196, ang: 2.45, mul: 1.95, startup: 0.11, active: 0.07, recovery: 0.2 },
+];
+const HEAVY = { r: 176, ang: 1.2, mul: 2.2, startup: 0.14, active: 0.07, recovery: 0.24 };
+
+function angDiff(a: number, b: number) {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+function clamp(v: number, a: number, b: number) { return Math.max(a, Math.min(b, v)); }
+function len(x: number, y: number) { return Math.hypot(x, y) || 1; }
+
+export class Battle {
+  floor: FloorDef;
+  party: Actor[];
+  elites: Elite[] = [];
+  fx: Fx[] = [];
+  fxOut: Fx[] = [];
+  phase: "intro" | "fight" | "won" | "lost" = "intro";
+  introT = 1.35;
+  banner = "";
+  bannerSub = "";
+  bannerT = 0;
+  shake = 0;
+  flash = 0;
+  flashCol = "#fff";
+  hitstop = 0;
+  combo = 0;
+  comboT = 0;
+  bestCombo = 0;
+  kills = 0;
+  genKills = 0;
+  bossDown = false;
+  wave = 0;
+  t = 0;
+  frame = 0;
+  mirror = false;
+  remote = false;
+  paused = false;
+  localId = "";
+  hits: { id: string; kind: "light" | "heavy" | "skill" | "musou" }[] = [];
+  rng: Rng;
+  private mobX = new Float32Array(MAX_MOBS);
+  private mobY = new Float32Array(MAX_MOBS);
+  private mobHp = new Float32Array(MAX_MOBS);
+  private mobAlive = new Uint8Array(MAX_MOBS);
+  private mobKind = new Uint8Array(MAX_MOBS);
+  private mobFace = new Float32Array(MAX_MOBS);
+  private mobTx = new Float32Array(MAX_MOBS);
+  private mobTy = new Float32Array(MAX_MOBS);
+  private mobCool = new Float32Array(MAX_MOBS);
+  private mobDie = new Float32Array(MAX_MOBS);
+  private mobHitCd = new Float32Array(MAX_MOBS);
+  private mobN = 0;
+  private spawned = 0;
+  private waveNeed = 0;
+  private spawnAcc = 0;
+  private generalOut = false;
+  private budgets: number[] = [];
+  private hash = new Map<number, number[]>();
+  private hashed = -1;
+
+  constructor(floor: number, members: Member[], seed = 1) {
+    this.floor = floorByN(floor);
+    this.rng = mulberry32(seed || 1);
+    const f = this.floor;
+    this.party = members.slice(0, 4).map((m, i) => {
+      const ang = (i / Math.max(1, members.length)) * Math.PI * 2;
+      return {
+        id: m.id, name: m.name, hero: m.hero, sheet: m.sheet,
+        x: ARENA_W / 2 + Math.cos(ang) * 36,
+        y: ARENA_H / 2 + Math.sin(ang) * 36,
+        facing: 0, hp: m.sheet.hp, maxHp: m.sheet.hp, musou: 0,
+        anim: "idle" as Anim, swing: 0, lock: 0, step: 0, stepT: 0,
+        cd: [0, 0, 0, 0], iframe: 0, downT: 0, revives: 1, hurt: 0,
+        bufSkill: 0, bufLight: false, bufHeavy: false, bufDodge: false, hold: false, holdLight: false, dodgeCd: 0, pose: 0, atk: null, mx: 0, my: 0, aim: 0,
+      };
+    });
+    this.localId = this.party[0]?.id || "";
+    const b = spawnBudget(f.n);
+    const a = Math.round(b.spawns * 0.3);
+    const c = Math.round(b.spawns * 0.34);
+    this.budgets = [a, c, b.spawns - a - c, 14];
+    this.banner = f.name;
+    this.bannerSub = f.place;
+    this.bannerT = 1.35;
+    this.beginWave();
+  }
+
+  living() { return this.party.filter((p) => p.hp > 0 && p.downT <= 0); }
+
+  press(id: string, btn: Partial<Btn>) {
+    const a = this.party.find((p) => p.id === id);
+    if (!a) return;
+    if (btn.mx != null) a.mx = btn.mx;
+    if (btn.my != null) a.my = btn.my;
+    if (btn.aim != null) a.aim = btn.aim;
+    if (btn.hold != null) a.holdLight = btn.hold;
+    if (btn.light != null) a.holdLight = btn.light;
+    if (btn.light || btn.hold) a.bufLight = true;
+    if (btn.heavy) a.bufHeavy = true;
+    if (btn.dodge) a.bufDodge = true;
+    if (btn.skill) a.bufSkill = btn.skill;
+  }
+
+  mobs() {
+    const out: { x: number; y: number; kind: number; alive: boolean; die: number; facing: number }[] = [];
+    for (let i = 0; i < this.mobN; i++) {
+      if (!this.mobAlive[i] && this.mobDie[i] <= 0) continue;
+      out.push({
+        x: this.mobX[i], y: this.mobY[i], kind: this.mobKind[i],
+        alive: !!this.mobAlive[i], die: this.mobDie[i], facing: this.mobFace[i],
+      });
+    }
+    return out;
+  }
+
+  step(dt: number) {
+    dt = Math.min(0.05, Math.max(0, dt));
+    if (this.mirror) { this.decay(dt); return; }
+    this.t += dt;
+    this.frame++;
+    if (this.bannerT > 0) this.bannerT -= dt;
+    if (this.phase === "intro") {
+      this.introT -= dt;
+      this.wander(dt);
+      this.decay(dt);
+      if (this.introT <= 0) this.phase = "fight";
+      return;
+    }
+    if (this.phase !== "fight") { this.decay(dt); return; }
+    if (this.paused && !this.remote) { this.decay(dt); return; }
+    if (this.hitstop > 0) { this.hitstop -= dt; this.decay(dt); return; }
+
+    for (const a of this.party) if (!this.localId || a.id === this.localId) this.actor(a, dt);
+    this.spawn(dt);
+    this.wander(dt);
+    this.touchPlayers(dt);
+    if (this.remote) this.watchRemote();
+    else this.eliteAI(dt);
+    this.decay(dt);
+    this.separate();
+
+    if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) this.combo = 0; }
+    const up = this.living();
+    if (!up.length) {
+      const waiting = this.party.some((p) => p.hp <= 0 && p.revives > 0 && p.downT > 0);
+      if (!waiting) { this.phase = "lost"; this.say("Отряд пал", "Генералы удержали этаж", 2); }
+    }
+  }
+
+  private say(title: string, sub: string, time: number) {
+    this.banner = title;
+    this.bannerSub = sub;
+    this.bannerT = time;
+  }
+
+  private beginWave() {
+    this.spawned = 0;
+    this.spawnAcc = 0;
+    this.generalOut = false;
+    this.waveNeed = this.budgets[this.wave] || 0;
+    if (this.wave < 3) {
+      this.say(`Волна ${this.wave + 1}`, "Твари выходят на площадь", 1.15);
+      const burst = Math.min(22, this.waveNeed);
+      for (let i = 0; i < burst; i++) this.spawnMob();
+      this.spawned = burst;
+    } else {
+      this.say(this.floor.boss, this.floor.bossTitle, 1.6);
+      if (!this.remote) this.spawnElite("boss");
+    }
+  }
+
+  private spawn(dt: number) {
+    if (this.wave > 3) return;
+    if (this.wave < 3) {
+      this.spawnAcc = Math.min(6, this.spawnAcc + dt * (14 + this.floor.n));
+      const alive = this.countAlive();
+      while (this.spawnAcc >= 1 && this.spawned < this.waveNeed && alive + (this.spawned % 3) < 150) {
+        this.spawnAcc -= 1;
+        this.spawnMob();
+        this.spawned++;
+      }
+      if (!this.generalOut && this.spawned > this.waveNeed * 0.45 && !this.remote) {
+        this.generalOut = true;
+        this.spawnElite("general");
+        this.say(this.floor.general, `Генерал волны ${this.wave + 1}`, 1.35);
+        this.flash = Math.max(this.flash, 0.18);
+        this.flashCol = "#ffb0a0";
+      }
+      if (this.spawned >= this.waveNeed && this.countAlive() === 0 && this.waveClear()) {
+        this.wave++;
+        this.beginWave();
+      }
+    } else if (this.bossDown) {
+      this.killAllPretty();
+      this.phase = "won";
+      this.say("Этаж зачищен", this.floor.name, 2.4);
+      this.shake = Math.max(this.shake, 10);
+    }
+  }
+
+  private countAlive() {
+    let n = 0;
+    for (let i = 0; i < this.mobN; i++) if (this.mobAlive[i]) n++;
+    return n;
+  }
+
+  private spawnMob(x?: number, y?: number) {
+    let slot = -1;
+    for (let i = 0; i < this.mobN; i++) if (!this.mobAlive[i] && this.mobDie[i] <= 0) { slot = i; break; }
+    if (slot < 0) {
+      if (this.mobN >= MAX_MOBS) return;
+      slot = this.mobN++;
+    }
+    const lead = this.living()[0] || this.party[0];
+    const ang = this.rng() * Math.PI * 2;
+    const dist = 300 + this.rng() * 180;
+    const px = x ?? clamp((lead?.x ?? ARENA_W / 2) + Math.cos(ang) * dist, 90, ARENA_W - 90);
+    const py = y ?? clamp((lead?.y ?? ARENA_H / 2) + Math.sin(ang) * dist, 90, ARENA_H - 90);
+    this.mobX[slot] = px;
+    this.mobY[slot] = py;
+    const kind = Math.floor(this.rng() * 3);
+    this.mobKind[slot] = kind;
+    this.mobHp[slot] = (kind === 2 ? 16 : kind === 1 ? 5 : 8) + this.floor.n * 2;
+    this.mobAlive[slot] = 1;
+    this.mobFace[slot] = this.rng() * Math.PI * 2;
+    this.mobTx[slot] = px;
+    this.mobTy[slot] = py;
+    this.mobCool[slot] = this.rng() * 1.5;
+    this.mobDie[slot] = 0;
+  }
+
+  private spawnElite(kind: "general" | "boss") {
+    const lead = this.living()[0] || this.party[0];
+    const ang = this.rng() * Math.PI * 2;
+    const dist = kind === "boss" ? 280 : 240;
+    const n = this.floor.n;
+    const boss = kind === "boss";
+    const hp = boss ? 1500 + n * 620 : 680 + n * 300;
+    this.elites.push({
+      kind, name: boss ? this.floor.boss : this.floor.general,
+      title: boss ? this.floor.bossTitle : "генерал волны",
+      x: clamp((lead?.x ?? ARENA_W / 2) + Math.cos(ang) * dist, 120, ARENA_W - 120),
+      y: clamp((lead?.y ?? ARENA_H / 2) + Math.sin(ang) * dist, 120, ARENA_H - 120),
+      id: boss ? "boss" : "g" + this.wave,
+      hp, maxHp: hp, facing: ang + Math.PI, alive: true,
+      wind: 0, windMax: 0.5, cd: 0.8, pattern: 0, swing: 0, stun: 0,
+      tint: boss ? "#ffd76a" : "#ff6a4a",
+      r: boss ? 46 : 30,
+    });
+    this.fxPush({ k: "ring", x: this.elites[this.elites.length - 1].x, y: this.elites[this.elites.length - 1].y, a: 0, r: boss ? 120 : 70, ang: 0, life: 0.45, max: 0.45, col: boss ? "#ffd76a" : "#ff6a4a", col2: "#fff" });
+  }
+
+  private waveClear() {
+    if (!this.remote) return this.elites.every((e) => e.kind !== "general" || !e.alive);
+    const g = this.elites.find((e) => e.id === "g" + this.wave);
+    return !!g && !g.alive;
+  }
+
+  private watchRemote() {
+    const b = this.elites.find((e) => e.id === "boss");
+    if (!b || b.alive || this.phase !== "fight") return;
+    this.bossDown = true;
+    this.killAllPretty();
+    this.phase = "won";
+    this.say("Этаж зачищен", this.floor.name, 2.4);
+  }
+
+  takeHits() {
+    const list = this.hits;
+    this.hits = [];
+    return list;
+  }
+
+  applyWho(id: string, x: number, y: number, aim: number) {
+    const a = this.party.find((p) => p.id === id);
+    if (!a || a.id === this.localId) return;
+    a.x = x; a.y = y; a.facing = aim; a.aim = aim;
+  }
+
+  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string }[]) {
+    this.elites = list.map((e) => ({
+      id: e.id, kind: e.kind, name: e.name, title: e.kind === "boss" ? "босс" : "генерал",
+      x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
+      wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.wind > 0 ? 1 - e.wind / 0.5 : 0, stun: 0,
+      tint: e.tint, r: e.kind === "boss" ? 46 : 30,
+    }));
+  }
+
+  private touchPlayers(dt: number) {
+    const prey = this.living();
+    if (!prey.length) return;
+    for (let i = 0; i < this.mobN; i++) {
+      if (!this.mobAlive[i]) continue;
+      if (this.mobHitCd[i] > 0) { this.mobHitCd[i] -= dt; continue; }
+      let best = prey[0], bd = 1e12;
+      for (const p of prey) {
+        const d = (p.x - this.mobX[i]) ** 2 + (p.y - this.mobY[i]) ** 2;
+        if (d < bd) { bd = d; best = p; }
+      }
+      const kind = this.mobKind[i];
+      const reach = kind === 1 ? 22 : 30;
+      if (bd > reach * reach || best.iframe > 0) continue;
+      const dmg = kind === 2 ? 7 : kind === 1 ? 5 : 4;
+      best.hp -= dmg;
+      best.hurt = 0.22;
+      best.iframe = Math.max(best.iframe, 0.42);
+      this.mobHitCd[i] = kind === 1 ? 1.3 : 0.9;
+      this.text(best.x, best.y - 20, "−" + dmg, "#ff8d7a");
+      if (best.hp <= 0) {
+        best.hp = 0;
+        best.downT = best.revives > 0 ? 6 : 99;
+        best.anim = "down";
+      }
+    }
+  }
+
+  private wander(dt: number) {
+    const spd = 26 + this.floor.n * 0.4;
+    for (let i = 0; i < this.mobN; i++) {
+      if (!this.mobAlive[i]) {
+        if (this.mobDie[i] > 0) this.mobDie[i] -= dt;
+        continue;
+      }
+      if ((i & 3) !== (this.frame & 3) && this.mobCool[i] > 0) {
+        this.mobCool[i] -= dt;
+      } else {
+        this.mobCool[i] -= dt;
+        if (this.mobCool[i] <= 0) {
+          const lead = this.living()[0] || this.party[0];
+          const ang = this.rng() * Math.PI * 2;
+          const kind = this.mobKind[i];
+          const d = kind === 1 ? 150 + this.rng() * 70 : kind === 2 ? 36 + this.rng() * 40 : 28 + this.rng() * 50;
+          this.mobTx[i] = clamp(lead.x + Math.cos(ang) * d, 70, ARENA_W - 70);
+          this.mobTy[i] = clamp(lead.y + Math.sin(ang) * d, 70, ARENA_H - 70);
+          this.mobCool[i] = kind === 2 ? 1.6 : 0.8 + this.rng() * 0.8;
+        }
+      }
+      const dx = this.mobTx[i] - this.mobX[i];
+      const dy = this.mobTy[i] - this.mobY[i];
+      const L = len(dx, dy);
+      const kindSpd = this.mobKind[i] === 1 ? spd * 1.7 : this.mobKind[i] === 2 ? spd * 0.55 : spd * 1.15;
+      if (L > 6) {
+        this.mobX[i] += (dx / L) * kindSpd * dt;
+        this.mobY[i] += (dy / L) * kindSpd * dt;
+        this.mobFace[i] = Math.atan2(dy, dx);
+      }
+    }
+  }
+
+  private separate() {
+    if ((this.frame & 3) !== 0) return;
+    this.rebuild();
+    for (let i = 0; i < this.mobN; i++) {
+      if (!this.mobAlive[i]) continue;
+      const key = this.key(this.mobX[i], this.mobY[i]);
+      const bucket = this.hash.get(key);
+      if (!bucket) continue;
+      for (const j of bucket) {
+        if (j <= i || !this.mobAlive[j]) continue;
+        const dx = this.mobX[j] - this.mobX[i];
+        const dy = this.mobY[j] - this.mobY[i];
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 1 && d2 < 18 * 18) {
+          const d = Math.sqrt(d2);
+          const p = (18 - d) * 0.25;
+          this.mobX[i] -= (dx / d) * p;
+          this.mobY[i] -= (dy / d) * p;
+          this.mobX[j] += (dx / d) * p;
+          this.mobY[j] += (dy / d) * p;
+        }
+      }
+    }
+  }
+
+  private key(x: number, y: number) {
+    return (Math.floor(x / CELL) + 80) + (Math.floor(y / CELL) + 80) * 512;
+  }
+  private rebuild() {
+    if (this.hashed === this.frame) return;
+    this.hashed = this.frame;
+    this.hash.clear();
+    for (let i = 0; i < this.mobN; i++) {
+      if (!this.mobAlive[i]) continue;
+      const k = this.key(this.mobX[i], this.mobY[i]);
+      let b = this.hash.get(k);
+      if (!b) this.hash.set(k, b = []);
+      b.push(i);
+    }
+  }
+
+  private actor(a: Actor, dt: number) {
+    if (a.cd[0] > 0) a.cd[0] -= dt;
+    if (a.cd[1] > 0) a.cd[1] -= dt;
+    if (a.cd[2] > 0) a.cd[2] -= dt;
+    if (a.cd[3] > 0) a.cd[3] -= dt;
+    if (a.iframe > 0) a.iframe -= dt;
+    if (a.hurt > 0) a.hurt -= dt;
+    if (a.hp <= 0) {
+      a.anim = "down";
+      a.downT -= dt;
+      if (a.downT <= 0 && a.revives > 0) {
+        a.revives--;
+        a.hp = Math.round(a.maxHp * 0.45);
+        a.iframe = 1.1;
+        a.anim = "idle";
+        this.text(a.x, a.y - 40, "снова в строю", "#d8ffe8");
+      }
+      return;
+    }
+    if (a.dodgeCd > 0) a.dodgeCd -= dt;
+    if (a.stepT > 0) a.stepT -= dt;
+    else if (a.step !== 0 && !a.atk) a.step = 0;
+    this.tickAtk(a, dt);
+    if (a.atk?.phase === "recovery") {
+      if (a.bufDodge && a.dodgeCd <= 0) { a.atk = null; this.beginDodge(a); }
+      else if (a.bufHeavy) { a.atk = null; this.beginHeavy(a); }
+      else if (a.bufSkill) { const sk = a.bufSkill; a.bufSkill = 0; a.atk = null; this.beginSkill(a, sk - 1); }
+    }
+    if (!a.atk) {
+      if (a.bufDodge && a.dodgeCd <= 0) this.beginDodge(a);
+      else if (a.bufHeavy) this.beginHeavy(a);
+      else if (a.bufSkill) { const sk = a.bufSkill; a.bufSkill = 0; this.beginSkill(a, sk - 1); }
+      else if (a.holdLight || a.bufLight) this.beginLight(a);
+    }
+    a.bufHeavy = false;
+    a.bufDodge = false;
+    a.bufLight = false;
+    a.bufSkill = 0;
+    const committed = a.atk && a.atk.phase !== "recovery" && a.atk.kind !== "dodge";
+    const sp = Math.hypot(a.mx, a.my);
+    if (sp > 0.18 && !committed) {
+      const nx = a.mx / sp, ny = a.my / sp;
+      const spd = a.sheet.speed * (a.atk ? 0.62 : 1);
+      a.x = clamp(a.x + nx * spd * dt, 48, ARENA_W - 48);
+      a.y = clamp(a.y + ny * spd * dt, 48, ARENA_H - 48);
+      if (!a.atk) a.anim = "run";
+    } else if (!a.atk && a.anim === "run") a.anim = "idle";
+    a.facing = a.aim;
+  }
+
+  private phaseOf(a: Actor) {
+    const atk = a.atk;
+    if (!atk) return HEAVY;
+    if (atk.kind === "light") return LIGHT[atk.step] || LIGHT[0];
+    if (atk.kind === "dodge") return { r: 0, ang: 0, mul: 0, startup: 0.02, active: 0.16, recovery: 0.1 };
+    if (atk.kind === "skill") return { r: 0, ang: 0, mul: 0, startup: 0.08, active: 0.06, recovery: 0.18 };
+    return HEAVY;
+  }
+
+  private tickAtk(a: Actor, dt: number) {
+    const atk = a.atk;
+    if (!atk) return;
+    const spec = this.phaseOf(a);
+    atk.left -= dt;
+    a.anim = atk.kind === "dodge" ? "run" : "swing";
+    a.swing = atk.phase === "startup" ? 0.25 : atk.phase === "active" ? 0.72 : 1;
+    if (atk.kind === "dodge") {
+      const nx = Math.cos(a.aim), ny = Math.sin(a.aim);
+      a.x = clamp(a.x + nx * 280 * dt, 48, ARENA_W - 48);
+      a.y = clamp(a.y + ny * 280 * dt, 48, ARENA_H - 48);
+    }
+    if (atk.left > 0) return;
+    if (atk.phase === "startup") {
+      atk.phase = "active";
+      atk.left = spec.active;
+      this.fire(a, atk);
+      return;
+    }
+    if (atk.phase === "active") {
+      atk.phase = "recovery";
+      atk.left = spec.recovery;
+      return;
+    }
+    a.atk = null;
+    if (a.anim === "swing" || a.pose === 12) a.anim = "idle";
+  }
+
+  private fire(a: Actor, atk: NonNullable<Actor["atk"]>) {
+    if (atk.hit || atk.kind === "dodge") return;
+    atk.hit = true;
+    if (atk.kind === "light") {
+      const s = LIGHT[atk.step] || LIGHT[0];
+      const fin = atk.step === 3;
+      this.strike(a, { shape: "arc", r: s.r, ang: s.ang, mul: s.mul, skill: false, finisher: fin, kind: "light", col: heroById(a.hero).accent, col2: "#fff4e0" });
+      if (fin) { this.hitstop = 0.04; this.shake = Math.max(this.shake, 5); }
+    } else if (atk.kind === "heavy") {
+      this.strike(a, { shape: "arc", r: HEAVY.r, ang: HEAVY.ang, mul: HEAVY.mul, skill: false, finisher: true, kind: "heavy", col: "#fff", col2: heroById(a.hero).accent });
+      this.hitstop = 0.05;
+      this.shake = Math.max(this.shake, 6);
+    } else if (atk.kind === "skill" && atk.idx != null) {
+      this.cast(a, atk.idx);
+    }
+  }
+
+  private beginLight(a: Actor) {
+    if (a.stepT <= 0) a.step = 0;
+    const step = a.step;
+    const s = LIGHT[step];
+    a.atk = { kind: "light", step, phase: "startup", left: s.startup, hit: false };
+    a.pose = 4 + step;
+    a.anim = "swing";
+    a.swing = 0;
+    a.step = (step + 1) % 4;
+    a.stepT = 0.72;
+    a.bufLight = false;
+  }
+
+  private beginHeavy(a: Actor) {
+    a.step = 0;
+    a.atk = { kind: "heavy", step: 0, phase: "startup", left: HEAVY.startup, hit: false };
+    a.pose = 8;
+    a.anim = "swing";
+    a.swing = 0;
+    a.bufHeavy = false;
+  }
+
+  private beginDodge(a: Actor) {
+    a.atk = { kind: "dodge", step: 0, phase: "startup", left: 0.02, hit: true };
+    a.pose = 12;
+    a.anim = "run";
+    a.iframe = 0.28;
+    a.dodgeCd = 1.15;
+    a.bufDodge = false;
+  }
+
+  private beginSkill(a: Actor, idx: number) {
+    const hero = heroById(a.hero);
+    const sk = hero.skills[idx];
+    if (!sk) return;
+    if (sk.musou) {
+      if (a.musou < 100 || a.cd[idx] > 0) return;
+    } else if (a.cd[idx] > 0) return;
+    a.atk = { kind: "skill", step: 0, phase: "startup", left: 0.08, hit: false, idx };
+    a.pose = 11;
+    a.anim = "swing";
+    a.swing = 0;
+  }
+
+  private cast(a: Actor, idx: number) {
+    const hero = heroById(a.hero);
+    const sk = hero.skills[idx];
+    if (!sk) return;
+    if (sk.musou) {
+      if (a.musou < 100 || a.cd[idx] > 0) return;
+      a.musou = 0;
+      a.cd[idx] = 1.2;
+    } else if (a.cd[idx] > 0) return;
+    else a.cd[idx] = sk.cd;
+    a.lock = 0.28;
+    a.swing = 0;
+    a.anim = "swing";
+    if (sk.dash) {
+      const nx = Math.cos(a.aim), ny = Math.sin(a.aim);
+      for (let g = 0; g < 3; g++) {
+        this.fxPush({
+          k: "ghost", x: a.x - nx * sk.dash * (0.25 + g * 0.2), y: a.y - ny * sk.dash * (0.25 + g * 0.2),
+          a: a.aim, r: 0, ang: 0, life: 0.18 + g * 0.04, max: 0.28, col: sk.fx, col2: sk.fx2,
+          hero: a.hero, facing: a.facing, swing: 0.6,
+        });
+      }
+      a.x = clamp(a.x + nx * sk.dash, 48, ARENA_W - 48);
+      a.y = clamp(a.y + ny * sk.dash, 48, ARENA_H - 48);
+    }
+    this.strike(a, { shape: sk.shape, r: sk.r, ang: sk.ang || 0.5, mul: sk.dmg, skill: true, finisher: !!sk.musou, col: sk.fx, col2: sk.fx2, heal: sk.heal, stun: sk.stun, def: sk });
+    this.text(a.x, a.y - 78, sk.name, sk.fx);
+    if (sk.musou) {
+      this.flash = 0.45;
+      this.flashCol = sk.fx;
+      this.shake = 14;
+      this.hitstop = 0.07;
+      this.fxPush({ k: "nova", x: a.x, y: a.y, a: 0, r: sk.r, ang: 0, life: 0.55, max: 0.55, col: sk.fx, col2: sk.fx2 });
+    }
+  }
+
+  private strike(a: Actor, o: { shape: SkillDef["shape"]; r: number; ang: number; mul: number; skill: boolean; finisher: boolean; kind?: "light" | "heavy" | "skill" | "musou"; col: string; col2: string; heal?: number; stun?: number; def?: SkillDef }) {
+    this.rebuild();
+    const power = a.sheet.dmg * o.mul * (o.skill ? a.sheet.skill : 1);
+    let hits = 0;
+    let shown = 0;
+    const touch = (x: number, y: number) => {
+      if (o.shape === "circle") return (x - a.x) ** 2 + (y - a.y) ** 2 <= o.r * o.r;
+      if (o.shape === "line") return this.onSegment(a.x, a.y, a.x + Math.cos(a.aim) * o.r, a.y + Math.sin(a.aim) * o.r, x, y, 36 + (o.ang || 0) * 40);
+      if (o.shape === "dash") return this.onSegment(a.x - Math.cos(a.aim) * (o.def?.dash || 160), a.y - Math.sin(a.aim) * (o.def?.dash || 160), a.x, a.y, x, y, o.r);
+      const dx = x - a.x, dy = y - a.y;
+      if (dx * dx + dy * dy > o.r * o.r) return false;
+      return Math.abs(angDiff(Math.atan2(dy, dx), a.aim)) <= o.ang;
+    };
+    const hurtOne = (x: number, y: number, hp: number, armorK: number) => {
+      const crit = this.rng() < a.sheet.crit;
+      let dmg = power * (crit ? 1.75 : 1) * armorK;
+      if (o.finisher) dmg *= 1.08;
+      hp -= dmg;
+      hits++;
+      if (shown < 4) {
+        this.text(x, y - 16, (crit ? "★" : "") + Math.round(dmg), crit ? "#ffe08a" : "#fff");
+        shown++;
+      }
+      if (a.sheet.ls > 0) a.hp = Math.min(a.maxHp, a.hp + dmg * a.sheet.ls);
+      return hp;
+    };
+    const x0 = Math.floor((a.x - o.r) / CELL), x1 = Math.floor((a.x + o.r) / CELL);
+    const y0 = Math.floor((a.y - o.r) / CELL), y1 = Math.floor((a.y + o.r) / CELL);
+    const span = o.shape === "line" ? o.r : o.r;
+    const X0 = Math.floor((a.x - span) / CELL), X1 = Math.floor((a.x + span) / CELL);
+    const Y0 = Math.floor((a.y - span) / CELL), Y1 = Math.floor((a.y + span) / CELL);
+    const seen = new Set<number>();
+    for (let cy = Math.min(y0, Y0); cy <= Math.max(y1, Y1); cy++) {
+      for (let cx = Math.min(x0, X0); cx <= Math.max(x1, X1); cx++) {
+        const bucket = this.hash.get((cx + 80) + (cy + 80) * 512);
+        if (!bucket) continue;
+        for (const i of bucket) {
+          if (seen.has(i) || !this.mobAlive[i]) continue;
+          seen.add(i);
+          if (!touch(this.mobX[i], this.mobY[i])) continue;
+          this.mobHp[i] = hurtOne(this.mobX[i], this.mobY[i], this.mobHp[i], 1);
+          const kb = o.finisher ? 34 : 16;
+          const kx = this.mobX[i] - a.x, ky = this.mobY[i] - a.y;
+          const kl = Math.hypot(kx, ky) || 1;
+          this.mobX[i] = clamp(this.mobX[i] + (kx / kl) * kb, 48, ARENA_W - 48);
+          this.mobY[i] = clamp(this.mobY[i] + (ky / kl) * kb, 48, ARENA_H - 48);
+          this.spark(this.mobX[i], this.mobY[i], o.col);
+          if (this.mobHp[i] <= 0) this.slay(i);
+        }
+      }
+    }
+    for (const e of this.elites) {
+      if (!e.alive || !touch(e.x, e.y)) continue;
+      if (this.remote && e.id) {
+        this.hits.push({ id: e.id, kind: o.kind || (o.skill ? "skill" : "light") });
+        this.spark(e.x, e.y, o.col);
+        continue;
+      }
+      const k = 100 / (100 + (e.kind === "boss" ? 18 : 8));
+      e.hp = hurtOne(e.x, e.y, e.hp, k);
+      if (o.stun) e.stun = Math.max(e.stun, o.stun);
+      if (e.hp <= 0) this.slayElite(e);
+    }
+    if (o.heal) {
+      for (const p of this.party) {
+        if (p.hp <= 0) continue;
+        if ((p.x - a.x) ** 2 + (p.y - a.y) ** 2 <= (o.r + 20) ** 2) {
+          const g = Math.round(p.maxHp * o.heal * a.sheet.heal);
+          p.hp = Math.min(p.maxHp, p.hp + g);
+          this.text(p.x, p.y - 28, "+" + g, "#b8ffd2");
+        }
+      }
+    }
+    if (hits) {
+      this.combo += hits > 6 ? Math.min(8, hits) : 1;
+      this.comboT = 0.85;
+      this.bestCombo = Math.max(this.bestCombo, this.combo);
+      a.musou = Math.min(100, a.musou + Math.min(24, hits * 2.2));
+    }
+    if (o.shape === "arc" || o.shape === "dash") {
+      this.fxPush({ k: "slash", x: a.x, y: a.y, a: a.aim, r: o.r, ang: o.ang, life: o.finisher ? 0.28 : 0.16, max: o.finisher ? 0.28 : 0.16, col: o.col, col2: o.col2, thick: o.finisher ? 16 : 9 });
+    }
+    if (o.shape === "circle") {
+      this.fxPush({ k: "ring", x: a.x, y: a.y, a: 0, r: o.r, ang: 0, life: 0.32, max: 0.32, col: o.col, col2: o.col2 });
+      this.fxPush({ k: "zone", x: a.x, y: a.y, a: 0, r: o.r * 0.85, ang: 0, life: 0.28, max: 0.28, col: o.col, col2: o.col2 });
+    }
+    if (o.shape === "line") {
+      this.fxPush({ k: "beam", x: a.x, y: a.y, a: a.aim, r: o.r, ang: 0, life: 0.22, max: 0.22, col: o.col, col2: o.col2, thick: 14 });
+    }
+    if (o.finisher) this.fxPush({ k: "ring", x: a.x, y: a.y, a: 0, r: o.r * 0.85, ang: 0, life: 0.34, max: 0.34, col: o.col2, col2: "#fff" });
+    if (hits > 8) this.text(a.x, a.y - 52, hits + " разом", o.col);
+  }
+
+  private onSegment(x1: number, y1: number, x2: number, y2: number, px: number, py: number, width: number) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const l2 = dx * dx + dy * dy || 1;
+    let t = ((px - x1) * dx + (py - y1) * dy) / l2;
+    t = clamp(t, 0, 1);
+    const x = x1 + dx * t, y = y1 + dy * t;
+    return (px - x) ** 2 + (py - y) ** 2 <= width * width;
+  }
+
+  private slay(i: number) {
+    this.mobAlive[i] = 0;
+    this.mobDie[i] = 0.28;
+    this.kills++;
+    this.spark(this.mobX[i], this.mobY[i], this.floor.ember);
+  }
+
+  private slayElite(e: Elite) {
+    if (!e.alive) return;
+    e.alive = false;
+    e.hp = 0;
+    this.fxPush({ k: "nova", x: e.x, y: e.y, a: 0, r: e.r * 4, ang: 0, life: 0.5, max: 0.5, col: e.tint, col2: "#fff" });
+    this.shake = Math.max(this.shake, e.kind === "boss" ? 16 : 8);
+    if (e.kind === "general") {
+      this.genKills++;
+      this.say(e.name + " пал", "Генерал волны сбит", 1.1);
+    } else {
+      this.bossDown = true;
+      this.flash = 0.55;
+      this.flashCol = "#fff6d4";
+    }
+  }
+
+  private eliteAI(dt: number) {
+    const prey = this.living();
+    for (const e of this.elites) {
+      if (!e.alive) continue;
+      if (e.stun > 0) { e.stun -= dt; e.swing = 0; continue; }
+      let tx = e.x, ty = e.y, best = 1e12;
+      for (const p of prey) {
+        const d = (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
+        if (d < best) { best = d; tx = p.x; ty = p.y; }
+      }
+      const dx = tx - e.x, dy = ty - e.y;
+      const d = Math.sqrt(best);
+      e.facing = Math.atan2(dy, dx);
+      const spd = e.kind === "boss" ? 62 : 78;
+      if (e.wind <= 0 && d > e.r + 24) {
+        e.x += (dx / (d || 1)) * spd * dt;
+        e.y += (dy / (d || 1)) * spd * dt;
+        e.swing = 0;
+      }
+      if (e.wind > 0) {
+        e.wind -= dt;
+        e.swing = 1 - e.wind / e.windMax;
+        if (e.wind <= 0) this.resolveSlam(e);
+      } else {
+        e.cd -= dt;
+        if (e.cd <= 0 && prey.length) {
+          e.windMax = e.kind === "boss" && e.pattern % 3 === 1 ? 0.42 : 0.5;
+          e.wind = e.windMax;
+          e.cd = e.kind === "boss" ? 1.7 : 1.85;
+          e.pattern++;
+        }
+      }
+    }
+  }
+
+  private resolveSlam(e: Elite) {
+    const boss = e.kind === "boss";
+    const pat = boss ? e.pattern % 3 : e.pattern % 2;
+    if (boss && pat === 2) {
+      for (let i = 0; i < 10; i++) this.spawnMob(e.x + Math.cos(i) * 80, e.y + Math.sin(i * 1.7) * 80);
+      this.text(e.x, e.y - 60, "призыв", e.tint);
+    }
+    const radius = pat === 1 ? 150 : boss ? 118 : 96;
+    const ang = pat === 1 ? 1.1 : Math.PI;
+    const dmg = (boss ? 14 + this.floor.n * 3.1 : 8 + this.floor.n * 2.1);
+    this.fxPush({ k: pat === 1 ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
+    this.shake = Math.max(this.shake, boss ? 7 : 4);
+    for (const p of this.party) {
+      if (p.hp <= 0 || p.iframe > 0) continue;
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const inside = pat === 1
+        ? dx * dx + dy * dy <= radius * radius && Math.abs(angDiff(Math.atan2(dy, dx), e.facing)) <= ang
+        : dx * dx + dy * dy <= radius * radius;
+      if (!inside) continue;
+      const taken = dmg * (100 / (100 + p.sheet.armor * 4));
+      p.hp -= taken;
+      p.hurt = 0.28;
+      p.iframe = 0.55;
+      this.text(p.x, p.y - 30, "−" + Math.round(taken), "#ff8d7a");
+      if (p.hp <= 0) {
+        p.hp = 0;
+        p.downT = p.revives > 0 ? 6 : 99;
+        p.anim = "down";
+        this.text(p.x, p.y - 48, p.revives > 0 ? "подъём через мгновение" : p.name + " пал", "#ffd0c8");
+      }
+    }
+  }
+
+  private killAllPretty() {
+    for (let i = 0; i < this.mobN; i++) if (this.mobAlive[i]) this.slay(i);
+  }
+
+  private spark(x: number, y: number, col: string) {
+    this.fxPush({ k: "spark", x, y, a: this.rng() * 6, r: 10 + this.rng() * 16, ang: 0, life: 0.22, max: 0.22, col, col2: "#fff" });
+  }
+  private text(x: number, y: number, txt: string, col: string) {
+    this.fxPush({ k: "text", x, y, a: 0, r: 0, ang: 0, life: 0.6, max: 0.6, col, col2: "#fff", txt });
+  }
+  private fxPush(f: Fx) {
+    this.fx.push(f);
+    this.fxOut.push(f);
+    if (this.fx.length > 96) this.fx.splice(0, this.fx.length - 96);
+    if (this.fxOut.length > 32) this.fxOut.splice(0, this.fxOut.length - 32);
+  }
+
+  private decay(dt: number) {
+    this.shake = Math.max(0, this.shake - dt * 28);
+    this.flash = Math.max(0, this.flash - dt);
+    for (let i = this.fx.length - 1; i >= 0; i--) {
+      this.fx[i].life -= dt;
+      if (this.fx[i].life <= 0) this.fx.splice(i, 1);
+    }
+    for (let i = 0; i < this.mobN; i++) if (!this.mobAlive[i] && this.mobDie[i] > 0) this.mobDie[i] -= dt;
+  }
+
+  takeFx() {
+    const list = this.fxOut;
+    this.fxOut = [];
+    return list;
+  }
+
+  exportSnap() {
+    const m: number[] = [];
+    for (let i = 0; i < this.mobN; i++) {
+      if (!this.mobAlive[i] && this.mobDie[i] <= 0) continue;
+      m.push(this.mobX[i] | 0, this.mobY[i] | 0, this.mobKind[i], this.mobAlive[i] ? 1 : 0);
+    }
+    return {
+      phase: this.phase, wave: this.wave, kills: this.kills, genKills: this.genKills, boss: this.bossDown,
+      banner: this.banner, bannerSub: this.bannerSub, bannerT: this.bannerT, combo: this.combo,
+      shake: this.shake, flash: this.flash,
+      p: this.party.map((a) => ({ id: a.id, x: a.x | 0, y: a.y | 0, facing: a.facing, hp: Math.round(a.hp), musou: Math.round(a.musou), anim: a.anim, swing: a.swing, down: a.hp <= 0 })),
+      e: this.elites.filter((e) => e.alive || e.hp <= 0).slice(-6).map((e) => ({ kind: e.kind, name: e.name, x: e.x | 0, y: e.y | 0, hp: Math.ceil(e.hp), maxHp: e.maxHp, facing: e.facing, wind: e.wind, swing: e.swing, alive: e.alive, tint: e.tint, r: e.r, title: e.title })),
+      m, fx: this.takeFx().map((f) => ({ k: f.k, x: f.x | 0, y: f.y | 0, a: f.a, r: f.r | 0, ang: f.ang, max: f.max, col: f.col, col2: f.col2, txt: f.txt, hero: f.hero, facing: f.facing, swing: f.swing, thick: f.thick })),
+    };
+  }
+
+  ingest(s: ReturnType<Battle["exportSnap"]>) {
+    this.phase = (s.phase as Battle["phase"]) || this.phase;
+    this.wave = s.wave;
+    this.kills = s.kills;
+    this.genKills = s.genKills;
+    this.bossDown = s.boss;
+    this.banner = s.banner;
+    this.bannerSub = s.bannerSub;
+    this.bannerT = s.bannerT;
+    this.combo = s.combo;
+    this.shake = Math.max(this.shake, s.shake || 0);
+    this.flash = Math.max(this.flash, s.flash || 0);
+    for (const p of s.p) {
+      const a = this.party.find((x) => x.id === p.id);
+      if (!a) continue;
+      a.x = p.x; a.y = p.y; a.facing = p.facing; a.hp = p.hp; a.musou = p.musou;
+      a.anim = p.anim as Anim; a.swing = p.swing;
+    }
+    this.elites = s.e.map((e) => ({
+      kind: e.kind as Elite["kind"], name: e.name, title: e.title, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp,
+      facing: e.facing, alive: e.alive, wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.swing, stun: 0, tint: e.tint, r: e.r,
+    }));
+    this.mobN = 0;
+    for (let i = 0; i < s.m.length; i += 4) {
+      const slot = this.mobN++;
+      if (slot >= MAX_MOBS) break;
+      this.mobX[slot] = s.m[i];
+      this.mobY[slot] = s.m[i + 1];
+      this.mobKind[slot] = s.m[i + 2];
+      this.mobAlive[slot] = s.m[i + 3] ? 1 : 0;
+      this.mobDie[slot] = s.m[i + 3] ? 0 : 0.2;
+    }
+    for (const f of s.fx) {
+      this.fx.push({ ...f, life: f.max, k: f.k as Fx["k"] });
+    }
+  }
+}
