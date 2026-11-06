@@ -2,6 +2,7 @@
 import { heroById, type HeroDef } from "./rules";
 import { ARENA_H, ARENA_W, type Actor, type Anim, type Battle, type Fx } from "./sim";
 import { FLOOR_TILE, blitChest, blitElite, blitHero, blitMob, blitNova, blitTeleCone, blitTeleRing, blitTile, blitWeapon, heroFrame, pixelSlash } from "./sprites";
+import { craftFor } from "./stagecraft";
 
 export type Cam = { x: number; y: number };
 
@@ -135,6 +136,7 @@ function cellHash(tx: number, ty: number, n: number) {
 
 function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: number, cam: Cam, zoom: number, now: number) {
   const tint = b.floor.tint;
+  const craft = craftFor(b.floor.dungeon, b.floor.sw);
   const left = cam.x - w / zoom;
   const right = cam.x + w / zoom;
   const top = cam.y - h / zoom;
@@ -164,7 +166,7 @@ function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: numbe
         ctx.fillStyle = alt ? "#16141a" : "#0c0a10";
         ctx.fillRect(p.sx - tw, p.sy - th, tw * 2, th * 2);
       }
-      ctx.fillStyle = alt ? "rgba(5,4,8,0.74)" : "rgba(2,2,5,0.5)";
+      ctx.fillStyle = alt ? `rgba(8,6,10,${craft.dark})` : rgba(tint, craft.light);
       ctx.fillRect(p.sx - tw, p.sy - th, tw * 2, th * 2);
       ctx.restore();
       ctx.beginPath();
@@ -176,10 +178,10 @@ function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: numbe
       ctx.strokeStyle = alt ? "rgba(70,62,58,0.1)" : "rgba(0,0,0,0.35)";
       ctx.stroke();
       const hsh = cellHash(tx, ty, b.floor.n);
-      if (hsh % 11 === 0) props.push({ sx: p.sx, sy: p.sy, tile: [35, 45, 33, 23, 36][hsh % 5], s: (0.55 + (hsh % 5) * 0.08) * Math.min(tw, th) });
+      if (hsh % 9 === 0) props.push({ sx: p.sx, sy: p.sy, tile: craft.props[hsh % craft.props.length], s: (0.55 + (hsh % 5) * 0.08) * Math.min(tw, th) });
     }
   }
-  ctx.fillStyle = rgba(tint, 0.16);
+  ctx.fillStyle = rgba(tint, 0.1);
   ctx.fillRect(0, 0, w, h);
   for (const prop of props) blitTile(ctx, prop.tile, prop.sx, prop.sy + prop.s * 0.2, prop.s * 2.2, prop.s * 1.5);
 
@@ -436,9 +438,10 @@ export function paintHero(
   facing: number, anim: Anim, _swing: number, t: number, hurt: number, musou: number, pose = 0,
 ) {
   const flip = Math.cos(facing) >= 0 ? 1 : -1;
+  const bob = anim === "idle" ? Math.sin(t * 4) * 1.6 * s : anim === "run" ? Math.abs(Math.sin(t * 10)) * 1.2 * s : 0;
   if (musou > 0.85) aura(ctx, x, y - 36 * s, 16 * s, hero.accent, 0.45);
-  blitHero(ctx, hero.id, heroFrame(anim, pose, hurt, t), x, y, s, flip, facing);
-  if (anim === "swing") blitWeapon(ctx, hero.id, x, y, facing, s);
+  blitHero(ctx, hero.id, heroFrame(anim, pose, hurt, t), x, y - bob, s, flip, facing);
+  if (anim === "swing") blitWeapon(ctx, hero.id, x, y - bob, facing, s);
 }
 
 function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, hgt: number, k: number, fill: string, back: string) {

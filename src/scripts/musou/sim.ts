@@ -6,6 +6,7 @@ import {
   type FloorDef, type HeroId, type Rng, type Sheet, type Sig, type SkillDef,
 } from "./rules";
 import { chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
+import { swarmName } from "./stagecraft";
 
 export const ARENA_W = 2400;
 export const ARENA_H = 1560;
@@ -176,8 +177,8 @@ export class Battle {
   private wantChest = false;
   private opened: number[] = [];
 
-  constructor(floor: number, members: Member[], seed = 1, diff = 1) {
-    this.floor = floorByN(floor);
+  constructor(floor: number | FloorDef, members: Member[], seed = 1, diff = 1) {
+    this.floor = typeof floor === "number" ? floorByN(floor) : floor;
     this.diff = diffRow(diff).id;
     this.kit = diffRow(this.diff).act;
     this.rng = mulberry32(seed || 1);
@@ -199,6 +200,12 @@ export class Battle {
     const a = Math.round(b.spawns * 0.3);
     const c = Math.round(b.spawns * 0.34);
     this.budgets = [a, c, b.spawns - a - c, 14];
+    if (f.play?.soloBoss) {
+      this.wave = 3;
+      this.budgets = [0, 0, 0, 0];
+    } else if (swarmName(f.name)) {
+      this.budgets = this.budgets.map((n) => Math.round(n * 1.5));
+    }
     this.banner = f.name;
     const spots: [number, number][] = [[ARENA_W / 2 - 320, ARENA_H / 2 - 140], [ARENA_W / 2 + 300, ARENA_H / 2 + 160], [ARENA_W / 2 - 80, ARENA_H / 2 + 280], [ARENA_W / 2 + 40, ARENA_H / 2 - 300]];
     const chests = Math.min(spots.length, chestTotal(this.diff));
@@ -257,6 +264,22 @@ export class Battle {
       return;
     }
     if (this.phase !== "fight") { this.decay(dt); return; }
+    const play = this.floor.play;
+    if (play?.enrageSec && this.t >= play.enrageSec) {
+      this.phase = "lost";
+      this.reason = "dead";
+      this.say("Ярость", "Время рейда вышло", 2);
+      this.decay(dt);
+      return;
+    }
+    if (play?.winSec && this.t >= play.winSec) {
+      this.bossDown = true;
+      this.phase = "won";
+      this.reason = "win";
+      this.say("Круг выстоял", this.floor.name, 2);
+      this.decay(dt);
+      return;
+    }
     if (this.paused && !this.remote) { this.decay(dt); return; }
     if (this.hitstop > 0) { this.hitstop -= dt; this.decay(dt); return; }
 
@@ -334,7 +357,11 @@ export class Battle {
         this.flashCol = "#ffb0a0";
       }
       if (this.spawned >= this.waveNeed && this.countAlive() === 0 && this.waveClear()) {
-        if (this.wave === 3) {
+        if (this.wave === 3 && this.floor.play?.winSec) {
+          this.wave = 0;
+          this.beginWave();
+          this.say("Подкрепление", this.floor.play.kind === "horde" ? "Орда не кончается, пока герой стоит" : "Новая волна арены", 1.1);
+        } else if (this.wave === 3) {
           this.bossDown = true;
           this.phase = "won";
           this.reason = "win";
@@ -375,7 +402,9 @@ export class Battle {
     this.mobY[slot] = py;
     const kind = Math.floor(this.rng() * 3);
     this.mobKind[slot] = kind;
-    this.mobHp[slot] = mobHp(kind, this.floor.n, getTune(), this.diff);
+    const swarm = swarmName(this.floor.name) ? 0.75 : 1;
+    const foe = this.floor.play?.foeHp || 1;
+    this.mobHp[slot] = Math.max(1, Math.round(mobHp(kind, this.floor.n, getTune(), this.diff) * swarm * foe));
     this.lastMobHp = this.mobHp[slot];
     this.mobAlive[slot] = 1;
     this.mobFace[slot] = this.rng() * Math.PI * 2;
@@ -393,9 +422,12 @@ export class Battle {
     const boss = kind === "boss";
     const kit = floorKit(n);
     const sig = boss ? kit.bSig : kit.gSig;
-    const hp = eliteHp(kind, n, this.party.length, getTune(), this.diff);
+    let hp = eliteHp(kind, n, this.party.length, getTune(), this.diff);
+    if (boss && this.floor.play?.mirror) hp = Math.max(40, this.party[0]?.maxHp || hp);
+    if (this.floor.play?.foeHp) hp = Math.max(40, Math.round(hp * this.floor.play.foeHp));
+    const named = this.floor.play ? (boss ? this.floor.boss : this.floor.general) : eliteName(kind, n);
     this.elites.push({
-      kind, name: eliteName(kind, n),
+      kind, name: named,
       title: boss ? this.floor.bossTitle : "генерал волны",
       x: clamp((lead?.x ?? ARENA_W / 2) + Math.cos(ang) * dist, 120, ARENA_W - 120),
       y: clamp((lead?.y ?? ARENA_H / 2) + Math.sin(ang) * dist, 120, ARENA_H - 120),
@@ -791,7 +823,7 @@ export class Battle {
 
   private strike(a: Actor, o: { shape: SkillDef["shape"]; r: number; ang: number; mul: number; skill: boolean; finisher: boolean; kind?: "light" | "heavy" | "skill" | "musou"; col: string; col2: string; heal?: number; stun?: number; def?: SkillDef }) {
     this.rebuild();
-    const power = a.sheet.dmg * o.mul * (o.skill ? a.sheet.skill : 1);
+    const power = a.sheet.dmg * o.mul * (o.skill ? a.sheet.skill : 1) * (this.floor.play?.playerDmg ?? 1);
     let hits = 0;
     let shown = 0;
     const touch = (x: number, y: number) => {
@@ -847,7 +879,7 @@ export class Battle {
         this.spark(e.x, e.y, o.col);
         continue;
       }
-      const k = 100 / (100 + (e.kind === "boss" ? 18 : 8));
+      const k = (100 / (100 + (e.kind === "boss" ? 18 : 8))) * (1 - (this.floor.play?.armor || 0));
       e.hp = hurtOne(e.x, e.y, e.hp, k);
       if (o.stun) e.stun = Math.max(e.stun, o.stun);
       if (e.hp <= 0) this.slayElite(e);

@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, normalize, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, takeInbox, unequip,
+  beginMode, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, statGlance, takeInbox, unequip,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
 import { pickShard } from "./plaza";
@@ -9,6 +9,9 @@ import { DEFAULT_TUNE, DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, eliteN
 import { FLOOR_N } from "../../src/scripts/musou/sw-catalog";
 import { fightScale } from "../../src/scripts/musou/sw-catalog";
 import { auditShadowCatalog } from "./sw-audit";
+import { MODE_LIST } from "../../src/scripts/musou/modes";
+import { craftFor } from "../../src/scripts/musou/stagecraft";
+import { SW_MODES } from "../../src/scripts/musou/sw-catalog";
 
 let fails = 0, n = 0;
 const ok = (c: unknown, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -530,6 +533,50 @@ const worn = sheet(cast).dmg;
 const honed = forgeItem(cast, "blade-a", 0);
 ok(!("err" in honed) && honed.up === 1 && !cast.res.soul_shard && sheet(cast).dmg > worn, "плюс Петра поднимает урон надетого клинка");
 ok("err" in forgeItem(cast, "blade-a", 0), "повтор с устаревшим уровнем отклонён");
+
+const glance = statGlance(cast, "str");
+ok(glance.after.dmg > glance.before.dmg && cast.alloc.str === 1, "превью силы показывает рост урона и очко не тратит");
+ok(statGlance(cast, "vit").after.hp > statGlance(cast, "vit").before.hp, "превью живучести показывает рост здоровья");
+ok(MODE_LIST.length === 7 && MODE_LIST.every((m) => getTune().modes[m.id] === SW_MODES[m.id]), "семь режимов и их пороги совпали с MODE_MIN_LVL");
+const young = newProfile(4);
+setHero(young, "lorin");
+ok(!!modeLock(young, "arena") && "err" in beginMode(young, "arena", 1), "арена с 5 уровня закрыта на 1");
+young.lvl = 5;
+const arenaGo = beginMode(young, "arena", 1000);
+ok(!("err" in arenaGo), "арена с 5 уровня начинается");
+const rushed = finishRun(young, { nonce: "err" in arenaGo ? "" : arenaGo.nonce, boss: true, reason: "win", kills: 4 }, 2000, mulberry32(1));
+ok(!("err" in rushed) && rushed.boss === false && young.book.wins[0] === 0, "арена за секунду не засчитывается");
+young.lvl = 10;
+const duel = beginMode(young, "duel", 5000);
+const duelFight = new Battle(modeFloor(young, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(young) }]);
+ok(duelFight.elites[0]?.name === "Теневой Двойник" && duelFight.elites[0].maxHp === sheet(young).hp, "дуэль — один двойник с здоровьем героя");
+const duelEnd = finishRun(young, { nonce: "err" in duel ? "" : duel.nonce, boss: true, reason: "win", kills: 0 }, 14000, mulberry32(2));
+ok(!("err" in duelEnd) && duelEnd.boss && young.book.wins[1] === 1 && duelEnd.items.length === 1, "победа дуэли пишет победу и одну вещь");
+young.lvl = 20;
+const abyss = beginMode(young, "abyss", 20000);
+const abyssEnd = finishRun(young, { nonce: "err" in abyss ? "" : abyss.nonce, boss: true, reason: "win", kills: 3 }, 28000, mulberry32(3));
+ok(!("err" in abyssEnd) && young.book.abyss === 2 && young.book.best === 1, "бездна после победы открывает следующий этаж");
+const rush = modeFloor(young, "bossrush");
+ok(rush.boss.includes("Теневой Страж") && rush.play?.soloBoss === true, "босс-раш начинается с босса Подвалов");
+const purge = modeFloor(young, "purgatory");
+ok(purge.play?.playerDmg === 0.7 && purge.play.armor === 0.3 && purge.play.loot === 3, "чистилище режет урон, даёт броню и три вещи");
+const raid = modeFloor(young, "demiurge");
+ok(raid.boss === "Демиург" && raid.play?.enrageSec === 45 && raid.sw === "mode_demiurge", "рейд — Демиург и ярость на 45-й секунде");
+young.lvl = 80;
+const rage = beginMode(young, "demiurge", 30000);
+const raged = finishRun(young, { nonce: "err" in rage ? "" : rage.nonce, boss: true, reason: "win", kills: 0 }, 80000, mulberry32(4));
+ok(!("err" in raged) && raged.boss === false, "ярость после 45 секунд не даёт победу рейда");
+setHero(young, "veles");
+ok(young.book.abyss === 1 && young.book.wins[1] === 0, "режимы второго героя с нуля");
+setHero(young, "lorin");
+ok(young.book.abyss === 2 && young.book.wins[1] === 1, "этаж бездны остаётся на первом герое");
+const swarm = FLOORS.find((f) => f.name.startsWith("Орда ("));
+const swarmFight = swarm ? new Battle(swarm.n, [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(young) }]) : null;
+const scaled = swarm ? [0, 1, 2].map((k) => Math.round(mobHp(k, swarm.n) * 0.75)) : [];
+ok(!!swarm && !!swarmFight && scaled.includes(swarmFight.lastMobHp) && craftFor(3, "dungeon_intro_3").env.includes("Хрусталь"), "орда башни бьётся на 0.75, пещеры носят свой свет");
+const moved = validateTune({ ...DEFAULT_TUNE, modes: { ...DEFAULT_TUNE.modes, arena: 9 } });
+const zero = validateTune({ ...DEFAULT_TUNE, modes: { ...DEFAULT_TUNE.modes, arena: 0 } });
+ok(moved.ok && moved.tune.modes.arena === 9 && !zero.ok, "админка двигает порог арены и не пускает ноль");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

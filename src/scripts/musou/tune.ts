@@ -4,7 +4,7 @@
 // За скорость платит герой: чем выше ярус, тем медленнее шаг.
 // Мутации Тёмного мира носят те же десять имён, но множитель режется
 // потолком 2.4: ×360 стирает ручной бой и правилом не проходит.
-import { FLOOR_N, SW_FLOORS, fightScale } from "./sw-catalog";
+import { FLOOR_N, SW_FLOORS, SW_MODES, fightScale } from "./sw-catalog";
 
 export type OrdaTune = {
   v: 1;
@@ -72,6 +72,8 @@ export type OrdaTune = {
   diff: DiffTune;
   /** Кузница Петра: включена, сколько материала за зачистку, потолок плюса. */
   forge: { on: number; drop: number; max: number };
+  /** Пороги MODE_MIN_LVL. Имена режимов не меняются. */
+  modes: { arena: number; duel: number; horde: number; abyss: number; bossrush: number; purgatory: number; demiurge: number };
 };
 
 export const DIFF_N = 7;
@@ -198,6 +200,10 @@ export const DEFAULT_TUNE: OrdaTune = {
     regen: [0, 0.01, 0.01, 0.012, 0.012, 0.02, 0.02],
   },
   forge: { on: 1, drop: 3, max: 58 },
+  modes: {
+    arena: SW_MODES.arena, duel: SW_MODES.duel, horde: SW_MODES.horde, abyss: SW_MODES.abyss,
+    bossrush: SW_MODES.bossrush, purgatory: SW_MODES.purgatory, demiurge: SW_MODES.demiurge,
+  },
   floors: SW_FLOORS.map((f) => ({ general: f.general, boss: f.boss, gSig: f.gSig, bSig: f.bSig, mut: f.mut, need: f.minLvl, xp: f.xp })),
 };
 
@@ -254,6 +260,13 @@ const BOUNDS: Record<string, Bound> = {
   "forge.on": { min: 0, max: 1, int: true },
   "forge.drop": { min: 0, max: 20, int: true },
   "forge.max": { min: 1, max: 58, int: true },
+  "modes.arena": { min: 1, max: 300, int: true },
+  "modes.duel": { min: 1, max: 300, int: true },
+  "modes.horde": { min: 1, max: 300, int: true },
+  "modes.abyss": { min: 1, max: 300, int: true },
+  "modes.bossrush": { min: 1, max: 300, int: true },
+  "modes.purgatory": { min: 1, max: 300, int: true },
+  "modes.demiurge": { min: 1, max: 300, int: true },
 };
 
 const TRIPLE: Record<string, Bound> = {
@@ -288,7 +301,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge", "modes"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
   if ("floors" in src) {
@@ -301,7 +314,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
     if (typeof diff === "string") return { ok: false, err: diff };
     out.diff = diff;
   }
-  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge"] as const;
+  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge", "modes"] as const;
   for (const sec of sections) {
     const block = src[sec];
     if (!block) continue;

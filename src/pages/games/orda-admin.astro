@@ -106,6 +106,13 @@ const title = "Орда · набор чисел";
     ["forge", "on", "Кузница: 1 включена, 0 нет"],
     ["forge", "drop", "Материала Петра за зачистку"],
     ["forge", "max", "Потолок плюса, не выше 58"],
+    ["modes", "arena", "Арена, уровень"],
+    ["modes", "duel", "Дуэль, уровень"],
+    ["modes", "horde", "Орда Бездны, уровень"],
+    ["modes", "abyss", "Фрактальная Бездна, уровень"],
+    ["modes", "bossrush", "Босс-Раш, уровень"],
+    ["modes", "purgatory", "Чистилище, уровень"],
+    ["modes", "demiurge", "Рейд Демиурга, уровень"],
   ];
 
   function draft() {
@@ -169,7 +176,7 @@ const title = "Орда · набор чисел";
   function build() {
     const buckets = { economy: $("f-economy"), combat: $("f-combat"), loot: $("f-loot"), mark: $("f-mark"), xp: $("f-xp") };
     for (const [sec, key, label] of FIELDS) {
-      const where = sec === "curse" || sec === "ench" || sec === "forge" ? buckets.mark : buckets[sec];
+      const where = sec === "curse" || sec === "ench" || sec === "forge" || sec === "modes" ? buckets.mark : buckets[sec];
       const lab = document.createElement("label");
       lab.textContent = label;
       const input = document.createElement("input");

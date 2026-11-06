@@ -2,14 +2,16 @@
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer, seal,
+  beginMode, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, runOffer, seal, statGlance,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
-  type ChestPick, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
+  type ChestPick, type FloorDef, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
 } from "./rules";
 import { Battle, type Btn } from "./sim";
 import { drawBattle, drawPortrait, type Cam } from "./draw";
 import { DIFF_CHAIN, DIFF_NAME, floorMut, getTune, setTune, validateTune } from "./tune";
+import { MODE_LIST, type ModeId } from "./modes";
+import { craftFor } from "./stagecraft";
 
 const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const SITE = location.hostname === "morrisgrad.com" || location.hostname === "www.morrisgrad.com";
@@ -27,6 +29,7 @@ let verified = false;
 let view = "boot";
 let floorPick = 1;
 let diffPick = 1;
+let modePick: ModeId | "" = "";
 let selected: Item | null = null;
 let battle: Battle | null = null;
 let nonce = "";
@@ -128,7 +131,7 @@ function paintPicks() {
   });
   const doll = $<HTMLCanvasElement>("doll");
   if (doll && profile.hero && view === "hub") {
-    fitCanvas(doll, 200);
+    fitCanvas(doll, 96);
     drawPortrait(doll.getContext("2d")!, profile.hero, doll.width, doll.height, performance.now() / 1000);
   }
 }
@@ -264,7 +267,7 @@ function dungeonHeads(profile: Profile, current: number) {
     const rows = FLOORS.filter((f) => f.dungeon === d.dungeon);
     const done = rows.filter((f) => (profile.clears[f.n - 1] || 0) > 0).length;
     const open = rows.some((f) => !floorLock(profile, f.n));
-    return `<button type="button" class="dungeon${d.dungeon === current ? " on" : ""}${open ? "" : " lock"}" data-dungeon="${d.dungeon}"><span class="n">${d.dungeon}</span><span class="dn"><b>${d.dungeonName}</b><small>ур. ${floorNeed(d.n)} · ${done}/${rows.length} этажей</small></span></button>`;
+    return `<button type="button" class="dungeon${d.dungeon === current ? " on" : ""}${open ? "" : " lock"}" data-dungeon="${d.dungeon}"><span class="n">${d.dungeon}</span><span class="dn"><b>${d.dungeonName}</b><small>ур. ${floorNeed(d.n)} · ${done}/${rows.length}</small></span></button>`;
   }).join("");
 }
 
@@ -272,7 +275,7 @@ function stageChips(profile: Profile, dungeon: number, current: number) {
   return FLOORS.filter((f) => f.dungeon === dungeon).map((f) => {
     const why = floorLock(profile, f.n);
     const clr = (profile.clears[f.n - 1] || 0) > 0;
-    return `<button type="button" class="btn stage${f.n === current ? " gold" : ""}${why ? " lock" : ""}" data-floor="${f.n}">${f.stage}. ${f.name}${clr ? " · пройден" : why ? " · закрыт" : ""}</button>`;
+    return `<button type="button" class="pip${f.n === current ? " on" : ""}${why ? " lock" : ""}${clr ? " clear" : ""}" data-floor="${f.n}" title="${f.stage}. ${f.name}${clr ? " · пройден" : why ? " · закрыт" : ""}">${f.stage}</button>`;
   }).join("");
 }
 
@@ -285,57 +288,71 @@ function renderHub() {
   const ready = readyQuests(profile);
   const set = setBonus(profile);
   const root = $<HTMLElement>("v-hub");
+  const mode = modePick ? MODE_LIST.find((m) => m.id === modePick) : null;
+  const picked = mode ? modeFloor(profile, mode.id) : open;
+  const craft = craftFor(picked.dungeon, picked.sw);
+  const goWhy = mode ? modeLock(profile, mode.id) : diffLock(profile, openF, diffPick);
+  const glance = (k: Stat) => {
+    const g = statGlance(profile, k);
+    const bit = k === "str" ? `урон ${g.before.dmg}→${g.after.dmg}` : k === "dex" ? `шаг ${g.before.speed}→${g.after.speed}` : k === "vit" ? `жизнь ${g.before.hp}→${g.after.hp}` : `навык ×${g.before.skill.toFixed(2)}→${g.after.skill.toFixed(2)}`;
+    return bit;
+  };
   root.innerHTML = `
   <div class="hub">
-    <section class="panel yard" id="yard">
-      <h2>Двор обители</h2>
-      <p class="derived" id="yard-meta">Ищем осколок двора. Забег по-прежнему на 2–4.</p>
+    <section class="yard" id="yard">
+      <b>Двор</b>
+      <span class="derived" id="yard-meta">Ищем осколок. Забег на 2–4.</span>
       <div id="yard-people" class="yard-people"></div>
-      <form id="yard-say" class="row"><input id="yard-text" maxlength="80" placeholder="Короткая реплика двору" autocomplete="off"><button class="btn" type="submit">Сказать</button></form>
+      <form id="yard-say" class="row"><input id="yard-text" maxlength="80" placeholder="Реплика" autocomplete="off"><button class="btn" type="submit">Сказать</button></form>
     </section>
-    <section class="panel">
-      <h2>${hero.name}</h2>
-      <div class="tag">${hero.title} · ${hero.faction}</div>
-      <div class="doll-wrap"><canvas id="doll"></canvas></div>
-      <div class="stat"><span>Уровень</span><b>${profile.lvl}</b></div>
-      <div class="bar" title="опыт"><i style="width:${Math.min(100, profile.xp / xpNeed(profile.lvl) * 100)}%"></i></div>
-      <div class="stat"><span>Золото</span><b>${profile.gold}</b></div>
-      <div class="stat"><span>Сумка</span><b class="${bagFree(profile) ? "" : "full"}">${profile.bag.length}/${profile.bagSize}</b></div>
-      ${profile.inbox.length ? `<div class="stat"><span>У входа</span><b>${profile.inbox[0].name}</b></div><div class="row"><button class="btn" id="in-bag" type="button">В сумку</button><button class="btn" id="in-sell" type="button">Продать</button><button class="btn" id="in-drop" type="button">Оставить</button></div>` : ""}
+    <section class="panel sheet">
+      <div class="who-line"><h2>${hero.name}</h2><span class="tag">${hero.title}</span></div>
+      <p class="lvl">Уровень ${profile.lvl} · <b>${profile.gold} зл</b></p>
+      <div class="sheet-top">
+        <div class="doll-wrap"><canvas id="doll"></canvas></div>
+        <div class="sheet-meta">
+          <div class="bar" title="опыт"><i style="width:${Math.min(100, profile.xp / xpNeed(profile.lvl) * 100)}%"></i></div>
+          <p class="derived">Свободно ${profile.unspent}. Урон ${s.dmg} · жизнь ${s.hp} · крит ${Math.round(s.crit * 100)}% · шаг ${s.speed}${set.got.map((g) => ` · ${g.name}`).join("")}</p>
+        </div>
+      </div>
       ${(["str", "dex", "vit", "ene"] as Stat[]).map((k) => {
         const name = { str: "Сила", dex: "Ловкость", vit: "Живучесть", ene: "Энергия" }[k];
         const base = hero.base[k] + profile.alloc[k];
-        return `<div class="stat"><span>${name}</span><span><b>${base}</b> ${profile.unspent ? `<button class="plus" data-stat="${k}" type="button">+</button>` : ""}</span></div>`;
+        return `<div class="stat"><span>${name}</span><span class="glance">${glance(k)}</span><span><b>${base}</b> ${profile.unspent ? `<button class="plus" data-stat="${k}" type="button" title="${glance(k)}">+</button>` : ""}</span></div>`;
       }).join("")}
-      <p class="derived">Свободно очков: ${profile.unspent}. Урон ${s.dmg} · здоровье ${s.hp} · крит ${Math.round(s.crit * 100)}% · атака ×${s.aspd.toFixed(2)} · броня ${s.armor} · вампиризм ${Math.round(s.ls * 100)}% · золото с этажа +${Math.round(s.gold * 100)}%${set.got.map((g) => `<br>${g.name}: ${g.text}`).join("")}</p>
+      ${profile.inbox.length ? `<div class="stat"><span>У входа</span><b>${profile.inbox[0].name}</b></div><div class="row"><button class="btn" id="in-bag" type="button">В сумку</button><button class="btn" id="in-sell" type="button">Продать</button><button class="btn" id="in-drop" type="button">Оставить</button></div>` : ""}
       <div class="row"><button class="btn" id="open-heroes" type="button">Герои</button><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
     </section>
-    <section class="panel">
-      <h2>Кампания</h2>
-      <p class="derived">Семнадцать данжей Тёмного мира. Внутри данжа его этажи, у этажа цвет чар. Данж открывает уровень из файла. Следующий этаж того же данжа — после предыдущего. Пройденный этаж можно брать снова. Сейчас уровень ${profile.lvl}.</p>
-      <div class="campaign">${dungeonHeads(profile, open.dungeon)}</div>
-      <div class="stage-row">${stageChips(profile, open.dungeon, openF)}</div>
-      ${floorLock(profile, openF) ? `<p class="lock-why">${floorLock(profile, openF)}</p>` : (profile.clears[openF - 1] || 0) > 0 ? `<p class="derived">Этап пройден. Повтор не открывает следующий цвет и не сдаёт квест второй раз.</p>` : `<p class="derived">Этап доступен для первого прохода.</p>`}
-      <div class="diffs">${DIFF_NAME.map((name, i) => {
-        const id = i + 1;
-        const why = diffLock(profile, openF, id);
-        const ink = DIFF_CHAIN[i].color === "#0a0a0a" ? "#f4f4f5" : DIFF_CHAIN[i].color;
-        return `<button type="button" class="btn${diffPick === id ? " gold" : ""}${why ? " lock" : ""}" data-diff="${id}" style="border-color:${ink};color:${ink}">${DIFF_CHAIN[i].icon} ${name}${why ? " · закрыта" : ""}</button>`;
+    <section class="panel board">
+      <div class="board-head"><h2>${mode ? mode.name : "Кампания"}</h2><span class="tag">ур. ${profile.lvl}</span></div>
+      <div class="mode-row">${MODE_LIST.map((m) => {
+        const why = modeLock(profile, m.id);
+        const on = modePick === m.id;
+        return `<button type="button" class="mode${on ? " on" : ""}${why ? " lock" : ""}" data-mode="${m.id}" title="${why || m.rule}">${m.name}</button>`;
       }).join("")}</div>
-      ${compareHtml(openF)}
-      <p class="offer">${offerText(openF, diffPick)}</p>
-      <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${diffLock(profile, openF, diffPick) ? "disabled" : ""}>${goLabel(openF, diffPick)}</button></div>
-      <p class="dungeon-lead"><b>${open.dungeonName}</b> → этаж ${open.stage} из ${open.stagesInDungeon}: ${open.name}. ${open.desc}</p>
-      <p>Толпа «${open.mob}». ${open.goal === "boss" ? "Босс" : open.goal === "elite" ? "Элита" : "Цель толпы"}: ${open.boss}. ${open.bossTitle}. В файле у цели ${open.srcHp} здоровья и ${open.srcAtk} урона. Бой Орды считает свою кривую и эти числа в удар не подставляет.${open.spawnGeneral ? ` Генерал: ${open.general}.` : ""}${floorMut(openF) ? ` Мутация «${floorMut(openF)!.name}» ×${floorMut(openF)!.mult}.` : ""} Источник: ${open.file}.</p>
-      <p class="derived">Режим на этот заход. Клятва меняет бой. Кубок списывает ${getTune().oath.stake} зл до старта.</p>
+      <div class="campaign">${dungeonHeads(profile, mode ? 0 : open.dungeon)}</div>
+      <article class="pick-card" style="--sw:${mode ? "#38bdf8" : (DIFF_CHAIN[diffPick - 1].color === "#0a0a0a" ? "#f4f4f5" : DIFF_CHAIN[diffPick - 1].color)}">
+        ${mode ? "" : `<div class="stage-row">${stageChips(profile, open.dungeon, openF)}</div>`}
+        <div class="swatches">${DIFF_CHAIN.map((step, i) => {
+          const id = i + 1;
+          const why = mode ? "цвет чар у режима не крутится" : diffLock(profile, openF, id);
+          const ink = step.color === "#0a0a0a" ? "#f4f4f5" : step.color;
+          return `<button type="button" class="swatch${diffPick === id && !mode ? " on" : ""}${why ? " lock" : ""}" data-diff="${id}" style="--sw:${ink}" title="${step.name}${why ? " · " + why : ""}"></button>`;
+        }).join("")}</div>
+        <h3>${mode ? mode.name : picked.dungeonName}</h3>
+        <p class="pick-name">${mode ? `ур. ${getTune().modes[mode.id]} · побед ${profile.book.wins[MODE_LIST.findIndex((m) => m.id === mode.id)] || 0}` : `этаж ${open.stage}/${open.stagesInDungeon} · ${open.name}`}</p>
+        <p class="pick-rule">${mode ? mode.orda : `${craft.env}. ${craft.rule}`}</p>
+        <p class="offer">${mode ? (mode.id === "abyss" ? `Сейчас этаж ${profile.book.abyss}. Рекорд ${profile.book.best}.` : mode.id === "bossrush" ? `Босс ${profile.book.rush + 1} из ${FLOORS.filter((f) => f.goal === "boss").length}: ${picked.boss}.` : picked.bossTitle) : `${DIFF_CHAIN[diffPick - 1].name}. ${open.goal === "boss" ? "Босс" : open.goal === "elite" ? "Элита" : "Толпа"}: ${open.boss}.${floorMut(openF) ? ` ${floorMut(openF)!.name} ×${floorMut(openF)!.mult}.` : ""}`}</p>
+        ${goWhy ? `<p class="lock-why">${goWhy}</p>` : ""}
+        <button class="btn gold" id="go-floor" type="button" ${goWhy ? "disabled" : ""}>${mode ? `В бой · ${mode.name}` : goLabel(openF, diffPick)}</button>
+      </article>
       <div class="row modes">${OATHS.map((o) => `<button type="button" class="btn${profile.oath === o.id ? " gold" : ""}" data-oath="${o.id}" title="${o.note}">${o.name}</button>`).join("")}</div>
-      <p class="derived" id="oath-note">${OATHS.find((o) => o.id === profile.oath)?.note || ""}</p>
-      ${quests.map((q) => `<div class="quest${q.ready ? " ready" : ""}"><b>${q.name}</b><span>${q.desc}</span><div class="bar"><i style="width:${Math.min(100, q.p / q.need * 100)}%"></i></div><span>${q.p}/${q.need}${q.ready ? " · награда готова" : ""}</span>${q.ready ? `<div class="row"><button class="btn gold" data-claim="${q.id}" type="button">Забрать</button></div>` : ""}</div>`).join("")}
-      ${ready.filter((q) => q.floor !== openF && q.floor !== 0).map((q) => `<div class="quest ready"><b>${q.name}</b><button class="btn gold" data-claim="${q.id}" type="button">Забрать награду</button></div>`).join("")}
+      ${quests.filter((q) => q.ready || q.p > 0).slice(0, 3).map((q) => `<div class="quest${q.ready ? " ready" : ""}"><b>${q.name}</b><span>${q.p}/${q.need}</span>${q.ready ? `<button class="btn gold" data-claim="${q.id}" type="button">Забрать</button>` : ""}</div>`).join("")}
+      ${ready.filter((q) => q.floor !== openF && q.floor !== 0).map((q) => `<div class="quest ready"><b>${q.name}</b><button class="btn gold" data-claim="${q.id}" type="button">Забрать</button></div>`).join("")}
     </section>
-    <section class="panel">
-      <div class="bag-head"><h2>Сумка</h2><span>${bagFree(profile) ? "есть место" : "полна"}</span></div>
-      <div class="paper">${(["weapon", "helm", "chest", "gloves", "boots", "amulet", "ring1", "ring2"] as Paper[]).map((sl) => `<button type="button" class="pslot" data-paper="${sl}" style="border-color:${profile.equip[sl] ? RARITY_COLOR[profile.equip[sl]!.rarity] : ""}">${slotHtml(profile.equip[sl], PAPER_NAME[sl])}</button>`).join("")}</div>
+    <section class="panel bag">
+      <div class="bag-head"><h2>Сумка</h2><span class="${bagFree(profile) ? "" : "full"}">${profile.bag.length}/${profile.bagSize}</span></div>
+      <div class="paper">${(["weapon", "helm", "chest", "gloves", "boots", "amulet", "ring1", "ring2"] as Paper[]).map((sl) => `<button type="button" class="pslot" data-paper="${sl}" title="${PAPER_NAME[sl]}" style="border-color:${profile.equip[sl] ? RARITY_COLOR[profile.equip[sl]!.rarity] : ""}">${slotHtml(profile.equip[sl], PAPER_NAME[sl])}</button>`).join("")}</div>
       <div class="grid">${Array.from({ length: profile.bagSize }, (_, i) => {
         const it = profile.bag[i];
         return `<button type="button" class="slot${it && selected?.id === it.id ? " sel" : ""}${it ? "" : " empty"}" data-item="${it?.id || ""}" style="border-color:${it ? RARITY_COLOR[it.rarity] : ""}">${it ? slotHtml(it, "") : ""}</button>`;
@@ -347,11 +364,16 @@ function renderHub() {
         <button class="btn" id="unequip" type="button">Снять</button>
         <button class="btn" id="forge" type="button">Улучшить</button>
       </div>
-      <p class="derived">Предел сумки — ${BAG_MAX}. Расширение продаётся в лавке, не в бою.</p>
     </section>
   </div>`;
   root.querySelectorAll<HTMLButtonElement>("[data-floor]").forEach((b) => b.onclick = () => { floorPick = Number(b.dataset.floor); renderHub(); });
+  root.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((b) => b.onclick = () => {
+    const id = (b.dataset.mode || "") as ModeId;
+    modePick = modePick === id ? "" : id;
+    renderHub();
+  });
   root.querySelectorAll<HTMLButtonElement>("[data-dungeon]").forEach((b) => b.onclick = () => {
+    modePick = "";
     const d = Number(b.dataset.dungeon);
     const rows = FLOORS.filter((f) => f.dungeon === d);
     const next = rows.find((f) => !floorLock(profile, f.n) && !(profile.clears[f.n - 1])) || rows.find((f) => !floorLock(profile, f.n)) || rows[0];
@@ -449,7 +471,7 @@ function renderHub() {
   $<HTMLButtonElement>("in-drop") && ($<HTMLButtonElement>("in-drop").onclick = () => inbox("drop"));
   $<HTMLButtonElement>("open-party").onclick = () => openParty();
   $<HTMLButtonElement>("open-friends").onclick = () => openFriends();
-  $<HTMLButtonElement>("go-floor").onclick = () => startSolo(openF);
+  $<HTMLButtonElement>("go-floor").onclick = () => modePick ? startMode(modePick) : startSolo(openF);
   bindYard();
   paintYard();
   void ensureYard();
@@ -659,7 +681,32 @@ async function startSolo(floor: number) {
   }
 }
 
-function beginBattle(floor: number, members: { id: string; name: string; hero: HeroId; sheet: any }[], seed: number, remote: boolean, diff = 1) {
+async function startMode(id: ModeId) {
+  const lock = modeLock(profile, id);
+  if (lock) return toast(lock);
+  await pullTune();
+  mirror = false;
+  youId = "you";
+  const floor = modeFloor(profile, id);
+  if (online) {
+    const r = await act({ op: "mode", id });
+    if (r?.nonce) {
+      nonce = r.nonce;
+      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, 1);
+      return;
+    }
+    if (r?.err) return;
+    online = false;
+    toast("Сервер не ответил. Этот забег сохранится на устройстве.");
+  }
+  const b = beginMode(profile, id, Date.now());
+  if ("err" in b) return toast(b.err);
+  nonce = b.nonce;
+  saveLocal();
+  beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, 1);
+}
+
+function beginBattle(floor: number | FloorDef, members: { id: string; name: string; hero: HeroId; sheet: any }[], seed: number, remote: boolean, diff = 1) {
   battle = new Battle(floor, members, seed, diff);
   battle.mirror = false;
   battle.remote = remote;

@@ -5,6 +5,7 @@ import { DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, getTune, mobHp, part
 import { UPG, upgCost, upgStats } from "../../../server/meta/upgrade.ts";
 import { MAT_NAME } from "./mats";
 import { FLOOR_N, SW_DUNGEONS, SW_FLOORS, SW_QUESTS, fightScale } from "./sw-catalog";
+import { MODE_LIST, modeIndex, modeSpec, type ModeId } from "./modes";
 
 export const BAG_START = 12;
 export const BAG_STEP = 4;
@@ -124,6 +125,20 @@ export type FloorDef = {
   gRow: number;
   bRow: number;
   mobRows: [number, number, number];
+  /** Особый режим. У этапов кампании поля нет. */
+  play?: Play;
+};
+
+export type Play = {
+  kind: ModeId;
+  winSec?: number;
+  enrageSec?: number;
+  playerDmg?: number;
+  foeHp?: number;
+  armor?: number;
+  mirror?: boolean;
+  soloBoss?: boolean;
+  loot?: number;
 };
 
 const sk = (p: SkillDef): SkillDef => p;
@@ -346,7 +361,25 @@ export function questById(id: string) { return QUEST_BY.get(id) || null; }
 
 export type QuestState = { p: number; done: 0 | 1; claimed: 0 | 1 };
 export type Equip = Record<Paper, Item | null>;
-export type Pending = { floor: number; at: number; nonce: string; chests?: number; oath?: OathId; diff: number; hero?: HeroId };
+export type Pending = { floor: number; at: number; nonce: string; chests?: number; oath?: OathId; diff: number; hero?: HeroId; mode?: ModeId };
+
+export type ModeBook = { abyss: number; best: number; rush: number; wins: number[] };
+
+export function emptyBook(): ModeBook {
+  return { abyss: 1, best: 0, rush: 0, wins: [0, 0, 0, 0, 0, 0, 0] };
+}
+
+function readBook(raw: any): ModeBook {
+  const b = emptyBook();
+  if (!raw || typeof raw !== "object") return b;
+  b.abyss = Math.max(1, Math.min(999, raw.abyss | 0 || 1));
+  b.best = Math.max(0, Math.min(999, raw.best | 0));
+  b.rush = Math.max(0, raw.rush | 0);
+  if (Array.isArray(raw.wins)) {
+    for (let i = 0; i < 7; i++) b.wins[i] = Math.max(0, Math.min(9999, raw.wins[i] | 0));
+  }
+  return b;
+}
 
 export type HeroCard = {
   id: HeroId;
@@ -360,6 +393,7 @@ export type HeroCard = {
   equip: Equip;
   kills: number;
   oath: OathId;
+  book: ModeBook;
 };
 
 export type Profile = {
@@ -388,6 +422,8 @@ export type Profile = {
   oath: OathId;
   /** Материалы Петра. Общие на аккаунт, не на героя. */
   res: Record<string, number>;
+  /** Этаж Бездны, индекс Босс-Раша и победы режимов. Свои у героя. */
+  book: ModeBook;
 };
 
 export type Sheet = {
@@ -434,7 +470,7 @@ export function newProfile(seed = 1): Profile {
     equip: emptyEquip(), bag: [], inbox: [], quests: {},
     clears: Array.from({ length: FLOOR_N }, () => 0),
     chain: Array.from({ length: FLOOR_N }, () => 0),
-    kills: 0, pending: null, oath: "none", roster: [], res: {},
+    kills: 0, pending: null, oath: "none", roster: [], res: {}, book: emptyBook(),
   };
 }
 
@@ -443,14 +479,14 @@ function freshCard(id: HeroId): HeroCard {
     id, lvl: 1, xp: 0, unspent: 0, alloc: { str: 0, dex: 0, vit: 0, ene: 0 },
     clears: Array.from({ length: FLOOR_N }, () => 0),
     chain: Array.from({ length: FLOOR_N }, () => 0),
-    quests: {}, equip: emptyEquip(), kills: 0, oath: "none",
+    quests: {}, equip: emptyEquip(), kills: 0, oath: "none", book: emptyBook(),
   };
 }
 
 function snapshot(p: Profile): HeroCard {
   return JSON.parse(JSON.stringify({
     id: p.hero, lvl: p.lvl, xp: p.xp, unspent: p.unspent, alloc: p.alloc,
-    clears: p.clears, chain: p.chain, quests: p.quests, equip: p.equip, kills: p.kills, oath: p.oath,
+    clears: p.clears, chain: p.chain, quests: p.quests, equip: p.equip, kills: p.kills, oath: p.oath, book: p.book,
   }));
 }
 
@@ -477,6 +513,7 @@ function mount(p: Profile, id: HeroId) {
   p.equip = c.equip;
   p.kills = c.kills;
   p.oath = c.oath;
+  p.book = readBook(c.book);
 }
 
 export function xpNeed(lvl: number) {
@@ -577,9 +614,11 @@ export function normalize(raw: any): Profile {
     const oath = oathOf(raw.pending.oath);
     const diff = Math.max(1, Math.min(7, raw.pending.diff | 0 || 1));
     const who = HEROES.some((h) => h.id === raw.pending.hero) ? raw.pending.hero as HeroId : undefined;
-    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0, diff, ...(oath !== "none" ? { oath } : {}), ...(who ? { hero: who } : {}) };
+    const mode = modeSpec(String(raw.pending.mode || ""))?.id;
+    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0, diff, ...(oath !== "none" ? { oath } : {}), ...(who ? { hero: who } : {}), ...(mode ? { mode } : {}) };
   }
   p.oath = oathOf(raw.oath);
+  p.book = readBook(raw.book);
   if (raw.res && typeof raw.res === "object") {
     for (const [k, v] of Object.entries(raw.res as Record<string, unknown>)) {
       if (!MAT_NAME[k]) continue;
@@ -613,6 +652,7 @@ function readCard(raw: any): HeroCard | null {
   card.clears = prog.clears;
   card.chain = prog.chain;
   card.oath = oathOf(raw.oath);
+  card.book = readBook(raw.book);
   if (raw.quests && typeof raw.quests === "object") {
     for (const [id, q] of Object.entries(raw.quests as Record<string, any>)) {
       if (!questById(id) || !q) continue;
@@ -770,6 +810,15 @@ export function sheet(p: Profile): Sheet {
     gold: goldOut,
     accent: h.accent,
   };
+}
+
+/** Что даст одно очко, не тратя его. Сила растит урон, ловкость — крит и шаг, живучесть — здоровье, энергия — навыки. */
+export function statGlance(p: Profile, stat: Stat) {
+  const before = sheet(p);
+  p.alloc[stat] += 1;
+  const after = sheet(p);
+  p.alloc[stat] -= 1;
+  return { before, after };
 }
 
 function affixLine(a: { stat: AffStat; val: number; name: string }) {
@@ -1509,6 +1558,126 @@ function clearRarity(rng: Rng, floor: number, diff: number, replay: boolean): Ra
   return "common";
 }
 
+function bossStages() {
+  return FLOORS.filter((f) => f.goal === "boss");
+}
+
+function highestDungeon(p: Profile) {
+  let d = 1;
+  for (const f of FLOORS) if (f.stage === 1 && p.lvl >= floorNeed(f.n)) d = f.dungeon;
+  return d;
+}
+
+function anchorFloor(p: Profile) {
+  const d = highestDungeon(p);
+  const rows = FLOORS.filter((f) => f.dungeon === d);
+  return (rows.find((f) => f.goal === "boss") || rows[rows.length - 1]).n;
+}
+
+export function modeFloor(p: Profile, id: ModeId): FloorDef {
+  const spec = modeSpec(id)!;
+  const base = floorByN(anchorFloor(p));
+  const blank: Play = { kind: id };
+  if (id === "arena") {
+    return { ...base, sw: "mode_arena", name: "Арена Испытаний", place: "Арена", dungeonName: "Арена Испытаний", desc: spec.orda, stages: ["Волна", "Подкрепление", "Круг"], goal: "pack", boss: "Волна арены", bossTitle: "Выстоять 30 секунд", general: "Подкрепление", spawnGeneral: 0, tint: "#1e293b", ember: "#38bdf8", play: { ...blank, winSec: 30 } };
+  }
+  if (id === "duel") {
+    return { ...floorByN(1), sw: "mode_duel", name: "Дуэль 1 на 1", place: "Дуэль", dungeonName: "Дуэль 1 на 1", desc: spec.orda, stages: ["Круг", "Круг", "Двойник"], goal: "boss", boss: "Теневой Двойник", bossTitle: "Зеркало героя", general: "Теневой Двойник", spawnGeneral: 0, tint: "#2a2418", ember: "#e7c98a", play: { ...blank, soloBoss: true, mirror: true } };
+  }
+  if (id === "horde") {
+    return { ...base, sw: "mode_horde", name: "Орда Бездны", place: "Орда", dungeonName: "Орда Бездны", desc: spec.orda, stages: ["Волна", "Подкрепление", "Волна"], goal: "pack", boss: "Волна орды", bossTitle: "Выстоять 60 секунд", general: "Подкрепление", spawnGeneral: 0, tint: "#3a1014", ember: "#e24b3b", play: { ...blank, winSec: 60 } };
+  }
+  if (id === "abyss") {
+    const fl = Math.max(1, p.book.abyss | 0);
+    const boss = fl % 5 === 0;
+    const anchor = floorByN(Math.min(FLOOR_N, 1 + Math.floor(fl / 2)));
+    return { ...anchor, sw: "mode_abyss", name: boss ? `Повелитель Бездны` : `Фрактальный Страж`, place: `Этаж ${fl}`, dungeonName: "Фрактальная Бездна", desc: spec.orda, stages: [`Этаж ${fl}`, `Этаж ${fl}`, `Этаж ${fl}`], goal: boss ? "boss" : "pack", boss: boss ? `Повелитель Бездны, этаж ${fl}` : `Фрактальный Страж ${fl}`, bossTitle: boss ? "Каждый пятый этаж" : "Страж этажа", general: "Страж", spawnGeneral: 0, tint: "#102028", ember: "#22d3ee", play: { ...blank, soloBoss: boss, foeHp: Math.min(8, Math.pow(1.15, fl - 1)) } };
+  }
+  if (id === "bossrush") {
+    const bosses = bossStages();
+    const src = bosses[(p.book.rush | 0) % bosses.length];
+    return { ...src, desc: spec.orda, play: { ...blank, soloBoss: true } };
+  }
+  if (id === "purgatory") {
+    const src = floorByN(anchorFloor(p));
+    return { ...src, desc: spec.orda, play: { ...blank, soloBoss: true, playerDmg: 0.7, armor: 0.3, loot: 3 } };
+  }
+  const src = FLOORS.find((f) => f.sw === "dungeon_5" && f.goal === "boss") || floorByN(1);
+  return { ...src, sw: "mode_demiurge", name: "Рейд: Демиург", place: "Рейд", dungeonName: "Рейд: Демиург", desc: spec.orda, boss: "Демиург", bossTitle: "45 секунд, потом ярость", general: "Демиург", goal: "boss", spawnGeneral: 0, tint: "#0c1a24", ember: "#38bdf8", play: { ...blank, soloBoss: true, enrageSec: 45, foeHp: 2.2 } };
+}
+
+export function modeLock(p: Profile, id: ModeId): string | null {
+  const spec = modeSpec(id);
+  if (!spec) return "Нет такого режима";
+  const need = getTune().modes[id] | 0;
+  if (p.lvl < need) return `«${spec.name}» открывается с уровня ${need}. Сейчас ${p.lvl}.`;
+  return null;
+}
+
+export function beginMode(p: Profile, rawId: string, now: number, nonce = startNonce()): { nonce: string } | { err: string } {
+  const spec = modeSpec(rawId);
+  if (!spec) return { err: "Нет такого режима" };
+  const id = spec.id;
+  if (!p.hero) return { err: "Сначала выбери героя" };
+  const lock = modeLock(p, id);
+  if (lock) return { err: lock };
+  const tune = getTune();
+  const oath: OathId = tune.oath.on ? p.oath : "none";
+  if (oath === "cup") {
+    const stake = tune.oath.stake | 0;
+    if (p.gold < stake) return { err: "На кубок не хватает золота" };
+    p.gold -= stake;
+  }
+  const floor = modeFloor(p, id);
+  p.pending = { floor: floor.n, at: now, nonce, chests: 0, diff: 1, hero: p.hero, mode: id, ...(oath !== "none" ? { oath } : {}) };
+  return { nonce };
+}
+
+export function applyMode(p: Profile, raw: { id: ModeId; elapsedMs: number; kills: number; boss: boolean; reason?: RunReason }, rng: Rng): RunReport | { err: string } {
+  const spec = modeSpec(raw.id);
+  if (!spec || !p.hero) return { err: "Нет такого режима" };
+  const asked: RunReason = raw.reason === "surrender" || raw.reason === "dead" || raw.reason === "win" ? raw.reason : (raw.boss ? "win" : "dead");
+  let cleared = asked === "win" && !!raw.boss && raw.elapsedMs >= spec.minMs;
+  let note: string | null = null;
+  if (asked === "win" && raw.elapsedMs < spec.minMs) {
+    cleared = false;
+    note = "Слишком быстро для этого режима — победа не засчитана.";
+  }
+  if (raw.id === "demiurge" && raw.elapsedMs >= 45_000) {
+    cleared = false;
+    note = "Ярость Демиурга: 45 секунд вышли.";
+  }
+  const floor = modeFloor(p, raw.id);
+  const kills = Math.max(0, Math.min(80, raw.kills | 0));
+  p.kills += kills;
+  const eco = getTune().economy;
+  const hunt = kills * eco.killGold;
+  const clearPay = cleared ? 24 + p.lvl * 4 : 0;
+  let gold = Math.round((clearPay + hunt) * (1 + goldFind(p)));
+  p.gold += gold;
+  const xp = cleared ? 30 + p.lvl * 2 : 0;
+  const levels = xp > 0 ? addXp(p, xp) : 0;
+  const items: LootNote[] = [];
+  const lootN = cleared ? (floor.play?.loot || 1) + (raw.id === "abyss" && p.book.abyss % 5 === 0 ? 1 : 0) : 0;
+  for (let i = 0; i < lootN; i++) {
+    const it = rollItem(rng, { ilvl: Math.max(1, p.lvl), floor: floor.n, bare: true, budget: 1, rarity: i === 0 && cleared ? "magic" : "common", extraAffix: 0, curseMul: 1, enchMul: 0, act: "none", tier: 0 });
+    items.push(giveItem(p, it));
+  }
+  if (cleared) {
+    const ix = modeIndex(raw.id);
+    if (ix >= 0) p.book.wins[ix] = (p.book.wins[ix] || 0) + 1;
+    if (raw.id === "abyss") {
+      p.book.best = Math.max(p.book.best, p.book.abyss);
+      p.book.abyss = Math.min(999, p.book.abyss + 1);
+    }
+    if (raw.id === "bossrush") p.book.rush = (p.book.rush + 1) % Math.max(1, bossStages().length);
+  }
+  return {
+    gold, xp, levels, items, quests: [], note, boss: cleared, reason: cleared ? "win" : asked === "surrender" ? "surrender" : "dead",
+    replay: false, diff: 1, diffName: spec.name,
+  };
+}
+
 export function beginRun(p: Profile, floor: number, now: number, nonce = startNonce(), carry = false, diff = 1): { nonce: string } | { err: string } {
   void carry;
   if (!p.hero) return { err: "Сначала выбери героя" };
@@ -1534,7 +1703,24 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
   if (pend.hero && pend.hero !== p.hero) { seal(p); mount(p, pend.hero); }
   const elapsed = Math.max(0, now - (pend.at || now));
   const vow = pend.oath;
+  const mode = pend.mode;
   p.pending = null;
+  if (mode) {
+    const report = applyMode(p, { id: mode, elapsedMs: elapsed, kills: body.kills || 0, boss: !!body.boss, reason: body.reason }, rng);
+    if ("err" in report) return report;
+    if (vow === "pawn") {
+      const extra = Math.round(report.gold * 0.2);
+      p.gold += extra;
+      report.gold += extra;
+    }
+    if (vow === "cup" && report.boss) {
+      const back = (getTune().oath.stake | 0) * 2;
+      p.gold += back;
+      report.gold += back;
+    }
+    seal(p);
+    return report;
+  }
   const counted = trusted || boundedSolo(pend.floor, elapsed, body.kills || 0, body.generals || 0, !!body.boss);
   const reason: RunReason = body.reason === "surrender" || body.reason === "dead" || body.reason === "win" ? body.reason : (counted.boss ? "win" : "dead");
   const report = applyRun(p, {
@@ -1558,5 +1744,6 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
     p.gold += back;
     report.gold += back;
   }
+  seal(p);
   return report;
 }
