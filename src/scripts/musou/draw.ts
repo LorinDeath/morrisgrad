@@ -1,7 +1,7 @@
 // 2.5D-картинка «Орды»: косая площадь, аниме-герои МоррисГрада и росчерки комбо.
 import { heroById, type HeroDef } from "./rules";
 import { ARENA_H, ARENA_W, type Actor, type Anim, type Battle, type Fx } from "./sim";
-import { blitElite, blitHero, blitMob, heroFrame, pixelSlash } from "./sprites";
+import { FLOOR_TILE, blitElite, blitHero, blitMob, blitNova, blitTeleCone, blitTeleRing, blitTile, heroFrame, pixelSlash } from "./sprites";
 
 export type Cam = { x: number; y: number };
 
@@ -49,15 +49,14 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
     const p = project(m.x, m.y, cam, w, h, zoom);
     spr.push({
       y: m.y,
-      draw: () => blitMob(ctx, m.kind, (now / 180 + m.x) | 0, p.sx, p.sy, Math.max(2, zoom * 2.1) * (m.alive ? 1 : 0.85), Math.cos(m.facing) >= 0 ? 1 : -1),
+      draw: () => blitMob(ctx, m.kind, (now / 140) | 0, p.sx, p.sy, Math.max(2, zoom * 2.1) * (m.alive ? 1 : 0.85), m.facing, m.alive),
     });
   }
   for (const e of b.elites) {
-    if (!e.alive) continue;
     const p = project(e.x, e.y, cam, w, h, zoom);
     spr.push({
       y: e.y,
-      draw: () => blitElite(ctx, e.kind === "boss", e.wind > 0, p.sx, p.sy, Math.max(2, zoom * (e.kind === "boss" ? 3.1 : 2.5)), Math.cos(e.facing) >= 0 ? 1 : -1),
+      draw: () => blitElite(ctx, e.kind === "boss", e.wind > 0 && e.alive, p.sx, p.sy, Math.max(2, zoom * (e.kind === "boss" ? 3.1 : 2.5)), e.facing, e.alive),
     });
   }
   for (const a of b.party) {
@@ -137,15 +136,27 @@ function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: numbe
       const tw = S * zoom * 0.5;
       const th = S * zoom * 0.5 * 0.78;
       const alt = (tx + ty) & 1;
+      const tile = FLOOR_TILE[(b.floor.n - 1) % FLOOR_TILE.length] + (alt ? 1 : 0);
+      ctx.save();
       ctx.beginPath();
       ctx.moveTo(p.sx, p.sy - th);
       ctx.lineTo(p.sx + tw, p.sy);
       ctx.lineTo(p.sx, p.sy + th);
       ctx.lineTo(p.sx - tw, p.sy);
       ctx.closePath();
-      ctx.fillStyle = alt ? rgba(tint, 0.34) : "rgba(36,18,22,0.9)";
-      ctx.fill();
-      ctx.strokeStyle = alt ? "rgba(224,192,122,0.07)" : "rgba(224,192,122,0.035)";
+      ctx.clip();
+      if (!blitTile(ctx, tile, p.sx, p.sy, tw * 2, th * 2)) {
+        ctx.fillStyle = alt ? rgba(tint, 0.34) : "rgba(36,18,22,0.9)";
+        ctx.fillRect(p.sx - tw, p.sy - th, tw * 2, th * 2);
+      }
+      ctx.restore();
+      ctx.beginPath();
+      ctx.moveTo(p.sx, p.sy - th);
+      ctx.lineTo(p.sx + tw, p.sy);
+      ctx.lineTo(p.sx, p.sy + th);
+      ctx.lineTo(p.sx - tw, p.sy);
+      ctx.closePath();
+      ctx.strokeStyle = alt ? "rgba(224,192,122,0.16)" : "rgba(224,192,122,0.08)";
       ctx.stroke();
     }
   }
@@ -254,13 +265,30 @@ function drawGroundFx(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: nu
     const p = project(e.x, e.y, cam, w, h, zoom);
     const k = 1 - e.wind / (e.windMax || 0.5);
     const rad = (e.kind === "boss" ? 118 : 96) * zoom * (0.72 + k * 0.28);
-    ctx.beginPath();
-    ctx.ellipse(p.sx, p.sy, rad, rad * 0.78, 0, 0, TAU);
-    ctx.fillStyle = rgba(e.tint, 0.13 + k * 0.18);
-    ctx.fill();
-    ctx.lineWidth = 2 + k * 3;
-    ctx.strokeStyle = rgba("#ffd0c8", 0.4 + k * 0.55);
-    ctx.stroke();
+    const cone = (e.kind === "boss" ? e.pattern % 3 : e.pattern % 2) === 1;
+    const tick = (now / 50) | 0;
+    if (cone) {
+      const len = rad * 1.35;
+      blitTeleCone(ctx, p.sx, p.sy, e.facing, len, 0.45 + k * 0.45, tick);
+      ctx.beginPath();
+      ctx.moveTo(p.sx, p.sy);
+      ctx.arc(p.sx, p.sy, len, e.facing - 1.1, e.facing + 1.1);
+      ctx.closePath();
+      ctx.fillStyle = rgba(e.tint, 0.12 + k * 0.16);
+      ctx.fill();
+      ctx.strokeStyle = rgba("#fff6d4", 0.55 + k * 0.4);
+      ctx.lineWidth = 2 + k * 2;
+      ctx.stroke();
+    } else {
+      blitTeleRing(ctx, p.sx, p.sy, rad, 0.55 + k * 0.4, tick);
+      ctx.beginPath();
+      ctx.ellipse(p.sx, p.sy, rad, rad * 0.78, 0, 0, TAU);
+      ctx.fillStyle = rgba(e.tint, 0.1 + k * 0.14);
+      ctx.fill();
+      ctx.lineWidth = 2 + k * 3;
+      ctx.strokeStyle = rgba("#ffd0c8", 0.45 + k * 0.5);
+      ctx.stroke();
+    }
     ctx.setLineDash([8, 6]);
     ctx.beginPath();
     ctx.ellipse(p.sx, p.sy, rad * (0.45 + k * 0.2), rad * (0.45 + k * 0.2) * 0.78, now / 400, 0, TAU);
@@ -287,6 +315,8 @@ function drawAir(ctx: CanvasRenderingContext2D, f: Fx, cam: Cam, w: number, h: n
     pixelSlash(ctx, p.sx, p.sy - 28 * zoom, f.a, f.r * zoom, f.ang, f.col, a);
   } else if (f.k === "ring" || f.k === "nova") {
     const grow = f.k === "nova" ? 1 - a * 0.25 : 0.7 + (1 - a) * 0.45;
+    if (f.k === "nova") blitNova(ctx, p.sx, p.sy, f.r * zoom * grow, a, ((1 - a) * 20) | 0);
+    else blitTeleRing(ctx, p.sx, p.sy, f.r * zoom * grow, a, (performance.now() / 50) | 0);
     ctx.beginPath();
     ctx.ellipse(p.sx, p.sy, f.r * zoom * grow, f.r * zoom * grow * 0.78, 0, 0, TAU);
     ctx.strokeStyle = rgba(f.col, 0.85 * a);
@@ -365,7 +395,7 @@ export function paintHero(
 ) {
   const flip = Math.cos(facing) >= 0 ? 1 : -1;
   if (musou > 0.85) aura(ctx, x, y - 36 * s, 16 * s, hero.accent, 0.45);
-  blitHero(ctx, hero.id, heroFrame(anim, pose, hurt, t), x, y, s, flip);
+  blitHero(ctx, hero.id, heroFrame(anim, pose, hurt, t), x, y, s, flip, facing);
 }
 
 function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, hgt: number, k: number, fill: string, back: string) {

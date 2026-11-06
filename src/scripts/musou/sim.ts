@@ -5,6 +5,7 @@ import {
   floorByN, heroById, mulberry32, spawnBudget,
   type FloorDef, type HeroId, type Rng, type Sheet, type SkillDef,
 } from "./rules";
+import { eliteDmg, eliteHp, getTune, mobDmg, mobHp } from "./tune";
 
 export const ARENA_W = 2400;
 export const ARENA_H = 1560;
@@ -128,6 +129,8 @@ export class Battle {
   kills = 0;
   genKills = 0;
   bossDown = false;
+  reason: "win" | "dead" | "surrender" | "none" = "none";
+  private corpse = 0;
   wave = 0;
   t = 0;
   frame = 0;
@@ -240,9 +243,23 @@ export class Battle {
 
     if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) this.combo = 0; }
     const up = this.living();
-    if (!up.length) {
+    if (up.length) this.corpse = 0;
+    else {
       const waiting = this.party.some((p) => p.hp <= 0 && p.revives > 0 && p.downT > 0);
-      if (!waiting) { this.phase = "lost"; this.say("Отряд пал", "Генералы удержали этаж", 2); }
+      const dead = this.party.every((p) => p.hp <= 0 && p.revives <= 0);
+      if (!waiting && dead) {
+        if (this.corpse <= 0) {
+          this.corpse = 1.3;
+          this.say("Герой пал", "Здоровье на нуле, подъёмов не осталось", 1.3);
+        } else {
+          this.corpse -= dt;
+          if (this.corpse <= 0) {
+            this.phase = "lost";
+            this.reason = "dead";
+            this.say("Поражение", "Герой пал. Этаж не зачищен", 2);
+          }
+        }
+      }
     }
   }
 
@@ -292,6 +309,7 @@ export class Battle {
     } else if (this.bossDown) {
       this.killAllPretty();
       this.phase = "won";
+      this.reason = "win";
       this.say("Этаж зачищен", this.floor.name, 2.4);
       this.shake = Math.max(this.shake, 10);
     }
@@ -319,7 +337,7 @@ export class Battle {
     this.mobY[slot] = py;
     const kind = Math.floor(this.rng() * 3);
     this.mobKind[slot] = kind;
-    this.mobHp[slot] = (kind === 2 ? 16 : kind === 1 ? 5 : 8) + this.floor.n * 2;
+    this.mobHp[slot] = mobHp(kind, this.floor.n);
     this.mobAlive[slot] = 1;
     this.mobFace[slot] = this.rng() * Math.PI * 2;
     this.mobTx[slot] = px;
@@ -334,7 +352,7 @@ export class Battle {
     const dist = kind === "boss" ? 280 : 240;
     const n = this.floor.n;
     const boss = kind === "boss";
-    const hp = boss ? 1500 + n * 620 : 680 + n * 300;
+    const hp = eliteHp(kind, n, this.party.length);
     this.elites.push({
       kind, name: boss ? this.floor.boss : this.floor.general,
       title: boss ? this.floor.bossTitle : "генерал волны",
@@ -361,6 +379,7 @@ export class Battle {
     this.bossDown = true;
     this.killAllPretty();
     this.phase = "won";
+    this.reason = "win";
     this.say("Этаж зачищен", this.floor.name, 2.4);
   }
 
@@ -399,10 +418,10 @@ export class Battle {
       const kind = this.mobKind[i];
       const reach = kind === 1 ? 22 : 30;
       if (bd > reach * reach || best.iframe > 0) continue;
-      const dmg = kind === 2 ? 7 : kind === 1 ? 5 : 4;
+      const dmg = mobDmg(kind);
       best.hp -= dmg;
       best.hurt = 0.22;
-      best.iframe = Math.max(best.iframe, 0.42);
+      best.iframe = Math.max(best.iframe, getTune().combat.contactIframe);
       this.mobHitCd[i] = kind === 1 ? 1.3 : 0.9;
       this.text(best.x, best.y - 20, "−" + dmg, "#ff8d7a");
       if (best.hp <= 0) {
@@ -840,7 +859,7 @@ export class Battle {
     }
     const radius = pat === 1 ? 150 : boss ? 118 : 96;
     const ang = pat === 1 ? 1.1 : Math.PI;
-    const dmg = (boss ? 14 + this.floor.n * 3.1 : 8 + this.floor.n * 2.1);
+    const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n);
     this.fxPush({ k: pat === 1 ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
     this.shake = Math.max(this.shake, boss ? 7 : 4);
     for (const p of this.party) {

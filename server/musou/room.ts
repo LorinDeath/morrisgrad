@@ -5,6 +5,7 @@ import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limit
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
 import { beginRun, clampStrike, finishRun, floorOpen, makeScript, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
+import { eliteHp } from "../../src/scripts/musou/tune";
 
 type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number };
 type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string };
@@ -114,7 +115,7 @@ export class MusouRoom extends DurableObject {
       this.strikeElite(seat, String(m.id || ""), String(m.kind || "light"));
       return;
     }
-    if (m.type === "end" && L.phase === "fight") return this.finish();
+    if (m.type === "end" && L.phase === "fight") return this.finish(typeof m.reason === "string" ? m.reason : "");
     if (m.type === "leave" && L.phase === "lobby") {
       L.seats = L.seats.filter((s) => s.pkey !== seat.pkey);
       if (L.host === seat.pkey) L.host = L.seats[0]?.pkey || "";
@@ -169,7 +170,7 @@ export class MusouRoom extends DurableObject {
     let changed = false;
     plan.forEach((s, i) => {
       if (elapsed < s.at || L.elites.some((e) => e.id === s.id)) return;
-      const hp = s.kind === "boss" ? 1500 + L.floor * 620 : 680 + L.floor * 300;
+      const hp = eliteHp(s.kind, L.floor, L.seats.length);
       L.elites.push({ id: s.id, kind: s.kind, name: names[i], x: 1200, y: 700, hp, maxHp: hp, facing: 0, wind: 0, alive: true, spawned: true, cd: 0.8, pat: 0, tint: s.kind === "boss" ? "#ffd76a" : "#ff6a4a" });
       changed = true;
     });
@@ -211,7 +212,7 @@ export class MusouRoom extends DurableObject {
     this.broadcast({ type: "elite", elites: L.elites.map((x) => ({ id: x.id, kind: x.kind, name: x.name, x: x.x, y: x.y, hp: x.hp, maxHp: x.maxHp, facing: x.facing, wind: x.wind, alive: x.alive, tint: x.tint })) });
   }
 
-  async finish() {
+  async finish(asked = "") {
     const L = this.L!;
     if (L.paid) {
       for (const s of L.seats) this.sendTo(s.pkey, { type: "loot", report: L.reports[s.pkey] || null, profile: null });
@@ -220,10 +221,11 @@ export class MusouRoom extends DurableObject {
     L.paid = true;
     const script = makeScript(L.floor, L.seed);
     const outcome = roomOutcome(script, Date.now() - L.started, L.elites);
+    const reason = outcome.boss ? "win" : asked === "surrender" ? "surrender" : "dead";
     const rngBase = (Date.now() ^ L.started) >>> 0;
     for (const s of L.seats) {
       const p = await loadProfile(this.env.GAME_DB, s.pkey);
-      const r = finishRun(p, { nonce: L.nonce, party: L.seats.length }, Date.now(), mulberry32((rngBase + s.pkey.length * 13) >>> 0), outcome);
+      const r = finishRun(p, { nonce: L.nonce, party: L.seats.length, reason, boss: reason === "win" }, Date.now(), mulberry32((rngBase + s.pkey.length * 13) >>> 0), outcome);
       if (!("err" in r)) await saveProfile(this.env.GAME_DB, s.pkey, p);
       L.reports[s.pkey] = "err" in r ? null : r;
       this.sendTo(s.pkey, { type: "loot", report: L.reports[s.pkey], profile: p, err: "err" in r ? r.err : null });

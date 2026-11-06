@@ -1,5 +1,7 @@
 // «Орда Обители» — правила хаба. Прокачка, лут и сумка живут здесь, не в бою.
 // Тот же модуль считает награды на сервере (D1) и рисует их в клиенте.
+// Числа экономики и лута — в tune.ts. Меняет их только проверенный набор админки.
+import { getTune } from "./tune";
 
 export const BAG_START = 12;
 export const BAG_STEP = 4;
@@ -29,6 +31,10 @@ export type Item = {
   affixes: Affix[];
   unique?: string;
   set?: string;
+  /** 1 — проклятый экземпляр: статы × curse.statMult, скорость героя × curse.speed. */
+  cursed?: 0 | 1;
+  /** Ярус зачарования 1…3. 0 и отсутствие — без чар. Ярусы 4–6 сюда не входят. */
+  ench?: 0 | 1 | 2 | 3;
 };
 
 export type SkillDef = {
@@ -366,7 +372,7 @@ function emptyEquip(): Equip {
 
 export function newProfile(seed = 1): Profile {
   return {
-    v: 1, hero: null, lvl: 1, xp: 0, gold: START_GOLD, unspent: 0,
+    v: 1, hero: null, lvl: 1, xp: 0, gold: getTune().economy.startGold, unspent: 0,
     alloc: { str: 0, dex: 0, vit: 0, ene: 0 },
     bagSize: BAG_START, nextId: 1, shopSeed: seed >>> 0,
     equip: emptyEquip(), bag: [], inbox: [], quests: {},
@@ -375,14 +381,18 @@ export function newProfile(seed = 1): Profile {
   };
 }
 
-export function xpNeed(lvl: number) { return Math.round(50 * Math.pow(Math.max(1, lvl), 1.45)); }
+export function xpNeed(lvl: number) {
+  const x = getTune().xp;
+  return Math.round(x.base * Math.pow(Math.max(1, lvl), x.pow));
+}
 
 export function bagTier(p: Profile) { return Math.max(0, Math.round((p.bagSize - BAG_START) / BAG_STEP)); }
 export function bagPrice(p: Profile): number | null {
   const t = bagTier(p);
-  return t >= BAG_PRICES.length || p.bagSize >= BAG_MAX ? null : BAG_PRICES[t];
+  const prices = getTune().economy.bagPrices;
+  return t >= prices.length || p.bagSize >= BAG_MAX ? null : prices[t];
 }
-export function goldFind(p: Profile) { return bagTier(p) * 0.03; }
+export function goldFind(p: Profile) { return bagTier(p) * getTune().economy.bagGoldFind; }
 export function bagFree(p: Profile) { return Math.max(0, p.bagSize - p.bag.length); }
 export function bestFloor(p: Profile) {
   let n = 0;
@@ -395,6 +405,16 @@ function mint(p: Profile) { return "i" + (p.nextId++); }
 
 function validItem(it: any): it is Item {
   return !!it && typeof it.id === "string" && typeof it.slot === "string" && typeof it.rarity === "string" && Array.isArray(it.affixes);
+}
+
+function sanitizeItem(it: Item): Item {
+  const n = it.ench | 0;
+  const ench = n >= 1 && n <= 3 ? n as 1 | 2 | 3 : 0;
+  const cursed = it.cursed === 1 ? 1 : 0;
+  const next: Item = { ...it, affixes: it.affixes.slice(0, 6) };
+  if (cursed) next.cursed = 1; else delete next.cursed;
+  if (ench) next.ench = ench; else delete next.ench;
+  return next;
 }
 
 export function normalize(raw: any): Profile {
@@ -415,16 +435,16 @@ export function normalize(raw: any): Profile {
   const eq = emptyEquip();
   for (const slot of Object.keys(eq) as Paper[]) {
     const it = raw.equip?.[slot];
-    if (validItem(it)) eq[slot] = { ...it, affixes: it.affixes.slice(0, 6) };
+    if (validItem(it)) eq[slot] = sanitizeItem({ ...it, affixes: it.affixes.slice(0, 6) });
   }
   p.equip = eq;
-  const bag = Array.isArray(raw.bag) ? raw.bag.filter(validItem).slice(0, BAG_MAX) : [];
+  const bag = Array.isArray(raw.bag) ? raw.bag.filter(validItem).slice(0, BAG_MAX).map((it) => sanitizeItem(it)) : [];
   if (bag.length > p.bagSize) {
     const extra = bag.splice(p.bagSize);
     for (const it of extra) p.gold += salvageValue(it);
   }
   p.bag = bag;
-  p.inbox = Array.isArray(raw.inbox) ? raw.inbox.filter(validItem).slice(0, 12) : [];
+  p.inbox = Array.isArray(raw.inbox) ? raw.inbox.filter(validItem).slice(0, 12).map((it) => sanitizeItem(it)) : [];
   if (raw.quests && typeof raw.quests === "object") {
     for (const [id, q] of Object.entries(raw.quests as Record<string, any>)) {
       if (!questById(id) || !q) continue;
@@ -494,22 +514,27 @@ export function sheet(p: Profile): Sheet {
   let vit = h.base.vit + p.alloc.vit;
   let ene = h.base.ene + p.alloc.ene;
   let dmg = 0, armor = 0, hp = 0, aspd = 0, crit = 0, ls = 0, skill = 0;
+  let slowed = false;
+  const tune = getTune();
   for (const it of equipped(p)) {
     if (p.lvl < it.req) continue;
-    dmg += it.dmg;
-    armor += it.armor;
+    const mult = (it.cursed === 1 ? tune.curse.statMult : 1) * (it.ench ? tune.ench.stat[it.ench - 1] || 1 : 1);
+    if (it.cursed === 1) slowed = true;
+    dmg += it.dmg * mult;
+    armor += it.armor * mult;
     for (const a of it.affixes) {
-      if (a.stat === "str") str += a.val;
-      else if (a.stat === "dex") dex += a.val;
-      else if (a.stat === "vit") vit += a.val;
-      else if (a.stat === "ene") ene += a.val;
-      else if (a.stat === "dmg") dmg += a.val;
-      else if (a.stat === "hp") hp += a.val;
-      else if (a.stat === "armor") armor += a.val;
-      else if (a.stat === "crit") crit += a.val / 100;
-      else if (a.stat === "aspd") aspd += a.val / 100;
-      else if (a.stat === "ls") ls += a.val / 100;
-      else if (a.stat === "skill") skill += a.val / 100;
+      const val = a.val * mult;
+      if (a.stat === "str") str += val;
+      else if (a.stat === "dex") dex += val;
+      else if (a.stat === "vit") vit += val;
+      else if (a.stat === "ene") ene += val;
+      else if (a.stat === "dmg") dmg += val;
+      else if (a.stat === "hp") hp += val;
+      else if (a.stat === "armor") armor += val;
+      else if (a.stat === "crit") crit += val / 100;
+      else if (a.stat === "aspd") aspd += val / 100;
+      else if (a.stat === "ls") ls += val / 100;
+      else if (a.stat === "skill") skill += val / 100;
     }
   }
   const set = setBonus(p);
@@ -521,7 +546,7 @@ export function sheet(p: Profile): Sheet {
     armor: Math.round(armor + set.armor),
     aspd: Math.min(2.2, 1 + dex * 0.0065 + aspd + set.aspd),
     crit: Math.min(0.6, 0.04 + dex * 0.0025 + crit),
-    speed: Math.round(214 + dex * 0.4),
+    speed: Math.round((214 + dex * 0.4) * (slowed ? tune.curse.speed : 1)),
     skill: 1 + ene * 0.012 + skill,
     ls: Math.min(0.25, ls),
     heal: 1 + set.heal,
@@ -548,10 +573,11 @@ function rollAffix(rng: Rng, ilvl: number, used: Set<string>): Affix {
 
 function rarityRoll(rng: Rng, floor: number, shop: boolean): Rarity {
   const x = rng();
-  const leg = shop ? 0.02 : Math.min(0.09, 0.01 + floor * 0.006);
-  const set = shop ? 0.015 : Math.min(0.05, Math.max(0, (floor - 4) * 0.004));
-  const rare = (shop ? 0.1 : 0.08) + Math.min(0.2, floor * 0.012);
-  const magic = shop ? 0.42 : 0.3;
+  const loot = getTune().loot;
+  const leg = shop ? loot.legShop : Math.min(loot.legCap, loot.legBase + floor * loot.legPerFloor);
+  const set = shop ? loot.setShop : Math.min(loot.setCap, Math.max(0, (floor - 4) * loot.setPerFloor));
+  const rare = (shop ? loot.rareShop : loot.rareDrop) + Math.min(loot.rareCap, floor * loot.rarePerFloor);
+  const magic = shop ? loot.magicShop : loot.magicDrop;
   if (x < set) return "set";
   if (x < set + leg) return "legendary";
   if (x < set + leg + rare) return "rare";
@@ -573,21 +599,21 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
   const slots = Object.keys(BASES) as Slot[];
   if (rarity === "legendary" && rng() < 0.75) {
     const u = UNIQUES[Math.floor(rng() * UNIQUES.length)];
-    return {
+    return markItem({
       id: o.id || "x", base: u.id, name: u.name, slot: u.slot, rarity, ilvl, req: Math.max(1, ilvl - 2),
       dmg: scaleBase(u.dmg, ilvl), armor: scaleBase(u.armor, ilvl), unique: u.id,
       affixes: u.affixes.map((a) => ({ ...a })),
-    };
+    }, rng, !!o.shop);
   }
   if (rarity === "set") {
     const set = SETS[Math.floor(rng() * SETS.length)];
     const piece = rng() < 0.5 ? set.a : set.b;
     const base = BASES[piece.slot][0];
-    return {
+    return markItem({
       id: o.id || "x", base: base.id, name: piece.name, slot: piece.slot, rarity, ilvl,
       req: Math.max(1, ilvl - 2), dmg: scaleBase(base.dmg + 3, ilvl), armor: scaleBase(base.armor + 2, ilvl),
       set: set.id, affixes: fillAffixes(rng, ilvl, 2),
-    };
+    }, rng, !!o.shop);
   }
   const slot = slots[Math.floor(rng() * slots.length)];
   const base = BASES[slot][Math.floor(rng() * BASES[slot].length)];
@@ -598,10 +624,28 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
   if (rarity === "rare" || rarity === "legendary") {
     name = `${PREFIX[Math.floor(rng() * PREFIX.length)]} ${base.name.toLowerCase()} ${SUFFIX[Math.floor(rng() * SUFFIX.length)]}`;
   }
-  return {
+  return markItem({
     id: o.id || "x", base: base.id, name, slot, rarity, ilvl, req: Math.max(1, ilvl - 3),
     dmg: scaleBase(base.dmg, ilvl), armor: scaleBase(base.armor, ilvl), affixes,
-  };
+  }, rng, !!o.shop);
+}
+
+const ENCH_NAME = ["Необычный", "Редкий", "Странный"];
+
+function markItem(it: Item, rng: Rng, shop: boolean): Item {
+  const loot = getTune().loot;
+  const curseP = shop ? loot.curseChance * 0.25 : loot.curseChance;
+  const enchP = shop ? loot.enchChance * 0.25 : loot.enchChance;
+  if (curseP > 0 && rng() < curseP) {
+    it.cursed = 1;
+    it.name = "Проклятый " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
+  }
+  if (enchP > 0 && rng() < enchP) {
+    const tier = (1 + Math.floor(rng() * 3)) as 1 | 2 | 3;
+    it.ench = tier;
+    it.name = ENCH_NAME[tier - 1] + " " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
+  }
+  return it;
 }
 
 function fillAffixes(rng: Rng, ilvl: number, n: number): Affix[] {
@@ -632,7 +676,7 @@ export function shopOffers(p: Profile): Offer[] {
     out.push({
       id: "bag", kind: "bag", price, to: Math.min(BAG_MAX, p.bagSize + BAG_STEP),
       name: "Расширение сумки",
-      detail: `${p.bagSize} → ${Math.min(BAG_MAX, p.bagSize + BAG_STEP)} ячеек. Золото с этажей +3% за каждый ранг сумки (сейчас +${Math.round(goldFind(p) * 100)}%).`,
+      detail: `${p.bagSize} → ${Math.min(BAG_MAX, p.bagSize + BAG_STEP)} ячеек. Золото с этажей +${Math.round(getTune().economy.bagGoldFind * 100)}% за каждый ранг сумки (сейчас +${Math.round(goldFind(p) * 100)}%).`,
     });
   }
   const floor = Math.max(1, bestFloor(p) || 1);
@@ -730,7 +774,8 @@ export function salvage(p: Profile, itemId: string): { gold: number } | { err: s
   return { gold };
 }
 
-export type RunIn = { floor: number; kills: number; generals: number; boss: boolean; elapsedMs: number; party: number };
+export type RunReason = "win" | "dead" | "surrender";
+export type RunIn = { floor: number; kills: number; generals: number; boss: boolean; elapsedMs: number; party: number; reason?: RunReason };
 export type RunCheck = { kills: number; generals: number; boss: boolean; note: string | null };
 
 export function spawnBudget(floor: number) {
@@ -799,7 +844,7 @@ export function validateRun(r: RunIn): RunCheck {
 export type LootNote = { item: Item; sold: boolean; gold: number; held?: boolean };
 export type RunReport = {
   gold: number; xp: number; levels: number; items: LootNote[];
-  quests: string[]; note: string | null; boss: boolean;
+  quests: string[]; note: string | null; boss: boolean; reason: RunReason;
 };
 
 function giveItem(p: Profile, it: Item): LootNote {
@@ -833,23 +878,35 @@ function markQuest(p: Profile, id: string, add: number): boolean {
 export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: string } {
   const floor = Math.max(1, Math.min(13, raw.floor | 0));
   if (!p.hero) return { err: "Нет героя" };
-  const v = validateRun(raw);
+  const asked: RunReason = raw.reason === "surrender" || raw.reason === "dead" || raw.reason === "win" ? raw.reason : (raw.boss ? "win" : "dead");
+  const v = validateRun({ ...raw, boss: asked === "win" && raw.boss });
+  const cleared = asked === "win" && v.boss;
+  const reason: RunReason = cleared ? "win" : asked === "surrender" ? "surrender" : "dead";
   const quests: string[] = [];
   if (markQuest(p, `k${floor}`, v.kills)) quests.push(`k${floor}`);
   if (markQuest(p, `g${floor}`, v.generals)) quests.push(`g${floor}`);
-  if (v.boss && markQuest(p, `b${floor}`, 1)) quests.push(`b${floor}`);
+  if (cleared && markQuest(p, `b${floor}`, 1)) quests.push(`b${floor}`);
   p.kills += v.kills;
-  if (v.boss) p.clears[floor - 1] = (p.clears[floor - 1] || 0) + 1;
-  let gold = Math.round((18 + floor * 8 + v.kills * 0.22 + v.generals * 18 + (v.boss ? 46 + floor * 12 : 0)) * (1 + goldFind(p)));
-  if ((raw.party | 0) >= 2) gold = Math.round(gold * 1.1);
+  if (cleared) p.clears[floor - 1] = (p.clears[floor - 1] || 0) + 1;
+  const eco = getTune().economy;
+  const clearPay = cleared ? eco.clearBase + floor * eco.clearPerFloor + eco.bossBase + floor * eco.bossPerFloor : 0;
+  let gold = Math.round((clearPay + v.kills * eco.killGold + v.generals * eco.generalGold) * (1 + goldFind(p)));
+  if ((raw.party | 0) >= 2) gold = Math.round(gold * eco.partyGold);
   p.gold += gold;
   const items: LootNote[] = [];
-  if (v.boss) {
+  if (cleared) {
     const rarity = rng() < (floor >= 10 ? 0.18 : 0.08) ? "rare" : rng() < 0.55 ? "magic" : "common";
     items.push(giveItem(p, rollItem(rng, { ilvl: Math.max(p.lvl, floor + 1), floor, rarity })));
   }
-  const levels = 0;
-  return { gold, xp: 0, levels, items, quests, note: v.note, boss: v.boss };
+  const partial = v.kills + v.generals > 0
+    ? "В золото вошли только уже сбитые твари и генералы."
+    : "Сбитых целей нет, золота за этаж нет.";
+  const note = reason === "win"
+    ? v.note
+    : reason === "surrender"
+      ? `Сдача. ${partial} Босс и следующий этаж не засчитаны.`
+      : `Поражение: герой пал. ${partial} Босс и следующий этаж не засчитаны.`;
+  return { gold, xp: 0, levels: 0, items, quests, note, boss: cleared, reason };
 }
 
 export type ClaimReport = { gold: number; xp: number; levels: number; item: LootNote | null };
@@ -920,12 +977,21 @@ export function beginRun(p: Profile, floor: number, now: number, nonce = startNo
   return { nonce };
 }
 
-export function finishRun(p: Profile, body: { nonce?: string; kills?: number; generals?: number; boss?: boolean; party?: number }, now: number, rng: Rng, trusted?: { kills: number; generals: number; boss: boolean }): RunReport | { err: string } {
+export function finishRun(p: Profile, body: { nonce?: string; kills?: number; generals?: number; boss?: boolean; party?: number; reason?: RunReason }, now: number, rng: Rng, trusted?: { kills: number; generals: number; boss: boolean }): RunReport | { err: string } {
   const pend = p.pending;
   if (!pend) return { err: "Забег не начат" };
   if (!body.nonce || body.nonce !== pend.nonce) return { err: "Чужой забег" };
   const elapsed = Math.max(0, now - (pend.at || now));
   p.pending = null;
   const counted = trusted || boundedSolo(pend.floor, elapsed, body.kills || 0, body.generals || 0, !!body.boss);
-  return applyRun(p, { floor: pend.floor, kills: counted.kills, generals: counted.generals, boss: counted.boss, elapsedMs: elapsed, party: body.party || 1 }, rng);
+  const reason: RunReason = body.reason === "surrender" || body.reason === "dead" || body.reason === "win" ? body.reason : (counted.boss ? "win" : "dead");
+  return applyRun(p, {
+    floor: pend.floor,
+    kills: counted.kills,
+    generals: counted.generals,
+    boss: reason === "win" && counted.boss,
+    elapsedMs: elapsed,
+    party: body.party || 1,
+    reason,
+  }, rng);
 }

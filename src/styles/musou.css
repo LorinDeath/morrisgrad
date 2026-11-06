@@ -132,6 +132,7 @@ button { cursor: pointer; }
 .vitals { width: 180px; }
 .hp, .ms { height: 10px; background: #2a1418; border: 1px solid rgba(224,192,122,.35); margin-bottom: 4px; }
 .hp i { display: block; height: 100%; background: linear-gradient(90deg, #6a1818, #e24b3b); width: 100%; }
+#hp-num { display: block; font-size: 0.72rem; color: var(--gold-2); margin: -2px 0 4px; }
 .ms i { display: block; height: 100%; background: linear-gradient(90deg, #6a4a12, #ffd76a); width: 0%; }
 .ms span { font-size: 0.68rem; letter-spacing: 0.12em; color: var(--gold); }
 .skills { display: flex; gap: 6px; }

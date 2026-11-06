@@ -3,6 +3,7 @@ import { isLocalRequest, originAllowed } from "../limits";
 import { identify } from "../strat/ident";
 import { FriendStore } from "../meta/friends";
 import { loadProfile, saveProfile } from "./db";
+import { readPublishedTune } from "./admin";
 import {
   beginRun, buyOffer, claimQuest, equipItem, finishRun, mulberry32, refreshShop, salvage, setHero, spendStat, takeInbox, unequip,
   type HeroId, type Paper, type Stat,
@@ -42,7 +43,7 @@ export async function musouHttp(request: Request, env: any, path: string): Promi
     if (path === "/musou/hello") {
       const profile = await loadProfile(env.GAME_DB, id.key);
       if (!profile.hero) await saveProfile(env.GAME_DB, id.key, profile);
-      return Response.json({ profile, nick: id.nick, verified: id.verified }, { headers: cors });
+      return Response.json({ profile, nick: id.nick, verified: id.verified, tune: await readPublishedTune(env) }, { headers: cors });
     }
     if (path === "/musou/friends") return Response.json({ friends: await friendsOf(env, id.key) }, { headers: cors });
     if (path === "/musou/invite") return await invite(env, request, id.key, body, cors);

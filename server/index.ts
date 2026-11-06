@@ -11,6 +11,7 @@ import { chessHttp } from "./chess/http";
 import { MusouRoom } from "./musou/room";
 import { MusouIndex } from "./musou/hub";
 import { musouHttp } from "./musou/http";
+import { musouAdminHttp } from "./musou/admin";
 import type { Env } from "./types";
 import { fetchRoom } from "./meta/doRetry";
 
@@ -28,6 +29,7 @@ export default {
       // «Боевые шахматы»: отдельные DO ChessMatch / ChessIndex. Strat и GameRoom не затрагиваются.
       if (path.startsWith("/musou/")) {
         const e: any = env;
+        if (path === "/musou/tune" || path === "/musou/admin/tune" || path === "/musou/admin/rollback") return await musouAdminHttp(request, env);
         if (path === "/musou/hello" || path === "/musou/act" || path === "/musou/friends" || path === "/musou/invite") return await musouHttp(request, env, path);
         if (!e.MUSOU_ROOM || !e.MUSOU_INDEX) return new Response("not found", { status: 404 });
         const orda = MUSOU_ROOM_PATH.exec(path);

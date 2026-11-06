@@ -9,8 +9,10 @@ import {
 } from "./rules";
 import { Battle, type Btn } from "./sim";
 import { drawBattle, drawPortrait, type Cam } from "./draw";
+import { setTune, validateTune } from "./tune";
 
 const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const SITE = location.hostname === "morrisgrad.com" || location.hostname === "www.morrisgrad.com";
 const HTTP = (import.meta as any).env?.PUBLIC_MP_HTTP
   || (LOCAL ? "http://127.0.0.1:8787" : "https://morris-multiplayer.alexseylyou.workers.dev");
 const WS = HTTP.replace(/^http/, "ws");
@@ -411,8 +413,24 @@ async function connect(code: string) {
   ws.onerror = () => toast("Комната не открылась");
 }
 
+function applyPublished(raw: unknown) {
+  const v = validateTune(raw);
+  if (v.ok) setTune(v.tune);
+}
+
+async function pullTune() {
+  if (!(LOCAL || SITE)) return;
+  try {
+    const r = await fetch(HTTP + "/musou/tune", { method: "GET" });
+    if (!r.ok) return;
+    const j = await r.json();
+    applyPublished(j?.tune);
+  } catch { /* воркер молчит — остаются числа по умолчанию, без повторных ошибок */ }
+}
+
 async function startSolo(floor: number) {
   if (!floorOpen(profile, floor)) return toast("Этаж закрыт");
+  await pullTune();
   mirror = false;
   youId = "you";
   if (online) {
@@ -476,7 +494,9 @@ function resize() {
 function hud() {
   if (!battle) return;
   const me = battle.party.find((p) => p.id === youId) || battle.party[0];
-  $<HTMLElement>("hp").style.width = Math.max(0, me.hp / me.maxHp * 100) + "%";
+  const hpNow = Math.max(0, Math.ceil(me.hp));
+  $<HTMLElement>("hp").style.width = (me.maxHp > 0 ? hpNow / me.maxHp * 100 : 0) + "%";
+  $<HTMLElement>("hp-num").textContent = hpNow + " / " + me.maxHp;
   $<HTMLElement>("ms").style.width = me.musou + "%";
   const f = battle.floor;
   const wave = battle.wave < 3 ? `Волна ${battle.wave + 1}/3` : "Босс";
@@ -492,13 +512,15 @@ function hud() {
   });
 }
 
-function showResult(report: RunReport | null, phase: string) {
+function showResult(report: RunReport | null, phase: string, reason?: RunReport["reason"]) {
   battle = null;
   show("result");
-  const win = phase === "won";
+  const why = report?.reason || reason || (phase === "won" ? "win" : "dead");
+  const title = why === "win" ? "Этаж зачищен" : why === "surrender" ? "Сдача" : "Поражение";
   const items = report && "items" in report ? report.items : [];
-  $<HTMLElement>("v-result").innerHTML = `<h2>${win ? "Этаж зачищен" : "Этаж устоял"}</h2>
-  <p>${report && "gold" in report ? `+${report.gold} золота. ${report.note || ""}` : "Награда не засчитана."} Квесты закрываются в хабе.</p>
+  const pay = report && "gold" in report ? (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : "Награда не засчитана.";
+  $<HTMLElement>("v-result").innerHTML = `<h2>${title}</h2>
+  <p>${pay} Квесты, которые уже выполнены, сдаются в хабе.</p>
   <div class="result-grid">${items.map((n) => `<article class="loot${n.sold ? " sold" : ""}" style="border-color:${RARITY_COLOR[n.item.rarity]}"><b style="color:${RARITY_COLOR[n.item.rarity]}">${n.item.name}</b><div>${itemBlurb(n.item)}</div>${n.held ? "<div>Редкая вещь ждёт у входа в хаб — сумка была полна.</div>" : n.sold ? `<div>Обычная вещь не влезла и ушла за ${n.gold} золота.</div>` : n.item.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}</article>`).join("") || "<p>Трофеев нет. Генералы и босс оставляют вещь, если сумка пускает.</p>"}</div>
   <div class="row" style="margin-top:14px"><button class="btn gold" id="back-hub" type="button">В хаб</button></div>`;
   $<HTMLButtonElement>("back-hub").onclick = () => { renderHub(); show("hub"); };
@@ -508,19 +530,19 @@ async function endFight() {
   if (ended || !battle) return;
   ended = true;
   const b = battle;
-  const win = b.phase === "won";
+  const reason = b.reason === "surrender" ? "surrender" : b.phase === "won" && b.bossDown ? "win" : "dead";
   if (mirror) return;
   if (ws && ws.readyState === 1 && room) {
-    ws.send(JSON.stringify({ type: "end", nonce }));
+    ws.send(JSON.stringify({ type: "end", nonce, reason }));
     return;
   }
   if (online) {
-    const r = await act({ op: "finish", nonce, kills: b.kills, generals: b.genKills, boss: win, party: b.party.length });
-    showResult(r?.report || null, b.phase);
+    const r = await act({ op: "finish", nonce, kills: b.kills, generals: b.genKills, boss: reason === "win", reason, party: b.party.length });
+    showResult(r?.report || null, b.phase, reason);
   } else {
-    const r = finishRun(profile, { nonce, kills: b.kills, generals: b.genKills, boss: win, party: 1 }, Date.now(), mulberry32((Date.now() ^ b.kills) >>> 0));
+    const r = finishRun(profile, { nonce, kills: b.kills, generals: b.genKills, boss: reason === "win", reason, party: 1 }, Date.now(), mulberry32((Date.now() ^ b.kills) >>> 0));
     if (!("err" in r)) saveLocal();
-    showResult("err" in r ? null : r, b.phase);
+    showResult("err" in r ? null : r, b.phase, reason);
     if ("err" in r) toast(r.err);
   }
 }
@@ -582,6 +604,7 @@ function aimFrom(ev: { clientX: number; clientY: number }) {
 function bind() {
   $<HTMLButtonElement>("flee").onclick = () => {
     if (!battle) return;
+    battle.reason = "surrender";
     battle.phase = "lost";
     endFight();
   };
@@ -638,7 +661,8 @@ async function boot() {
   bind();
   show("boot");
   await clerkToken();
-  const hello = await api("/musou/hello", {});
+  const hello = (LOCAL || SITE) && !(window as any).__ordaHelloOnce ? ((window as any).__ordaHelloOnce = true, await api("/musou/hello", {})) : null;
+  if (hello?.tune) applyPublished(hello.tune);
   if (hello?.profile) {
     online = true;
     profile = normalize(hello.profile);
@@ -650,6 +674,7 @@ async function boot() {
   }
   if (!profile.hero) { renderPick(); show("pick"); }
   else { floorPick = Math.min(13, bestFloor(profile) + 1); renderHub(); show("hub"); }
+  (window as any).__orda = { get battle() { return battle; }, get profile() { return profile; } };
   requestAnimationFrame(loop);
 }
 

@@ -4,6 +4,7 @@ import {
   finishRun, killNeed, makeScript, mulberry32, newProfile, roomOutcome, setHero, sheet, shopOffers, spendStat, takeInbox,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
+import { DEFAULT_TUNE, eliteHp, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
 
 let fails = 0, n = 0;
 const ok = (c: unknown, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -95,6 +96,60 @@ const held = takeInbox(bagP, "bag");
 ok("err" in held && bagP.inbox.length === 1, "редкая вещь не растворяется, пока сумка полна");
 const sold = takeInbox(bagP, "sell");
 ok(!("err" in sold) && bagP.inbox.length === 0 && bagP.gold > 150, "редкую вещь можно продать явно");
+
+const giveUp = newProfile(5);
+setHero(giveUp, "lorin");
+const g0 = beginRun(giveUp, 1, 5000);
+const goldBefore = giveUp.gold;
+const gave = finishRun(giveUp, { nonce: (g0 as { nonce: string }).nonce, kills: 0, generals: 0, boss: true, reason: "surrender" }, 5000 + 40_000, mulberry32(5));
+ok(!("err" in gave) && gave.reason === "surrender" && gave.boss === false && gave.gold === 0 && giveUp.gold === goldBefore && !giveUp.clears[0], "сдача не платит базу и не засчитывает босса");
+
+const fell = newProfile(6);
+setHero(fell, "lorin");
+const f0 = beginRun(fell, 1, 8000);
+const loss = finishRun(fell, { nonce: (f0 as { nonce: string }).nonce, kills: 10, generals: 1, boss: true, reason: "dead" }, 8000 + 20_000, mulberry32(6));
+ok(!("err" in loss) && loss.reason === "dead" && loss.boss === false && !fell.clears[0] && loss.gold > 0 && loss.gold < 50, "поражение платит только за сбитых");
+
+const heroP2 = newProfile(8);
+setHero(heroP2, "lorin");
+const stand = new Battle(1, [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(heroP2) }], 11);
+let stood = 0;
+while (stood < 25) { stand.step(0.05); stood += 0.05; }
+ok(stand.phase === "fight" && stand.party[0].hp > 0 && stand.reason === "none", "стояние 25 секунд не завершает этаж");
+
+const die = new Battle(1, [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(heroP2) }], 3);
+let intro = 0;
+while (die.phase !== "fight" && intro < 4) { die.step(0.05); intro += 0.05; }
+die.party[0].hp = 0;
+die.party[0].revives = 0;
+die.party[0].downT = 99;
+die.step(0.05);
+ok(die.phase === "fight" && die.party[0].hp === 0, "нулевое здоровье видно до экрана итога");
+let corpse = 0;
+while (die.phase === "fight" && corpse < 3) { die.step(0.05); corpse += 0.05; }
+ok(die.phase === "lost" && die.reason === "dead", "после трупа исход — поражение");
+
+ok(previewTune(DEFAULT_TUNE).clearGold === 84 && previewTune(DEFAULT_TUNE).surrenderGold === 0, "этаж 1: зачистка 84 золота до толпы, сдача без целей — 0");
+ok(mobHp(0, 1) === 10 && eliteHp("boss", 1, 1) === 2120 && eliteHp("boss", 1, 4) === 2120, "здоровье толпы и босса по умолчанию не растёт от группы");
+const tuned = validateTune(JSON.parse(JSON.stringify({ ...DEFAULT_TUNE, combat: { ...DEFAULT_TUNE.combat, mobHp: [40, 5, 16], partyHpPerExtra: 0.35 } })));
+ok(tuned.ok, "набор с новым здоровьем проходит проверку");
+if (tuned.ok) setTune(tuned.tune);
+ok(mobHp(0, 1) === 42 && eliteHp("boss", 1, 4) === Math.round(2120 * 2.05), "следующий бой читает опубликованные числа");
+const junk = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+junk.economy.startGold = "150; DROP TABLE orda_saves";
+junk.sql = "DROP TABLE orda_saves";
+ok(!validateTune(junk).ok, "строка и лишнее поле не становятся правилом");
+resetTune();
+ok(mobHp(0, 1) === 10, "сброс набора возвращает числа кода");
+
+function armed(cursed: 0 | 1) {
+  const who = newProfile(12);
+  setHero(who, "lorin");
+  who.bag.push({ id: "c1", base: "blade", name: "Клинок", slot: "weapon", rarity: "common", req: 1, ilvl: 1, dmg: 20, armor: 0, affixes: [], ...(cursed ? { cursed: 1 as const } : {}) });
+  equipItem(who, "c1");
+  return sheet(who);
+}
+ok(armed(1).dmg > armed(0).dmg && armed(1).speed < armed(0).speed, "проклятие множит урон и режет скорость");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);
