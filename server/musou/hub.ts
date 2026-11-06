@@ -1,8 +1,10 @@
 // Реестр комнат «Орды», присутствие и приглашения. Сумки здесь нет — они в D1.
 import { DurableObject } from "cloudflare:workers";
-import { originAllowed, isLocalRequest } from "../limits";
+import { originAllowed, isLocalRequest, admitMessage, MSG_BURST } from "../limits";
 import { identify } from "../strat/ident";
 import { ordaKey } from "./http";
+import { loadProfile } from "./db";
+import { PLAZA_CAP, PLAZA_SHARDS, pickShard, plazaName } from "./plaza";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
@@ -21,6 +23,8 @@ export class MusouIndex extends DurableObject {
   lobs: Map<string, Lob> | null = null;
   pres: Map<string, Pres> | null = null;
   invites: Map<string, Inv> | null = null;
+  yard = new Map<string, { nick: string; hero: string; lvl: number; say: string; tag: string }>();
+  plazaCounts: Record<string, number> | null = null;
   constructor(ctx: any, env: any) { super(ctx, env); this.env = env; }
 
   async lobbies() {
@@ -42,6 +46,15 @@ export class MusouIndex extends DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/musou/p/")) return this.openPlaza(request, url);
+    if (url.hostname === "internal" && url.pathname === "/plaza") {
+      const b: any = await request.json().catch(() => ({}));
+      const counts = await this.shards();
+      const name = String(b.shard || "");
+      if (/^plaza-[0-7]$/.test(name)) counts[name] = Math.max(0, b.n | 0);
+      await this.ctx.storage.put("plazaCounts", counts);
+      return new Response("ok");
+    }
     if (url.hostname === "internal" && url.pathname === "/report") {
       const b: any = await request.json().catch(() => null);
       if (!b || !CODE_RE.test(b.code)) return new Response("bad", { status: 400 });
@@ -92,6 +105,14 @@ export class MusouIndex extends DurableObject {
       return Response.json({ err: "busy" }, { status: 503, headers: cors });
     }
 
+    if (url.pathname === "/musou/plaza") {
+      const counts = await this.shards();
+      const nums = Array.from({ length: PLAZA_SHARDS }, (_, i) => counts[plazaName(i)] | 0);
+      const pick = pickShard(nums);
+      if ("err" in pick) return Response.json({ err: pick.err, cap: PLAZA_CAP, shards: PLAZA_SHARDS }, { status: 503, headers: cors });
+      return Response.json({ shard: plazaName(pick.shard), n: pick.n, cap: PLAZA_CAP, shards: PLAZA_SHARDS }, { headers: cors });
+    }
+
     if (url.pathname === "/musou/open") {
       const m = await this.lobbies();
       const now = Date.now();
@@ -117,5 +138,102 @@ export class MusouIndex extends DurableObject {
     }
 
     return new Response("not found", { status: 404, headers: cors });
+  }
+
+  async shards() {
+    if (!this.plazaCounts) this.plazaCounts = (await this.ctx.storage.get("plazaCounts")) || {};
+    return this.plazaCounts!;
+  }
+
+  yardView(self?: string) {
+    return {
+      type: "yard",
+      cap: PLAZA_CAP,
+      shards: PLAZA_SHARDS,
+      you: self || "",
+      people: [...this.yard.values()].map((p) => ({ tag: p.tag, nick: p.nick, hero: p.hero, lvl: p.lvl, say: p.say })),
+    };
+  }
+
+  yardSend(ws: WebSocket, o: unknown) { try { ws.send(JSON.stringify(o)); } catch { /* closed */ } }
+
+  yardBroadcast() {
+    const body = JSON.stringify(this.yardView());
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() as { kind?: string; tag?: string };
+      if (a?.kind !== "plaza") continue;
+      try { ws.send(JSON.stringify(this.yardView(a.tag))); } catch { /* */ }
+    }
+    void body;
+  }
+
+  async yardReport(url: URL) {
+    const shard = url.pathname.split("/").pop() || "";
+    if (!this.env.MUSOU_INDEX) return;
+    const stub = this.env.MUSOU_INDEX.get(this.env.MUSOU_INDEX.idFromName("index"));
+    await stub.fetch("https://internal/plaza", { method: "POST", body: JSON.stringify({ shard, n: this.yard.size }) }).catch(() => {});
+  }
+
+  openPlaza(request: Request, url: URL) {
+    const local = isLocalRequest(request);
+    const origin = request.headers.get("Origin");
+    if (!originAllowed(this.env, origin, local)) return new Response("forbidden", { status: 403 });
+    if (request.headers.get("Upgrade") !== "websocket") {
+      return Response.json({ n: this.yard.size, cap: PLAZA_CAP });
+    }
+    const pair = new WebSocketPair();
+    this.ctx.acceptWebSocket(pair[1]);
+    pair[1].serializeAttachment({ kind: "plaza", url: request.url, tk: MSG_BURST, at: Date.now(), st: 0, said: 0 });
+    return new Response(null, { status: 101, webSocket: pair[0] });
+  }
+
+  async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
+    const a = ws.deserializeAttachment() as { kind?: string; url?: string; tk: number; at: number; st: number; pkey?: string; tag?: string; said?: number };
+    if (a?.kind !== "plaza") return;
+    const lim = { tokens: a.tk, at: a.at, strikes: a.st };
+    const vr = admitMessage(lim, raw, Date.now());
+    a.tk = lim.tokens; a.at = lim.at; a.st = lim.strikes;
+    ws.serializeAttachment(a);
+    if (vr !== "ok") { if (vr === "close") try { ws.close(1008, "flood"); } catch { /* */ } return; }
+    let m: any; try { m = JSON.parse(String(raw)); } catch { return; }
+    if (m.type === "hello") {
+      const id = await identify(this.env, a.url || "", m);
+      if ("err" in id) return this.yardSend(ws, { type: "err", err: id.err });
+      const key = ordaKey(id.pkey, id.verified);
+      if (!this.yard.has(key) && this.yard.size >= PLAZA_CAP) {
+        this.yardSend(ws, { type: "err", err: "Этот осколок двора полон" });
+        try { ws.close(1013, "full"); } catch { /* */ }
+        return;
+      }
+      const prof = await loadProfile(this.env.GAME_DB, key);
+      const tag = key.slice(-4);
+      this.yard.set(key, { nick: id.nick, hero: prof.hero || "lorin", lvl: prof.lvl | 0 || 1, say: this.yard.get(key)?.say || "", tag });
+      a.pkey = key; a.tag = tag;
+      ws.serializeAttachment(a);
+      this.yardSend(ws, { type: "you", tag });
+      this.yardBroadcast();
+      await this.yardReport(new URL(a.url || "https://internal/musou/p/plaza-0"));
+      return;
+    }
+    const me = a.pkey ? this.yard.get(a.pkey) : undefined;
+    if (!me) return;
+    if (m.type === "say") {
+      const now = Date.now();
+      if (now - (a.said || 0) < 2000) return;
+      const text = String(m.text || "").replace(/\s+/g, " ").trim().slice(0, 80);
+      if (text.length < 1) return;
+      a.said = now;
+      ws.serializeAttachment(a);
+      me.say = text;
+      this.yardBroadcast();
+    }
+  }
+
+  async webSocketClose(ws: WebSocket) {
+    const a = ws.deserializeAttachment() as { kind?: string; pkey?: string; url?: string };
+    if (a?.kind !== "plaza" || !a.pkey) return;
+    this.yard.delete(a.pkey);
+    this.yardBroadcast();
+    if (a.url) await this.yardReport(new URL(a.url));
   }
 }

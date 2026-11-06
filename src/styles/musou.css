@@ -96,6 +96,17 @@ button { cursor: pointer; }
 .dungeon .state.open { color: var(--gold-2); }
 .dungeon .state.lock { color: #ffb4a8; }
 .room-floors { flex-wrap: wrap; margin: 8px 0; }
+.yard { grid-column: 1 / -1; }
+.yard-people { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.yard-people .who { border: 1px solid var(--line); padding: 6px 8px; min-width: 140px; background: #12080c; }
+.yard-people .who.me { border-color: var(--gold-2); }
+.yard-people .who b { display: block; color: var(--gold-2); }
+.yard-people .who em { display: block; font-style: normal; }
+.compare { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.qcard { text-align: left; background: #12080c; border: 1px solid var(--line); color: var(--text); padding: 8px; display: grid; gap: 2px; font-size: 0.78rem; cursor: pointer; }
+.qcard.on { border-color: var(--gold-2); box-shadow: inset 0 0 0 1px var(--gold); }
+.qcard.lock { opacity: 0.78; }
+.qcard b { font-family: Cinzel, serif; color: var(--gold-2); }
 .diffs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .diffs .btn.lock { opacity: 0.72; }
 .offer { color: var(--text); font-size: 0.84rem; line-height: 1.45; margin: 0 0 10px; }
@@ -221,6 +232,7 @@ button { cursor: pointer; }
 }
 @media (max-width: 680px) {
   .hub, .pick-grid, .shop-grid { grid-template-columns: 1fr; }
+  .compare { grid-template-columns: 1fr 1fr; }
   .top { flex-wrap: wrap; row-gap: 6px; }
   .brand { flex: 1 1 100%; order: -1; }
   .pills { margin-left: auto; }

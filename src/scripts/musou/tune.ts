@@ -80,6 +80,10 @@ export type DiffTune = {
   rare: [number, number, number, number];
   leg: [number, number, number, number];
   affix: [number, number, number, number];
+  /** Прибавка к уровню вещи. Обычная — 0, кошмар не уходит за потолок 60. */
+  ilvl: [number, number, number, number];
+  /** Множитель урона, брони и чисел аффиксов. Это качество вещи, не шанс. */
+  budget: [number, number, number, number];
   curse: [number, number, number, number];
   ench: [number, number, number, number];
   chest: [number, number, number, number];
@@ -160,6 +164,8 @@ export const DEFAULT_TUNE: OrdaTune = {
     rare: [0, 0.07, 0.14, 0.22],
     leg: [0, 0, 0.03, 0.07],
     affix: [0, 1, 1, 2],
+    ilvl: [0, 2, 5, 8],
+    budget: [1, 1.18, 1.38, 1.62],
     curse: [1, 1.4, 1.8, 2.2],
     ench: [1, 1.4, 1.8, 2.2],
     chest: [0, 0, 1, 1],
@@ -341,7 +347,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
 
 const SIGS = new Set(["circle", "cone", "line", "curse", "summon"]);
 
-const DIFF_KEYS = ["need", "hp", "dmg", "gold", "xp", "rare", "leg", "affix", "curse", "ench", "chest"] as const;
+const DIFF_KEYS = ["need", "hp", "dmg", "gold", "xp", "rare", "leg", "affix", "ilvl", "budget", "curse", "ench", "chest"] as const;
 const DIFF_BOUND: Record<(typeof DIFF_KEYS)[number], Bound> = {
   need: { min: 1, max: 60, int: true },
   hp: { min: 1, max: 12 },
@@ -351,6 +357,8 @@ const DIFF_BOUND: Record<(typeof DIFF_KEYS)[number], Bound> = {
   rare: { min: 0, max: 0.4 },
   leg: { min: 0, max: 0.15 },
   affix: { min: 0, max: 3, int: true },
+  ilvl: { min: 0, max: 12, int: true },
+  budget: { min: 1, max: 1.8 },
   curse: { min: 1, max: 2.5 },
   ench: { min: 1, max: 2.5 },
   chest: { min: 0, max: 2, int: true },
@@ -362,6 +370,10 @@ function readDiff(raw: unknown): DiffTune | string {
   for (const k of Object.keys(rec)) if (!DIFF_KEYS.includes(k as (typeof DIFF_KEYS)[number])) return `лишнее поле diff.${k}`;
   const out = {} as DiffTune;
   for (const key of DIFF_KEYS) {
+    if (!(key in rec)) {
+      (out as any)[key] = [...DEFAULT_TUNE.diff[key]];
+      continue;
+    }
     const arr = rec[key];
     if (!Array.isArray(arr) || arr.length !== 4) return `diff.${key}: 4 числа, по сложности Тёмного мира`;
     const got: number[] = [];
@@ -375,7 +387,7 @@ function readDiff(raw: unknown): DiffTune | string {
   }
   if (out.need[0] !== 1) return "diff.need[0]: обычная сложность открыта с 1 уровня";
   for (let i = 1; i < 4; i++) if (out.need[i] <= out.need[i - 1]) return "diff.need: уровни строго растут";
-  if (out.hp[0] !== 1 || out.dmg[0] !== 1 || out.gold[0] !== 1 || out.xp[0] !== 1) return "обычная сложность держит множители ×1";
+  if (out.hp[0] !== 1 || out.dmg[0] !== 1 || out.gold[0] !== 1 || out.xp[0] !== 1 || out.budget[0] !== 1 || out.ilvl[0] !== 0) return "обычная сложность держит множители ×1 и не поднимает уровень вещи";
   return out;
 }
 
@@ -440,6 +452,8 @@ export function diffRow(n: number, t = active) {
     rare: d.rare[i],
     leg: d.leg[i],
     affix: d.affix[i] | 0,
+    ilvl: d.ilvl[i] | 0,
+    budget: d.budget[i],
     curse: d.curse[i],
     ench: d.ench[i],
     chest: d.chest[i] | 0,

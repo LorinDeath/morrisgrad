@@ -21,6 +21,7 @@ export { GameRoom, StratMatch, StratIndex, ChessMatch, ChessIndex, MusouRoom, Mu
 const STRAT_MATCH_PATH = /^\/strat\/m\/([A-HJ-NP-Z2-9]{6})$/;
 const CHESS_MATCH_PATH = /^\/chess\/m\/([A-HJ-NP-Z2-9]{6})$/;
 const MUSOU_ROOM_PATH = /^\/musou\/m\/([A-HJ-NP-Z2-9]{6})$/;
+const MUSOU_PLAZA_PATH = /^\/musou\/p\/(plaza-[0-7])$/;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -34,6 +35,8 @@ export default {
         if (!e.MUSOU_ROOM || !e.MUSOU_INDEX) return new Response("not found", { status: 404 });
         const orda = MUSOU_ROOM_PATH.exec(path);
         if (orda) return await fetchRoom(() => e.MUSOU_ROOM.get(e.MUSOU_ROOM.idFromName(orda[1])), request);
+        const plaza = MUSOU_PLAZA_PATH.exec(path);
+        if (plaza) return await fetchRoom(() => e.MUSOU_INDEX.get(e.MUSOU_INDEX.idFromName(plaza[1])), request);
         return await fetchRoom(() => e.MUSOU_INDEX.get(e.MUSOU_INDEX.idFromName("index")), request);
       }
       if (path.startsWith("/chess/")) {

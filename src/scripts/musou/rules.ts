@@ -659,33 +659,54 @@ function rarityRoll(rng: Rng, floor: number, shop: boolean): Rarity {
 
 function scaleBase(n: number, ilvl: number) { return Math.round(n * (1 + Math.max(0, ilvl - 1) * 0.08)); }
 
+export function dropQuality(lvl: number, floor: number, diff: number) {
+  const row = diffRow(diff);
+  const ilvl = Math.max(1, Math.min(60, Math.max(lvl | 0, Math.max(1, floor | 0) + 1) + (row.ilvl | 0)));
+  const budget = row.budget || 1;
+  return {
+    id: row.id, name: row.name, ilvl, budget, affix: row.affix,
+    dmg: Math.round(scaleBase(7, ilvl) * budget),
+    affixTop: Math.round((9 + Math.floor(ilvl / 8)) * budget),
+  };
+}
+
+function applyBudget(it: Item, budget: number) {
+  const b = budget > 0 ? budget : 1;
+  if (b === 1) return it;
+  it.dmg = Math.round(it.dmg * b);
+  it.armor = Math.round(it.armor * b);
+  it.affixes = it.affixes.map((a) => ({ ...a, val: Math.max(1, Math.round(a.val * b)) }));
+  return it;
+}
+
 export function itemPrice(it: Item) {
   const mult = { common: 1, magic: 3.1, rare: 8, legendary: 22, set: 16 }[it.rarity];
   return Math.max(20, Math.round((36 + it.ilvl * 11 + it.dmg * 3 + it.armor * 4) * mult));
 }
 export function salvageValue(it: Item) { return Math.max(1, Math.round(itemPrice(it) * 0.4)); }
 
-export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: boolean; rarity?: Rarity; id?: string; bare?: boolean; extraAffix?: number; curseMul?: number; enchMul?: number }): Item {
+export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: boolean; rarity?: Rarity; id?: string; bare?: boolean; extraAffix?: number; curseMul?: number; enchMul?: number; budget?: number }): Item {
   const ilvl = Math.max(1, Math.min(60, Math.round(o.ilvl)));
+  const budget = o.budget && o.budget > 0 ? o.budget : 1;
   const rarity = o.rarity || rarityRoll(rng, o.floor, !!o.shop);
   const slots = Object.keys(BASES) as Slot[];
   if (rarity === "legendary" && rng() < 0.75) {
     const u = UNIQUES[Math.floor(rng() * UNIQUES.length)];
-    return markItem({
+    return applyBudget(markItem({
       id: o.id || "x", base: u.id, name: u.name, slot: u.slot, rarity, ilvl, req: Math.max(1, ilvl - 2),
       dmg: scaleBase(u.dmg, ilvl), armor: scaleBase(u.armor, ilvl), unique: u.id,
       affixes: u.affixes.map((a) => ({ ...a })),
-    }, rng, !!o.shop, !!o.bare);
+    }, rng, !!o.shop, !!o.bare, o.curseMul, o.enchMul), budget);
   }
   if (rarity === "set") {
     const set = SETS[Math.floor(rng() * SETS.length)];
     const piece = rng() < 0.5 ? set.a : set.b;
     const base = BASES[piece.slot][0];
-    return markItem({
+    return applyBudget(markItem({
       id: o.id || "x", base: base.id, name: piece.name, slot: piece.slot, rarity, ilvl,
       req: Math.max(1, ilvl - 2), dmg: scaleBase(base.dmg + 3, ilvl), armor: scaleBase(base.armor + 2, ilvl),
-      set: set.id, affixes: fillAffixes(rng, ilvl, 2),
-    }, rng, !!o.shop, !!o.bare);
+      set: set.id, affixes: fillAffixes(rng, ilvl, 2 + extraAffixOf(o)),
+    }, rng, !!o.shop, !!o.bare, o.curseMul, o.enchMul), budget);
   }
   const slot = slots[Math.floor(rng() * slots.length)];
   const base = BASES[slot][Math.floor(rng() * BASES[slot].length)];
@@ -697,10 +718,14 @@ export function rollItem(rng: Rng, o: { ilvl: number; floor: number; shop?: bool
   if (rarity === "rare" || rarity === "legendary") {
     name = `${PREFIX[Math.floor(rng() * PREFIX.length)]} ${base.name.toLowerCase()} ${SUFFIX[Math.floor(rng() * SUFFIX.length)]}`;
   }
-  return markItem({
+  return applyBudget(markItem({
     id: o.id || "x", base: base.id, name, slot, rarity, ilvl, req: Math.max(1, ilvl - 3),
     dmg: scaleBase(base.dmg, ilvl), armor: scaleBase(base.armor, ilvl), affixes,
-  }, rng, !!o.shop, !!o.bare, o.curseMul, o.enchMul);
+  }, rng, !!o.shop, !!o.bare, o.curseMul, o.enchMul), budget);
+}
+
+function extraAffixOf(o: { extraAffix?: number }) {
+  return Math.max(0, Math.min(3, o.extraAffix | 0));
 }
 
 function markItem(it: Item, rng: Rng, shop: boolean, bare = false, curseMul = 1, enchMul = 1): Item {
@@ -957,10 +982,11 @@ function chestGate(p: Profile, index: number): string | null {
 function chestBase(p: Profile, rng: Rng): Item {
   const diff = p.pending?.diff || 1;
   const row = diffRow(diff);
+  const q = dropQuality(p.lvl, p.pending?.floor || 1, diff);
   return rollItem(rng, {
-    ilvl: Math.max(1, p.lvl), floor: p.pending?.floor || 1, bare: true,
+    ilvl: q.ilvl, floor: p.pending?.floor || 1, bare: true, budget: q.budget,
     rarity: clearRarity(rng, p.pending?.floor || 1, diff, false),
-    extraAffix: row.affix,
+    extraAffix: row.affix, curseMul: row.curse, enchMul: row.ench,
   });
 }
 
@@ -1056,10 +1082,11 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
   const levels = xp > 0 ? addXp(p, xp) : 0;
   const items: LootNote[] = [];
   if (cleared) {
+    const q = dropQuality(p.lvl, floor, row.id);
     const rarity = clearRarity(rng, floor, row.id, replay);
     items.push(giveItem(p, rollItem(rng, {
-      ilvl: Math.max(p.lvl, floor + 1), floor, rarity,
-      extraAffix: row.affix, curseMul: row.curse, enchMul: row.ench,
+      ilvl: q.ilvl, floor, rarity, budget: q.budget,
+      extraAffix: q.affix, curseMul: row.curse, enchMul: row.ench,
     })));
   }
   const partial = v.kills + v.generals > 0

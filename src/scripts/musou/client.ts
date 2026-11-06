@@ -2,7 +2,7 @@
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, diffLock, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer,
+  finishRun, diffLock, dropQuality, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
   type ChestPick, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
@@ -44,6 +44,8 @@ if (guest.length < 16) {
 }
 let token = "";
 let ws: WebSocket | null = null;
+let yardSock: WebSocket | null = null;
+let yardSnap: { shard?: string; cap: number; you: string; people: { tag: string; nick: string; lvl: number; say: string }[] } | null = null;
 let room: { code: string; host: boolean; seats: { id: string; nick: string; hero: string }[] } | null = null;
 let youId = "you";
 let mirror = false;
@@ -182,6 +184,62 @@ function offerText(floor: number, diff: number) {
     o.why || "",
   ].filter(Boolean).join(" ");
 }
+function compareHtml(floor: number) {
+  return `<div class="compare">${[1, 2, 3, 4].map((id) => {
+    const q = dropQuality(profile.lvl, floor, id);
+    const why = diffLock(profile, floor, id);
+    const need = runOffer(profile, floor, id).need;
+    return `<button type="button" class="qcard${diffPick === id ? " on" : ""}${why ? " lock" : ""}" data-diff="${id}"><b>${q.name}</b><span>вещь ур. ${q.ilvl}</span><span>клинок ${q.dmg}</span><span>потолок аффикса ${q.affixTop}</span><span>бюджет ×${q.budget}</span><span>аффиксов +${q.affix}</span><em>${why ? `с уровня ${need}` : "открыта"}</em></button>`;
+  }).join("")}</div>`;
+}
+
+function paintYard() {
+  const meta = document.getElementById("yard-meta");
+  const box = document.getElementById("yard-people");
+  if (!meta || !box || !yardSnap) return;
+  meta.textContent = `${yardSnap.shard || "осколок"} · ${yardSnap.people.length} из ${yardSnap.cap}. Восемь осколков двора, комната забега на 2–4.`;
+  box.innerHTML = yardSnap.people.length
+    ? yardSnap.people.map((p) => `<div class="who${p.tag === yardSnap!.you ? " me" : ""}"><b>${p.nick}</b><span>ур. ${p.lvl}</span>${p.say ? `<em>${p.say}</em>` : ""}</div>`).join("")
+    : "<p>На этом осколке пока тихо.</p>";
+}
+
+function bindYard() {
+  const form = document.getElementById("yard-say") as HTMLFormElement | null;
+  if (!form) return;
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const input = document.getElementById("yard-text") as HTMLInputElement;
+    const text = input.value.trim();
+    if (!text || yardSock?.readyState !== WebSocket.OPEN) return;
+    yardSock.send(JSON.stringify({ type: "say", text }));
+    input.value = "";
+  };
+}
+
+async function ensureYard() {
+  if (yardSock && (yardSock.readyState === WebSocket.OPEN || yardSock.readyState === WebSocket.CONNECTING)) return;
+  const info = await api("/musou/plaza", {});
+  if (!info?.shard) {
+    const meta = document.getElementById("yard-meta");
+    if (meta && info?.err) meta.textContent = `${info.err}. Забег остаётся комнатой на 2–4.`;
+    return;
+  }
+  const sock = new WebSocket(WS + "/musou/p/" + info.shard);
+  yardSock = sock;
+  sock.onopen = () => sock.send(JSON.stringify({ type: "hello", token, guest: token ? undefined : guest, nick }));
+  sock.onmessage = (ev) => {
+    const m = JSON.parse(String(ev.data));
+    if (m.type === "you" && yardSnap) yardSnap.you = m.tag;
+    if (m.type === "yard") yardSnap = { ...m, shard: info.shard, you: m.you || yardSnap?.you || "" };
+    if (m.type === "yard" || m.type === "you") paintYard();
+    if (m.type === "err") {
+      toast(m.err || "Двор не пустил");
+      if (/полон/.test(String(m.err || ""))) { yardSock = null; try { sock.close(); } catch { /* */ } setTimeout(() => { void ensureYard(); }, 400); }
+    }
+  };
+  sock.onclose = () => { if (yardSock === sock) yardSock = null; };
+}
+
 function goLabel(floor: number, diff: number) {
   const why = diffLock(profile, floor, diff);
   const name = FLOORS[floor - 1]?.name || "Данж";
@@ -200,6 +258,12 @@ function renderHub() {
   const root = $<HTMLElement>("v-hub");
   root.innerHTML = `
   <div class="hub">
+    <section class="panel yard" id="yard">
+      <h2>Двор обители</h2>
+      <p class="derived" id="yard-meta">Ищем осколок двора. Забег по-прежнему на 2–4.</p>
+      <div id="yard-people" class="yard-people"></div>
+      <form id="yard-say" class="row"><input id="yard-text" maxlength="80" placeholder="Короткая реплика двору" autocomplete="off"><button class="btn" type="submit">Сказать</button></form>
+    </section>
     <section class="panel">
       <h2>${hero.name}</h2>
       <div class="tag">${hero.title} · ${hero.faction}</div>
@@ -232,6 +296,7 @@ function renderHub() {
         const why = diffLock(profile, openF, id);
         return `<button type="button" class="btn${diffPick === id ? " gold" : ""}${why ? " lock" : ""}" data-diff="${id}">${name}${why ? ` · ур. ${runOffer(profile, openF, id).need}` : ""}</button>`;
       }).join("")}</div>
+      ${compareHtml(openF)}
       <p class="offer">${offerText(openF, diffPick)}</p>
       <div class="row" style="margin-bottom:12px"><button class="btn gold" id="go-floor" type="button" ${diffLock(profile, openF, diffPick) ? "disabled" : ""}>${goLabel(openF, diffPick)}</button></div>
       <p class="dungeon-lead"><b>${FLOORS[openF - 1].name}</b> — ${FLOORS[openF - 1].desc}</p>
@@ -336,6 +401,9 @@ function renderHub() {
   $<HTMLButtonElement>("open-party").onclick = () => openParty();
   $<HTMLButtonElement>("open-friends").onclick = () => openFriends();
   $<HTMLButtonElement>("go-floor").onclick = () => startSolo(openF);
+  bindYard();
+  paintYard();
+  void ensureYard();
   paintPills();
   $<HTMLElement>("net-pill").classList.toggle("warn", !online);
   requestAnimationFrame(paintPicks);

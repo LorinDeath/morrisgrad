@@ -1,9 +1,10 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, diffLock, floorLock, floorNeed, floorOpen, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, roomOutcome, runOffer, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
+  finishRun, diffLock, dropQuality, floorLock, floorNeed, floorOpen, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, rollItem, roomOutcome, runOffer, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
+import { pickShard } from "./plaza";
 import { DEFAULT_TUNE, DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, floorMut, getTune, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
 
 let fails = 0, n = 0;
@@ -432,6 +433,33 @@ const nightmare = new Battle(1, member, 5, 4);
 let walked = 0;
 while (calm.phase !== "fight" && walked < 3) { calm.step(0.05); nightmare.step(0.05); walked += 0.05; }
 ok(calm.lastMobHp > 0 && nightmare.lastMobHp === calm.lastMobHp * 12 && nightmare.chests.length === calm.chests.length + 1, "в бою кошмарная тварь ×12 и сундук на один больше");
+
+const bareDiff = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+delete bareDiff.diff.ilvl;
+delete bareDiff.diff.budget;
+const bareOk = validateTune(bareDiff);
+ok(bareOk.ok && bareOk.tune.diff.ilvl.join() === "0,2,5,8" && bareOk.tune.diff.budget.join() === "1,1.18,1.38,1.62", "старый набор сложностей получает уровень вещи и бюджет");
+const q1 = dropQuality(12, 2, 1);
+const q2 = dropQuality(12, 2, 2);
+const q3 = dropQuality(12, 2, 3);
+const q4 = dropQuality(12, 2, 4);
+ok(q1.ilvl < q2.ilvl && q2.ilvl < q3.ilvl && q3.ilvl < q4.ilvl && q1.dmg < q2.dmg && q2.dmg < q3.dmg && q3.dmg < q4.dmg && q1.affixTop < q4.affixTop, "качество вещи растёт по четырём сложностям");
+const cap1 = dropQuality(60, 13, 1);
+const cap4 = dropQuality(60, 13, 4);
+ok(cap1.ilvl === 60 && cap4.ilvl === 60 && cap4.dmg > cap1.dmg && cap4.affixTop > cap1.affixTop, "на 60 уровне кошмар сильнее бюджетом, уровень вещи упирается в потолок");
+const lowGear = rollItem(mulberry32(11), { ilvl: q1.ilvl, floor: 2, rarity: "rare", bare: true, budget: 1 });
+const highGear = rollItem(mulberry32(11), { ilvl: q4.ilvl, floor: 2, rarity: "rare", bare: true, budget: q4.budget, extraAffix: q4.affix });
+ok(highGear.ilvl > lowGear.ilvl && highGear.dmg + highGear.armor > lowGear.dmg + lowGear.armor && highGear.affixes.length > lowGear.affixes.length, "тот же посев на кошмаре даёт вещь выше уровнем, статами и числом аффиксов");
+const smith = newProfile(77);
+setHero(smith, "lorin");
+smith.lvl = 12;
+const forged = beginRun(smith, 2, 8000, undefined, false, 2);
+const forgedRun = !("err" in forged) ? finishRun(smith, { nonce: forged.nonce, reason: "win", boss: true, diff: 1 }, 8000 + 40_000, mulberry32(15), { kills: killNeed(2), generals: 1, boss: true }) : forged;
+const wantIlvl = dropQuality(12, 2, 2).ilvl;
+ok(!("err" in forgedRun) && forgedRun.items[0].item.ilvl === wantIlvl && wantIlvl === 14 && forgedRun.diff === 2, "итог сложной пишет уровень вещи из забега, а не из тела запроса");
+const roomy = pickShard([24, 24, 3, 0, 0, 0, 0, 0]);
+const packed = pickShard([24, 24, 24, 24, 24, 24, 24, 24]);
+ok("shard" in roomy && roomy.shard === 3 && "err" in packed && packed.err === "Двор обители полон", "двор сажает на самый свободный осколок и закрывается, когда все места заняты");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);
