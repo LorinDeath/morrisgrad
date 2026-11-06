@@ -157,7 +157,7 @@ const title = "Орда · набор чисел";
       `Ближняя тварь: ${p.mobHp} здоровья`,
       `Босс соло: ${p.bossHpSolo}`,
       `Босс вчетвером: ${p.bossHpParty4}`,
-      `Кошмар, босс соло: ${p.bossNightmare}`,
+      `Чёрный, босс соло: ${p.bossBlack}`,
       `Опыт до 2 уровня: ${p.xp1}`,
       `Скорость с проклятой вещью: ×${p.curseSpeed}`,
     ].join("\n");
@@ -215,7 +215,7 @@ const title = "Орда · набор чисел";
     names.append(area);
     buckets.mark.append(names);
     const diffLab = document.createElement("label");
-    diffLab.textContent = "Сложности: Обычная, Сложная, Героическая, Кошмар. need, hp, dmg, gold, xp, rare, leg, affix, curse, ench, chest";
+    diffLab.textContent = "Цепочка чар: Базовая, Необычный, Редкий, Странный, Легендарный, Божественный, Чёрный. По 7 чисел: hp, dmg, gold, xp, rare, leg, affix, ilvl, budget, curse, ench, chest, lower, near, soak, regen. Имена и цвета не меняются.";
     const diffBox = document.createElement("textarea");
     diffBox.id = "diffs";
     diffBox.rows = 8;

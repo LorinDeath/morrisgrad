@@ -2,14 +2,14 @@
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, diffLock, dropQuality, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer,
+  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, mulberry32, newProfile, runOffer,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
   type ChestPick, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
 } from "./rules";
 import { Battle, type Btn } from "./sim";
 import { drawBattle, drawPortrait, type Cam } from "./draw";
-import { DIFF_NAME, floorMut, getTune, setTune, validateTune } from "./tune";
+import { DIFF_CHAIN, DIFF_NAME, floorMut, getTune, setTune, validateTune } from "./tune";
 
 const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const SITE = location.hostname === "morrisgrad.com" || location.hostname === "www.morrisgrad.com";
@@ -175,21 +175,27 @@ function pct(n: number) { return `${Math.round(n * 100)}%`; }
 function offerText(floor: number, diff: number) {
   const o = runOffer(profile, floor, diff, 1);
   const four = runOffer(profile, floor, diff, 4);
+  const q = dropQuality(profile.lvl, floor, diff);
   const tune = getTune();
+  const act = { none: "без особого приёма", mend: "раны затягиваются", plate: "броня гасит удар", blink: "скачок к герою", brand: "клеймо бьёт линией", nova: "кольцо волны", killer: "рывок, проклятие и призыв" }[o.act] || o.act;
   return [
-    `${o.name}: враги ×${o.hp}, урон ×${o.dmg}. Тварь ${o.mobHp}, босс ${o.bossHp} здоровья и ${o.bossDmg} урона.`,
-    `Первый проход: ${o.goldFirst} золота этажа и ${o.xpFirst} опыта данжа. Повтор: ${o.goldReplay} золота и ${o.xpReplay} опыта.`,
-    `Редкость до ${pct(o.rare)}, легендарное ${pct(o.leg)}, аффиксов +${o.affix}. Проклятие ${pct(o.curse)}, чары ${pct(o.ench)}, сундуков ${o.chests}.`,
-    `Вчетвером босс ${four.bossHp} здоровья (за союзника +${tune.combat.partyHpPerExtra}, потолок ×${tune.combat.partyHpCap}), золото группы ×${o.partyGold}. Награда этой сложности, не уровня старшего.`,
+    `${o.icon} ${o.name}. ${o.lore} Приём: ${act}.`,
+    `Сейчас в наборе, не обещание баланса: твари ×${o.hp} здоровья и ×${o.dmg} урона. Тварь около ${o.mobHp}, босс около ${o.bossHp} здоровья и ${o.bossDmg} урона.`,
+    `Реген около ${(o.regen * 100).toFixed(1)}% в секунду, броня гасит около ${pct(o.soak)}. Первый проход около ${o.goldFirst} золота и ${o.xpFirst} опыта, повтор около ${o.goldReplay} и ${o.xpReplay}.`,
+    `Добыча не называет конкретную вещь. Свой ярус или младше, младший около ${pct(o.lower)}. Клинок этого яруса около ${q.dmg}, уровень вещи около ${q.ilvl}, аффиксов +${o.affix}. Редкость до ${pct(o.rare)}, легендарное ${pct(o.leg)}, сундуков ${o.chests}.`,
+    `Вчетвером босс около ${four.bossHp} здоровья (за союзника +${tune.combat.partyHpPerExtra}, потолок ×${tune.combat.partyHpCap}), золото группы ×${o.partyGold}. Награда своя у каждого.`,
     o.why || "",
   ].filter(Boolean).join(" ");
 }
 function compareHtml(floor: number) {
-  return `<div class="compare">${[1, 2, 3, 4].map((id) => {
+  const board = chainAt(profile, floor);
+  const done = board > 0 ? `Доска этого героя: пройдено до «${DIFF_NAME[board - 1]}».` : "Доска этого героя: на этом данже ещё нет пройденного цвета.";
+  return `<p class="derived">${done} Следующий цвет открывает прохождение предыдущего.</p><div class="chain">${DIFF_CHAIN.map((step, i) => {
+    const id = i + 1;
     const q = dropQuality(profile.lvl, floor, id);
-    const why = diffLock(profile, floor, id);
-    const need = runOffer(profile, floor, id).need;
-    return `<button type="button" class="qcard${diffPick === id ? " on" : ""}${why ? " lock" : ""}" data-diff="${id}"><b>${q.name}</b><span>вещь ур. ${q.ilvl}</span><span>клинок ${q.dmg}</span><span>потолок аффикса ${q.affixTop}</span><span>бюджет ×${q.budget}</span><span>аффиксов +${q.affix}</span><em>${why ? `с уровня ${need}` : "открыта"}</em></button>`;
+    const o = runOffer(profile, floor, id);
+    const ink = step.color === "#0a0a0a" ? "#f4f4f5" : step.color;
+    return `<button type="button" class="dcard${diffPick === id ? " on" : ""}${o.why ? " lock" : ""}" data-diff="${id}" style="--sw:${ink}"><b style="color:${ink}">${step.icon} ${step.name}</b><span>${o.why ? "закрыта" : "открыта"}</span><span>×${o.hp} / ×${o.dmg}</span><span>вещь ур. ${q.ilvl}</span><span>младший ${pct(o.lower)}</span></button>`;
   }).join("")}</div>`;
 }
 
@@ -244,7 +250,7 @@ function goLabel(floor: number, diff: number) {
   const why = diffLock(profile, floor, diff);
   const name = FLOORS[floor - 1]?.name || "Данж";
   const mode = DIFF_NAME[(diff | 0) - 1] || DIFF_NAME[0];
-  if (why) return floorLock(profile, floor) ? `Закрыто до уровня ${floorNeed(floor)}` : `«${mode}» с уровня ${runOffer(profile, floor, diff).need}`;
+  if (why) return floorLock(profile, floor) ? `Закрыто до уровня ${floorNeed(floor)}` : `«${mode}» после предыдущего цвета`;
   return `${(profile.clears[floor - 1] || 0) > 0 ? "Ещё раз" : "В бой"} · ${name} · ${mode}`;
 }
 
@@ -294,7 +300,8 @@ function renderHub() {
       <div class="diffs">${DIFF_NAME.map((name, i) => {
         const id = i + 1;
         const why = diffLock(profile, openF, id);
-        return `<button type="button" class="btn${diffPick === id ? " gold" : ""}${why ? " lock" : ""}" data-diff="${id}">${name}${why ? ` · ур. ${runOffer(profile, openF, id).need}` : ""}</button>`;
+        const ink = DIFF_CHAIN[i].color === "#0a0a0a" ? "#f4f4f5" : DIFF_CHAIN[i].color;
+        return `<button type="button" class="btn${diffPick === id ? " gold" : ""}${why ? " lock" : ""}" data-diff="${id}" style="border-color:${ink};color:${ink}">${DIFF_CHAIN[i].icon} ${name}${why ? " · закрыта" : ""}</button>`;
       }).join("")}</div>
       ${compareHtml(openF)}
       <p class="offer">${offerText(openF, diffPick)}</p>
@@ -516,9 +523,8 @@ async function connect(code: string, fromDrop = false) {
     if (m.type === "lobby") {
       room = { code: m.code, host: m.hostId === youId, seats: m.seats };
       const box = $<HTMLElement>("room-box");
-      const need = m.need | 0;
       const mode = m.diff | 0 || 1;
-      const low = (m.seats as { nick: string; lvl?: number; passed?: boolean }[]).filter((s) => memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode));
+      const low = (m.seats as { nick: string; lvl?: number; passed?: boolean; chain?: number }[]).filter((s) => memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode, s.chain | 0));
       const chips = room.host ? FLOORS.filter((f) => floorOpen(profile, f.n)).map((f) => {
         const passed = (profile.clears[f.n - 1] || 0) > 0;
         const on = (m.floor | 0) === f.n;
@@ -530,7 +536,7 @@ async function connect(code: string, fromDrop = false) {
         return `<button type="button" class="btn${mode === id ? " gold" : ""}" data-room-diff="${id}" ${why ? "disabled" : ""}>${name}</button>`;
       }).join("") : "";
       const offer = runOffer(profile, m.floor | 0 || 1, mode, Math.max(1, m.seats.length));
-      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · ${DIFF_NAME[mode - 1] || "Обычная"}. Уровень этажа ${need}, сложность с ${offer.need}.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}${modes ? `<div class="diffs">${modes}</div>` : ""}<p class="offer">Босс ${offer.bossHp} здоровья и ${offer.bossDmg} урона. Первый проход ${offer.goldFirst} золота и ${offer.xpFirst} опыта, повтор ${offer.goldReplay} и ${offer.xpReplay}. Сундуков ${offer.chests}, проклятие ${Math.round(offer.curse * 100)}%, чары ${Math.round(offer.ench * 100)}%. Золото группы ×${offer.partyGold}. Выше сложности, которую не открыл кто-то из группы, старт не идёт.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode) ? " · не дотягивает" : s.passed ? " · пройден" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">В группе не хватает уровня: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Уровень и сложность группы проверяет сервер.</p>"}`;
+      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · ${DIFF_NAME[mode - 1] || "Базовая"}.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}${modes ? `<div class="diffs">${modes}</div>` : ""}<p class="offer">${offer.lore} Босс около ${offer.bossHp} здоровья и ${offer.bossDmg} урона. Первый проход этого цвета около ${offer.goldFirst} золота и ${offer.xpFirst} опыта, повтор около ${offer.goldReplay} и ${offer.xpReplay}. Младший ярус около ${Math.round(offer.lower * 100)}%. Старт идёт, только если цвет открыт у каждого.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0} · до «${(s.chain | 0) > 0 ? DIFF_NAME[(s.chain | 0) - 1] : "нет"}»${memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode, s.chain | 0) ? " · цвет закрыт" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">Цвет закрыт у: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Сервер сверяет цепочку каждого.</p>"}`;
       $<HTMLButtonElement>("room-start") && ($<HTMLButtonElement>("room-start").onclick = () => ws?.send(JSON.stringify({ type: "start" })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-floor]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "floor", floor: Number(b.dataset.roomFloor) })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-diff]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "diff", diff: Number(b.dataset.roomDiff) })));

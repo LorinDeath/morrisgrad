@@ -4,10 +4,10 @@ import { identify } from "../strat/ident";
 import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limits";
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
-import { beginRun, clampStrike, diffLock, finishRun, floorByN, floorNeed, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
+import { beginRun, chainAt, clampStrike, diffLock, finishRun, floorByN, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
 import { diffRow, eliteHp, eliteName, floorKit, getTune } from "../../src/scripts/musou/tune";
 
-type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[] };
+type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[]; chain?: number[] };
 type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number };
 type Lob = {
   code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; diff: number; nonce: string; started: number;
@@ -66,6 +66,7 @@ export class MusouRoom extends DurableObject {
       seats: L.seats.map((s) => ({
         id: s.pkey, nick: s.nick, hero: s.hero, lvl: s.lvl | 0,
         passed: !!(s.passed && s.passed[(L.floor | 0) - 1]),
+        chain: chainAt({ chain: s.chain, clears: (s.passed || []).map((x) => x ? 1 : 0) }, L.floor),
         online: this.ctx.getWebSockets().some((w) => w !== skip && (w.deserializeAttachment() as Att)?.pkey === s.pkey),
       })),
       need: floorNeed(L.floor),
@@ -91,7 +92,7 @@ export class MusouRoom extends DurableObject {
         if (L.phase !== "lobby" || L.seats.length >= 4) return this.send(ws, { type: "err", err: "Комната полна или бой уже идёт" });
         const prof = await loadProfile(this.env.GAME_DB, key);
         if (!prof.hero) return this.send(ws, { type: "err", err: "Сначала выбери героя" });
-        seat = { pkey: key, nick: id.nick, hero: prof.hero, verified: id.verified, dmg: 8, lvl: prof.lvl | 0, passed: prof.clears.map((c) => c > 0) };
+        seat = { pkey: key, nick: id.nick, hero: prof.hero, verified: id.verified, dmg: 8, lvl: prof.lvl | 0, passed: prof.clears.map((c) => c > 0), chain: prof.chain };
         L.seats.push(seat);
         if (!L.host) L.host = key;
       } else {
@@ -99,6 +100,7 @@ export class MusouRoom extends DurableObject {
         const prof = await loadProfile(this.env.GAME_DB, key);
         seat.lvl = prof.lvl | 0;
         seat.passed = prof.clears.map((c) => c > 0);
+        seat.chain = prof.chain;
       }
       a.pkey = key;
       ws.serializeAttachment(a);
@@ -120,6 +122,7 @@ export class MusouRoom extends DurableObject {
       const prof = await loadProfile(this.env.GAME_DB, seat.pkey);
       seat.lvl = prof.lvl | 0;
       seat.passed = prof.clears.map((c) => c > 0);
+      seat.chain = prof.chain;
       const lock = floorLock(prof, n);
       if (lock) return this.send(ws, { type: "err", err: lock });
       L.floor = n;
@@ -135,6 +138,7 @@ export class MusouRoom extends DurableObject {
       const prof = await loadProfile(this.env.GAME_DB, seat.pkey);
       seat.lvl = prof.lvl | 0;
       seat.passed = prof.clears.map((c) => c > 0);
+      seat.chain = prof.chain;
       const lock = diffLock(prof, L.floor, d);
       if (lock) return this.send(ws, { type: "err", err: lock });
       L.diff = diffRow(d).id;
@@ -171,21 +175,21 @@ export class MusouRoom extends DurableObject {
     const now = Date.now();
     const nonce = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const party: any[] = [];
-    const need = floorNeed(L.floor);
     const short: string[] = [];
     const loaded: { s: Seat; p: Awaited<ReturnType<typeof loadProfile>> }[] = [];
     for (const s of L.seats) {
       const p = await loadProfile(this.env.GAME_DB, s.pkey);
       s.lvl = p.lvl | 0;
       s.passed = p.clears.map((c) => c > 0);
+      s.chain = p.chain;
       loaded.push({ s, p });
-      const why = memberDiffLock(p.lvl | 0, (p.clears[L.floor - 1] || 0) > 0, L.floor, L.diff || 1);
-      if (why) short.push(`${s.nick} ур. ${p.lvl}`);
+      const why = memberDiffLock(p.lvl | 0, (p.clears[L.floor - 1] || 0) > 0, L.floor, L.diff || 1, chainAt(p, L.floor));
+      if (why) short.push(`${s.nick}: ${why}`);
     }
     if (short.length) {
       const f = floorByN(L.floor);
       const row = diffRow(L.diff || 1);
-      return this.broadcast({ type: "err", err: `«${f.name}», сложность «${row.name}» (уровень этажа ${need}, сложность с ${row.need}). Не дотягивают: ${short.join(", ")}.` });
+      return this.broadcast({ type: "err", err: `«${f.name}», «${row.name}» не для всей группы. ${short.join(" ")}` });
     }
     for (const { s, p } of loaded) {
       const opened = beginRun(p, L.floor, now, nonce, s.pkey !== L.host, L.diff || 1);

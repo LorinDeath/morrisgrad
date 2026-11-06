@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  finishRun, diffLock, dropQuality, floorLock, floorNeed, floorOpen, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, rollItem, roomOutcome, runOffer, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
+  finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, killNeed, makeScript, memberDiffLock, mulberry32, newProfile, rollDropTier, rollItem, roomOutcome, runOffer, setHero, setOath, sheet, shopOffers, spendStat, takeInbox,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
 import { pickShard } from "./plaza";
@@ -332,40 +332,38 @@ ok("err" in still && still.err === "Награда уже взята", "квес
 const oldTune = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 delete oldTune.diff;
 const oldOk = validateTune(oldTune);
-ok(oldOk.ok && oldOk.tune.diff.hp[3] === 12 && oldOk.tune.diff.need[1] === 10, "старый набор получает четыре сложности Тёмного мира");
+ok(oldOk.ok && oldOk.tune.diff.hp.length === 7 && oldOk.tune.diff.hp[1] === 1.5 && oldOk.tune.diff.hp[6] === 20 && oldOk.tune.diff.lower[0] === 0 && oldOk.tune.diff.lower[6] === 0.6, "набор без сложностей получает цепочку чар до чёрной");
 const chaos = JSON.parse(JSON.stringify(DEFAULT_TUNE));
-chaos.diff.hp[3] = 360;
-ok(!validateTune(chaos).ok, "×360 сложности правило не пускает");
-ok(DIFF_NAME.join(",") === "Обычная,Сложная,Героическая,Кошмар", "имена сложностей взяты из Тёмного мира");
+chaos.diff.hp[6] = 40;
+ok(!validateTune(chaos).ok, "×40 здоровья чёрной правило не пускает");
+const short = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+short.diff.hp = [1, 2, 3, 4];
+ok(!validateTune(short).ok, "четыре старые ступени больше не считаются цепочкой");
+ok(DIFF_NAME.join(",") === "Базовая,Необычный,Редкий,Странный,Легендарный,Божественный,Чёрный", "имена и порядок — ярусы чар Проклятых");
 
 let matrix = true;
+const ratiosHp = DEFAULT_TUNE.diff.hp;
+const ratiosDmg = DEFAULT_TUNE.diff.dmg;
 for (let f = 1; f <= 13; f++) {
   let prevGold = 0, prevXp = 0, prevHp = 0;
-  for (let d = 1; d <= 4; d++) {
+  for (let d = 1; d <= 7; d++) {
     const who = newProfile(1000 + f * 10 + d);
     setHero(who, "lorin");
-    who.lvl = 60;
-    who.clears[f - 1] = 1;
+    who.lvl = Math.max(who.lvl, floorNeed(f));
+    who.chain[f - 1] = d - 1;
     const o = runOffer(who, f, d, 1);
-    const ratios = [1, 2.2, 5, 12];
-    if (o.hp !== ratios[d - 1] || o.dmg !== ratios[d - 1] || o.name !== DIFF_NAME[d - 1]) matrix = false;
+    if (o.hp !== ratiosHp[d - 1] || o.dmg !== ratiosDmg[d - 1] || o.name !== DIFF_NAME[d - 1]) matrix = false;
     if (!(o.bossHp > prevHp && o.goldFirst > prevGold && o.xpFirst > prevXp)) matrix = false;
     if (o.bossHp !== eliteHp("boss", f, 1, getTune(), d) || o.mobHp !== mobHp(0, f, getTune(), d)) matrix = false;
-    if (o.chests !== chestTotal(d) || (d >= 3 && o.chests !== 3) || (d < 3 && o.chests !== 2)) matrix = false;
-    if (d > 1 && (o.rare <= runOffer(who, f, d - 1).rare || o.affix < runOffer(who, f, d - 1).affix)) matrix = false;
+    if (o.chests !== chestTotal(d)) matrix = false;
+    if (d > 1 && o.lower <= 0) matrix = false;
+    if (d === 1 && o.lower !== 0) matrix = false;
+    if (diffLock(who, f, d)) matrix = false;
+    if (d < 7 && !diffLock(who, f, d + 1)?.includes("прохождением")) matrix = false;
     prevHp = o.bossHp; prevGold = o.goldFirst; prevXp = o.xpFirst;
-    const low = newProfile(2000 + f * 10 + d);
-    setHero(low, "lorin");
-    low.lvl = Math.max(1, o.need - 1);
-    low.clears[0] = 1;
-    if (d > 1 && !diffLock(low, 1, d)?.includes(`уровня ${o.need}`)) matrix = false;
-    const high = newProfile(3000 + f * 10 + d);
-    setHero(high, "lorin");
-    high.lvl = Math.max(o.need, floorNeed(f));
-    if (diffLock(high, f, d)) matrix = false;
   }
 }
-ok(matrix, "матрица 13 этажей × 4 сложности: опасность, награда и порог уровня");
+ok(matrix, "матрица 13 этажей × 7 цветов: опасность растёт, следующий цвет закрыт");
 
 const junior = newProfile(70);
 setHero(junior, "veles");
@@ -374,22 +372,26 @@ junior.clears[0] = 1;
 const senior = newProfile(71);
 setHero(senior, "lorin");
 senior.lvl = 60;
-senior.clears[0] = 1;
-ok(!!memberDiffLock(junior.lvl, true, 1, 2) && !memberDiffLock(senior.lvl, true, 1, 4), "младший не открывает сложную, старший открывает кошмар");
-ok("err" in beginRun(junior, 1, 1000, undefined, false, 2) && !("err" in beginRun(senior, 1, 1000, undefined, false, 4)), "сервер не пускает младшего на чужую сложность");
+senior.chain[0] = 6;
+const untried = newProfile(69);
+setHero(untried, "lorin");
+ok(!!diffLock(untried, 1, 2) && !diffLock(junior, 1, 2) && !!diffLock(junior, 1, 3) && !diffLock(senior, 1, 7), "базовая сразу, зелёный после неё, синий ещё нет, чёрный после шести");
+ok("err" in beginRun(untried, 1, 900, undefined, false, 2) && !("err" in beginRun(junior, 1, 1000, undefined, false, 2)), "сервер пускает зелёный только после базовой");
+junior.pending = null;
+ok("err" in beginRun(junior, 1, 1100, undefined, false, 3) && !("err" in beginRun(senior, 1, 1000, undefined, false, 7)), "синий без синей ступени закрыт, чёрный после шести открыт");
 const liedDiff = finishRun(senior, { nonce: senior.pending?.nonce, reason: "win", boss: true, diff: 1 } as any, 1000 + 40_000, mulberry32(81), { kills: 20, generals: 1, boss: true });
-const nightRow = diffRow(4);
+const blackRow = diffRow(7);
 const flat1 = DEFAULT_TUNE.economy.clearBase + DEFAULT_TUNE.economy.clearPerFloor + DEFAULT_TUNE.economy.bossBase + DEFAULT_TUNE.economy.bossPerFloor;
-const expectNight = Math.round(Math.round(flat1 * nightRow.gold * DEFAULT_TUNE.economy.replayGold) + (20 * DEFAULT_TUNE.economy.killGold + DEFAULT_TUNE.economy.generalGold) * nightRow.gold);
-ok(!("err" in liedDiff) && liedDiff.diff === 4 && liedDiff.diffName === "Кошмар" && liedDiff.gold === expectNight, "итог платит кошмар, даже если тело просит обычную");
-ok(eliteDmg("boss", 1, getTune(), 4) === eliteDmg("boss", 1) * 12, "урон босса кошмара ×12");
+const expectBlack = Math.round(Math.round(flat1 * blackRow.gold) + (20 * DEFAULT_TUNE.economy.killGold + DEFAULT_TUNE.economy.generalGold) * blackRow.gold);
+ok(!("err" in liedDiff) && liedDiff.diff === 7 && liedDiff.diffName === "Чёрный" && !liedDiff.replay && liedDiff.gold === expectBlack, "первый чёрный платит свой цвет, даже если тело просит базовую");
+ok(eliteDmg("boss", 1, getTune(), 7) === eliteDmg("boss", 1) * 9, "урон чёрного босса ×9 текущего набора");
 
 const ordinary = newProfile(72);
 setHero(ordinary, "lorin");
 const oGo = beginRun(ordinary, 1, 2000);
 const oWin = finishRun(ordinary, { nonce: (oGo as { nonce: string }).nonce, reason: "win", boss: true }, 2000 + 40_000, mulberry32(82), { kills: 20, generals: 1, boss: true });
 const expectOrdinary = Math.round(flat1 + 20 * DEFAULT_TUNE.economy.killGold + DEFAULT_TUNE.economy.generalGold);
-ok(!("err" in oWin) && oWin.diff === 1 && oWin.gold === expectOrdinary && oWin.gold < expectNight, "обычная плата меньше кошмара при тех же целях");
+ok(!("err" in oWin) && oWin.diff === 1 && oWin.gold === expectOrdinary && oWin.gold < expectBlack, "базовая плата меньше чёрной при тех же целях");
 
 let hardRare = false, plainRare = false;
 for (let seed = 1; seed <= 40 && (!hardRare || !plainRare); seed++) {
@@ -397,6 +399,7 @@ for (let seed = 1; seed <= 40 && (!hardRare || !plainRare); seed++) {
   setHero(farm, "lorin");
   farm.lvl = 60;
   farm.clears[0] = 1;
+  farm.chain[0] = 1;
   const stay = beginRun(farm, 1, 3000, undefined, false, 1);
   const plain = finishRun(farm, { nonce: (stay as { nonce: string }).nonce, reason: "win", boss: true }, 3000 + 40_000, mulberry32(seed), { kills: 10, generals: 1, boss: true });
   if (!("err" in plain) && plain.replay && (plain.items[0].item.rarity === "rare" || plain.items[0].item.rarity === "legendary")) plainRare = true;
@@ -404,59 +407,69 @@ for (let seed = 1; seed <= 40 && (!hardRare || !plainRare); seed++) {
   setHero(up, "lorin");
   up.lvl = 60;
   up.clears[0] = 1;
+  up.chain[0] = 7;
   up.quests.b1 = { p: 1, done: 1, claimed: 1 };
-  const go = beginRun(up, 1, 4000, undefined, false, 4);
+  const go = beginRun(up, 1, 4000, undefined, false, 7);
   const won = finishRun(up, { nonce: (go as { nonce: string }).nonce, reason: "win", boss: true }, 4000 + 40_000, mulberry32(seed + 90), { kills: 10, generals: 1, boss: true });
   const item = !("err" in won) ? won.items[0].item : null;
   if (item && won.replay && won.quests.length === 0 && item.affixes.length >= 2 && (item.rarity === "rare" || item.rarity === "legendary")) hardRare = true;
 }
-ok(!plainRare && hardRare, "обычный повтор не даёт редкое, кошмарный повтор даёт и не сдаёт квест");
+ok(!plainRare && hardRare, "базовый повтор не даёт редкое, чёрный повтор даёт и не сдаёт квест");
 
 const box = newProfile(73);
 setHero(box, "lorin");
 box.lvl = 60;
-const boxed = beginRun(box, 1, 5000, undefined, false, 4);
-ok(!("err" in boxed) && !("err" in chestChoices(box, 2, mulberry32(3))) && "err" in chestChoices(box, 3, mulberry32(4)), "кошмар открывает третий сундук и не четвёртый сверх лимита");
+box.chain[0] = 6;
+const boxed = beginRun(box, 1, 5000, undefined, false, 7);
+ok(!("err" in boxed) && !("err" in chestChoices(box, 2, mulberry32(3))) && "err" in chestChoices(box, 3, mulberry32(4)), "чёрный открывает третий сундук и не четвёртый сверх лимита");
 
 const grown = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 grown.combat.partyHpPerExtra = 0.2;
 const grownOk = validateTune(grown);
 if (grownOk.ok) setTune(grownOk.tune);
-const partyBoss = eliteHp("boss", 1, 4, getTune(), 4);
-const soloBoss = eliteHp("boss", 1, 1, getTune(), 4);
-ok(grownOk.ok && partyBoss === Math.round(2120 * 1.6 * 12) && partyBoss > soloBoss, "кошмар умножается на долю группы, а не вместо неё");
+const partyBoss = eliteHp("boss", 1, 4, getTune(), 7);
+const soloBoss = eliteHp("boss", 1, 1, getTune(), 7);
+ok(grownOk.ok && partyBoss === Math.round(2120 * 1.6 * 20) && partyBoss > soloBoss, "чёрный умножается на долю группы, а не вместо неё");
 resetTune();
 
 const member = [{ id: "you", name: "Лорин", hero: "lorin" as const, sheet: sheet(senior) }];
 const calm = new Battle(1, member, 5, 1);
-const nightmare = new Battle(1, member, 5, 4);
+const blackFight = new Battle(1, member, 5, 7);
+const pink = new Battle(1, member, 5, 4);
 let walked = 0;
-while (calm.phase !== "fight" && walked < 3) { calm.step(0.05); nightmare.step(0.05); walked += 0.05; }
-ok(calm.lastMobHp > 0 && nightmare.lastMobHp === calm.lastMobHp * 12 && nightmare.chests.length === calm.chests.length + 1, "в бою кошмарная тварь ×12 и сундук на один больше");
+while (walked < 6) { calm.step(0.05); blackFight.step(0.05); pink.step(0.05); walked += 0.05; }
+ok(calm.kit === "none" && pink.kit === "blink" && blackFight.kit === "killer" && calm.lastMobHp > 0 && blackFight.lastMobHp === calm.lastMobHp * 20 && blackFight.chests.length === calm.chests.length + 1, "чёрная тварь ×20, другой приём и сундук на один больше");
+ok(pink.blinks > 0 && calm.blinks === 0, "странный скачет к герою, базовая нет");
 
 const bareDiff = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 delete bareDiff.diff.ilvl;
 delete bareDiff.diff.budget;
 const bareOk = validateTune(bareDiff);
-ok(bareOk.ok && bareOk.tune.diff.ilvl.join() === "0,2,5,8" && bareOk.tune.diff.budget.join() === "1,1.18,1.38,1.62", "старый набор сложностей получает уровень вещи и бюджет");
-const q1 = dropQuality(12, 2, 1);
-const q2 = dropQuality(12, 2, 2);
-const q3 = dropQuality(12, 2, 3);
-const q4 = dropQuality(12, 2, 4);
-ok(q1.ilvl < q2.ilvl && q2.ilvl < q3.ilvl && q3.ilvl < q4.ilvl && q1.dmg < q2.dmg && q2.dmg < q3.dmg && q3.dmg < q4.dmg && q1.affixTop < q4.affixTop, "качество вещи растёт по четырём сложностям");
+ok(bareOk.ok && bareOk.tune.diff.ilvl.join() === "0,1,2,3,4,6,8" && bareOk.tune.diff.budget[0] === 1 && bareOk.tune.diff.budget[6] === 1.62, "старый набор сложностей получает уровень вещи и бюджет цепочки");
+const qualities = [1, 2, 3, 4, 5, 6, 7].map((d) => dropQuality(12, 2, d));
+ok(qualities.every((q, i) => i === 0 || (q.ilvl > qualities[i - 1].ilvl && q.dmg > qualities[i - 1].dmg)), "качество вещи растёт по семи цветам");
 const cap1 = dropQuality(60, 13, 1);
-const cap4 = dropQuality(60, 13, 4);
-ok(cap1.ilvl === 60 && cap4.ilvl === 60 && cap4.dmg > cap1.dmg && cap4.affixTop > cap1.affixTop, "на 60 уровне кошмар сильнее бюджетом, уровень вещи упирается в потолок");
-const lowGear = rollItem(mulberry32(11), { ilvl: q1.ilvl, floor: 2, rarity: "rare", bare: true, budget: 1 });
-const highGear = rollItem(mulberry32(11), { ilvl: q4.ilvl, floor: 2, rarity: "rare", bare: true, budget: q4.budget, extraAffix: q4.affix });
-ok(highGear.ilvl > lowGear.ilvl && highGear.dmg + highGear.armor > lowGear.dmg + lowGear.armor && highGear.affixes.length > lowGear.affixes.length, "тот же посев на кошмаре даёт вещь выше уровнем, статами и числом аффиксов");
+const cap7 = dropQuality(60, 13, 7);
+ok(cap1.ilvl === 60 && cap7.ilvl === 60 && cap7.dmg > cap1.dmg && cap7.affixTop > cap1.affixTop, "на 60 уровне чёрный сильнее бюджетом, уровень вещи упирается в потолок");
+const lowGear = rollItem(mulberry32(11), { ilvl: qualities[0].ilvl, floor: 2, rarity: "rare", bare: true, budget: 1, act: "none", tier: 0 });
+const highGear = rollItem(mulberry32(11), { ilvl: qualities[6].ilvl, floor: 2, rarity: "rare", bare: true, budget: qualities[6].budget, extraAffix: qualities[6].affix, act: "killer", tier: 6 });
+ok(highGear.ilvl > lowGear.ilvl && highGear.dmg + highGear.armor > lowGear.dmg + lowGear.armor && highGear.affixes.length > lowGear.affixes.length && highGear.ench === 6 && !lowGear.ench, "тот же посев на чёрном даёт вещь выше и с чёрными чарами");
+ok(highGear.affixes.some((a) => a.stat === "ls" || a.stat === "dmg"), "чёрная вещь несёт аффиксы убийцы, не только цвет");
 const smith = newProfile(77);
 setHero(smith, "lorin");
 smith.lvl = 12;
+smith.chain[1] = 1;
 const forged = beginRun(smith, 2, 8000, undefined, false, 2);
 const forgedRun = !("err" in forged) ? finishRun(smith, { nonce: forged.nonce, reason: "win", boss: true, diff: 1 }, 8000 + 40_000, mulberry32(15), { kills: killNeed(2), generals: 1, boss: true }) : forged;
 const wantIlvl = dropQuality(12, 2, 2).ilvl;
-ok(!("err" in forgedRun) && forgedRun.items[0].item.ilvl === wantIlvl && wantIlvl === 14 && forgedRun.diff === 2, "итог сложной пишет уровень вещи из забега, а не из тела запроса");
+ok(!("err" in forgedRun) && forgedRun.items[0].item.ilvl === wantIlvl && wantIlvl === 13 && forgedRun.diff === 2 && smith.chain[1] === 2, "итог необычного пишет уровень вещи из забега и открывает следующий цвет");
+let sawHome = false, sawLower = false;
+for (let s = 1; s <= 80; s++) {
+  const tier = rollDropTier(mulberry32(s), 7);
+  if (tier === 6) sawHome = true;
+  if (tier < 6) sawLower = true;
+}
+ok(rollDropTier(mulberry32(3), 1) === 0 && sawHome && sawLower, "база роняет свой ярус, чёрный роняет и свой, и младший");
 const roomy = pickShard([24, 24, 3, 0, 0, 0, 0, 0]);
 const packed = pickShard([24, 24, 24, 24, 24, 24, 24, 24]);
 ok("shard" in roomy && roomy.shard === 3 && "err" in packed && packed.err === "Двор обители полон", "двор сажает на самый свободный осколок и закрывается, когда все места заняты");

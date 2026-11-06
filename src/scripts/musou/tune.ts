@@ -67,30 +67,51 @@ export type OrdaTune = {
   oath: { on: number; stake: number };
   xp: { base: number; pow: number };
   floors: FloorTune[];
-  /** Четыре сложности Тёмного мира, которые помещаются в потолок 60 уровня. */
+  /** Семь ступеней: базовая и шесть цветов чар Проклятых, до Чёрного. */
   diff: DiffTune;
 };
 
-export type DiffTune = {
-  need: [number, number, number, number];
-  hp: [number, number, number, number];
-  dmg: [number, number, number, number];
-  gold: [number, number, number, number];
-  xp: [number, number, number, number];
-  rare: [number, number, number, number];
-  leg: [number, number, number, number];
-  affix: [number, number, number, number];
-  /** Прибавка к уровню вещи. Обычная — 0, кошмар не уходит за потолок 60. */
-  ilvl: [number, number, number, number];
-  /** Множитель урона, брони и чисел аффиксов. Это качество вещи, не шанс. */
-  budget: [number, number, number, number];
-  curse: [number, number, number, number];
-  ench: [number, number, number, number];
-  chest: [number, number, number, number];
-};
+export const DIFF_N = 7;
+export type DiffAct = "none" | "mend" | "plate" | "blink" | "brand" | "nova" | "killer";
+export type DiffStep = { name: string; color: string; ink: string; icon: string; lore: string; act: DiffAct; tier: number };
 
-/** Имена Тёмного мира. Инферно ×35, Сингулярность ×100 и Абсолютный хаос ×360 требуют уровни 100–200 и в Орду не входят. */
-export const DIFF_NAME = ["Обычная", "Сложная", "Героическая", "Кошмар"] as const;
+/** Имена, цвета и порядок — ярусы чар Проклятых. Базовая только первая. Чёрный замыкает цепочку. */
+export const DIFF_CHAIN: DiffStep[] = [
+  { name: "Базовая", color: "#c4b8a8", ink: "#1a1214", icon: "·", lore: "Подвал без чар. Твари обычные, добыча без яруса.", act: "none", tier: 0 },
+  { name: "Необычный", color: "#4ade80", ink: "#052e16", icon: "✦", lore: "Зелёная искра. Тварь заращивает царапину.", act: "mend", tier: 1 },
+  { name: "Редкий", color: "#3b82f6", ink: "#eff6ff", icon: "✦", lore: "Синяя закалка. Удар вязнет в броне.", act: "plate", tier: 2 },
+  { name: "Странный", color: "#ec4899", ink: "#fdf2f8", icon: "✦", lore: "Розовый скачок. Тварь пропадает и встаёт ближе.", act: "blink", tier: 3 },
+  { name: "Легендарный", color: "#facc15", ink: "#1c1404", icon: "✦", lore: "Жёлтое клеймо. Генерал чаще бьёт линией.", act: "brand", tier: 4 },
+  { name: "Божественный", color: "#ef4444", ink: "#fff1f2", icon: "✦", lore: "Красная волна. Элита лечится и бьёт кольцом.", act: "nova", tier: 5 },
+  { name: "Чёрный", color: "#0a0a0a", ink: "#f4f4f5", icon: "☠", lore: "Чёрный ярус Проклятых: рывок, аура проклятия и призыв. Добыча может быть младше.", act: "killer", tier: 6 },
+];
+export const DIFF_NAME = DIFF_CHAIN.map((d) => d.name);
+
+type Sept = [number, number, number, number, number, number, number];
+export type DiffTune = {
+  hp: Sept;
+  dmg: Sept;
+  gold: Sept;
+  xp: Sept;
+  rare: Sept;
+  leg: Sept;
+  affix: Sept;
+  /** Прибавка к уровню вещи. Базовая — 0, потолок вещи 60. */
+  ilvl: Sept;
+  /** Множитель урона, брони и чисел аффиксов. Это качество вещи, не шанс. */
+  budget: Sept;
+  curse: Sept;
+  ench: Sept;
+  chest: Sept;
+  /** Доля добычи младшего яруса. Базовая — 0. Выше нуля и ниже единицы: свой ярус не исчезает. */
+  lower: Sept;
+  /** Вес ближайшего младшего яруса против самого слабого. */
+  near: Sept;
+  /** Доля урона героя, которую гасит броня этой ступени. */
+  soak: Sept;
+  /** Доля максимального здоровья в секунду, которую тварь возвращает себе. */
+  regen: Sept;
+};
 
 export type FloorTune = { general: string; boss: string; gSig: Sig; bSig: Sig; mut: number; need: number; xp: number };
 
@@ -156,19 +177,22 @@ export const DEFAULT_TUNE: OrdaTune = {
   oath: { on: 1, stake: 25 },
   xp: { base: 50, pow: 1.45 },
   diff: {
-    need: [1, 10, 30, 60],
-    hp: [1, 2.2, 5, 12],
-    dmg: [1, 2.2, 5, 12],
-    gold: [1, 1.45, 1.9, 2.4],
-    xp: [1, 1.35, 1.7, 2.1],
-    rare: [0, 0.07, 0.14, 0.22],
-    leg: [0, 0, 0.03, 0.07],
-    affix: [0, 1, 1, 2],
-    ilvl: [0, 2, 5, 8],
-    budget: [1, 1.18, 1.38, 1.62],
-    curse: [1, 1.4, 1.8, 2.2],
-    ench: [1, 1.4, 1.8, 2.2],
-    chest: [0, 0, 1, 1],
+    hp: [1, 1.5, 2.5, 4, 7, 12, 20],
+    dmg: [1, 1.2, 1.5, 2, 3, 6, 9],
+    gold: [1, 1.12, 1.24, 1.36, 1.5, 1.66, 1.85],
+    xp: [1, 1.08, 1.16, 1.26, 1.38, 1.5, 1.65],
+    rare: [0, 0.04, 0.07, 0.1, 0.14, 0.18, 0.22],
+    leg: [0, 0, 0.01, 0.02, 0.04, 0.06, 0.08],
+    affix: [0, 0, 1, 1, 1, 2, 2],
+    ilvl: [0, 1, 2, 3, 4, 6, 8],
+    budget: [1, 1.08, 1.14, 1.22, 1.32, 1.46, 1.62],
+    curse: [1, 1.1, 1.2, 1.35, 1.55, 1.8, 2.2],
+    ench: [1, 1.15, 1.3, 1.45, 1.6, 1.85, 2.2],
+    chest: [0, 0, 0, 1, 1, 1, 1],
+    lower: [0, 0.28, 0.34, 0.4, 0.46, 0.52, 0.6],
+    near: [1, 1.4, 1.5, 1.6, 1.7, 1.8, 2],
+    soak: [0, 0, 0.12, 0.12, 0.18, 0.22, 0.28],
+    regen: [0, 0.01, 0.01, 0.012, 0.012, 0.02, 0.02],
   },
   floors: [
     { general: "Манекен I", boss: "Теневой Страж", gSig: "circle", bSig: "cone", mut: 0, need: 1, xp: 135 },
@@ -347,10 +371,9 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
 
 const SIGS = new Set(["circle", "cone", "line", "curse", "summon"]);
 
-const DIFF_KEYS = ["need", "hp", "dmg", "gold", "xp", "rare", "leg", "affix", "ilvl", "budget", "curse", "ench", "chest"] as const;
+const DIFF_KEYS = ["hp", "dmg", "gold", "xp", "rare", "leg", "affix", "ilvl", "budget", "curse", "ench", "chest", "lower", "near", "soak", "regen"] as const;
 const DIFF_BOUND: Record<(typeof DIFF_KEYS)[number], Bound> = {
-  need: { min: 1, max: 60, int: true },
-  hp: { min: 1, max: 12 },
+  hp: { min: 1, max: 24 },
   dmg: { min: 1, max: 12 },
   gold: { min: 1, max: 3 },
   xp: { min: 1, max: 2.5 },
@@ -362,6 +385,10 @@ const DIFF_BOUND: Record<(typeof DIFF_KEYS)[number], Bound> = {
   curse: { min: 1, max: 2.5 },
   ench: { min: 1, max: 2.5 },
   chest: { min: 0, max: 2, int: true },
+  lower: { min: 0, max: 0.85 },
+  near: { min: 1, max: 4 },
+  soak: { min: 0, max: 0.45 },
+  regen: { min: 0, max: 0.05 },
 };
 
 function readDiff(raw: unknown): DiffTune | string {
@@ -375,9 +402,9 @@ function readDiff(raw: unknown): DiffTune | string {
       continue;
     }
     const arr = rec[key];
-    if (!Array.isArray(arr) || arr.length !== 4) return `diff.${key}: 4 числа, по сложности Тёмного мира`;
+    if (!Array.isArray(arr) || arr.length !== DIFF_N) return `diff.${key}: ${DIFF_N} чисел, базовая и шесть цветов чар`;
     const got: number[] = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < DIFF_N; i++) {
       const n = num(arr[i], DIFF_BOUND[key], `diff.${key}[${i}]`);
       if (typeof n === "string") return n;
       if (i > 0 && n < got[i - 1]) return `diff.${key}: ступени не убывают`;
@@ -385,9 +412,9 @@ function readDiff(raw: unknown): DiffTune | string {
     }
     (out as any)[key] = got;
   }
-  if (out.need[0] !== 1) return "diff.need[0]: обычная сложность открыта с 1 уровня";
-  for (let i = 1; i < 4; i++) if (out.need[i] <= out.need[i - 1]) return "diff.need: уровни строго растут";
-  if (out.hp[0] !== 1 || out.dmg[0] !== 1 || out.gold[0] !== 1 || out.xp[0] !== 1 || out.budget[0] !== 1 || out.ilvl[0] !== 0) return "обычная сложность держит множители ×1 и не поднимает уровень вещи";
+  if (out.hp[0] !== 1 || out.dmg[0] !== 1 || out.gold[0] !== 1 || out.xp[0] !== 1 || out.budget[0] !== 1 || out.ilvl[0] !== 0 || out.lower[0] !== 0) return "базовая сложность держит множители ×1 и не поднимает уровень вещи";
+  if (!(out.lower[DIFF_N - 1] > 0)) return "чёрная сложность обязана иногда ронять младший ярус";
+  if (out.hp[DIFF_N - 1] > 24 || out.dmg[DIFF_N - 1] > 12) return "чёрный урон и здоровье не доходят до ×40: это стирает ручной бой";
   return out;
 }
 
@@ -436,15 +463,21 @@ export function eliteName(kind: "general" | "boss", floor: number, t = active) {
 
 export function diffIndex(n: number) {
   const i = (n | 0) - 1;
-  return i < 0 ? 0 : i > 3 ? 3 : i;
+  return i < 0 ? 0 : i > DIFF_N - 1 ? DIFF_N - 1 : i;
 }
 export function diffRow(n: number, t = active) {
   const i = diffIndex(n);
   const d = t.diff;
+  const step = DIFF_CHAIN[i];
   return {
     id: i + 1,
-    name: DIFF_NAME[i],
-    need: d.need[i],
+    name: step.name,
+    color: step.color,
+    ink: step.ink,
+    icon: step.icon,
+    lore: step.lore,
+    act: step.act,
+    tier: step.tier,
     hp: d.hp[i],
     dmg: d.dmg[i],
     gold: d.gold[i],
@@ -457,6 +490,10 @@ export function diffRow(n: number, t = active) {
     curse: d.curse[i],
     ench: d.ench[i],
     chest: d.chest[i] | 0,
+    lower: d.lower[i],
+    near: d.near[i],
+    soak: d.soak[i],
+    regen: d.regen[i],
   };
 }
 export function chestTotal(diff = 1, t = active) {
@@ -498,7 +535,7 @@ export type TunePreview = {
   mobHp: number;
   bossHpSolo: number;
   bossHpParty4: number;
-  bossNightmare: number;
+  bossBlack: number;
   xp1: number;
   curseSpeed: number;
 };
@@ -515,7 +552,7 @@ export function previewTune(t: OrdaTune, floor = 1): TunePreview {
     mobHp: mobHp(0, floor, t),
     bossHpSolo: eliteHp("boss", floor, 1, t),
     bossHpParty4: eliteHp("boss", floor, 4, t),
-    bossNightmare: eliteHp("boss", floor, 1, t, 4),
+    bossBlack: eliteHp("boss", floor, 1, t, DIFF_N),
     xp1: Math.round(t.xp.base * Math.pow(1, t.xp.pow)),
     curseSpeed: t.curse.speed,
   };
