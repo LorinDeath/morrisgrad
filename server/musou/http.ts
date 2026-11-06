@@ -5,7 +5,7 @@ import { FriendStore } from "../meta/friends";
 import { loadProfile, saveProfile } from "./db";
 import { readPublishedTune } from "./admin";
 import {
-  beginRun, buyOffer, claimQuest, equipItem, finishRun, mulberry32, refreshShop, salvage, setHero, spendStat, takeInbox, unequip,
+  beginRun, buyOffer, claimChest, claimQuest, equipItem, finishRun, mulberry32, refreshShop, salvage, setHero, spendStat, takeInbox, unequip,
   type HeroId, type Paper, type Stat,
 } from "../../src/scripts/musou/rules";
 
@@ -88,6 +88,10 @@ async function act(env: any, key: string, body: any, cors: Record<string, string
   } else if (op === "refresh") {
     const err = refreshShop(p);
     if (err) return Response.json({ err, profile: p }, { headers: cors });
+  } else if (op === "chest") {
+    const r = claimChest(p, body.index | 0, rng);
+    if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });
+    report = r;
   } else if (op === "claim") {
     const r = claimQuest(p, String(body.id || ""), rng);
     if ("err" in r) return Response.json({ err: r.err, profile: p }, { headers: cors });

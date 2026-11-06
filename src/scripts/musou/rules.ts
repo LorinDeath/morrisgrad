@@ -73,6 +73,7 @@ export type HeroDef = {
   skills: SkillDef[];
 };
 
+export type Sig = "circle" | "cone" | "line" | "curse" | "summon";
 export type FloorDef = {
   n: number;
   name: string;
@@ -83,6 +84,13 @@ export type FloorDef = {
   general: string;
   boss: string;
   bossTitle: string;
+  /** Приём генерала и босса из данжа Тёмного мира. */
+  gSig: Sig;
+  bSig: Sig;
+  /** Ряды bestiary_atlas: генерал, босс, три поведения толпы. */
+  gRow: number;
+  bRow: number;
+  mobRows: [number, number, number];
 };
 
 const sk = (p: SkillDef): SkillDef => p;
@@ -195,19 +203,19 @@ export const HEROES: HeroDef[] = [
 ];
 
 export const FLOORS: FloorDef[] = [
-  { n: 1, name: "Порог Альказака", place: "Альказак", tint: "#6a3a3a", ember: "#ff8a50", mob: "Тень порога", general: "Страж порога", boss: "Привратник", bossTitle: "первый засов" },
-  { n: 2, name: "Сады Эдема", place: "Эдем", tint: "#2f5a38", ember: "#b6ff6a", mob: "Плющ", general: "Садовник тлена", boss: "Корень Эдема", bossTitle: "то, что пьёт сады" },
-  { n: 3, name: "Старый порт", place: "Порт", tint: "#2a4a5a", ember: "#9fd6ff", mob: "Утопленник", general: "Боцман", boss: "Маяк", bossTitle: "свет, который врёт" },
-  { n: 4, name: "Небоскрёбы", place: "Сердце города", tint: "#4a4e5a", ember: "#d0d6e0", mob: "Осколок", general: "Архитектор", boss: "Шпиль", bossTitle: "верхняя игла" },
-  { n: 5, name: "Библиотека Дарга", place: "ДаргСирром", tint: "#6a5428", ember: "#ffd080", mob: "Страница", general: "Цензор", boss: "Фолиант", bossTitle: "книга, которая ест" },
-  { n: 6, name: "Ядовитый эфир", place: "Эзернис", tint: "#1e5a32", ember: "#3dff9a", mob: "Спора", general: "Дистиллятор", boss: "Котёл", bossTitle: "варка эфира" },
-  { n: 7, name: "Зал модерации", place: "Альказак", tint: "#3a4a6a", ember: "#8ec5ff", mob: "Печать", general: "Надзиратель", boss: "Большая печать", bossTitle: "правило без щели" },
-  { n: 8, name: "Адское пламя", place: "Пламя", tint: "#6a2818", ember: "#ff4a32", mob: "Искра", general: "Кочегар", boss: "Горнило", bossTitle: "печь Обители" },
-  { n: 9, name: "Белая охота", place: "Снег", tint: "#8aa0b8", ember: "#ffffff", mob: "Лиса-тень", general: "Следопыт", boss: "Луна", bossTitle: "охота без конца" },
-  { n: 10, name: "Рельсы", place: "Пути Айтрейна", tint: "#5a4a28", ember: "#ffd15a", mob: "Вагонетка", general: "Машинист", boss: "Состав", bossTitle: "то, что не тормозит" },
-  { n: 11, name: "Сбой", place: "Петля Сэйлора", tint: "#5a2850", ember: "#ff3d8a", mob: "Глитч", general: "Отладчик", boss: "Патч", bossTitle: "заплатка на мире" },
-  { n: 12, name: "Обитель тьмы", place: "Обитель", tint: "#3a1848", ember: "#e7b6ff", mob: "Культист", general: "Иерей", boss: "Алтарь", bossTitle: "сердце Обители" },
-  { n: 13, name: "Корона купола", place: "Купол", tint: "#6a5030", ember: "#ffd76a", mob: "Тень купола", general: "Наместник", boss: "Венец купола", bossTitle: "тринадцатый этаж" },
+  { n: 1, name: "Подвалы замка", place: "Альказак", tint: "#6a3a3a", ember: "#ff8a50", mob: "Подвальная тварь", general: "Осколок Командира", boss: "Теневой Страж", bossTitle: "хранитель старого снаряжения", gSig: "circle", bSig: "cone", gRow: 35, bRow: 41, mobRows: [6, 2, 18] },
+  { n: 2, name: "Тракт Альказака", place: "Альказак", tint: "#5a4030", ember: "#ffb060", mob: "Мародёр", general: "Наёмник-Головорез", boss: "Атаман Мародёров", bossTitle: "заброшенный тракт", gSig: "cone", bSig: "line", gRow: 34, bRow: 54, mobRows: [26, 4, 32] },
+  { n: 3, name: "Хрустальные пещеры", place: "Эдем", tint: "#2f5a58", ember: "#9ff6ff", mob: "Осколок кристалла", general: "Кристальный Страж", boss: "Кристальная Владычица", bossTitle: "пещеры под садами", gSig: "line", bSig: "circle", gRow: 67, bRow: 55, mobRows: [17, 15, 27] },
+  { n: 4, name: "Катакомбы Скорби", place: "Порт", tint: "#3a3048", ember: "#c9b6ff", mob: "Могильная тварь", general: "Могильный Упырь", boss: "Чёрный Жнец", bossTitle: "катакомбы", gSig: "curse", bSig: "summon", gRow: 28, bRow: 48, mobRows: [28, 25, 31] },
+  { n: 5, name: "Грозовая башня", place: "ДаргСирром", tint: "#3a4a6a", ember: "#d0e6ff", mob: "Грозовая искра", general: "Громовержец", boss: "Райдзин", bossTitle: "повелитель бурь", gSig: "line", bSig: "cone", gRow: 39, bRow: 42, mobRows: [46, 3, 38] },
+  { n: 6, name: "Лабиринт душ", place: "Эзернис", tint: "#2a1848", ember: "#e7b6ff", mob: "Блуждающий дух", general: "Пожиратель Сущностей", boss: "Танатос", bossTitle: "владыка забвения", gSig: "curse", bSig: "circle", gRow: 51, bRow: 57, mobRows: [1, 44, 22] },
+  { n: 7, name: "Инферно хаоса", place: "Пламя", tint: "#6a2818", ember: "#ff4a32", mob: "Лавовый скорпион", general: "Магма-Голем", boss: "Суртур", bossTitle: "владыка хаоса", gSig: "circle", bSig: "summon", gRow: 42, bRow: 58, mobRows: [46, 30, 49] },
+  { n: 8, name: "Храм Бездны", place: "Порт", tint: "#1a3050", ember: "#7ec8ff", mob: "Бездонная тварь", general: "Бездонный Страж", boss: "Левиафан", bossTitle: "затонувший храм", gSig: "summon", bSig: "cone", gRow: 63, bRow: 49, mobRows: [0, 53, 21] },
+  { n: 9, name: "Антиматрица", place: "Петля Сэйлора", tint: "#5a1850", ember: "#ff3d8a", mob: "Цифровой фантом", general: "Коррумпированное Ядро", boss: "Творец Искажения", bossTitle: "сбой решётки", gSig: "line", bSig: "curse", gRow: 5, bRow: 65, mobRows: [5, 41, 66] },
+  { n: 10, name: "Разлом пустоты", place: "Пути Айтрейна", tint: "#2a2440", ember: "#c8c0ff", mob: "Абсолютный фантом", general: "Страж Нулевой Точки", boss: "Азатот", bossTitle: "ходок бездны", gSig: "curse", bSig: "summon", gRow: 52, bRow: 37, mobRows: [66, 51, 40] },
+  { n: 11, name: "Кровавая цитадель", place: "Альказак", tint: "#6a1830", ember: "#ff6080", mob: "Кровавый рыцарь", general: "Жрец Крови", boss: "Кармилла", bossTitle: "королева цитадели", gSig: "cone", bSig: "curse", gRow: 45, bRow: 59, mobRows: [20, 16, 34] },
+  { n: 12, name: "Спектральный собор", place: "Обитель", tint: "#3a1848", ember: "#f0e6ff", mob: "Инквизитор", general: "Каратель", boss: "Призрачный Понтифик", bossTitle: "собор", gSig: "cone", bSig: "line", gRow: 36, bRow: 56, mobRows: [22, 7, 14] },
+  { n: 13, name: "Колыбель титана", place: "Купол", tint: "#6a5030", ember: "#ffd76a", mob: "Каменный осколок", general: "Пробужденный Страж", boss: "Титан Атлас", bossTitle: "колыбель", gSig: "circle", bSig: "summon", gRow: 32, bRow: 67, mobRows: [10, 19, 18] },
 ];
 
 export const RARITY_NAME: Record<Rarity, string> = {
@@ -312,7 +320,7 @@ export function questById(id: string) { return QUEST_BY.get(id) || null; }
 
 export type QuestState = { p: number; done: 0 | 1; claimed: 0 | 1 };
 export type Equip = Record<Paper, Item | null>;
-export type Pending = { floor: number; at: number; nonce: string };
+export type Pending = { floor: number; at: number; nonce: string; chests?: number };
 
 export type Profile = {
   v: 1;
@@ -452,7 +460,7 @@ export function normalize(raw: any): Profile {
     }
   }
   if (raw.pending && typeof raw.pending.nonce === "string" && (raw.pending.floor | 0) >= 1) {
-    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40) };
+    p.pending = { floor: raw.pending.floor | 0, at: raw.pending.at | 0, nonce: String(raw.pending.nonce).slice(0, 40), chests: raw.pending.chests | 0 };
   }
   return p;
 }
@@ -847,6 +855,25 @@ export type RunReport = {
   quests: string[]; note: string | null; boss: boolean; reason: RunReason;
 };
 
+export function claimChest(p: Profile, index: number, rng: Rng): LootNote | { err: string } {
+  if (!p.pending) return { err: "Сундук открывается только в забеге" };
+  const n = getTune().loot.chestCount | 0;
+  const i = index | 0;
+  if (i < 0 || i >= n) return { err: "Такого сундука нет" };
+  const bit = 1 << i;
+  if ((p.pending.chests || 0) & bit) return { err: "Сундук уже открыт" };
+  p.pending.chests = (p.pending.chests || 0) | bit;
+  const it = rollItem(rng, { ilvl: Math.max(1, p.lvl), floor: p.pending.floor });
+  if (!it.cursed && rng() < 0.55) {
+    it.cursed = 1;
+    it.name = "Проклятый " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
+  } else if (!it.ench && rng() < 0.5) {
+    it.ench = 1;
+    it.name = "Необычный " + it.name.charAt(0).toLowerCase() + it.name.slice(1);
+  }
+  return giveItem(p, it);
+}
+
 function giveItem(p: Profile, it: Item): LootNote {
   it.id = mint(p);
   if (bagFree(p) < 1) {
@@ -973,7 +1000,7 @@ export function beginRun(p: Profile, floor: number, now: number, nonce = startNo
   if (!p.hero) return { err: "Сначала выбери героя" };
   if (!carry && !floorOpen(p, floor)) return { err: "Этаж закрыт" };
   if (floor < 1 || floor > 13) return { err: "Нет такого этажа" };
-  p.pending = { floor, at: now, nonce };
+  p.pending = { floor, at: now, nonce, chests: 0 };
   return { nonce };
 }
 

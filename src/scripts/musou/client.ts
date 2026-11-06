@@ -1,7 +1,7 @@
 // Хаб, лавка, отряд и бой «Орды Обители».
 import {
   BAG_MAX, FLOORS, HEROES, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
-  affixText, bagFree, bagPrice, beginRun, bestFloor, buyOffer, claimQuest, equipItem,
+  affixText, bagFree, bagPrice, beginRun, bestFloor, buyOffer, claimChest, claimQuest, equipItem,
   finishRun, floorOpen, goldFind, heroById, itemBlurb, itemPrice, mulberry32, newProfile,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
@@ -81,7 +81,12 @@ async function clerkToken() {
     };
     tick();
   });
-  try { token = (await C?.session?.getToken?.()) || ""; } catch { token = ""; }
+  try {
+    token = (await Promise.race([
+      Promise.resolve(C?.session?.getToken?.() || ""),
+      new Promise((r) => setTimeout(() => r(""), 2500)),
+    ])) || "";
+  } catch { token = ""; }
   const u = C?.user;
   if (u) nick = u.username || u.fullName || u.firstName || nick;
   verified = !!token;
@@ -159,7 +164,8 @@ function renderPick() {
 function slotHtml(it: Item | null, empty: string) {
   if (!it) return `<span>${empty}</span>`;
   const col = RARITY_COLOR[it.rarity];
-  return `<i style="color:${col}">${RARITY_NAME[it.rarity]}</i><b style="color:${col}">${it.name}</b>`;
+  const mark = it.cursed ? " · проклята" : it.ench ? " · чары" : "";
+  return `<i style="color:${col}">${RARITY_NAME[it.rarity]}${mark}</i><b style="color:${col}">${it.name}</b>`;
 }
 
 function renderHub() {
@@ -292,7 +298,9 @@ function renderHub() {
 
 function tipHtml(it: Item | null) {
   if (!it) return "Выбери вещь. Редкость видна рамкой, как в Диабло: серое, синее, жёлтое, оранжевое, зелёный комплект.";
-  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}`;
+  const mark = it.cursed ? "<div class=\"tag\">Проклята: статы ×1.5, скорость ×0.92</div>" : "";
+  const ench = it.ench ? `<div class="tag">Чары ${it.ench}: статы выше</div>` : "";
+  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${mark}${ench}`;
 }
 function rewardLine(r: any) {
   const item = r.item;
@@ -374,10 +382,19 @@ function openFriends() {
   });
 }
 
-async function connect(code: string) {
+let dropTry = 0;
+async function connect(code: string, fromDrop = false) {
+  if (!fromDrop) dropTry = 0;
   if (ws) { try { ws.close(); } catch { /* */ } }
-  ws = new WebSocket(WS + "/musou/m/" + code);
-  ws.onopen = () => ws?.send(JSON.stringify({ type: "hello", token, guest: token ? undefined : guest, nick }));
+  const sock = new WebSocket(WS + "/musou/m/" + code);
+  ws = sock;
+  sock.onopen = () => sock.send(JSON.stringify({ type: "hello", token, guest: token ? undefined : guest, nick }));
+  sock.onclose = () => {
+    if (ws !== sock || view !== "fight" || !room) return;
+    if (dropTry >= 2) return;
+    dropTry++;
+    setTimeout(() => connect(code, true), 400);
+  };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === "you") { youId = m.id; room = { code, host: !!m.host, seats: [] }; }
@@ -389,17 +406,19 @@ async function connect(code: string) {
     }
     if (m.type === "err") toast(m.err || "Ошибка комнаты");
     if (m.type === "go") {
-      closeModal();
-      mirror = false;
-      nonce = m.nonce;
-      const members = m.party.map((p: any) => ({ id: p.id, name: p.nick, hero: p.hero, sheet: p.sheet }));
-      beginBattle(m.floor, members, m.seed || 1, true);
+      if (!(battle && nonce === m.nonce && view === "fight")) {
+        closeModal();
+        mirror = false;
+        nonce = m.nonce;
+        const members = m.party.map((p: any) => ({ id: p.id, name: p.nick, hero: p.hero, sheet: p.sheet }));
+        beginBattle(m.floor, members, m.seed || 1, true);
+      }
     }
     if (m.type === "who" && battle) battle.applyWho(m.id, m.x, m.y, m.aim);
     if (m.type === "elite" && battle) battle.applyElites(m.elites || []);
     if (m.type === "boom" && battle) {
       const me = battle.party.find((p) => p.id === youId);
-      if (me && Math.hypot(me.x - m.x, me.y - m.y) < (m.r || 100) && me.iframe <= 0) {
+      if (me && inBoom(me.x, me.y, m) && me.iframe <= 0) {
         me.hp = Math.max(0, me.hp - 14);
         me.hurt = 0.3;
         me.iframe = 0.45;
@@ -469,6 +488,25 @@ function buildSkills(heroId: HeroId) {
 
 let queued = 0;
 let heavyQ = false;
+let chestQ = false;
+
+function inBoom(x: number, y: number, m: any) {
+  const dx = x - m.x, dy = y - m.y;
+  const r = m.r || 100;
+  if (m.sig === "line") {
+    const along = dx * Math.cos(m.facing || 0) + dy * Math.sin(m.facing || 0);
+    const side = Math.abs(-dx * Math.sin(m.facing || 0) + dy * Math.cos(m.facing || 0));
+    return along > 0 && along < r && side < 34;
+  }
+  if (m.sig === "cone") {
+    if (dx * dx + dy * dy > r * r) return false;
+    let d = Math.atan2(dy, dx) - (m.facing || 0);
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return Math.abs(d) <= 1.05;
+  }
+  return Math.hypot(dx, dy) < r;
+}
 function queueSkill(n: number) { queued = n; }
 
 function readBtn(): Partial<Btn> {
@@ -480,7 +518,9 @@ function readBtn(): Partial<Btn> {
   heavyQ = false;
   const dodge = dodgeQ || keys.has(" ");
   dodgeQ = false;
-  return { mx, my, aim: pointerAim, light: holding || keys.has("j"), heavy, skill, dodge };
+  const chest = chestQ || keys.has("g");
+  chestQ = false;
+  return { mx, my, aim: pointerAim, light: holding || keys.has("j"), heavy, skill, dodge, chest };
 }
 
 function resize() {
@@ -501,6 +541,8 @@ function hud() {
   const f = battle.floor;
   const wave = battle.wave < 3 ? `Волна ${battle.wave + 1}/3` : "Босс";
   $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b><div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown ? " · босс пал" : ""}</div>`;
+  const chest = $<HTMLElement>("chest-hint");
+  if (chest) chest.hidden = !battle.nearChest;
   $<HTMLElement>("party").innerHTML = battle.party.map((p) => `<div><b>${p.name.split(" ")[0]}</b><div class="bar"><i style="width:${Math.max(0, p.hp / p.maxHp * 100)}%"></i></div></div>`).join("");
   const hero = heroById(me.hero);
   document.querySelectorAll<HTMLButtonElement>(".skill").forEach((b) => {
@@ -519,6 +561,8 @@ function showResult(report: RunReport | null, phase: string, reason?: RunReport[
   const title = why === "win" ? "Этаж зачищен" : why === "surrender" ? "Сдача" : "Поражение";
   const items = report && "items" in report ? report.items : [];
   const pay = report && "gold" in report ? (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : "Награда не засчитана.";
+  $<HTMLElement>("gold-pill").textContent = profile.gold + " зл";
+  $<HTMLElement>("bag-pill").textContent = profile.bag.length + "/" + profile.bagSize;
   $<HTMLElement>("v-result").innerHTML = `<h2>${title}</h2>
   <p>${pay} Квесты, которые уже выполнены, сдаются в хабе.</p>
   <div class="result-grid">${items.map((n) => `<article class="loot${n.sold ? " sold" : ""}" style="border-color:${RARITY_COLOR[n.item.rarity]}"><b style="color:${RARITY_COLOR[n.item.rarity]}">${n.item.name}</b><div>${itemBlurb(n.item)}</div>${n.held ? "<div>Редкая вещь ждёт у входа в хаб — сумка была полна.</div>" : n.sold ? `<div>Обычная вещь не влезла и ушла за ${n.gold} золота.</div>` : n.item.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}</article>`).join("") || "<p>Трофеев нет. Генералы и босс оставляют вещь, если сумка пускает.</p>"}</div>
@@ -568,6 +612,7 @@ function frame(now: number, dt: number) {
     const me = battle.party.find((p) => p.id === youId) || battle.party[0];
     battle.press(youId, readBtn());
     battle.step(dt);
+    for (const id of battle.takeChests()) grantChest(id);
     cam.x += (me.x - cam.x) * 0.12;
     cam.y += (me.y - cam.y) * 0.12;
     if (battle.remote && ws && ws.readyState === 1 && room) {
@@ -601,6 +646,21 @@ function aimFrom(ev: { clientX: number; clientY: number }) {
   pointerAim = Math.atan2(y - me.y, x - me.x);
 }
 
+function grantChest(index: number) {
+  if (!profile.pending) return;
+  if (online) {
+    void act({ op: "chest", index }).then((data) => {
+      const item = data?.report?.item;
+      if (item?.name) toast("Сундук: " + item.name + (item.cursed ? " · проклята" : item.ench ? " · зачарована" : ""));
+    });
+    return;
+  }
+  const note = claimChest(profile, index, mulberry32((profile.nextId * 997 + index * 13) >>> 0));
+  saveLocal();
+  if ("err" in note) toast(note.err);
+  else toast("Сундук: " + note.item.name + (note.item.cursed ? " · проклята" : note.item.ench ? " · зачарована" : ""));
+}
+
 function bind() {
   $<HTMLButtonElement>("flee").onclick = () => {
     if (!battle) return;
@@ -617,6 +677,7 @@ function bind() {
     if (fresh && key === "p" && !room && battle) { battle.paused = !battle.paused; toast(battle.paused ? "Пауза" : "Бой"); }
     if (key === "j") holding = true;
     if (fresh && key === "k") heavyQ = true;
+    if (fresh && key === "g") chestQ = true;
     const map: Record<string, number> = { q: 1, e: 2, r: 3, f: 4 };
     if (fresh && map[key]) queueSkill(map[key]);
   });
@@ -655,6 +716,7 @@ function bind() {
   holdBtn("m-light", () => { holding = true; }, () => { holding = false; });
   holdBtn("m-heavy", () => { heavyQ = true; });
   holdBtn("m-dodge", () => { dodgeQ = true; });
+  holdBtn("m-chest", () => { chestQ = true; });
 }
 
 async function boot() {

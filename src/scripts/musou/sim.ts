@@ -1,11 +1,11 @@
-// Бой «Орды»: толпа болванчиков бродит, генералы и босс дерутся.
+// Бой «Орды»: толпа из бестиария бродит, именные генералы и босс бьют своим приёмом.
 // Удары ищут цели по клеткам, а не по всему полю — так живёт большая волна.
 
 import {
   floorByN, heroById, mulberry32, spawnBudget,
-  type FloorDef, type HeroId, type Rng, type Sheet, type SkillDef,
+  type FloorDef, type HeroId, type Rng, type Sheet, type Sig, type SkillDef,
 } from "./rules";
-import { eliteDmg, eliteHp, getTune, mobDmg, mobHp } from "./tune";
+import { eliteDmg, eliteHp, floorKit, getTune, mobDmg, mobHp } from "./tune";
 
 export const ARENA_W = 2400;
 export const ARENA_H = 1560;
@@ -13,7 +13,7 @@ const MAX_MOBS = 180;
 const CELL = 96;
 
 export type Anim = "idle" | "run" | "swing" | "hurt" | "down";
-export type Btn = { mx: number; my: number; aim: number; hold?: boolean; light?: boolean; heavy?: boolean; skill?: number; dodge?: boolean };
+export type Btn = { mx: number; my: number; aim: number; hold?: boolean; light?: boolean; heavy?: boolean; skill?: number; dodge?: boolean; chest?: boolean };
 
 export type Actor = {
   id: string;
@@ -48,6 +48,7 @@ export type Actor = {
   mx: number;
   my: number;
   aim: number;
+  curse: number;
 };
 
 export type Elite = {
@@ -69,7 +70,11 @@ export type Elite = {
   stun: number;
   tint: string;
   r: number;
+  sig: Sig;
+  row: number;
 };
+
+export type Chest = { id: number; x: number; y: number; open: boolean };
 
 export type Fx = {
   k: "slash" | "ring" | "spark" | "beam" | "nova" | "zone" | "text" | "ghost" | "flash";
@@ -112,6 +117,8 @@ export class Battle {
   floor: FloorDef;
   party: Actor[];
   elites: Elite[] = [];
+  chests: Chest[] = [];
+  nearChest = false;
   fx: Fx[] = [];
   fxOut: Fx[] = [];
   phase: "intro" | "fight" | "won" | "lost" = "intro";
@@ -159,6 +166,9 @@ export class Battle {
   private budgets: number[] = [];
   private hash = new Map<number, number[]>();
   private hashed = -1;
+  private chestDwell = 0;
+  private wantChest = false;
+  private opened: number[] = [];
 
   constructor(floor: number, members: Member[], seed = 1) {
     this.floor = floorByN(floor);
@@ -173,7 +183,7 @@ export class Battle {
         facing: 0, hp: m.sheet.hp, maxHp: m.sheet.hp, musou: 0,
         anim: "idle" as Anim, swing: 0, lock: 0, step: 0, stepT: 0,
         cd: [0, 0, 0, 0], iframe: 0, downT: 0, revives: 1, hurt: 0,
-        bufSkill: 0, bufLight: false, bufHeavy: false, bufDodge: false, hold: false, holdLight: false, dodgeCd: 0, pose: 0, atk: null, mx: 0, my: 0, aim: 0,
+        bufSkill: 0, bufLight: false, bufHeavy: false, bufDodge: false, hold: false, holdLight: false, dodgeCd: 0, pose: 0, atk: null, mx: 0, my: 0, aim: 0, curse: 0,
       };
     });
     this.localId = this.party[0]?.id || "";
@@ -182,6 +192,9 @@ export class Battle {
     const c = Math.round(b.spawns * 0.34);
     this.budgets = [a, c, b.spawns - a - c, 14];
     this.banner = f.name;
+    const spots: [number, number][] = [[ARENA_W / 2 - 320, ARENA_H / 2 - 140], [ARENA_W / 2 + 300, ARENA_H / 2 + 160], [ARENA_W / 2 - 80, ARENA_H / 2 + 280], [ARENA_W / 2 + 40, ARENA_H / 2 - 300]];
+    const chests = Math.max(0, Math.min(spots.length, getTune().loot.chestCount | 0));
+    for (let i = 0; i < chests; i++) this.chests.push({ id: i, x: spots[i][0], y: spots[i][1], open: false });
     this.bannerSub = f.place;
     this.bannerT = 1.35;
     this.beginWave();
@@ -201,6 +214,13 @@ export class Battle {
     if (btn.heavy) a.bufHeavy = true;
     if (btn.dodge) a.bufDodge = true;
     if (btn.skill) a.bufSkill = btn.skill;
+    if (btn.chest) this.wantChest = true;
+  }
+
+  takeChests() {
+    const list = this.opened;
+    this.opened = [];
+    return list;
   }
 
   mobs() {
@@ -233,6 +253,7 @@ export class Battle {
     if (this.hitstop > 0) { this.hitstop -= dt; this.decay(dt); return; }
 
     for (const a of this.party) if (!this.localId || a.id === this.localId) this.actor(a, dt);
+    this.tickChests(dt);
     this.spawn(dt);
     this.wander(dt);
     this.touchPlayers(dt);
@@ -276,7 +297,7 @@ export class Battle {
     this.waveNeed = this.budgets[this.wave] || 0;
     if (this.wave < 3) {
       this.say(`Волна ${this.wave + 1}`, "Твари выходят на площадь", 1.15);
-      const burst = Math.min(22, this.waveNeed);
+      const burst = Math.min(10, this.waveNeed);
       for (let i = 0; i < burst; i++) this.spawnMob();
       this.spawned = burst;
     } else {
@@ -352,17 +373,21 @@ export class Battle {
     const dist = kind === "boss" ? 280 : 240;
     const n = this.floor.n;
     const boss = kind === "boss";
+    const kit = floorKit(n);
+    const sig = boss ? kit.bSig : kit.gSig;
     const hp = eliteHp(kind, n, this.party.length);
     this.elites.push({
-      kind, name: boss ? this.floor.boss : this.floor.general,
+      kind, name: boss ? kit.boss : kit.general,
       title: boss ? this.floor.bossTitle : "генерал волны",
       x: clamp((lead?.x ?? ARENA_W / 2) + Math.cos(ang) * dist, 120, ARENA_W - 120),
       y: clamp((lead?.y ?? ARENA_H / 2) + Math.sin(ang) * dist, 120, ARENA_H - 120),
       id: boss ? "boss" : "g" + this.wave,
       hp, maxHp: hp, facing: ang + Math.PI, alive: true,
       wind: 0, windMax: 0.5, cd: 0.8, pattern: 0, swing: 0, stun: 0,
-      tint: boss ? "#ffd76a" : "#ff6a4a",
+      tint: (boss ? this.floor.bSig : this.floor.gSig) === "curse" ? "#c9b6ff" : boss ? "#ffd76a" : "#ff6a4a",
       r: boss ? 46 : 30,
+      sig,
+      row: boss ? this.floor.bRow : this.floor.gRow,
     });
     this.fxPush({ k: "ring", x: this.elites[this.elites.length - 1].x, y: this.elites[this.elites.length - 1].y, a: 0, r: boss ? 120 : 70, ang: 0, life: 0.45, max: 0.45, col: boss ? "#ffd76a" : "#ff6a4a", col2: "#fff" });
   }
@@ -395,12 +420,14 @@ export class Battle {
     a.x = x; a.y = y; a.facing = aim; a.aim = aim;
   }
 
-  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string }[]) {
+  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string; sig?: Sig; row?: number }[]) {
     this.elites = list.map((e) => ({
       id: e.id, kind: e.kind, name: e.name, title: e.kind === "boss" ? "босс" : "генерал",
       x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
       wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.wind > 0 ? 1 - e.wind / 0.5 : 0, stun: 0,
       tint: e.tint, r: e.kind === "boss" ? 46 : 30,
+      sig: e.sig || (e.kind === "boss" ? "cone" : "circle"),
+      row: e.row || (e.kind === "boss" ? 37 : 36),
     }));
   }
 
@@ -418,7 +445,7 @@ export class Battle {
       const kind = this.mobKind[i];
       const reach = kind === 1 ? 22 : 30;
       if (bd > reach * reach || best.iframe > 0) continue;
-      const dmg = mobDmg(kind);
+      const dmg = mobDmg(kind) * (best.curse > 0 ? 1.25 : 1);
       best.hp -= dmg;
       best.hurt = 0.22;
       best.iframe = Math.max(best.iframe, getTune().combat.contactIframe);
@@ -545,10 +572,11 @@ export class Battle {
     a.bufLight = false;
     a.bufSkill = 0;
     const committed = a.atk && a.atk.phase !== "recovery" && a.atk.kind !== "dodge";
+    if (a.curse > 0) a.curse = Math.max(0, a.curse - dt);
     const sp = Math.hypot(a.mx, a.my);
     if (sp > 0.18 && !committed) {
       const nx = a.mx / sp, ny = a.my / sp;
-      const spd = a.sheet.speed * (a.atk ? 0.62 : 1);
+      const spd = a.sheet.speed * (a.atk ? 0.62 : 1) * (a.curse > 0 ? 0.75 : 1);
       a.x = clamp(a.x + nx * spd * dt, 48, ARENA_W - 48);
       a.y = clamp(a.y + ny * spd * dt, 48, ARENA_H - 48);
       if (!a.atk) a.anim = "run";
@@ -850,29 +878,61 @@ export class Battle {
     }
   }
 
+  private tickChests(dt: number) {
+    const me = this.party.find((p) => p.id === this.localId) || this.party[0];
+    if (!me || me.hp <= 0) { this.nearChest = false; this.chestDwell = 0; return; }
+    let near: Chest | null = null;
+    for (const c of this.chests) {
+      if (c.open) continue;
+      if ((c.x - me.x) ** 2 + (c.y - me.y) ** 2 < 78 * 78) { near = c; break; }
+    }
+    this.nearChest = !!near;
+    if (!near) { this.chestDwell = 0; this.wantChest = false; return; }
+    this.chestDwell += dt;
+    if (this.wantChest || this.chestDwell >= 0.45) {
+      near.open = true;
+      this.opened.push(near.id);
+      this.chestDwell = 0;
+      this.wantChest = false;
+      this.nearChest = false;
+      this.text(near.x, near.y - 40, "сундук", "#ffd76a");
+      this.fxPush({ k: "ring", x: near.x, y: near.y, a: 0, r: 54, ang: 0, life: 0.4, max: 0.4, col: "#ffd76a", col2: "#fff" });
+    }
+  }
+
   private resolveSlam(e: Elite) {
     const boss = e.kind === "boss";
-    const pat = boss ? e.pattern % 3 : e.pattern % 2;
-    if (boss && pat === 2) {
-      for (let i = 0; i < 10; i++) this.spawnMob(e.x + Math.cos(i) * 80, e.y + Math.sin(i * 1.7) * 80);
+    const sig = e.sig || "circle";
+    if (sig === "summon") {
+      for (let i = 0; i < (boss ? 8 : 5); i++) this.spawnMob(e.x + Math.cos(i) * 80, e.y + Math.sin(i * 1.7) * 80);
       this.text(e.x, e.y - 60, "призыв", e.tint);
     }
-    const radius = pat === 1 ? 150 : boss ? 118 : 96;
-    const ang = pat === 1 ? 1.1 : Math.PI;
+    const line = sig === "line";
+    const cone = sig === "cone";
+    const radius = cone || line ? 168 : boss ? 118 : 96;
+    const ang = cone ? 1.05 : Math.PI;
     const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n);
-    this.fxPush({ k: pat === 1 ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
+    this.fxPush({ k: cone || line ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang: line ? 0.18 : ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
     this.shake = Math.max(this.shake, boss ? 7 : 4);
     for (const p of this.party) {
       if (p.hp <= 0 || p.iframe > 0) continue;
       const dx = p.x - e.x, dy = p.y - e.y;
-      const inside = pat === 1
-        ? dx * dx + dy * dy <= radius * radius && Math.abs(angDiff(Math.atan2(dy, dx), e.facing)) <= ang
-        : dx * dx + dy * dy <= radius * radius;
+      const along = dx * Math.cos(e.facing) + dy * Math.sin(e.facing);
+      const side = Math.abs(-dx * Math.sin(e.facing) + dy * Math.cos(e.facing));
+      const inside = line
+        ? along > 0 && along < radius && side < 34
+        : cone
+          ? dx * dx + dy * dy <= radius * radius && Math.abs(angDiff(Math.atan2(dy, dx), e.facing)) <= ang
+          : dx * dx + dy * dy <= radius * radius;
       if (!inside) continue;
-      const taken = dmg * (100 / (100 + p.sheet.armor * 4));
+      const taken = dmg * (100 / (100 + p.sheet.armor * 4)) * (p.curse > 0 ? 1.25 : 1);
       p.hp -= taken;
       p.hurt = 0.28;
       p.iframe = 0.55;
+      if (sig === "curse") {
+        p.curse = 4;
+        this.text(p.x, p.y - 46, "проклятие", "#c9b6ff");
+      }
       this.text(p.x, p.y - 30, "−" + Math.round(taken), "#ff8d7a");
       if (p.hp <= 0) {
         p.hp = 0;

@@ -107,7 +107,7 @@ button { cursor: pointer; }
 .paper { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
 
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.62); z-index: 20; display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px 24px; overflow: auto; }
-.modal[hidden], .toast[hidden] { display: none !important; }
+.modal[hidden], .toast[hidden], .hintkeys[hidden] { display: none !important; }
 .modal-card { width: min(920px, 100%); padding: 16px; }
 .shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .offer { padding: 10px; }

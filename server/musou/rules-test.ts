@@ -1,10 +1,10 @@
 // bun server/musou/rules-test.ts
 import {
-  BAG_MAX, BAG_START, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, claimQuest, equipItem,
+  BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, claimChest, claimQuest, equipItem,
   finishRun, killNeed, makeScript, mulberry32, newProfile, roomOutcome, setHero, sheet, shopOffers, spendStat, takeInbox,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
-import { DEFAULT_TUNE, eliteHp, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
+import { DEFAULT_TUNE, eliteHp, floorKit, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
 
 let fails = 0, n = 0;
 const ok = (c: unknown, m: string) => { n++; if (!c) { fails++; console.log("FAIL " + m); } else console.log("PASS " + m); };
@@ -150,6 +150,45 @@ function armed(cursed: 0 | 1) {
   return sheet(who);
 }
 ok(armed(1).dmg > armed(0).dmg && armed(1).speed < armed(0).speed, "проклятие множит урон и режет скорость");
+
+ok(FLOORS[0].general === "Осколок Командира" && FLOORS[0].boss === "Теневой Страж" && FLOORS[12].boss === "Титан Атлас", "13 этажей носят имена данжей Тёмного мира");
+ok(new Set(FLOORS.map((f) => f.gRow + ":" + f.bRow)).size === 13, "у этажей разные пары обликов элиты");
+const renamed = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+renamed.floors[0].general = "Тестовый Командир";
+const renamedOk = validateTune(renamed);
+ok(renamedOk.ok, "имена этажей проходят проверку");
+if (renamedOk.ok) setTune(renamedOk.tune);
+ok(floorKit(1).general === "Тестовый Командир", "следующий бой берёт имя из админки");
+const badSig = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+badSig.floors[3].gSig = "<script>";
+ok(!validateTune(badSig).ok, "чужой приём этажа отвергнут");
+resetTune();
+
+const chestWho = newProfile(8);
+setHero(chestWho, "veles");
+beginRun(chestWho, 1, 4000);
+const loot = claimChest(chestWho, 0, mulberry32(4));
+ok(!("err" in loot) && (chestWho.bag.length + chestWho.inbox.length) === 1, "сундук кладёт одну вещь");
+ok("err" in claimChest(chestWho, 0, mulberry32(5)), "тот же сундук не выдаёт второй раз");
+ok(DEFAULT_TUNE.loot.curseChance > 0 && DEFAULT_TUNE.loot.enchChance > 0 && DEFAULT_TUNE.loot.chestCount === 2, "чары и проклятия выпадают, сундуков два");
+
+const marked = new Battle(4, [{ id: "you", name: "Велес", hero: "veles", sheet: sheet(chestWho) }], 2);
+while (marked.phase === "intro") marked.step(0.05);
+const me = marked.party[0];
+me.x = 180;
+me.y = 180;
+me.iframe = 0;
+marked.elites.push({
+  kind: "general", name: "Могильный Упырь", title: "генерал", x: me.x + 20, y: me.y, hp: 100, maxHp: 100,
+  facing: 0, alive: true, wind: 0.04, windMax: 0.5, cd: 9, pattern: 0, swing: 0, stun: 0, tint: "#c9b6ff", r: 30, sig: "curse", row: 28,
+});
+marked.step(0.05);
+ok(me.curse > 0, "проклятие генерала вешает метку на героя");
+me.x = marked.chests[0].x;
+me.y = marked.chests[0].y;
+let dwell = 0;
+while (!marked.chests[0].open && dwell < 2) { marked.step(0.05); dwell += 0.05; }
+ok(marked.chests[0].open && marked.takeChests().length === 1, "стояние у сундука открывает его");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

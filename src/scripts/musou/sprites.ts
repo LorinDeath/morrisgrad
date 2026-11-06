@@ -19,6 +19,7 @@ import fx32Url from "../../assets/mc/fx30/fx30_s32.png?url";
 import fx64Url from "../../assets/mc/fx30/fx30_s64.png?url";
 import fx128Url from "../../assets/mc/fx30/fx30_r128.png?url";
 import fxConeUrl from "../../assets/mc/fx30/fx30_c128.png?url";
+import chestUrl from "../../assets/mc/props3/chest/chest.png?url";
 
 const HERO_W = 48;
 const HERO_H = 60;
@@ -100,10 +101,10 @@ export function blitHero(
 }
 
 export function blitMob(
-  ctx: CanvasRenderingContext2D, kind: number, frame: number, x: number, y: number, scale: number, facing: number, alive = true,
+  ctx: CanvasRenderingContext2D, kind: number, frame: number, x: number, y: number, scale: number, facing: number, alive = true, rowOverride?: number,
 ) {
   if (!ready(beasts)) return;
-  const row = MOB_ROW[Math.abs(kind | 0) % 3];
+  const row = rowOverride == null ? MOB_ROW[Math.abs(kind | 0) % 3] : Math.max(0, rowOverride | 0);
   const col = alive ? (Math.abs(frame | 0) % 4) : 11;
   const dw = BEAST * scale * 0.78;
   const dh = dw;
@@ -117,10 +118,10 @@ export function blitMob(
 }
 
 export function blitElite(
-  ctx: CanvasRenderingContext2D, boss: boolean, wind: boolean, x: number, y: number, scale: number, facing: number, alive = true,
+  ctx: CanvasRenderingContext2D, boss: boolean, wind: boolean, x: number, y: number, scale: number, facing: number, alive = true, rowOverride?: number,
 ) {
   if (!ready(beasts)) return;
-  const row = boss ? BOSS_ROW : GENERAL_ROW;
+  const row = rowOverride == null ? (boss ? BOSS_ROW : GENERAL_ROW) : Math.max(0, rowOverride | 0);
   const tick = (performance.now() / 140) | 0;
   const col = !alive ? 11 : wind ? 4 + (tick % 3) : tick % 4;
   const dw = BEAST * scale * (boss ? 1.05 : 0.92);
@@ -132,6 +133,38 @@ export function blitElite(
   if (Math.cos(facing) < 0) ctx.scale(-1, 1);
   ctx.drawImage(beasts, col * BEAST, row * BEAST, BEAST, BEAST, -dw / 2, -dh + 10, dw, dh);
   ctx.restore();
+}
+
+const chest = new Image();
+chest.src = chestUrl;
+
+const blade = new Image();
+blade.src = "/bm-art/weapon/stone_blade_1.png";
+const staff = new Image();
+staff.src = "/bm-art/weapon/water_blade_staff_1.png";
+
+export function blitWeapon(ctx: CanvasRenderingContext2D, hero: string, x: number, y: number, facing: number, scale: number) {
+  const img = hero === "lorelin" || hero === "chronos" || hero === "alex" ? staff : blade;
+  if (!ready(img)) return;
+  ctx.save();
+  ctx.translate(x, y - 18 * scale);
+  ctx.rotate(facing + Math.PI / 2);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0, 64, 64, -10 * scale, -28 * scale, 22 * scale, 22 * scale);
+  ctx.restore();
+}
+
+export function blitChest(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, open: boolean, frame: number) {
+  if (!ready(chest)) return false;
+  const col = open ? Math.min(14, Math.abs(frame | 0) % 15) : Math.abs(frame | 0) % 24;
+  const row = open ? 2 : 0;
+  const dw = 48 * scale;
+  const dh = 44 * scale;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(chest, col * 48, row * 44, 48, 44, x - dw / 2, y - dh, dw, dh);
+  ctx.restore();
+  return true;
 }
 
 export function blitTile(ctx: CanvasRenderingContext2D, index: number, x: number, y: number, w: number, h: number) {

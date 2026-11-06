@@ -20,7 +20,7 @@ const title = "Орда · набор чисел";
     p { color: #cbbba6; }
     .status { min-height: 1.4em; color: #ffb0a0; }
     label { display: grid; gap: 4px; font-size: 0.85rem; color: #cbbba6; }
-    input { background: #1c0e12; color: #f3e6d4; border: 1px solid rgba(224,192,122,.4); padding: 6px 8px; }
+    input, textarea { background: #1c0e12; color: #f3e6d4; border: 1px solid rgba(224,192,122,.4); padding: 6px 8px; width: 100%; box-sizing: border-box; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     button { background: transparent; color: #f0d080; border: 1px solid #e7c98a; padding: 8px 12px; cursor: pointer; }
@@ -92,6 +92,7 @@ const title = "Орда · набор чисел";
     ["combat", "partyHpCap", "Потолок здоровья элиты"],
     ["loot", "curseChance", "Шанс проклятия"],
     ["loot", "enchChance", "Шанс чар"],
+    ["loot", "chestCount", "Сундуков на этаже"],
     ["loot", "magicDrop", "Магический дроп"],
     ["loot", "rareDrop", "Редкий дроп"],
     ["curse", "statMult", "Проклятие × статы"],
@@ -116,6 +117,7 @@ const title = "Орда · набор чисел";
     if (mobHp.every(Number.isFinite)) tune.combat.mobHp = mobHp;
     if (mobDmg.every(Number.isFinite)) tune.combat.mobDmg = mobDmg;
     if (ench.every(Number.isFinite)) tune.ench.stat = ench;
+    try { tune.floors = JSON.parse($("floors").value); } catch { tune.floors = null; }
     return tune;
   }
 
@@ -128,6 +130,7 @@ const title = "Орда · набор чисел";
     tune.combat.mobHp.forEach((n, i) => { document.querySelector(`[data-k="combat.mobHp.${i}"]`).value = String(n); });
     tune.combat.mobDmg.forEach((n, i) => { document.querySelector(`[data-k="combat.mobDmg.${i}"]`).value = String(n); });
     tune.ench.stat.forEach((n, i) => { document.querySelector(`[data-k="ench.stat.${i}"]`).value = String(n); });
+    $("floors").value = JSON.stringify(tune.floors, null, 1);
     showPreview();
   }
 
@@ -178,6 +181,14 @@ const title = "Орда · набор чисел";
         (key.startsWith("ench") ? buckets.mark : buckets.combat).append(lab);
       }
     }
+    const names = document.createElement("label");
+    names.textContent = "Имена и приёмы 13 этажей, JSON";
+    const area = document.createElement("textarea");
+    area.id = "floors";
+    area.rows = 8;
+    area.addEventListener("input", showPreview);
+    names.append(area);
+    buckets.mark.append(names);
     paint(DEFAULT_TUNE);
   }
 

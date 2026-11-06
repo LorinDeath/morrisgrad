@@ -50,11 +50,16 @@ export type OrdaTune = {
     setCap: number;
     curseChance: number;
     enchChance: number;
+    chestCount: number;
   };
   curse: { statMult: number; speed: number };
   ench: { stat: [number, number, number] };
   xp: { base: number; pow: number };
+  floors: FloorTune[];
 };
+
+export type FloorTune = { general: string; boss: string; gSig: Sig; bSig: Sig };
+type Sig = "circle" | "cone" | "line" | "curse" | "summon";
 
 export const DEFAULT_TUNE: OrdaTune = {
   v: 1,
@@ -100,12 +105,28 @@ export const DEFAULT_TUNE: OrdaTune = {
     setShop: 0.015,
     setPerFloor: 0.004,
     setCap: 0.05,
-    curseChance: 0,
-    enchChance: 0,
+    curseChance: 0.08,
+    enchChance: 0.06,
+    chestCount: 2,
   },
   curse: { statMult: 1.5, speed: 0.92 },
   ench: { stat: [1.5, 1.8, 2] },
   xp: { base: 50, pow: 1.45 },
+  floors: [
+    { general: "Осколок Командира", boss: "Теневой Страж", gSig: "circle", bSig: "cone" },
+    { general: "Наёмник-Головорез", boss: "Атаман Мародёров", gSig: "cone", bSig: "line" },
+    { general: "Кристальный Страж", boss: "Кристальная Владычица", gSig: "line", bSig: "circle" },
+    { general: "Могильный Упырь", boss: "Чёрный Жнец", gSig: "curse", bSig: "summon" },
+    { general: "Громовержец", boss: "Райдзин", gSig: "line", bSig: "cone" },
+    { general: "Пожиратель Сущностей", boss: "Танатос", gSig: "curse", bSig: "circle" },
+    { general: "Магма-Голем", boss: "Суртур", gSig: "circle", bSig: "summon" },
+    { general: "Бездонный Страж", boss: "Левиафан", gSig: "summon", bSig: "cone" },
+    { general: "Коррумпированное Ядро", boss: "Творец Искажения", gSig: "line", bSig: "curse" },
+    { general: "Страж Нулевой Точки", boss: "Азатот", gSig: "curse", bSig: "summon" },
+    { general: "Жрец Крови", boss: "Кармилла", gSig: "cone", bSig: "curse" },
+    { general: "Каратель", boss: "Призрачный Понтифик", gSig: "cone", bSig: "line" },
+    { general: "Пробужденный Страж", boss: "Титан Атлас", gSig: "circle", bSig: "summon" },
+  ],
 };
 
 const NUM = new Set(["number"]);
@@ -149,6 +170,7 @@ const BOUNDS: Record<string, Bound> = {
   "loot.setCap": { min: 0, max: 0.2 },
   "loot.curseChance": { min: 0, max: 0.35 },
   "loot.enchChance": { min: 0, max: 0.25 },
+  "loot.chestCount": { min: 0, max: 4, int: true },
   "curse.statMult": { min: 1, max: 2 },
   "curse.speed": { min: 0.7, max: 1 },
   "xp.base": { min: 10, max: 400, int: true },
@@ -182,9 +204,14 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "xp"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "xp", "floors"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
+  if ("floors" in src) {
+    const names = readFloors(src.floors);
+    if (typeof names === "string") return { ok: false, err: names };
+    out.floors = names;
+  }
   const sections = ["economy", "combat", "loot", "curse", "ench", "xp"] as const;
   for (const sec of sections) {
     const block = src[sec];
@@ -231,6 +258,30 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (drop > 0.95) return { ok: false, err: "сумма шансов дропа больше 0.95" };
   void NUM;
   return { ok: true, tune: out };
+}
+
+const SIGS = new Set(["circle", "cone", "line", "curse", "summon"]);
+
+function readFloors(raw: unknown): FloorTune[] | string {
+  if (!Array.isArray(raw) || raw.length !== 13) return "floors: ровно 13 этажей";
+  const out: FloorTune[] = [];
+  for (let i = 0; i < 13; i++) {
+    const row = raw[i];
+    if (!row || typeof row !== "object" || Array.isArray(row)) return `floors[${i}]: нужен объект`;
+    const rec = row as Record<string, unknown>;
+    for (const k of Object.keys(rec)) if (!["general", "boss", "gSig", "bSig"].includes(k)) return `floors[${i}]: лишнее поле ${k}`;
+    const general = cleanNote(rec.general);
+    const boss = cleanNote(rec.boss);
+    if (general.length < 2 || boss.length < 2) return `floors[${i}]: имя короче 2`;
+    if (!SIGS.has(String(rec.gSig)) || !SIGS.has(String(rec.bSig))) return `floors[${i}]: приём circle, cone, line, curse или summon`;
+    out.push({ general, boss, gSig: rec.gSig as Sig, bSig: rec.bSig as Sig });
+  }
+  return out;
+}
+
+export function floorKit(n: number, t = active): FloorTune {
+  const i = Math.max(1, Math.min(13, n | 0)) - 1;
+  return t.floors[i];
 }
 
 export function mobHp(kind: number, floor: number, t = active) {

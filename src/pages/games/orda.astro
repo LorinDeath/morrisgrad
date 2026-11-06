@@ -42,12 +42,14 @@ const title = 'Орда Обители | Моррис Град';
       <button type="button" id="m-light">Удар</button>
       <button type="button" id="m-heavy">Тяж</button>
       <button type="button" id="m-dodge">Рывок</button>
+      <button type="button" id="m-chest">Сундук</button>
     </div>
     <div class="dock">
       <div class="vitals"><div class="hp"><i id="hp"></i></div><b id="hp-num">0</b><div class="ms"><i id="ms"></i></div><span>мусоу</span></div>
       <div class="skills" id="skills"></div>
     </div>
-    <p class="hintkeys">WASD — шаг, мышь — взгляд, ЛКМ или J — следующий удар серии, K или ПКМ — тяжёлый, Q E R — навыки, F — мусоу, пробел — рывок. Удержание не бьёт само, пока серия не дошла до удара. Красный круг — замах генерала. P — пауза в одиночке.</p>
+    <p class="hintkeys" id="chest-hint" hidden>Рядом сундук. G или кнопка «Сундук», либо постой у него.</p>
+    <p class="hintkeys">WASD — шаг, мышь — взгляд, ЛКМ или J — следующий удар серии, K или ПКМ — тяжёлый, Q E R — навыки, F — мусоу, пробел — рывок, G — сундук. Удержание не бьёт само, пока серия не дошла до удара. Круг, конус или луч — замах именного генерала. P — пауза в одиночке.</p>
   </section>
   <section id="v-result" class="view result"></section>
   <div id="modal" class="modal" hidden></div>
