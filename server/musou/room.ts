@@ -4,12 +4,13 @@ import { identify } from "../strat/ident";
 import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limits";
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
-import { beginRun, chainAt, clampStrike, diffLock, finishRun, FLOOR_N, floorByN, floorLock, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
+import { beginRun, chainAt, clampStrike, diffLock, finishRun, FLOOR_N, floorByN, floorLock, floorNeed, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
 import { diffRow, eliteHp, eliteName, floorKit, getTune } from "../../src/scripts/musou/tune";
+import { castOf } from "../../src/scripts/musou/scripts";
 import { markAnchor, markColor, markMul, markSeed, markTitle, rollMark } from "../../src/scripts/musou/mark";
 
 type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[]; chain?: number[] };
-type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number; tier?: number; up?: number; cursed?: 0 | 1; pow?: number };
+type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number; tier?: number; up?: number; cursed?: 0 | 1; pow?: number; tell?: string; move?: string };
 type Lob = {
   code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; diff: number; nonce: string; started: number;
   seed: number; elites: Elite[]; pos: Record<string, { x: number; y: number; aim: number; at: number }>; paid: boolean; reports: Record<string, any>;
@@ -20,6 +21,7 @@ type Att = { url: string; pkey?: string; tk: number; at: number; st: number };
 export class MusouRoom extends DurableObject {
   env: any;
   L: Lob | null = null;
+  live = new Map<string, WebSocket>();
   constructor(ctx: any, env: any) { super(ctx, env); this.env = env; }
   async load() {
     if (!this.L) this.L = (await this.ctx.storage.get("L")) || null;
@@ -106,13 +108,19 @@ export class MusouRoom extends DurableObject {
       }
       a.pkey = key;
       ws.serializeAttachment(a);
+      this.live.set(key, ws);
       await this.save();
       await this.report();
       this.send(ws, { type: "you", id: key, nick: seat.nick, host: L.host === key });
-      this.broadcast(this.seatView());
+      try { this.broadcast(this.seatView()); }
+      catch { this.send(ws, { type: "err", err: "Комната не собрала места" }); }
       if (L.phase === "fight" && L.party) {
         this.send(ws, { type: "go", floor: L.floor, diff: L.diff || 1, nonce: L.nonce, seed: L.seed, hostId: L.host, party: L.party });
         this.send(ws, { type: "elite", elites: L.elites || [] });
+      }
+      if (L.paid) {
+        const saved = await loadProfile(this.env.GAME_DB, key);
+        this.send(ws, { type: "loot", report: L.reports[key] || null, profile: saved, err: L.reports[key] ? null : "Награда этой комнаты уже разобрана" });
       }
       return;
     }
@@ -266,14 +274,24 @@ export class MusouRoom extends DurableObject {
       e.cd -= 0.1;
       if (e.wind > 0) {
         e.wind -= 0.1;
-        if (e.wind <= 0) { e.wind = 0; e.pat++; changed = true; this.broadcast({ type: "boom", id: e.id, x: e.x, y: e.y, facing: e.facing, sig: e.sig, pow: e.pow || 1, r: e.sig === "line" || e.sig === "cone" ? 168 : e.kind === "boss" ? 118 : 96 }); }
+        if (e.wind <= 0) {
+          e.wind = 0;
+          const reach = e.move === "pull" ? 78 : e.move === "bite" ? 112 : e.move === "slow" ? 150 : e.sig === "line" || e.sig === "cone" ? 168 : e.kind === "boss" ? 118 : 96;
+          e.pat++;
+          changed = true;
+          this.broadcast({ type: "boom", id: e.id, x: e.x, y: e.y, facing: e.facing, sig: e.sig, pow: e.pow || 1, r: reach, tell: e.tell || "" });
+        }
       } else if (e.cd <= 0) {
-        e.wind = 0.5;
+        const cast = castOf(floorByN(L.floor).dungeon, e.kind, e.pat, e.tier || 0);
+        e.move = cast.move;
+        e.sig = cast.shape;
+        e.tell = cast.tell;
+        e.wind = cast.move === "pull" ? 0.9 : 0.55;
         e.cd = e.kind === "boss" ? 2.4 : 1.8;
         changed = true;
       }
     }
-    if (changed || L.elites.length) this.broadcast({ type: "elite", elites: L.elites.map((e) => ({ id: e.id, kind: e.kind, name: e.name, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, wind: e.wind, alive: e.alive, tint: e.tint, sig: e.sig, row: e.row })) });
+    if (changed || L.elites.length) this.broadcast({ type: "elite", elites: L.elites.map((e) => ({ id: e.id, kind: e.kind, name: e.name, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, wind: e.wind, alive: e.alive, tint: e.tint, sig: e.sig, row: e.row, tier: e.tier, up: e.up, cursed: e.cursed, pow: e.pow, move: e.move, tell: e.tell })) });
   }
 
   strikeElite(seat: Seat, id: string, kind: string) {
@@ -288,16 +306,20 @@ export class MusouRoom extends DurableObject {
     L.reports["hit:" + seat.pkey] = now;
     e.hp -= clampStrike(seat.dmg || 8, kind);
     if (e.hp <= 0) { e.hp = 0; e.alive = false; }
-    this.broadcast({ type: "elite", elites: L.elites.map((x) => ({ id: x.id, kind: x.kind, name: x.name, x: x.x, y: x.y, hp: x.hp, maxHp: x.maxHp, facing: x.facing, wind: x.wind, alive: x.alive, tint: x.tint, sig: x.sig, row: x.row })) });
+    this.broadcast({ type: "elite", elites: L.elites.map((x) => ({ id: x.id, kind: x.kind, name: x.name, x: x.x, y: x.y, hp: x.hp, maxHp: x.maxHp, facing: x.facing, wind: x.wind, alive: x.alive, tint: x.tint, sig: x.sig, row: x.row, tier: x.tier, up: x.up, cursed: x.cursed, pow: x.pow, move: x.move, tell: x.tell })) });
   }
 
   async finish(asked = "") {
     const L = this.L!;
     if (L.paid) {
-      for (const s of L.seats) this.sendTo(s.pkey, { type: "loot", report: L.reports[s.pkey] || null, profile: null });
+      for (const s of L.seats) {
+        const saved = await loadProfile(this.env.GAME_DB, s.pkey);
+        this.sendTo(s.pkey, { type: "loot", report: L.reports[s.pkey] || null, profile: saved, err: L.reports[s.pkey] ? null : "Награда этой комнаты уже разобрана" });
+      }
       return;
     }
     L.paid = true;
+    this.broadcast({ type: "elite", elites: (L.elites || []).map((e) => ({ id: e.id, kind: e.kind, name: e.name, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, wind: e.wind, alive: e.alive, tint: e.tint, sig: e.sig, row: e.row, tier: e.tier, up: e.up, cursed: e.cursed, pow: e.pow, move: e.move, tell: e.tell })) });
     const script = makeScript(L.floor, L.seed);
     const outcome = roomOutcome(script, Date.now() - L.started, L.elites);
     const reason = outcome.boss ? "win" : asked === "surrender" ? "surrender" : "dead";
@@ -317,6 +339,8 @@ export class MusouRoom extends DurableObject {
   }
 
   sendTo(pkey: string, o: any) {
+    const direct = this.live.get(pkey);
+    if (direct) { this.send(direct, o); return; }
     for (const ws of this.ctx.getWebSockets()) {
       if ((ws.deserializeAttachment() as Att)?.pkey === pkey) this.send(ws, o);
     }
@@ -327,6 +351,7 @@ export class MusouRoom extends DurableObject {
   async gone(ws: WebSocket) {
     const L = await this.load(); if (!L) return;
     const pk = (ws.deserializeAttachment() as Att)?.pkey;
+    if (pk && this.live.get(pk) === ws) this.live.delete(pk);
     if (!pk || L.phase !== "lobby") return;
     L.seats = L.seats.filter((s) => s.pkey !== pk);
     if (L.host === pk) L.host = L.seats[0]?.pkey || "";

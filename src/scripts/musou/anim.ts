@@ -9,9 +9,16 @@ export const BEAST_HURT = 7;
 export const BEAST_DEATH = [8, 9, 10, 11] as const;
 export const DEATH_SEC = 0.64;
 
-/** Локальный столбец героя 0..5. Замах и удар — разные кадры, не покачивание одного. */
+/**
+ * Локальный столбец героя 0..5. На листе героя нет ряда смерти: четыре направления и шесть кадров.
+ * Падение — отдельная очередь, не кадр ранения и не кадр удара. t — секунды с момента падения.
+ * Сначала вдох, потом стойка. Дальше рисунок оседает, кренится и гаснет.
+ */
 export function heroLocalFrame(anim: string, swing: number, hurt: number, t: number) {
-  if (anim === "down") return t < 0.45 ? HERO_FRAME.breath : HERO_FRAME.windup;
+  if (anim === "down") {
+    if (t < 0.22) return HERO_FRAME.breath;
+    return HERO_FRAME.stance;
+  }
   if (hurt > 0.08 && anim !== "swing") return HERO_FRAME.windup;
   if (anim === "swing") {
     if (swing < 0.45) return HERO_FRAME.windup;

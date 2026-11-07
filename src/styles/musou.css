@@ -34,7 +34,13 @@ button { cursor: pointer; }
 .view { display: none; flex: 1; min-height: 0; }
 .view.on { display: block; }
 #v-hub.on { display: flex; flex-direction: column; }
-.boot, .pick, .result { max-width: 1180px; margin: 0 auto; padding: 22px 16px 48px; }
+.boot, .pick, .result, .menu { max-width: 1180px; margin: 0 auto; padding: 22px 16px 48px; }
+.menu { min-height: calc(100dvh - 58px); display: none; align-items: center; justify-content: center; }
+.menu.on { display: flex; }
+.menu-card { width: min(520px, 100%); text-align: center; padding: 36px 28px; border: 1px solid var(--line); border-radius: 18px; background: rgba(16, 8, 10, 0.88); box-shadow: 0 24px 60px rgba(0,0,0,.35); }
+.menu-card h1 { font-family: Cinzel, serif; color: var(--gold-2); font-size: clamp(2rem, 5vw, 3.2rem); margin: 8px 0; }
+.menu-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+.menu-actions .btn { min-height: 48px; font-size: 1.05rem; }
 .boot { text-align: center; padding-top: 18vh; }
 .boot h1, .pick h1, .panel h2, .result h2 { font-family: Cinzel, serif; color: var(--gold-2); font-weight: 700; letter-spacing: 0.04em; }
 .spinner { width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 50%; border: 2px solid rgba(231,201,138,.25); border-top-color: var(--gold-2); animation: spin .9s linear infinite; }

@@ -5,11 +5,13 @@ import {
   floorByN, heroById, mulberry32, spawnBudget,
   type FloorDef, type HeroId, type Rng, type Sheet, type Sig, type SkillDef,
 } from "./rules";
-import { mitigate, rateChance } from "./caps";
+import { HARD_CAP, mitigate, rateChance } from "./caps";
 import { DEATH_SEC } from "./anim";
 import { chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
 import { markAnchor, markColor, markMul, markTitle, rollMark } from "./mark";
 import { swarmName } from "./stagecraft";
+import { castOf, type Move } from "./scripts";
+import { skillGlow } from "./rules";
 
 export const ARENA_W = 2400;
 export const ARENA_H = 1560;
@@ -53,6 +55,10 @@ export type Actor = {
   my: number;
   aim: number;
   curse: number;
+  slow: number;
+  haste: number;
+  downAge: number;
+  echo: null | { left: number; idx: number; mul: number };
 };
 
 export type Elite = {
@@ -82,6 +88,8 @@ export type Elite = {
   up: number;
   cursed: 0 | 1;
   pow: number;
+  move: Move;
+  tell: string;
 };
 
 export type Chest = { id: number; x: number; y: number; open: boolean };
@@ -206,6 +214,7 @@ export class Battle {
         anim: "idle" as Anim, swing: 0, lock: 0, step: 0, stepT: 0,
         cd: [0, 0, 0, 0], iframe: 0, downT: 0, revives: 1, hurt: 0,
         bufSkill: 0, bufLight: false, bufHeavy: false, bufDodge: false, hold: false, holdLight: false, dodgeCd: 0, pose: 0, atk: null, mx: 0, my: 0, aim: 0, curse: 0,
+        slow: 0, haste: 0, downAge: 0, echo: null,
       };
     });
     this.localId = this.party[0]?.id || "";
@@ -468,6 +477,7 @@ export class Battle {
       sig,
       row: boss ? this.floor.bRow : this.floor.gRow,
       tier: mark.tier, up: mark.up, cursed: mark.cursed, pow: mul.dmg,
+      move: "circle", tell: "",
     });
     this.fxPush({ k: "ring", x: this.elites[this.elites.length - 1].x, y: this.elites[this.elites.length - 1].y, a: 0, r: boss ? 120 : 70, ang: 0, life: 0.45, max: 0.45, col: boss ? "#ffd76a" : "#ff6a4a", col2: "#fff" });
   }
@@ -500,7 +510,7 @@ export class Battle {
     a.x = x; a.y = y; a.facing = aim; a.aim = aim;
   }
 
-  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string; sig?: Sig; row?: number; tier?: number; up?: number; cursed?: number; pow?: number }[]) {
+  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string; sig?: Sig; row?: number; tier?: number; up?: number; cursed?: number; pow?: number; move?: Move; tell?: string }[]) {
     this.elites = list.map((e) => ({
       id: e.id, kind: e.kind, name: e.name, title: e.kind === "boss" ? "босс" : "генерал",
       x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
@@ -509,6 +519,7 @@ export class Battle {
       sig: e.sig || (e.kind === "boss" ? "cone" : "circle"),
       row: e.row || (e.kind === "boss" ? 37 : 36),
       tier: e.tier | 0, up: e.up | 0, cursed: e.cursed ? 1 : 0, pow: e.pow || 1,
+      move: e.move || "circle", tell: e.tell || "",
     }));
   }
 
@@ -547,6 +558,7 @@ export class Battle {
       if (best.hp <= 0) {
         best.hp = 0;
         best.downT = best.revives > 0 ? 6 : 99;
+        best.downAge = 0;
         best.anim = "down";
       }
     }
@@ -693,11 +705,13 @@ export class Battle {
     if (a.hurt > 0) a.hurt -= dt;
     if (a.hp <= 0) {
       a.anim = "down";
+      a.downAge += dt;
       a.downT -= dt;
       if (a.downT <= 0 && a.revives > 0) {
         a.revives--;
         a.hp = Math.round(a.maxHp * 0.45);
         a.iframe = 1.1;
+        a.downAge = 0;
         a.anim = "idle";
         this.text(a.x, a.y - 40, "снова в строю", "#d8ffe8");
       }
@@ -724,10 +738,20 @@ export class Battle {
     a.bufSkill = 0;
     const committed = a.atk && a.atk.phase !== "recovery" && a.atk.kind !== "dodge";
     if (a.curse > 0) a.curse = Math.max(0, a.curse - dt);
+    if (a.slow > 0) a.slow = Math.max(0, a.slow - dt);
+    if (a.haste > 0) a.haste = Math.max(0, a.haste - dt);
+    if (a.echo) {
+      a.echo.left -= dt;
+      if (a.echo.left <= 0) {
+        const echo = a.echo;
+        a.echo = null;
+        this.echoStrike(a, echo.idx, echo.mul);
+      }
+    }
     const sp = Math.hypot(a.mx, a.my);
     if (sp > 0.18 && !committed) {
       const nx = a.mx / sp, ny = a.my / sp;
-      const spd = a.sheet.speed * (a.atk ? 0.62 : 1) * (a.curse > 0 ? 0.75 : 1);
+      const spd = a.sheet.speed * (a.atk ? 0.62 : 1) * (a.curse > 0 ? 0.75 : 1) * (a.slow > 0 ? 0.62 : 1) * (a.haste > 0 ? 1.25 : 1);
       a.x = clamp(a.x + nx * spd * dt, 48, ARENA_W - 48);
       a.y = clamp(a.y + ny * spd * dt, 48, ARENA_H - 48);
       if (!a.atk) a.anim = "run";
@@ -837,12 +861,14 @@ export class Battle {
     const hero = heroById(a.hero);
     const sk = hero.skills[idx];
     if (!sk) return;
+    const glow = skillGlow(a.hero, idx, a.sheet.radiance | 0);
+    const reach = (a.sheet.radiusMul || 1) * (glow === "extend" ? 1.4 : 1);
     if (sk.musou) {
       if (a.musou < 100 || a.cd[idx] > 0) return;
       a.musou = 0;
       a.cd[idx] = 1.2;
     } else if (a.cd[idx] > 0) return;
-    else a.cd[idx] = sk.cd;
+    else a.cd[idx] = sk.cd * (a.sheet.cdMul || 1);
     a.lock = 0.28;
     a.swing = 0;
     a.anim = "swing";
@@ -858,8 +884,11 @@ export class Battle {
       a.x = clamp(a.x + nx * sk.dash, 48, ARENA_W - 48);
       a.y = clamp(a.y + ny * sk.dash, 48, ARENA_H - 48);
     }
-    this.strike(a, { shape: sk.shape, r: sk.r, ang: sk.ang || 0.5, mul: sk.dmg, skill: true, finisher: !!sk.musou, col: sk.fx, col2: sk.fx2, heal: sk.heal, stun: sk.stun, def: sk });
+    this.strike(a, { shape: sk.shape, r: sk.r * reach, ang: sk.ang || 0.5, mul: sk.dmg, skill: true, finisher: !!sk.musou, col: sk.fx, col2: sk.fx2, heal: sk.heal, stun: sk.stun, def: sk, vamp: glow === "vamp" });
     this.text(a.x, a.y - 78, sk.name, sk.fx);
+    if (glow === "echo") a.echo = { left: 0.6, idx, mul: 0.4 };
+    if (glow === "swift") a.haste = Math.max(a.haste, 2);
+    if (glow === "nova") this.strike(a, { shape: "circle", r: 96, ang: 0, mul: sk.dmg * 0.45, skill: true, finisher: false, col: sk.fx, col2: sk.fx2 });
     if (sk.musou) {
       this.flash = 0.45;
       this.flashCol = sk.fx;
@@ -869,7 +898,16 @@ export class Battle {
     }
   }
 
-  private strike(a: Actor, o: { shape: SkillDef["shape"]; r: number; ang: number; mul: number; skill: boolean; finisher: boolean; kind?: "light" | "heavy" | "skill" | "musou"; col: string; col2: string; heal?: number; stun?: number; def?: SkillDef }) {
+  private echoStrike(a: Actor, idx: number, mul: number) {
+    const sk = heroById(a.hero).skills[idx];
+    if (!sk || a.hp <= 0) return;
+    const glow = skillGlow(a.hero, idx, a.sheet.radiance | 0);
+    const reach = (a.sheet.radiusMul || 1) * (glow === "extend" ? 1.4 : 1);
+    this.strike(a, { shape: sk.shape, r: sk.r * reach, ang: sk.ang || 0.5, mul: sk.dmg * mul, skill: true, finisher: false, col: sk.fx, col2: sk.fx2, stun: sk.stun, def: sk, vamp: glow === "vamp" });
+    this.text(a.x, a.y - 64, "эхо", sk.fx);
+  }
+
+  private strike(a: Actor, o: { shape: SkillDef["shape"]; r: number; ang: number; mul: number; skill: boolean; finisher: boolean; kind?: "light" | "heavy" | "skill" | "musou"; col: string; col2: string; heal?: number; stun?: number; def?: SkillDef; vamp?: boolean }) {
     this.rebuild();
     const power = a.sheet.dmg * o.mul * (o.skill ? a.sheet.skill : 1) * (this.floor.play?.playerDmg ?? 1);
     let hits = 0;
@@ -893,6 +931,11 @@ export class Battle {
         shown++;
       }
       if (a.sheet.ls > 0) a.hp = Math.min(a.maxHp, a.hp + dmg * a.sheet.ls);
+      if (o.vamp) {
+        const room = Math.max(0, HARD_CAP.ls - a.sheet.ls);
+        const bite = Math.min(0.08, room);
+        if (bite > 0) a.hp = Math.min(a.maxHp, a.hp + dmg * bite);
+      }
       return hp;
     };
     const x0 = Math.floor((a.x - o.r) / CELL), x1 = Math.floor((a.x + o.r) / CELL);
@@ -1034,8 +1077,6 @@ export class Battle {
       this.markPhase(e);
       const act = diffRow(this.diff).act;
       const spd = (e.kind === "boss" ? 92 : 118) * (act === "killer" || e.tier >= 6 || e.cursed ? 1.28 : 1) * (e.sig === "cone" ? 1.12 : 1) * (1 + Math.min(3, e.up) * 0.04);
-      if ((act === "brand" || e.tier >= 4) && e.pattern % 2 === 0) e.sig = "line";
-      if (e.tier >= 5 && e.pattern % 3 === 2) e.sig = "circle";
       const retreat = e.sig === "line" && d < 210;
       if (e.wind <= 0 && (retreat || d > e.r + 24)) {
         const dir = retreat ? -1 : 1;
@@ -1046,18 +1087,33 @@ export class Battle {
       if (e.wind > 0) {
         e.wind -= dt;
         e.swing = 1 - e.wind / e.windMax;
+        if (e.move === "pull") {
+          for (const p of prey) {
+            if (p.iframe > 0) continue;
+            const px = e.x - p.x, py = e.y - p.y;
+            const pd = Math.hypot(px, py) || 1;
+            if (pd < 70 || pd > 420) continue;
+            p.x = clamp(p.x + (px / pd) * 78 * dt, 48, ARENA_W - 48);
+            p.y = clamp(p.y + (py / pd) * 78 * dt, 48, ARENA_H - 48);
+          }
+        }
         if (e.wind <= 0) this.resolveSlam(e);
       } else {
         e.cd -= dt;
         if (e.cd <= 0 && prey.length) {
-          if (e.tier >= 3 && d > 260) {
+          const cast = castOf(this.floor.dungeon, e.kind, e.pattern, e.tier);
+          e.move = cast.move;
+          e.sig = cast.shape;
+          e.tell = cast.tell;
+          if (e.tier >= 3 && d > 260 && e.move !== "line" && e.move !== "pull") {
             e.x = clamp(tx - (dx / (d || 1)) * 110, 80, ARENA_W - 80);
             e.y = clamp(ty - (dy / (d || 1)) * 110, 80, ARENA_H - 80);
           }
-          e.windMax = e.kind === "boss" ? (e.phase >= 3 ? 0.86 : e.phase === 2 ? 0.7 : 0.55) : e.sig === "line" ? 0.62 : 0.5;
+          e.windMax = e.move === "pull" ? 0.9 : e.kind === "boss" ? (e.phase >= 3 ? 0.86 : e.phase === 2 ? 0.7 : 0.55) : e.sig === "line" ? 0.62 : 0.5;
           e.wind = e.windMax;
           e.cd = e.kind === "boss" ? (e.phase >= 3 ? 1.15 : 1.55) : e.sig === "cone" ? 1.45 : 1.85;
           e.pattern++;
+          this.text(e.x, e.y - 72, cast.tell, e.tint);
         }
       }
     }
@@ -1094,7 +1150,7 @@ export class Battle {
     }
     const line = sig === "line";
     const cone = sig === "cone";
-    const radius = cone || line ? 168 : boss ? 118 : 96;
+    const radius = e.move === "pull" ? 78 : e.move === "bite" ? 112 : e.move === "slow" ? 150 : cone || line ? 168 : boss ? 118 : 96;
     const ang = cone ? 1.05 : Math.PI;
     const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n, getTune(), this.diff) * (e.phase >= 3 ? 1.3 : 1) * (e.pow || 1);
     this.fxPush({ k: cone || line ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang: line ? 0.18 : ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
@@ -1119,9 +1175,17 @@ export class Battle {
       p.hp -= taken;
       p.hurt = 0.28;
       p.iframe = 0.55;
-      if (sig === "curse" || diffRow(this.diff).act === "killer") {
+      if (sig === "curse" || e.move === "curse" || diffRow(this.diff).act === "killer") {
         p.curse = 4;
         this.text(p.x, p.y - 46, "проклятие", "#f4f4f5");
+      }
+      if (e.move === "slow") {
+        p.slow = Math.max(p.slow, 2.2);
+        this.text(p.x, p.y - 58, "медленно", "#c7dcff");
+      }
+      if (e.move === "bite") {
+        e.hp = Math.min(e.maxHp, e.hp + taken * 0.12);
+        this.text(e.x, e.y - 52, "кровь", "#ff8aa8");
       }
       if (diffRow(this.diff).act === "killer" && boss) {
         for (let i = 0; i < 3; i++) this.spawnMob(e.x + Math.cos(i) * 70, e.y + Math.sin(i) * 70);
@@ -1130,6 +1194,7 @@ export class Battle {
       if (p.hp <= 0) {
         p.hp = 0;
         p.downT = p.revives > 0 ? 6 : 99;
+        p.downAge = 0;
         p.anim = "down";
         this.text(p.x, p.y - 48, p.revives > 0 ? "подъём через мгновение" : p.name + " пал", "#ffd0c8");
       }
@@ -1211,6 +1276,7 @@ export class Battle {
     this.elites = s.e.map((e) => ({
       kind: e.kind as Elite["kind"], name: e.name, title: e.title, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp,
       facing: e.facing, alive: e.alive, wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.swing, stun: 0, die: e.alive ? 0 : DEATH_SEC, phase: 1, tint: e.tint, r: e.r,
+      sig: "circle", row: 36, tier: 0, up: 0, cursed: 0, pow: 1, move: "circle", tell: "",
     }));
     this.mobN = 0;
     for (let i = 0; i < s.m.length; i += 4) {

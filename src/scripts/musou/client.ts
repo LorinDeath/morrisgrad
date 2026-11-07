@@ -2,7 +2,7 @@
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  beginMode, capLabel, compareGear, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, runOffer, seal, statGlance,
+  beginMode, buyRune, capLabel, compareGear, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, glowLine, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, raiseRadiance, RUNES, runOffer, seal, socketRune, statGlance,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
   type ChestPick, type FloorDef, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
@@ -14,7 +14,7 @@ import { MODE_LIST, type ModeId } from "./modes";
 import { craftFor } from "./stagecraft";
 import itemsUrl from "../../assets/mc/items_atlas.png?url";
 
-const GEAR_ICON: Record<string, number> = { weapon: 85, helm: 86, chest: 87, gloves: 89, boots: 88, amulet: 96, ring: 95, ring1: 95, ring2: 90 };
+const GEAR_ICON: Record<string, number> = { weapon: 85, helm: 86, chest: 87, gloves: 89, boots: 88, amulet: 196, ring: 185, ring1: 185, ring2: 195 };
 document.documentElement.style.setProperty("--items", `url("${itemsUrl}")`);
 
 function iconStyle(slot: string, px = 40) {
@@ -72,7 +72,7 @@ let seenInv = "";
 
 function show(name: string) {
   view = name;
-  for (const id of ["v-boot", "v-pick", "v-hub", "v-fight", "v-result"]) {
+  for (const id of ["v-boot", "v-menu", "v-pick", "v-hub", "v-fight", "v-result"]) {
     $("orda").querySelector("#" + id)?.classList.toggle("on", id === "v-" + name);
   }
   $<HTMLElement>("top").style.display = name === "fight" ? "none" : "";
@@ -181,7 +181,8 @@ function renderPick() {
     if (online) await act({ op: "hero", hero: chosen });
     else saveLocal();
     renderHub();
-    show("hub");
+    renderMenu();
+    show("menu");
   };
   requestAnimationFrame(paintPicks);
 }
@@ -288,6 +289,24 @@ function stageChips(profile: Profile, dungeon: number, current: number) {
   }).join("");
 }
 
+function renderMenu() {
+  const root = $<HTMLElement>("v-menu");
+  const hero = profile.hero ? heroById(profile.hero) : null;
+  root.innerHTML = `
+    <div class="menu-card">
+      <p class="tag">Обитель</p>
+      <h1>Орда Обители</h1>
+      <p class="lead">${hero ? `${hero.name}, ${hero.title}. Уровень ${profile.lvl}.` : "Сначала выбери героя."} Семнадцать данжей, своя сумка на всех.</p>
+      <div class="menu-actions">
+        ${hero ? `<button class="btn gold" id="menu-go" type="button">Продолжить</button>` : ""}
+        <button class="btn" id="menu-heroes" type="button">Герои</button>
+      </div>
+    </div>`;
+  $<HTMLButtonElement>("menu-heroes").onclick = () => { renderPick(); show("pick"); };
+  const go = $<HTMLButtonElement>("menu-go");
+  if (go) go.onclick = () => { floorPick = openFloor(); renderHub(); show("hub"); };
+}
+
 function renderHub() {
   const s = sheet(profile);
   const hero = heroById(profile.hero);
@@ -330,7 +349,7 @@ function renderHub() {
         return `<div class="stat"><span>${name}</span><span class="glance">${glance(k)}</span><span><b>${base}</b> ${profile.unspent ? `<button class="plus" data-stat="${k}" type="button" title="${glance(k)}">+</button>` : ""}</span></div>`;
       }).join("")}
       ${profile.inbox.length ? `<div class="stat"><span>У входа</span><b>${profile.inbox[0].name}</b></div><div class="row"><button class="btn" id="in-bag" type="button">В сумку</button><button class="btn" id="in-sell" type="button">Продать</button><button class="btn" id="in-drop" type="button">Оставить</button></div>` : ""}
-      <div class="row"><button class="btn" id="open-heroes" type="button">Герои</button><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
+      <div class="row"><button class="btn" id="open-menu" type="button">Меню</button><button class="btn" id="open-heroes" type="button">Герои</button><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
     </section>
     <section class="panel board">
       <div class="board-head"><h2>${mode ? mode.name : "Кампания"}</h2><span class="tag">ур. ${profile.lvl}</span></div>
@@ -372,8 +391,15 @@ function renderHub() {
         <button class="btn" id="equip" type="button">Надеть</button>
         <button class="btn" id="sell" type="button">Продать</button>
         <button class="btn" id="unequip" type="button">Снять</button>
-        <button class="btn" id="forge" type="button">Улучшить</button>
+        <button class="btn" id="forge" type="button">Шлифовка</button>
       </div>
+      <details class="fine">
+        <summary>Сияние и гнёзда</summary>
+        <p>Сияние ${profile.radiance}/${getTune().craft.radianceMax}. ${glowLine(profile)}. Следующий шаг — ${getTune().craft.radianceGold * (Math.min(9, profile.radiance) + 1)} зл.</p>
+        <div class="row"><button class="btn" id="glow" type="button">Поднять сияние</button></div>
+        <p>Руна садится в оружие, две разные, одну и ту же второй раз нельзя. Шлифовка точит вещь у Петра и не ломает её.</p>
+        <div class="row">${RUNES.map((r) => `<button type="button" class="btn" data-rune="${r.id}" title="${r.note}">${r.name} · ${profile.res[r.id] || 0}</button>`).join("")}</div>
+      </details>
     </section>
   </div>`;
   root.querySelectorAll<HTMLButtonElement>("[data-floor]").forEach((b) => b.onclick = () => { floorPick = Number(b.dataset.floor); renderHub(); });
@@ -466,15 +492,53 @@ function renderHub() {
     if (!it) return toast("Выбери вещь в сумке или слот на герое");
     if (online) {
       const r = await act({ op: "upgrade", id: it.id, at: it.up | 0 });
-      if (!r?.err) toast("Вещь улучшена");
+      if (!r?.err) toast("Шлифовка прошла. Вещь не ломается.");
       renderHub();
     } else {
       const r = forgeItem(profile, it.id, it.up | 0);
       if ("err" in r) toast(r.err);
-      else { saveLocal(); toast("Вещь +" + r.up); }
+      else { saveLocal(); toast("Шлифовка +" + r.up + ". Вещь не ломается."); }
       renderHub();
     }
   };
+  $<HTMLButtonElement>("glow").onclick = async () => {
+    if (online) {
+      const r = await act({ op: "radiance" });
+      if (!r?.err) toast("Сияние " + profile.radiance);
+      renderHub();
+    } else {
+      const r = raiseRadiance(profile);
+      if ("err" in r) toast(r.err);
+      else { saveLocal(); toast("Сияние " + r.step); renderHub(); }
+    }
+  };
+  root.querySelectorAll<HTMLButtonElement>("[data-rune]").forEach((b) => b.onclick = async () => {
+    const id = b.dataset.rune || "";
+    const weapon = selected?.slot === "weapon" ? selected : null;
+    const owned = profile.res[id] || 0;
+    if (!weapon || owned < 1) {
+      if (online) {
+        const r = await act({ op: "rune", id });
+        if (!r?.err) toast("Руна в запасе");
+        renderHub();
+      } else {
+        const r = buyRune(profile, id);
+        if ("err" in r) toast(r.err);
+        else { saveLocal(); toast("Руна в запасе"); renderHub(); }
+      }
+      return;
+    }
+    if (online) {
+      const r = await act({ op: "socket", id: weapon.id, rune: id });
+      if (!r?.err) toast("Руна в оружии");
+      renderHub();
+    } else {
+      const r = socketRune(profile, weapon.id, id);
+      if ("err" in r) toast(r.err);
+      else { saveLocal(); toast("Руна в оружии"); renderHub(); }
+    }
+  });
+  $<HTMLButtonElement>("open-menu").onclick = () => { renderMenu(); show("menu"); };
   $<HTMLButtonElement>("open-shop").onclick = () => openShop();
   const inbox = async (mode: "bag" | "sell" | "drop") => {
     if (mode === "sell" && profile.inbox[0] && !confirm("Продать редкую вещь у входа?")) return;
@@ -609,12 +673,14 @@ async function connect(code: string, fromDrop = false) {
   sock.onopen = () => sock.send(JSON.stringify({ type: "hello", token, guest: token ? undefined : guest, nick }));
   sock.onclose = () => {
     if (ws !== sock || view !== "fight" || !room) return;
-    if (dropTry >= 2) return;
+    if (dropTry >= 8) return;
     dropTry++;
     setTimeout(() => connect(code, true), 400);
   };
   ws.onmessage = (ev) => {
-    const m = JSON.parse(ev.data);
+    let m: any;
+    try { m = JSON.parse(ev.data); }
+    catch { return; }
     if (m.type === "you") { youId = m.id; room = { code, host: !!m.host, seats: [] }; }
     if (m.type === "lobby") {
       room = { code: m.code, host: m.hostId === youId, seats: m.seats };
@@ -813,9 +879,9 @@ function hud() {
   $<HTMLElement>("hp-num").textContent = hpNow + " / " + me.maxHp;
   $<HTMLElement>("ms").style.width = me.musou + "%";
   const f = battle.floor;
-  const wave = battle.wave < 3 ? (f.stages[battle.wave] || `Волна ${battle.wave + 1}`) : "Босс";
+  const wave = battle.wave < 3 ? (f.stages[battle.wave] || `Волна ${battle.wave + 1}`) : (f.goal === "pack" ? (f.stages[2] || "Зачистка") : "Босс");
   const foe = battle.elites.find((e) => e.alive);
-  $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b> · ${DIFF_NAME[(battle.diff | 0) - 1] || "Обычная"}<div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown ? " · босс пал" : ""}${foe ? ` · цель: ${foe.name}` : ""}</div>`;
+  $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b> · ${DIFF_NAME[(battle.diff | 0) - 1] || "Обычная"}<div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown && f.goal !== "pack" ? " · босс пал" : ""}${foe ? ` · цель: ${foe.name}` : ""}</div>`;
   $<HTMLButtonElement>("pause-btn").hidden = !!battle.remote;
   const chest = $<HTMLElement>("chest-hint");
   if (chest) chest.hidden = !battle.nearChest;
@@ -1104,7 +1170,7 @@ async function boot() {
     profile = loadLocal();
   }
   if (!profile.hero) { renderPick(); show("pick"); }
-  else { floorPick = openFloor(); renderHub(); show("hub"); }
+  else { floorPick = openFloor(); renderMenu(); show("menu"); }
   (window as any).__orda = { get battle() { return battle; }, get profile() { return profile; } };
   requestAnimationFrame(loop);
 }

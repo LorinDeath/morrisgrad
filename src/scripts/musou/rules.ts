@@ -41,8 +41,38 @@ export type Item = {
   cursed?: 0 | 1;
   /** Ярус зачарования 1…6, имена как у «Проклятых». 0 и отсутствие — без чар. */
   ench?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
-  /** Уровень улучшения у Петра, 0 — вещь ещё не точили. */
+  /** Уровень улучшения у Петра, 0 — вещь ещё не точили. Шлифовка — это оно: успех всегда, слома нет. */
   up?: number;
+  /** До двух рун Тёмного мира. Только оружие, без повтора одной и той же. */
+  sockets?: RuneId[];
+};
+
+export const RUNES = [
+  { id: "r_vamp", name: "Руна Жатвы", note: "Жажда навыка лечит, но вместе с вампиризмом не выше 10%" },
+  { id: "r_chrono", name: "Руна Хроноса", note: "Перезарядка навыков короче на четверть" },
+  { id: "r_nova", name: "Руна Сверхновой", note: "Навык бьёт шире" },
+  { id: "r_creator", name: "Руна Творца", note: "База этого оружия выше на треть" },
+] as const;
+export type RuneId = (typeof RUNES)[number]["id"];
+const RUNE_SET = new Set<string>(RUNES.map((r) => r.id));
+
+export const RADIANCE_PROP = {
+  echo: { name: "Эхо", note: "Навык бьёт ещё раз через мгновение, слабее" },
+  vamp: { name: "Жажда", note: "Доля урона навыка лечит. Вместе с вампиризмом не выше 10%" },
+  nova: { name: "Вспышка", note: "Вокруг героя вспышка в момент навыка" },
+  swift: { name: "Порыв", note: "После навыка шаг быстрее два мгновения" },
+  extend: { name: "Размах", note: "Этот навык достаёт дальше" },
+} as const;
+export type GlowId = keyof typeof RADIANCE_PROP;
+const HERO_GLOW: Record<string, [GlowId, GlowId, GlowId]> = {
+  lorin: ["echo", "vamp", "nova"],
+  lorelin: ["extend", "echo", "nova"],
+  veles: ["extend", "nova", "vamp"],
+  listaf: ["echo", "swift", "nova"],
+  chronos: ["echo", "swift", "nova"],
+  fox: ["swift", "echo", "vamp"],
+  itrain: ["extend", "echo", "nova"],
+  alex: ["nova", "swift", "echo"],
 };
 
 export const ENCH_NAME = ["Необычный", "Редкий", "Странный", "Легендарный", "Божественный", "Чёрный"] as const;
@@ -406,6 +436,8 @@ export type HeroCard = {
   kills: number;
   oath: OathId;
   book: ModeBook;
+  /** Сияние навыков 0…9. Своё у героя. Числа — как у Проклятых: +6% силы за шаг, не выше +45%, перезарядка −2.5% за шаг. */
+  radiance: number;
 };
 
 export type Profile = {
@@ -436,6 +468,8 @@ export type Profile = {
   res: Record<string, number>;
   /** Этаж Бездны, индекс Босс-Раша и победы режимов. Свои у героя. */
   book: ModeBook;
+  /** Сияние активного героя. В карточке то же поле, сумка его не делит. */
+  radiance: number;
 };
 
 export type Sheet = {
@@ -456,6 +490,12 @@ export type Sheet = {
   heal: number;
   gold: number;
   accent: string;
+  /** Множитель перезарядки навыков. 1 — как в листе героя. */
+  cdMul: number;
+  /** Множитель радиуса навыков. */
+  radiusMul: number;
+  /** Шаг сияния, уже обрезанный потолком набора. */
+  radiance: number;
 };
 
 export function heroById(id: string | null | undefined): HeroDef {
@@ -486,7 +526,7 @@ export function newProfile(seed = 1): Profile {
     equip: emptyEquip(), bag: [], inbox: [], quests: {},
     clears: Array.from({ length: FLOOR_N }, () => 0),
     chain: Array.from({ length: FLOOR_N }, () => 0),
-    kills: 0, pending: null, oath: "none", roster: [], res: {}, book: emptyBook(),
+    kills: 0, pending: null, oath: "none", roster: [], res: {}, book: emptyBook(), radiance: 0,
   };
 }
 
@@ -495,7 +535,7 @@ function freshCard(id: HeroId): HeroCard {
     id, lvl: 1, xp: 0, unspent: 0, alloc: { str: 0, dex: 0, vit: 0, ene: 0 },
     clears: Array.from({ length: FLOOR_N }, () => 0),
     chain: Array.from({ length: FLOOR_N }, () => 0),
-    quests: {}, equip: emptyEquip(), kills: 0, oath: "none", book: emptyBook(),
+    quests: {}, equip: emptyEquip(), kills: 0, oath: "none", book: emptyBook(), radiance: 0,
   };
 }
 
@@ -503,6 +543,7 @@ function snapshot(p: Profile): HeroCard {
   return JSON.parse(JSON.stringify({
     id: p.hero, lvl: p.lvl, xp: p.xp, unspent: p.unspent, alloc: p.alloc,
     clears: p.clears, chain: p.chain, quests: p.quests, equip: p.equip, kills: p.kills, oath: p.oath, book: p.book,
+    radiance: p.radiance | 0,
   }));
 }
 
@@ -530,6 +571,7 @@ function mount(p: Profile, id: HeroId) {
   p.kills = c.kills;
   p.oath = c.oath;
   p.book = readBook(c.book);
+  p.radiance = Math.max(0, Math.min(9, c.radiance | 0));
 }
 
 export function xpNeed(lvl: number) {
@@ -651,7 +693,44 @@ function sanitizeItem(it: Item): Item {
   if (ench) next.ench = ench; else delete next.ench;
   const up = Math.max(0, Math.min(UPG.maxLvl | 0, it.up | 0));
   if (up) next.up = up; else delete next.up;
+  const sockets = readSockets(it);
+  if (it.slot === "weapon" && sockets.length) next.sockets = sockets; else delete next.sockets;
   return next;
+}
+
+function readSockets(it: { sockets?: unknown }): RuneId[] {
+  if (!Array.isArray(it.sockets)) return [];
+  const out: RuneId[] = [];
+  for (const id of it.sockets) {
+    const s = String(id || "");
+    if (!RUNE_SET.has(s) || out.includes(s as RuneId)) continue;
+    out.push(s as RuneId);
+    if (out.length >= 2) break;
+  }
+  return out;
+}
+
+export function skillGlow(hero: string, idx: number, step: number): GlowId | null {
+  const row = HERO_GLOW[hero];
+  if (!row || idx < 0 || idx > 2) return null;
+  const need = idx === 0 ? 3 : idx === 1 ? 6 : 9;
+  if ((step | 0) < need) return null;
+  return row[idx];
+}
+
+export function radianceStep(p: Profile): number {
+  return Math.max(0, Math.min(getTune().craft.radianceMax | 0, p.radiance | 0));
+}
+
+export function glowLine(p: Profile): string {
+  const step = radianceStep(p);
+  const row = HERO_GLOW[p.hero || ""] || HERO_GLOW.lorin;
+  const bits = [
+    step >= 3 ? RADIANCE_PROP[row[0]].name : "",
+    step >= 6 ? RADIANCE_PROP[row[1]].name : "",
+    step >= 9 ? RADIANCE_PROP[row[2]].name : "",
+  ].filter(Boolean);
+  return bits.length ? bits.join(", ") : "пока без особого свойства";
 }
 
 export function normalize(raw: any): Profile {
@@ -706,9 +785,10 @@ export function normalize(raw: any): Profile {
   }
   p.oath = oathOf(raw.oath);
   p.book = readBook(raw.book);
+  p.radiance = Math.max(0, Math.min(9, raw.radiance | 0));
   if (raw.res && typeof raw.res === "object") {
     for (const [k, v] of Object.entries(raw.res as Record<string, unknown>)) {
-      if (!MAT_NAME[k]) continue;
+      if (!MAT_NAME[k] && !RUNE_SET.has(k)) continue;
       const n = Math.max(0, Math.min(9999, (v as number) | 0));
       if (n) p.res[k] = n;
     }
@@ -740,6 +820,7 @@ function readCard(raw: any): HeroCard | null {
   card.chain = prog.chain;
   card.oath = oathOf(raw.oath);
   card.book = readBook(raw.book);
+  card.radiance = Math.max(0, Math.min(9, raw.radiance | 0));
   if (raw.quests && typeof raw.quests === "object") {
     for (const [id, q] of Object.entries(raw.quests as Record<string, any>)) {
       if (!questById(id) || !q) continue;
@@ -842,7 +923,7 @@ export function sheet(p: Profile): Sheet {
   let vit = h.base.vit + p.alloc.vit;
   let ene = h.base.ene + p.alloc.ene;
   let dmg = 0, armor = 0, hp = 0, aspd = 0, crit = 0, dodge = 0, ls = 0, skill = 0;
-  let speedMul = 1;
+  let speedMul = 1, cdMul = 1, radiusMul = 1;
   const tune = getTune();
   for (const it of equipped(p)) {
     if (p.lvl < it.req) continue;
@@ -851,11 +932,15 @@ export function sheet(p: Profile): Sheet {
     const mult = (it.cursed === 1 ? tune.curse.statMult : 1) * (it.ench ? tune.ench.stat[it.ench - 1] || 1 : 1);
     if (it.cursed === 1) speedMul *= tune.curse.speed;
     if (it.ench) speedMul *= tune.ench.speed[it.ench - 1] || 1;
-    dmg += (grown ? Number(grown.dmg) : it.dmg) * mult;
-    armor += (grown ? Number(grown.armor) : it.armor) * mult;
+    const creator = it.slot === "weapon" && it.sockets?.includes("r_creator") ? 1.35 : 1;
+    dmg += (grown ? Number(grown.dmg) : it.dmg) * mult * creator;
+    armor += (grown ? Number(grown.armor) : it.armor) * mult * creator;
+    if (it.slot === "weapon" && it.sockets?.includes("r_vamp")) ls += 48;
+    if (it.slot === "weapon" && it.sockets?.includes("r_chrono")) cdMul *= 0.75;
+    if (it.slot === "weapon" && it.sockets?.includes("r_nova")) radiusMul *= 1.2;
     for (const a of it.affixes) {
       const base = up ? Number(upgStats({ v: a.val }, up, false).v) : a.val;
-      const val = base * mult;
+      const val = base * mult * creator;
       if (a.stat === "str") str += val;
       else if (a.stat === "dex") dex += val;
       else if (a.stat === "vit") vit += val;
@@ -882,6 +967,10 @@ export function sheet(p: Profile): Sheet {
   else if (vow === "rook") { armorOut += 12; speedMul *= 0.86; }
   else if (vow === "harvest") { ls += 54; dmgOut = Math.round(dmgOut * 0.92); }
   else if (vow === "haste") { aspdOut = Math.min(2.2, aspdOut * 1.12); hpOut = Math.round(hpOut * 0.9); }
+  const glow = radianceStep(p);
+  const power = 1 + Math.min(0.45, 0.06 * glow);
+  skill = (1 + ene * 0.012 + skill) * power;
+  cdMul *= 1 - 0.025 * glow;
   const critRaw = 22 + dex * 0.45 + crit;
   const dodgeRaw = 4 + dex * 0.22 + dodge;
   const lsRaw = ls;
@@ -897,12 +986,15 @@ export function sheet(p: Profile): Sheet {
     dodge: rateChance(dodgeRaw, "dodge"),
     dodgeRaw,
     speed: Math.round((214 + dex * 0.4) * Math.max(0.45, speedMul)),
-    skill: 1 + ene * 0.012 + skill,
+    skill,
     ls: rateChance(lsRaw, "ls"),
     lsRaw,
     heal: 1 + set.heal,
     gold: goldOut,
     accent: h.accent,
+    cdMul,
+    radiusMul,
+    radiance: glow,
   };
 }
 
@@ -1233,6 +1325,49 @@ export function forgeItem(p: Profile, id: string, expect?: number): { up: number
   it.up = cur + 1;
   seal(p);
   return { up: it.up };
+}
+
+export function raiseRadiance(p: Profile): { step: number; gold: number } | { err: string } {
+  if (!p.hero) return { err: "Сначала выбери героя" };
+  const max = getTune().craft.radianceMax | 0;
+  const cur = Math.max(0, Math.min(9, p.radiance | 0));
+  if (cur >= max) return { err: "Сияние на пределе" };
+  const cost = (getTune().craft.radianceGold | 0) * (cur + 1);
+  if (p.gold < cost) return { err: "Не хватает золота на сияние" };
+  p.gold -= cost;
+  p.radiance = cur + 1;
+  seal(p);
+  return { step: p.radiance, gold: cost };
+}
+
+export function buyRune(p: Profile, id: string): { have: number } | { err: string } {
+  if (!getTune().craft.sockets) return { err: "Гнёзда закрыты в наборе" };
+  if (!RUNE_SET.has(id)) return { err: "Такой руны нет" };
+  const have = p.res[id] || 0;
+  if (have >= 20) return { err: "Больше этой руны не унести" };
+  const cost = getTune().craft.runeGold | 0;
+  if (p.gold < cost) return { err: "Не хватает золота на руну" };
+  p.gold -= cost;
+  p.res[id] = have + 1;
+  seal(p);
+  return { have: p.res[id] };
+}
+
+export function socketRune(p: Profile, itemId: string, rune: string): { sockets: RuneId[] } | { err: string } {
+  if (!getTune().craft.sockets) return { err: "Гнёзда закрыты в наборе" };
+  if (!RUNE_SET.has(rune)) return { err: "Такой руны нет" };
+  const it = findOwned(p, itemId);
+  if (!it) return { err: "Вещи нет у этого героя" };
+  if (it.slot !== "weapon") return { err: "Руна садится только в оружие" };
+  const have = readSockets(it);
+  if (have.includes(rune as RuneId)) return { err: "Такая руна уже стоит" };
+  if (have.length >= 2) return { err: "Оба гнезда заняты" };
+  if ((p.res[rune] || 0) < 1) return { err: "Этой руны нет в запасе" };
+  p.res[rune] -= 1;
+  if (p.res[rune] <= 0) delete p.res[rune];
+  it.sockets = [...have, rune as RuneId];
+  seal(p);
+  return { sockets: it.sockets };
 }
 
 export function unequip(p: Profile, slot: Paper): string | null {

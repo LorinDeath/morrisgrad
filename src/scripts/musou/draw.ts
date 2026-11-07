@@ -77,7 +77,7 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
         const hero = heroById(a.hero);
         drawShadow(ctx, p.sx, p.sy, 26 * zoom, 10 * zoom, 0.45);
         if (a.musou >= 100) aura(ctx, p.sx, p.sy - 34 * zoom, 36 * zoom, hero.accent, 0.35 + Math.sin(now / 180) * 0.15);
-        paintHero(ctx, hero, p.sx, p.sy, Math.max(2.4, zoom * 2.15), a.facing, a.anim, a.swing, a.anim === "down" ? a.downT : now / 1000, a.hurt, a.musou / 100);
+        paintHero(ctx, hero, p.sx, p.sy, Math.max(2.4, zoom * 2.15), a.facing, a.anim, a.swing, a.anim === "down" ? a.downAge : now / 1000, a.hurt, a.musou / 100);
         if (a.iframe > 0) {
           ctx.strokeStyle = rgba("#fff", 0.35);
           ctx.lineWidth = 2;
@@ -116,6 +116,12 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
     if (!e.alive) continue;
     const p = project(e.x, e.y, cam, w, h, zoom);
     nameplate(ctx, p.sx, p.sy - (e.kind === "boss" ? 128 : 102) * zoom, e.name, e.tint);
+    if (e.wind > 0 && e.tell) {
+      ctx.font = `600 ${Math.max(11, 12 * zoom)}px "Exo 2", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fff6d8";
+      ctx.fillText(e.tell, p.sx, p.sy - (e.kind === "boss" ? 146 : 120) * zoom);
+    }
     bar(ctx, p.sx, p.sy - (e.kind === "boss" ? 112 : 88) * zoom, (e.kind === "boss" ? 90 : 64) * zoom, 6, e.hp / e.maxHp, e.tint, "#2a0c0c");
   }
 
@@ -440,8 +446,22 @@ export function paintHero(
 ) {
   const flip = Math.cos(facing) >= 0 ? 1 : -1;
   const frame = heroLocalFrame(anim, swing, hurt, t);
+  const down = anim === "down";
+  const k = down ? Math.max(0, Math.min(1, t / 0.9)) : 0;
   if (musou > 0.85) aura(ctx, x, y - 36 * s, 16 * s, hero.accent, 0.45);
-  blitHero(ctx, hero.id, frame, x, y, s, flip, facing, anim === "down");
+  ctx.save();
+  if (down) {
+    ctx.fillStyle = `rgba(90, 12, 24, ${0.28 + k * 0.35})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 6, (16 + k * 18) * s, (6 + k * 3) * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.translate(x, y);
+    ctx.rotate(flip * k * 1.15);
+    ctx.globalAlpha = 1 - k * 0.42;
+    ctx.translate(-x, -y);
+  }
+  blitHero(ctx, hero.id, frame, x, y, s, flip, facing, down);
+  ctx.restore();
   if (anim === "swing") blitWeapon(ctx, hero.id, x, y, facing, s, swing);
 }
 

@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  affixText, beginMode, compareGear, finishRun, chainAt, diffLock, dropQuality, dungeonBudget, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, stagePay, statGlance, takeInbox, unequip, xpNeed,
+  affixText, beginMode, buyRune, compareGear, finishRun, chainAt, diffLock, dropQuality, dungeonBudget, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillGlow, socketRune, spendStat, stagePay, statGlance, takeInbox, unequip, xpNeed,
 } from "../../src/scripts/musou/rules";
 import { markGold, markPay, markSeed, rollBook, rollMark } from "../../src/scripts/musou/mark";
 import { Battle } from "../../src/scripts/musou/sim";
@@ -13,7 +13,8 @@ import { auditShadowCatalog } from "./sw-audit";
 import { MODE_LIST } from "../../src/scripts/musou/modes";
 import { craftFor } from "../../src/scripts/musou/stagecraft";
 import { HARD_CAP, mitigate, rateChance } from "../../src/scripts/musou/caps";
-import { beastFrame, heroLocalFrame } from "../../src/scripts/musou/anim";
+import { HERO_FRAME, beastFrame, heroLocalFrame } from "../../src/scripts/musou/anim";
+import { BOSS_SCRIPTS, GENERAL_SCRIPTS, castOf } from "../../src/scripts/musou/scripts";
 import { SW_MODES } from "../../src/scripts/musou/sw-catalog";
 
 let fails = 0, n = 0;
@@ -816,6 +817,65 @@ ok(!validateTune(lowTune).ok, "админка не опускает легенд
 const fat = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 fat.elite.up = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
 ok(!validateTune(fat).ok, "шанс шага вверх остаётся маленьким");
+
+const bossKeys = BOSS_SCRIPTS.map((s) => s.moves.join(","));
+const genKeys = GENERAL_SCRIPTS.map((s) => s.moves.join(","));
+ok(BOSS_SCRIPTS.length === 17 && GENERAL_SCRIPTS.length === 17 && new Set(bossKeys).size === 17 && new Set(genKeys).size === 17, "у 17 боссов и 17 генералов разные порядки приёмов");
+ok(BOSS_SCRIPTS.every((s, i) => s.moves[0] !== GENERAL_SCRIPTS[i].moves[0] && s.moves.length >= 2), "первый приём генерала не копирует босса своего данжа");
+ok(castOf(1, "boss", 0, 0).tell === "копьё" && castOf(1, "boss", 1, 0).move === "cone" && castOf(11, "boss", 0, 0).move === "bite" && castOf(6, "boss", 0, 0).move === "pull", "замок бьёт копьём и щитом, Кармилла кусает, Танатос зовёт");
+ok(castOf(17, "boss", 3, 6).tell === "чёрный след" && castOf(17, "boss", 0, 6).move === "summon", "чёрный след добавляется к порядку, а не стирает его");
+{
+  const walker = newProfile(3);
+  setHero(walker, "lorin");
+  const tough = sheet(walker);
+  tough.hp = 20000;
+  const live = new Battle(modeFloor(walker, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: tough }], 1, 1);
+  let seen = "";
+  for (let i = 0; i < 200 && !seen; i++) {
+    live.step(0.05);
+    const boss = live.elites.find((e) => e.kind === "boss" && e.pattern === 1 && e.wind > 0);
+    if (boss) seen = boss.move + ":" + boss.tell;
+  }
+  ok(seen === "line:копьё", "босс первого данжа открывает бой копьём, не множителем здоровья");
+}
+ok(heroLocalFrame("down", 0, 0, 0.05) === HERO_FRAME.breath && heroLocalFrame("down", 0, 0, 0.5) === HERO_FRAME.stance && heroLocalFrame("hurt", 0, 0.2, 1) === HERO_FRAME.windup && heroLocalFrame("down", 0, 0, 0.5) !== HERO_FRAME.windup, "падение героя садится в стойку и не повторяет кадр ранения");
+
+const jewel = newProfile(9);
+setHero(jewel, "lorin");
+jewel.gold = 5000;
+jewel.lvl = 20;
+const wand = rollItem(mulberry32(9), { ilvl: 8, floor: 1, rarity: "magic", bare: true, id: "wand" });
+wand.slot = "weapon";
+wand.dmg = 20;
+wand.req = 1;
+wand.affixes = [];
+jewel.bag = [wand];
+ok(equipItem(jewel, wand.id) === null, "оружие для гнезда надето");
+const plain = sheet(jewel).dmg;
+ok("err" in socketRune(jewel, wand.id, "r_creator"), "пустой запас не сажает руну");
+ok(!("err" in buyRune(jewel, "r_creator")) && !("err" in buyRune(jewel, "r_vamp")) && !("err" in socketRune(jewel, wand.id, "r_creator")) && !("err" in socketRune(jewel, wand.id, "r_vamp")), "две разные руны садятся в оружие");
+ok("err" in socketRune(jewel, wand.id, "r_chrono") && jewel.equip.weapon?.sockets?.length === 2, "третье гнездо закрыто");
+ok(sheet(jewel).dmg > plain && sheet(jewel).ls <= HARD_CAP.ls && sheet(jewel).ls > 0, "Руна Творца поднимает урон, Руна Жатвы не обходит 10%");
+jewel.pending = { floor: 1, at: 1, nonce: "o", chests: 0, diff: 1, oath: "harvest" };
+ok(sheet(jewel).ls <= HARD_CAP.ls, "клятва жатвы и руна вместе остаются под потолком");
+jewel.pending = null;
+ok(!("err" in buyRune(jewel, "r_chrono")) && !("err" in buyRune(jewel, "r_nova")), "ещё две руны в запасе");
+jewel.equip.weapon!.sockets = ["r_chrono", "r_nova"];
+const timed = sheet(jewel);
+ok(Math.abs(timed.cdMul - 0.75) < 1e-9 && Math.abs(timed.radiusMul - 1.2) < 1e-9, "Хронос короче перезарядку, Сверхновая шире навык");
+for (let i = 0; i < 9; i++) ok(!("err" in raiseRadiance(jewel)), "сияние шагает до девяти");
+ok("err" in raiseRadiance(jewel) && jewel.radiance === 9 && skillGlow("lorin", 0, 9) === "echo" && skillGlow("lorin", 1, 9) === "vamp" && skillGlow("lorin", 2, 5) === null, "девятый шаг открывает Эхо и Жажду, третий навык до девятого молчит");
+ok(skillGlow("lorin", 2, 9) === "nova" && sheet(jewel).skill > sheet(newProfile(1)).skill && sheet(jewel).cdMul < 0.75, "девятое сияние усиливает навык и ещё короче перезарядку");
+const shut = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+shut.craft.radianceMax = 12;
+shut.craft.sockets = 2;
+ok(!validateTune(shut).ok, "админка не поднимает сияние выше 9 и не открывает третье гнездо");
+const legacyCraft = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+delete legacyCraft.craft;
+const legacyOk = validateTune(legacyCraft);
+ok(legacyOk.ok && legacyOk.tune.craft.radianceMax === 9 && legacyOk.tune.craft.sockets === 1, "старый набор без гнёзд оставляет сияние и руны включёнными");
+const ringBack = normalize(JSON.parse(JSON.stringify(jewel)));
+ok(ringBack.radiance === 9 && ringBack.equip.weapon?.sockets?.join(",") === "r_chrono,r_nova" && ringBack.roster.find((r) => r.id === "lorin")?.radiance === 9, "сияние и гнёзда переживают снимок героя");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

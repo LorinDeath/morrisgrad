@@ -83,6 +83,8 @@ export type OrdaTune = {
     up: Sept;
     modeTier: Sept;
   };
+  /** Гнёзда рун Тёмного мира и сияние навыков Проклятых. Шлифовка — это forge. */
+  craft: { sockets: number; radianceMax: number; radianceGold: number; runeGold: number };
 };
 
 export const DIFF_N = 7;
@@ -218,6 +220,7 @@ export const DEFAULT_TUNE: OrdaTune = {
     up: [0.08, 0.07, 0.06, 0.05, 0.04, 0.035, 0.03],
     modeTier: [1, 2, 2, 3, 4, 5, 6],
   },
+  craft: { sockets: 1, radianceMax: 9, radianceGold: 80, runeGold: 160 },
   floors: SW_FLOORS.map((f) => ({ general: f.general, boss: f.boss, gSig: f.gSig, bSig: f.bSig, mut: f.mut, need: f.minLvl, xp: f.xp })),
 };
 
@@ -281,6 +284,10 @@ const BOUNDS: Record<string, Bound> = {
   "modes.bossrush": { min: 1, max: 300, int: true },
   "modes.purgatory": { min: 1, max: 300, int: true },
   "modes.demiurge": { min: 1, max: 300, int: true },
+  "craft.sockets": { min: 0, max: 1, int: true },
+  "craft.radianceMax": { min: 0, max: 9, int: true },
+  "craft.radianceGold": { min: 20, max: 500, int: true },
+  "craft.runeGold": { min: 40, max: 2000, int: true },
 };
 
 const TRIPLE: Record<string, Bound> = {
@@ -318,7 +325,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge", "modes", "elite"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge", "modes", "elite", "craft"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
   if ("floors" in src) {
@@ -331,7 +338,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
     if (typeof diff === "string") return { ok: false, err: diff };
     out.diff = diff;
   }
-  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge", "modes", "elite"] as const;
+  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge", "modes", "elite", "craft"] as const;
   for (const sec of sections) {
     const block = src[sec];
     if (!block) continue;
