@@ -5,6 +5,8 @@ import {
   floorByN, heroById, mulberry32, spawnBudget,
   type FloorDef, type HeroId, type Rng, type Sheet, type Sig, type SkillDef,
 } from "./rules";
+import { mitigate, rateChance } from "./caps";
+import { DEATH_SEC } from "./anim";
 import { chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
 import { swarmName } from "./stagecraft";
 
@@ -69,6 +71,8 @@ export type Elite = {
   pattern: number;
   swing: number;
   stun: number;
+  die: number;
+  phase: number;
   tint: string;
   r: number;
   sig: Sig;
@@ -164,6 +168,8 @@ export class Battle {
   private mobTy = new Float32Array(MAX_MOBS);
   private mobCool = new Float32Array(MAX_MOBS);
   private mobDie = new Float32Array(MAX_MOBS);
+  private mobHurt = new Float32Array(MAX_MOBS);
+  private mobAtk = new Float32Array(MAX_MOBS);
   private mobHitCd = new Float32Array(MAX_MOBS);
   private mobN = 0;
   private spawned = 0;
@@ -239,12 +245,13 @@ export class Battle {
   }
 
   mobs() {
-    const out: { x: number; y: number; kind: number; alive: boolean; die: number; facing: number }[] = [];
+    const out: { x: number; y: number; kind: number; alive: boolean; die: number; facing: number; hurt: number; atk: number }[] = [];
     for (let i = 0; i < this.mobN; i++) {
       if (!this.mobAlive[i] && this.mobDie[i] <= 0) continue;
       out.push({
         x: this.mobX[i], y: this.mobY[i], kind: this.mobKind[i],
         alive: !!this.mobAlive[i], die: this.mobDie[i], facing: this.mobFace[i],
+        hurt: this.mobHurt[i], atk: this.mobAtk[i],
       });
     }
     return out;
@@ -412,6 +419,8 @@ export class Battle {
     this.mobTy[slot] = py;
     this.mobCool[slot] = this.rng() * 1.5;
     this.mobDie[slot] = 0;
+    this.mobHurt[slot] = 0;
+    this.mobAtk[slot] = 0;
   }
 
   private spawnElite(kind: "general" | "boss") {
@@ -433,7 +442,7 @@ export class Battle {
       y: clamp((lead?.y ?? ARENA_H / 2) + Math.sin(ang) * dist, 120, ARENA_H - 120),
       id: boss ? "boss" : "g" + this.wave,
       hp, maxHp: hp, facing: ang + Math.PI, alive: true,
-      wind: 0, windMax: 0.5, cd: 0.8, pattern: 0, swing: 0, stun: 0,
+      wind: 0, windMax: 0.5, cd: 0.8, pattern: 0, swing: 0, stun: 0, die: 0, phase: 1,
       tint: diffRow(this.diff).color === "#0a0a0a" ? "#f4f4f5" : diffRow(this.diff).color,
       r: boss ? 46 : 30,
       sig,
@@ -474,7 +483,7 @@ export class Battle {
     this.elites = list.map((e) => ({
       id: e.id, kind: e.kind, name: e.name, title: e.kind === "boss" ? "босс" : "генерал",
       x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
-      wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.wind > 0 ? 1 - e.wind / 0.5 : 0, stun: 0,
+      wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.wind > 0 ? 1 - e.wind / 0.5 : 0, stun: 0, die: e.alive ? 0 : DEATH_SEC, phase: 1,
       tint: e.tint, r: e.kind === "boss" ? 46 : 30,
       sig: e.sig || (e.kind === "boss" ? "cone" : "circle"),
       row: e.row || (e.kind === "boss" ? 37 : 36),
@@ -495,13 +504,22 @@ export class Battle {
       const kind = this.mobKind[i];
       const reach = kind === 1 ? 22 : 30;
       if (bd > reach * reach || best.iframe > 0) continue;
-      const dmg = mobDmg(kind, getTune(), this.diff) * (best.curse > 0 ? 1.25 : 1);
+      if (this.rng() < rateChance(best.sheet.dodgeRaw, "dodge")) {
+        this.text(best.x, best.y - 22, "уклон", "#d7ecff");
+        best.iframe = Math.max(best.iframe, 0.18);
+        this.mobHitCd[i] = 0.7;
+        this.mobAtk[i] = 0.32;
+        continue;
+      }
+      const near = this.crowdBoost(this.mobX[i], this.mobY[i]);
+      const dmg = mitigate(mobDmg(kind, getTune(), this.diff) * (best.curse > 0 ? 1.25 : 1) * near, best.sheet.armor);
       if (diffRow(this.diff).act === "killer") best.curse = Math.max(best.curse, 3);
       best.hp -= dmg;
       best.hurt = 0.22;
       best.iframe = Math.max(best.iframe, getTune().combat.contactIframe);
       this.mobHitCd[i] = kind === 1 ? 1.3 : 0.9;
-      this.text(best.x, best.y - 20, "−" + dmg, "#ff8d7a");
+      this.mobAtk[i] = 0.32;
+      this.text(best.x, best.y - 20, "−" + Math.max(1, Math.round(dmg)), "#ff8d7a");
       if (best.hp <= 0) {
         best.hp = 0;
         best.downT = best.revives > 0 ? 6 : 99;
@@ -567,7 +585,7 @@ export class Battle {
         for (const p of this.living()) {
           const dx = p.x - e.x, dy = p.y - e.y;
           if (dx * dx + dy * dy > 140 * 140 || p.iframe > 0) continue;
-          p.hp -= bite;
+          p.hp -= mitigate(bite, p.sheet.armor);
           if (row.act === "killer") p.curse = Math.max(p.curse, 4);
           this.text(p.x, p.y - 36, row.act === "killer" ? "чёрное кольцо" : "волна", row.color);
         }
@@ -835,7 +853,7 @@ export class Battle {
       return Math.abs(angDiff(Math.atan2(dy, dx), a.aim)) <= o.ang;
     };
     const hurtOne = (x: number, y: number, hp: number, armorK: number) => {
-      const crit = this.rng() < a.sheet.crit;
+      const crit = this.rng() < rateChance(a.sheet.critRaw + (a.musou >= 100 ? 36 : 0), "crit");
       let dmg = power * (crit ? 1.75 : 1) * armorK * (1 - Math.min(0.45, diffRow(this.diff).soak));
       if (o.finisher) dmg *= 1.08;
       hp -= dmg;
@@ -862,7 +880,8 @@ export class Battle {
           seen.add(i);
           if (!touch(this.mobX[i], this.mobY[i])) continue;
           this.mobHp[i] = hurtOne(this.mobX[i], this.mobY[i], this.mobHp[i], 1);
-          const kb = o.finisher ? 34 : 16;
+          const kb = o.finisher ? 52 : 28;
+          this.mobHurt[i] = 0.16;
           const kx = this.mobX[i] - a.x, ky = this.mobY[i] - a.y;
           const kl = Math.hypot(kx, ky) || 1;
           this.mobX[i] = clamp(this.mobX[i] + (kx / kl) * kb, 48, ARENA_W - 48);
@@ -925,15 +944,38 @@ export class Battle {
 
   private slay(i: number) {
     this.mobAlive[i] = 0;
-    this.mobDie[i] = 0.28;
+    this.mobDie[i] = DEATH_SEC;
+    this.mobHurt[i] = 0;
     this.kills++;
+    this.hitstop = Math.min(0.05, this.hitstop + 0.02);
+    this.shake = Math.max(this.shake, 2);
     this.spark(this.mobX[i], this.mobY[i], this.floor.ember);
+  }
+
+  private markPhase(e: Elite) {
+    if (!e.alive || e.kind !== "boss") return;
+    const ratio = e.maxHp > 0 ? e.hp / e.maxHp : 1;
+    const phase = ratio <= 0.33 ? 3 : ratio <= 0.66 ? 2 : 1;
+    if (phase === e.phase) return;
+    e.phase = phase;
+    if (phase < 2) return;
+    this.say(e.name, phase === 2 ? "Вторая фаза: шире замах" : "Последняя фаза: окно перед ударом", 1.4);
+    for (let i = 0; i < 4; i++) this.spawnMob(e.x + Math.cos(i * 1.6) * 96, e.y + Math.sin(i * 1.6) * 96);
+  }
+
+  private crowdBoost(x: number, y: number) {
+    for (const e of this.elites) {
+      if (!e.alive || e.kind !== "general" || e.sig !== "circle") continue;
+      if ((e.x - x) ** 2 + (e.y - y) ** 2 < 220 * 220) return 1.2;
+    }
+    return 1;
   }
 
   private slayElite(e: Elite) {
     if (!e.alive) return;
     e.alive = false;
     e.hp = 0;
+    e.die = DEATH_SEC;
     this.fxPush({ k: "nova", x: e.x, y: e.y, a: 0, r: e.r * 4, ang: 0, life: 0.5, max: 0.5, col: e.tint, col2: "#fff" });
     this.shake = Math.max(this.shake, e.kind === "boss" ? 16 : 8);
     if (e.kind === "general") {
@@ -959,12 +1001,15 @@ export class Battle {
       const dx = tx - e.x, dy = ty - e.y;
       const d = Math.sqrt(best);
       e.facing = Math.atan2(dy, dx);
+      this.markPhase(e);
       const act = diffRow(this.diff).act;
-      const spd = (e.kind === "boss" ? 62 : 78) * (act === "killer" ? 1.35 : 1);
+      const spd = (e.kind === "boss" ? 62 : 78) * (act === "killer" ? 1.35 : 1) * (e.sig === "cone" ? 1.15 : 1);
       if (act === "brand" && e.pattern % 2 === 0) e.sig = "line";
-      if (e.wind <= 0 && d > e.r + 24) {
-        e.x += (dx / (d || 1)) * spd * dt;
-        e.y += (dy / (d || 1)) * spd * dt;
+      const retreat = e.sig === "line" && d < 210;
+      if (e.wind <= 0 && (retreat || d > e.r + 24)) {
+        const dir = retreat ? -1 : 1;
+        e.x += (dx / (d || 1)) * spd * dt * dir;
+        e.y += (dy / (d || 1)) * spd * dt * dir;
         e.swing = 0;
       }
       if (e.wind > 0) {
@@ -974,9 +1019,9 @@ export class Battle {
       } else {
         e.cd -= dt;
         if (e.cd <= 0 && prey.length) {
-          e.windMax = e.kind === "boss" && e.pattern % 3 === 1 ? 0.42 : 0.5;
+          e.windMax = e.kind === "boss" ? (e.phase >= 3 ? 0.86 : e.phase === 2 ? 0.7 : 0.55) : e.sig === "line" ? 0.62 : 0.5;
           e.wind = e.windMax;
-          e.cd = e.kind === "boss" ? 1.7 : 1.85;
+          e.cd = e.kind === "boss" ? (e.phase >= 3 ? 1.15 : 1.55) : e.sig === "cone" ? 1.45 : 1.85;
           e.pattern++;
         }
       }
@@ -1016,7 +1061,7 @@ export class Battle {
     const cone = sig === "cone";
     const radius = cone || line ? 168 : boss ? 118 : 96;
     const ang = cone ? 1.05 : Math.PI;
-    const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n, getTune(), this.diff);
+    const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n, getTune(), this.diff) * (e.phase >= 3 ? 1.3 : 1);
     this.fxPush({ k: cone || line ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang: line ? 0.18 : ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
     this.shake = Math.max(this.shake, boss ? 7 : 4);
     for (const p of this.party) {
@@ -1030,7 +1075,12 @@ export class Battle {
           ? dx * dx + dy * dy <= radius * radius && Math.abs(angDiff(Math.atan2(dy, dx), e.facing)) <= ang
           : dx * dx + dy * dy <= radius * radius;
       if (!inside) continue;
-      const taken = dmg * (100 / (100 + p.sheet.armor * 4)) * (p.curse > 0 ? 1.25 : 1);
+      if (this.rng() < rateChance(p.sheet.dodgeRaw, "dodge")) {
+        this.text(p.x, p.y - 28, "уклон", "#d7ecff");
+        p.iframe = Math.max(p.iframe, 0.16);
+        continue;
+      }
+      const taken = mitigate(dmg * (p.curse > 0 ? 1.25 : 1), p.sheet.armor);
       p.hp -= taken;
       p.hurt = 0.28;
       p.iframe = 0.55;
@@ -1075,7 +1125,12 @@ export class Battle {
       this.fx[i].life -= dt;
       if (this.fx[i].life <= 0) this.fx.splice(i, 1);
     }
-    for (let i = 0; i < this.mobN; i++) if (!this.mobAlive[i] && this.mobDie[i] > 0) this.mobDie[i] -= dt;
+    for (let i = 0; i < this.mobN; i++) {
+      if (!this.mobAlive[i] && this.mobDie[i] > 0) this.mobDie[i] -= dt;
+      if (this.mobHurt[i] > 0) this.mobHurt[i] -= dt;
+      if (this.mobAtk[i] > 0) this.mobAtk[i] -= dt;
+    }
+    for (const e of this.elites) if (!e.alive && e.die > 0) e.die -= dt;
   }
 
   takeFx() {
@@ -1120,7 +1175,7 @@ export class Battle {
     }
     this.elites = s.e.map((e) => ({
       kind: e.kind as Elite["kind"], name: e.name, title: e.title, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp,
-      facing: e.facing, alive: e.alive, wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.swing, stun: 0, tint: e.tint, r: e.r,
+      facing: e.facing, alive: e.alive, wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.swing, stun: 0, die: e.alive ? 0 : DEATH_SEC, phase: 1, tint: e.tint, r: e.r,
     }));
     this.mobN = 0;
     for (let i = 0; i < s.m.length; i += 4) {

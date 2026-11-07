@@ -12,6 +12,7 @@ declare module "*.png?url" {
   export default src;
 }
 
+import { beastFrame, heroLocalFrame } from "./anim";
 import heroesUrl from "../../assets/mc/heroes_atlas.png?url";
 import beastsUrl from "../../assets/mc/bestiary_atlas.png?url";
 import tilesUrl from "../../assets/mc/tiles_atlas.png?url";
@@ -73,29 +74,19 @@ function dir4(facing: number) {
   return s >= 0 ? 0 : 3;
 }
 
-function heroLocal(frame: number) {
-  if (frame === 10 || frame === 9) return 4;
-  if (frame === 12) return 2;
-  if (frame === 11 || frame === 4 || frame === 5) return 4;
-  if (frame >= 6 && frame <= 8) return 5;
-  if (frame === 2 || frame === 3) return frame === 2 ? 0 : 2;
-  return frame & 1 ? 3 : 1;
-}
-
 export function blitHero(
-  ctx: CanvasRenderingContext2D, id: string, frame: number, x: number, y: number, scale: number, _flip: number, facing = 0,
+  ctx: CanvasRenderingContext2D, id: string, frame: number, x: number, y: number, scale: number, _flip: number, facing = 0, down = false,
 ) {
   if (!ready(heroes)) return;
   const row = HERO_ROW[id] ?? 4;
-  const local = heroLocal(frame);
+  const local = Math.max(0, Math.min(HERO_COLS - 1, frame | 0));
   const col = dir4(facing) * HERO_COLS + local;
   const dw = HERO_W * scale;
   const dh = HERO_H * scale;
-  const down = frame === 10;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.translate(x, y);
-  if (down) ctx.scale(1, 0.55);
+  ctx.translate(x, y + (down ? 8 * scale : 0));
+  if (down) ctx.scale(1, 0.72);
   ctx.drawImage(heroes, col * HERO_W, row * HERO_H, HERO_W, HERO_H, -dw / 2, -dh + 6, dw, dh);
   ctx.restore();
 }
@@ -105,31 +96,30 @@ export function blitMob(
 ) {
   if (!ready(beasts)) return;
   const row = rowOverride == null ? MOB_ROW[Math.abs(kind | 0) % 3] : Math.max(0, rowOverride | 0);
-  const col = alive ? (Math.abs(frame | 0) % 4) : 11;
+  const col = Math.max(0, Math.min(11, frame | 0));
   const dw = BEAST * scale * 0.78;
   const dh = dw;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.translate(x, y);
-  if (!alive) ctx.scale(1, 0.72);
+  if (!alive) ctx.scale(1, 0.9);
   ctx.drawImage(beasts, col * BEAST, row * BEAST, BEAST, BEAST, -dw / 2, -dh + 8, dw, dh);
   ctx.restore();
   void facing;
 }
 
 export function blitElite(
-  ctx: CanvasRenderingContext2D, boss: boolean, wind: boolean, x: number, y: number, scale: number, facing: number, alive = true, rowOverride?: number,
+  ctx: CanvasRenderingContext2D, boss: boolean, frame: number, x: number, y: number, scale: number, facing: number, alive = true, rowOverride?: number,
 ) {
   if (!ready(beasts)) return;
   const row = rowOverride == null ? (boss ? BOSS_ROW : GENERAL_ROW) : Math.max(0, rowOverride | 0);
-  const tick = (performance.now() / 140) | 0;
-  const col = !alive ? 11 : wind ? 4 + (tick % 3) : tick % 4;
+  const col = Math.max(0, Math.min(11, frame | 0));
   const dw = BEAST * scale * (boss ? 1.05 : 0.92);
   const dh = dw;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.translate(x, y);
-  if (!alive) ctx.scale(1, 0.7);
+  if (!alive) ctx.scale(1, 0.9);
   if (Math.cos(facing) < 0) ctx.scale(-1, 1);
   ctx.drawImage(beasts, col * BEAST, row * BEAST, BEAST, BEAST, -dw / 2, -dh + 10, dw, dh);
   ctx.restore();
@@ -143,12 +133,13 @@ blade.src = "/bm-art/weapon/stone_blade_1.png";
 const staff = new Image();
 staff.src = "/bm-art/weapon/water_blade_staff_1.png";
 
-export function blitWeapon(ctx: CanvasRenderingContext2D, hero: string, x: number, y: number, facing: number, scale: number) {
+export function blitWeapon(ctx: CanvasRenderingContext2D, hero: string, x: number, y: number, facing: number, scale: number, swing = 0.5) {
   const img = hero === "lorelin" || hero === "chronos" || hero === "alex" ? staff : blade;
   if (!ready(img)) return;
+  const wind = swing < 0.45 ? -0.9 : swing < 0.9 ? 0.8 : 0.15;
   ctx.save();
   ctx.translate(x, y - 18 * scale);
-  ctx.rotate(facing + Math.PI / 2);
+  ctx.rotate(facing + Math.PI / 2 + wind);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(img, 0, 0, 64, 64, -10 * scale, -28 * scale, 22 * scale, 22 * scale);
   ctx.restore();
@@ -247,16 +238,8 @@ export function pixelSlash(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.restore();
 }
 
-export function heroFrame(anim: string, pose: number, hurt: number, t: number) {
-  if (anim === "down") return 10;
-  if (hurt > 0.05 && anim !== "swing") return 9;
-  if (anim === "swing") {
-    if (pose === 12) return 12;
-    if (pose === 11) return 11;
-    if (pose === 8) return 8;
-    if (pose >= 4 && pose <= 7) return pose;
-    return 5;
-  }
-  if (anim === "run") return 2 + ((t * 8) | 0) % 2;
-  return (t * 2) % 1 < 0.5 ? 0 : 1;
+export function heroFrame(anim: string, _pose: number, hurt: number, t: number) {
+  return heroLocalFrame(anim, 0, hurt, t);
 }
+
+export { beastFrame, heroLocalFrame };

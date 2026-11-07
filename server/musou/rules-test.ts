@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  beginMode, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, statGlance, takeInbox, unequip,
+  beginMode, compareGear, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, statGlance, takeInbox, unequip,
 } from "../../src/scripts/musou/rules";
 import { Battle } from "../../src/scripts/musou/sim";
 import { pickShard } from "./plaza";
@@ -11,6 +11,8 @@ import { fightScale } from "../../src/scripts/musou/sw-catalog";
 import { auditShadowCatalog } from "./sw-audit";
 import { MODE_LIST } from "../../src/scripts/musou/modes";
 import { craftFor } from "../../src/scripts/musou/stagecraft";
+import { HARD_CAP, mitigate, rateChance } from "../../src/scripts/musou/caps";
+import { beastFrame, heroLocalFrame } from "../../src/scripts/musou/anim";
 import { SW_MODES } from "../../src/scripts/musou/sw-catalog";
 
 let fails = 0, n = 0;
@@ -141,7 +143,7 @@ while (die.phase === "fight" && corpse < 3) { die.step(0.05); corpse += 0.05; }
 ok(die.phase === "lost" && die.reason === "dead", "после трупа исход — поражение");
 
 ok(previewTune(DEFAULT_TUNE).clearGold === 84 && previewTune(DEFAULT_TUNE).surrenderGold === 0, "этаж 1: зачистка 84 золота до толпы, сдача без целей — 0");
-ok(mobHp(0, 1) === 10 && eliteHp("boss", 1, 1) === 2120 && eliteHp("boss", 1, 4) === 2120, "здоровье толпы и босса по умолчанию не растёт от группы");
+ok(mobHp(0, 1) === 10 && eliteHp("boss", 1, 1) === 2120 && eliteHp("boss", 1, 4) === Math.round(2120 * 1.54), "четверо получают босса ×1.54, толпа от группы не толстеет");
 const tuned = validateTune(JSON.parse(JSON.stringify({ ...DEFAULT_TUNE, combat: { ...DEFAULT_TUNE.combat, mobHp: [40, 5, 16], partyHpPerExtra: 0.35 } })));
 ok(tuned.ok, "набор с новым здоровьем проходит проверку");
 if (tuned.ok) setTune(tuned.tune);
@@ -577,6 +579,152 @@ ok(!!swarm && !!swarmFight && scaled.includes(swarmFight.lastMobHp) && craftFor(
 const moved = validateTune({ ...DEFAULT_TUNE, modes: { ...DEFAULT_TUNE.modes, arena: 9 } });
 const zero = validateTune({ ...DEFAULT_TUNE, modes: { ...DEFAULT_TUNE.modes, arena: 0 } });
 ok(moved.ok && moved.tune.modes.arena === 9 && !zero.ok, "админка двигает порог арены и не пускает ноль");
+
+ok(heroLocalFrame("idle", 0, 0, 0) !== heroLocalFrame("idle", 0, 0, 0.5), "стойка героя дышит двумя кадрами");
+ok(heroLocalFrame("run", 0, 0, 0) !== heroLocalFrame("run", 0, 0, 0.2), "бег героя чередует два шага");
+ok(heroLocalFrame("swing", 0.1, 0, 0) === 4 && heroLocalFrame("swing", 0.6, 0, 0) === 5, "замах и удар — разные кадры листа");
+ok(heroLocalFrame("down", 0, 0, 0.1) !== heroLocalFrame("swing", 0.6, 0, 0), "смерть героя не стоит в кадре удара");
+ok(beastFrame(true, 0, 0, 0, 0) !== beastFrame(true, 0, 0, 0, 0.2), "толпа шагает по четырём кадрам");
+ok(beastFrame(true, 0, 0.2, 0, 0) === 7 && beastFrame(true, 0, 0, 0.3, 0) === 4 && beastFrame(false, 0.64, 0, 0, 0) === 8 && beastFrame(false, 0.01, 0, 0, 0) === 11, "попадание, удар и смерть бестиария — свои столбцы");
+
+ok(rateChance(Number.NaN, "crit") === 0 && rateChance(-40, "dodge") === 0 && rateChance(Number.POSITIVE_INFINITY, "ls") === 0, "NaN, минус и бесконечность не дают шанс");
+ok(rateChance(1e9, "crit") === HARD_CAP.crit && rateChance(1e9, "dodge") === HARD_CAP.dodge && rateChance(1e9, "ls") === HARD_CAP.ls, "огромный рейтинг упирается в потолок и не перешагивает");
+ok(rateChance(5000, "crit") === rateChance(9000, "crit"), "тысяча стаков баффа не растит шанс выше потолка");
+const capTune = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+capTune.caps = { crit: 0.9 };
+ok(!validateTune(capTune).ok, "админка не получает поле, которым можно обойти потолок");
+const wide = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+wide.diff.hp[6] = 32;
+const tooWide = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+tooWide.diff.hp[6] = 40;
+ok(validateTune(wide).ok && !validateTune(tooWide).ok, "здоровье чёрной можно поднять до ×32 и нельзя до ×40");
+
+function dressed(lvl: number, diff: number, focus: "even" | "dex" | "str") {
+  const p = newProfile(8000 + lvl * 10 + diff);
+  setHero(p, "lorin");
+  p.lvl = lvl;
+  const pts = (lvl - 1) * 5;
+  const cut = focus === "even" ? Math.floor(pts / 4) : focus === "dex" ? Math.floor(pts * 0.7) : Math.floor(pts * 0.7);
+  p.alloc = focus === "dex"
+    ? { str: Math.floor(pts * 0.1), dex: cut, vit: Math.floor(pts * 0.1), ene: pts - cut - Math.floor(pts * 0.2) }
+    : focus === "str"
+      ? { str: cut, dex: Math.floor(pts * 0.1), vit: Math.floor(pts * 0.1), ene: pts - cut - Math.floor(pts * 0.2) }
+      : { str: cut, dex: cut, vit: cut, ene: pts - cut * 3 };
+  const budget = diff === 7 ? 1.62 : diff >= 4 ? 1.22 : 1;
+  const tier = diff === 7 ? 6 : diff >= 5 ? 4 : 0;
+  for (let i = 0; i < 8; i++) {
+    const it = rollItem(mulberry32(100 + lvl + i), { ilvl: Math.min(60, Math.max(1, lvl)), floor: 2, rarity: diff >= 4 ? "rare" : "magic", budget, tier, act: diff === 7 ? "killer" : "none", id: "g" + lvl + "-" + i });
+    it.req = 1;
+    p.bag.push(it);
+    const slot = it.slot === "ring" ? (p.equip.ring1 ? "ring2" : "ring1") : it.slot;
+    if (!p.equip[slot]) p.equip[slot] = it;
+  }
+  return sheet(p);
+}
+let ordinaryBuild = true;
+for (const lvl of [1, 40, 120, 300]) {
+  for (const diff of lvl >= 120 ? [1, 4, 7] : [1]) {
+    const s = dressed(lvl, diff, "even");
+    if (!(s.crit < 0.36 && s.dodge < 0.32 && s.ls < 0.09 && s.crit <= HARD_CAP.crit && s.dodge <= HARD_CAP.dodge && s.ls <= HARD_CAP.ls)) ordinaryBuild = false;
+  }
+}
+ok(ordinaryBuild, "обычные сборки 1/40/120/300 и до чёрной не упираются в потолки");
+const greedy = newProfile(4242);
+setHero(greedy, "lorin");
+greedy.lvl = 300;
+greedy.alloc = { str: 0, dex: 1495, vit: 0, ene: 0 };
+for (const slot of ["weapon", "helm", "chest", "gloves", "boots", "amulet", "ring", "ring"] as const) {
+  const paper = slot === "ring" ? (greedy.equip.ring1 ? "ring2" : "ring1") : slot;
+  greedy.equip[paper] = {
+    id: "cap-" + paper, base: "x", name: "Кап", slot: slot === "ring" ? "ring" : slot, rarity: "rare", ilvl: 60, req: 1,
+    dmg: 0, armor: 0, up: 58, ench: 6,
+    affixes: [{ stat: "crit", val: 3, name: "крита" }, { stat: "dodge", val: 2, name: "уклонения" }, { stat: "ls", val: 2, name: "вампиризма" }],
+  };
+}
+const greed = sheet(greedy);
+ok(greed.crit <= 0.4 && greed.dodge <= 0.4 && greed.ls <= 0.1 && greed.crit > dressed(300, 7, "even").crit, "жадная сборка не перешагивает потолок и обгоняет обычную");
+
+const shopper = newProfile(77);
+setHero(shopper, "lorin");
+shopper.lvl = 12;
+const weapon = rollItem(mulberry32(5), { ilvl: 8, floor: 1, rarity: "rare", id: "cmp-w" });
+weapon.req = 1;
+weapon.slot = "weapon";
+const ring = rollItem(mulberry32(6), { ilvl: 8, floor: 1, rarity: "magic", id: "cmp-r" });
+ring.req = 1;
+ring.slot = "ring";
+const high = rollItem(mulberry32(7), { ilvl: 20, floor: 1, rarity: "rare", id: "cmp-h" });
+high.req = 40;
+high.slot = "weapon";
+shopper.bag.push(weapon, ring, high);
+const snap = JSON.stringify(shopper);
+const cmp = compareGear(shopper, weapon.id);
+const cmpRing = compareGear(shopper, ring.id);
+const blocked = compareGear(shopper, high.id);
+ok(JSON.stringify(shopper) === snap, "сравнение не пишет сохранение");
+shopper.equip.ring1 = { ...ring, id: "worn-ring" };
+const cmpRing2 = compareGear(shopper, ring.id);
+ok(!!cmp && cmp.empty && cmp.after.dmg !== cmp.before.dmg, "пустой слот оружия показывает прирост урона");
+ok(!!cmpRing && cmpRing.slot === "ring1" && !!cmpRing.otherRing && cmpRing.otherRing.slot === "ring2", "первое кольцо сравнивается, второе остаётся видимым");
+ok(!!cmpRing2 && cmpRing2.slot === "ring2" && cmpRing2.empty, "занятое первое кольцо отдаёт сравнение второму пустому");
+ok(!!blocked && !!blocked.blocked && blocked.after.dmg === blocked.before.dmg && blocked.after.crit === blocked.before.crit, "вещь выше уровня не рисует чужие статы");
+
+resetTune();
+const light = (s: ReturnType<typeof sheet>) => 5.15 * s.dmg / (1.14 / Math.max(0.4, s.aspd));
+const starter = dressed(1, 1, "even");
+const mid = dressed(40, 3, "even");
+const highLv = dressed(120, 5, "even");
+const end = dressed(300, 7, "even");
+const glass = dressed(300, 7, "str");
+const boss = (floor: number, diff: number, party = 1) => eliteHp("boss", floor, party, getTune(), diff);
+const slam = (floor: number, diff: number, s: ReturnType<typeof sheet>) => mitigate(eliteDmg("boss", floor, getTune(), diff), s.armor) / s.hp;
+const t1 = boss(1, 1) / light(starter);
+const tMid = boss(24, 3) / light(mid);
+const tHigh = boss(90, 5) / light(highLv);
+const tEnd = boss(169, 7) / light(end);
+const tParty = boss(169, 7, 4) / (light(end) * 4);
+const hitEnd = slam(169, 7, end);
+const hitGlass = slam(169, 7, glass);
+ok(t1 >= 6 && t1 <= 45 && tMid >= 8 && tMid <= 70 && tHigh >= 10 && tHigh <= 90 && tEnd >= 20 && tEnd <= 100, `время босса в окне: ${t1.toFixed(1)} / ${tMid.toFixed(1)} / ${tHigh.toFixed(1)} / ${tEnd.toFixed(1)} с`);
+ok(hitEnd < 0.35 && hitGlass > hitEnd && hitGlass < 0.85, `удар чёрного босса: танк ${(hitEnd * 100).toFixed(1)}%, стекло ${(hitGlass * 100).toFixed(1)}%`);
+ok(boss(1, 7, 4) / boss(1, 7, 1) > 1.4 && boss(1, 7, 4) / boss(1, 7, 1) <= 2.05, "четверо делят более толстого босса, потолок ×2.05");
+ok(tParty < tEnd, "четверо убивают чёрного босса быстрее одного при той же сборке");
+const raidHero = newProfile(8080);
+setHero(raidHero, "lorin");
+raidHero.lvl = 80;
+const raidFloor = modeFloor(raidHero, "demiurge");
+const raidBoss = eliteHp("boss", raidFloor.n, 1, getTune(), 1) * (raidFloor.play?.foeHp || 1);
+const chip = 100 / (100 + 18);
+const raidGear = dressed(80, 4, "even");
+const raidWeak = dressed(40, 1, "even");
+const raidTime = raidBoss / (light(raidGear) * chip);
+const raidSlow = raidBoss / (light(raidWeak) * chip);
+ok(raidFloor.n === 59 && raidFloor.play?.foeHp === 8 && raidTime > 24 && raidTime < 45 && raidSlow > 45, `рейд этаж ${raidFloor.n}: сборка 80 уровня ${raidTime.toFixed(1)} с, слабая ${raidSlow.toFixed(1)} с`);
+const vow = newProfile(909);
+setHero(vow, "lorin");
+vow.pending = { floor: 1, at: 1, nonce: "n", diff: 1, oath: "harvest" };
+const vowed = sheet(vow);
+ok(vowed.ls > 0.05 && vowed.ls < 0.07 && vowed.ls <= HARD_CAP.ls, "жатва с нуля около 6% и не выше потолка");
+const feelP = newProfile(11);
+setHero(feelP, "lorin");
+const brawl = new Battle(1, [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(feelP) }]);
+brawl.press("you", { hold: true, aim: 0, mx: 1, my: 0 });
+let falling = false;
+for (let i = 0; i < 500; i++) {
+  brawl.step(0.05);
+  if (brawl.mobs().some((m) => !m.alive && m.die > 0.2)) falling = true;
+}
+ok(brawl.kills > 3 && falling, "толпа падает кадрами смерти");
+const mirrorFight = new Battle(modeFloor(feelP, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(feelP) }]);
+mirrorFight.introT = 0;
+const mirror = mirrorFight.elites.find((e) => e.kind === "boss");
+ok(!!mirror, "дуэль выпускает босса сразу");
+if (mirror) {
+  mirror.hp = mirror.maxHp * 0.2;
+  mirror.cd = 0;
+  for (let i = 0; i < 40; i++) mirrorFight.step(0.05);
+  ok(mirror.phase === 3 && mirror.windMax >= 0.8 && mirrorFight.mobs().length >= 1, "босс зовёт прислужников и удлиняет замах на последней фазе");
+}
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

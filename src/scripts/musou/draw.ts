@@ -1,7 +1,8 @@
 // 2.5D-картинка «Орды»: косая площадь, аниме-герои МоррисГрада и росчерки комбо.
 import { heroById, type HeroDef } from "./rules";
 import { ARENA_H, ARENA_W, type Actor, type Anim, type Battle, type Fx } from "./sim";
-import { FLOOR_TILE, blitChest, blitElite, blitHero, blitMob, blitNova, blitTeleCone, blitTeleRing, blitTile, blitWeapon, heroFrame, pixelSlash } from "./sprites";
+import { beastFrame, heroLocalFrame } from "./anim";
+import { FLOOR_TILE, blitChest, blitElite, blitHero, blitMob, blitNova, blitTeleCone, blitTeleRing, blitTile, blitWeapon, pixelSlash } from "./sprites";
 import { craftFor } from "./stagecraft";
 
 export type Cam = { x: number; y: number };
@@ -51,7 +52,7 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
     const p = project(m.x, m.y, cam, w, h, zoom);
     spr.push({
       y: m.y,
-      draw: () => blitMob(ctx, m.kind, (now / 140) | 0, p.sx, p.sy, Math.max(2, zoom * 2.1) * (m.alive ? 1 : 0.85), m.facing, m.alive, b.floor.mobRows[m.kind % 3]),
+      draw: () => blitMob(ctx, m.kind, beastFrame(m.alive, m.die, m.hurt, m.atk, now / 1000), p.sx, p.sy, Math.max(2, zoom * 2.1), m.facing, m.alive, b.floor.mobRows[m.kind % 3]),
     });
   }
   for (const c of b.chests) {
@@ -65,7 +66,7 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
     const p = project(e.x, e.y, cam, w, h, zoom);
     spr.push({
       y: e.y,
-      draw: () => blitElite(ctx, e.kind === "boss", e.wind > 0 && e.alive, p.sx, p.sy, Math.max(2, zoom * (e.kind === "boss" ? 3.1 : 2.5)), e.facing, e.alive, e.row),
+      draw: () => blitElite(ctx, e.kind === "boss", beastFrame(e.alive, e.die || 0, e.stun > 0 ? 0.2 : 0, e.wind > 0 ? Math.max(0.02, (1 - e.swing) * 0.32) : 0, now / 1000), p.sx, p.sy, Math.max(2, zoom * (e.kind === "boss" ? 3.1 : 2.5)), e.facing, e.alive, e.row),
     });
   }
   for (const a of b.party) {
@@ -76,7 +77,7 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
         const hero = heroById(a.hero);
         drawShadow(ctx, p.sx, p.sy, 26 * zoom, 10 * zoom, 0.45);
         if (a.musou >= 100) aura(ctx, p.sx, p.sy - 34 * zoom, 36 * zoom, hero.accent, 0.35 + Math.sin(now / 180) * 0.15);
-        paintHero(ctx, hero, p.sx, p.sy, Math.max(2.4, zoom * 2.15), a.facing, a.anim, a.swing, now / 1000, a.hurt, a.musou / 100, a.pose);
+        paintHero(ctx, hero, p.sx, p.sy, Math.max(2.4, zoom * 2.15), a.facing, a.anim, a.swing, a.anim === "down" ? a.downT : now / 1000, a.hurt, a.musou / 100);
         if (a.iframe > 0) {
           ctx.strokeStyle = rgba("#fff", 0.35);
           ctx.lineWidth = 2;
@@ -435,13 +436,13 @@ function aura(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
 
 export function paintHero(
   ctx: CanvasRenderingContext2D, hero: HeroDef, x: number, y: number, s: number,
-  facing: number, anim: Anim, _swing: number, t: number, hurt: number, musou: number, pose = 0,
+  facing: number, anim: Anim, swing: number, t: number, hurt: number, musou: number,
 ) {
   const flip = Math.cos(facing) >= 0 ? 1 : -1;
-  const bob = anim === "idle" ? Math.sin(t * 4) * 1.6 * s : anim === "run" ? Math.abs(Math.sin(t * 10)) * 1.2 * s : 0;
+  const frame = heroLocalFrame(anim, swing, hurt, t);
   if (musou > 0.85) aura(ctx, x, y - 36 * s, 16 * s, hero.accent, 0.45);
-  blitHero(ctx, hero.id, heroFrame(anim, pose, hurt, t), x, y - bob, s, flip, facing);
-  if (anim === "swing") blitWeapon(ctx, hero.id, x, y - bob, facing, s);
+  blitHero(ctx, hero.id, frame, x, y, s, flip, facing, anim === "down");
+  if (anim === "swing") blitWeapon(ctx, hero.id, x, y, facing, s, swing);
 }
 
 function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, hgt: number, k: number, fill: string, back: string) {

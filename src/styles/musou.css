@@ -206,6 +206,12 @@ button { cursor: pointer; }
 .slot i { position: absolute; top: 3px; left: 4px; font-style: normal; font-size: 0.62rem; letter-spacing: 0.04em; }
 .tip { margin-top: 8px; padding: 8px; border: 1px solid rgba(224,192,122,.25); background: #10080c; font-size: 0.84rem; min-height: 72px; }
 .tip .aff { color: #d7ecff; }
+.cmp { display: grid; gap: 2px; margin-top: 6px; }
+.cmp div { display: grid; grid-template-columns: 4.2rem 1fr auto; gap: 6px; font-size: 0.74rem; }
+.cmp .up em { color: #86efac; }
+.cmp .down em { color: #fda4af; }
+.cmp .flat em { color: var(--muted); }
+.cmp b { font-weight: 650; }
 .paper { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
 
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.62); z-index: 20; display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px 24px; overflow: auto; }

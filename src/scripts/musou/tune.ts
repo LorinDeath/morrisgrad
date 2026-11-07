@@ -155,7 +155,7 @@ export const DEFAULT_TUNE: OrdaTune = {
     generalDmgPerFloor: 2.1,
     bossDmg: 14,
     bossDmgPerFloor: 3.1,
-    partyHpPerExtra: 0,
+    partyHpPerExtra: 0.18,
     partyHpCap: 2.05,
   },
   loot: {
@@ -380,8 +380,8 @@ const SIGS = new Set(["circle", "cone", "line", "curse", "summon"]);
 
 const DIFF_KEYS = ["hp", "dmg", "gold", "xp", "rare", "leg", "affix", "ilvl", "budget", "curse", "ench", "chest", "lower", "near", "soak", "regen"] as const;
 const DIFF_BOUND: Record<(typeof DIFF_KEYS)[number], Bound> = {
-  hp: { min: 1, max: 24 },
-  dmg: { min: 1, max: 12 },
+  hp: { min: 1, max: 32 },
+  dmg: { min: 1, max: 16 },
   gold: { min: 1, max: 3 },
   xp: { min: 1, max: 2.5 },
   rare: { min: 0, max: 0.4 },
@@ -421,7 +421,7 @@ function readDiff(raw: unknown): DiffTune | string {
   }
   if (out.hp[0] !== 1 || out.dmg[0] !== 1 || out.gold[0] !== 1 || out.xp[0] !== 1 || out.budget[0] !== 1 || out.ilvl[0] !== 0 || out.lower[0] !== 0) return "базовая сложность держит множители ×1 и не поднимает уровень вещи";
   if (!(out.lower[DIFF_N - 1] > 0)) return "чёрная сложность обязана иногда ронять младший ярус";
-  if (out.hp[DIFF_N - 1] > 24 || out.dmg[DIFF_N - 1] > 12) return "чёрный урон и здоровье не доходят до ×40: это стирает ручной бой";
+  if (out.hp[DIFF_N - 1] > 32 || out.dmg[DIFF_N - 1] > 16) return "чёрные здоровье и урон выше ×32 и ×16: удар перестаёт читаться";
   return out;
 }
 

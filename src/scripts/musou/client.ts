@@ -2,7 +2,7 @@
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  beginMode, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, runOffer, seal, statGlance,
+  beginMode, capLabel, compareGear, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, runOffer, seal, statGlance,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
   sheet, shopOffers, spendStat, unequip, xpNeed,
   type ChestPick, type FloorDef, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
@@ -31,6 +31,7 @@ let floorPick = 1;
 let diffPick = 1;
 let modePick: ModeId | "" = "";
 let selected: Item | null = null;
+let hovered: Item | null = null;
 let battle: Battle | null = null;
 let nonce = "";
 let ended = false;
@@ -294,7 +295,7 @@ function renderHub() {
   const goWhy = mode ? modeLock(profile, mode.id) : diffLock(profile, openF, diffPick);
   const glance = (k: Stat) => {
     const g = statGlance(profile, k);
-    const bit = k === "str" ? `урон ${g.before.dmg}→${g.after.dmg}` : k === "dex" ? `шаг ${g.before.speed}→${g.after.speed}` : k === "vit" ? `жизнь ${g.before.hp}→${g.after.hp}` : `навык ×${g.before.skill.toFixed(2)}→${g.after.skill.toFixed(2)}`;
+    const bit = k === "str" ? `урон ${g.before.dmg}→${g.after.dmg}` : k === "dex" ? `крит ${Math.round(g.before.crit * 100)}→${Math.round(g.after.crit * 100)}%` : k === "vit" ? `жизнь ${g.before.hp}→${g.after.hp}` : `навык ×${g.before.skill.toFixed(2)}→${g.after.skill.toFixed(2)}`;
     return bit;
   };
   root.innerHTML = `
@@ -312,7 +313,7 @@ function renderHub() {
         <div class="doll-wrap"><canvas id="doll"></canvas></div>
         <div class="sheet-meta">
           <div class="bar" title="опыт"><i style="width:${Math.min(100, profile.xp / xpNeed(profile.lvl) * 100)}%"></i></div>
-          <p class="derived">Свободно ${profile.unspent}. Урон ${s.dmg} · жизнь ${s.hp} · крит ${Math.round(s.crit * 100)}% · шаг ${s.speed}${set.got.map((g) => ` · ${g.name}`).join("")}</p>
+          <p class="derived">Свободно ${profile.unspent}. Урон ${s.dmg} · жизнь ${s.hp} · крит ${capLabel("crit", s.critRaw)} · уклон ${capLabel("dodge", s.dodgeRaw)} · вампир ${capLabel("ls", s.lsRaw)} · шаг ${s.speed}${set.got.map((g) => ` · ${g.name}`).join("")}</p>
         </div>
       </div>
       ${(["str", "dex", "vit", "ene"] as Stat[]).map((k) => {
@@ -355,7 +356,7 @@ function renderHub() {
       <div class="paper">${(["weapon", "helm", "chest", "gloves", "boots", "amulet", "ring1", "ring2"] as Paper[]).map((sl) => `<button type="button" class="pslot" data-paper="${sl}" title="${PAPER_NAME[sl]}" style="border-color:${profile.equip[sl] ? RARITY_COLOR[profile.equip[sl]!.rarity] : ""}">${slotHtml(profile.equip[sl], PAPER_NAME[sl])}</button>`).join("")}</div>
       <div class="grid">${Array.from({ length: profile.bagSize }, (_, i) => {
         const it = profile.bag[i];
-        return `<button type="button" class="slot${it && selected?.id === it.id ? " sel" : ""}${it ? "" : " empty"}" data-item="${it?.id || ""}" style="border-color:${it ? RARITY_COLOR[it.rarity] : ""}">${it ? slotHtml(it, "") : ""}</button>`;
+        return `<button type="button" class="slot${it && selected?.id === it.id ? " sel" : ""}${it ? "" : " empty"}" data-item="${it?.id || ""}" style="border-color:${it ? RARITY_COLOR[it.rarity] : ""}" ${it ? `aria-label="${it.name}, сравнить с надетым"` : "aria-label=\"пустая ячейка\""}>${it ? slotHtml(it, "") : ""}</button>`;
       }).join("")}</div>
       <div class="tip" id="tip">${tipHtml(selected)}</div>
       <div class="row">
@@ -409,9 +410,18 @@ function renderHub() {
       else { saveLocal(); toast(rewardLine(r)); renderHub(); }
     }
   });
-  root.querySelectorAll<HTMLButtonElement>("[data-item]").forEach((b) => b.onclick = () => {
-    selected = profile.bag.find((it) => it.id === b.dataset.item) || null;
-    renderHub();
+  root.querySelectorAll<HTMLButtonElement>("[data-item]").forEach((b) => {
+    const pick = () => profile.bag.find((it) => it.id === b.dataset.item) || null;
+    b.onclick = () => { selected = pick(); hovered = null; renderHub(); };
+    b.onpointerenter = (e) => {
+      if (e.pointerType === "touch") return;
+      if (e.pointerType !== "mouse" && !window.matchMedia("(hover: hover)").matches) return;
+      hovered = pick();
+      paintTip();
+    };
+    b.onpointerleave = () => { hovered = null; paintTip(); };
+    b.onfocus = () => { hovered = pick(); paintTip(); };
+    b.onblur = () => { if (hovered?.id === b.dataset.item) hovered = null; paintTip(); };
   });
   let paper: Paper | null = null;
   root.querySelectorAll<HTMLButtonElement>("[data-paper]").forEach((b) => b.onclick = () => {
@@ -480,6 +490,19 @@ function renderHub() {
   requestAnimationFrame(paintPicks);
 }
 
+function paintTip() {
+  const el = document.getElementById("tip");
+  if (!el) return;
+  el.innerHTML = tipHtml(hovered || selected);
+}
+function cmpRows(before: number, after: number, label: string, pct = false, cap = 0) {
+  const d = after - before;
+  const cls = d > 0.0001 ? "up" : d < -0.0001 ? "down" : "flat";
+  const show = pct ? `${Math.round(before * 1000) / 10}% → ${Math.round(after * 1000) / 10}%` : `${Math.round(before)} → ${Math.round(after)}`;
+  const mark = d > 0.0001 ? `+${pct ? Math.round(d * 1000) / 10 : Math.round(d)}` : d < -0.0001 ? `${pct ? Math.round(d * 1000) / 10 : Math.round(d)}` : "0";
+  const roof = pct && cap ? ` · предел ${Math.round(cap * 100)}%` : "";
+  return `<div class="${cls}"><span>${label}</span><b>${show}</b><em>${mark}${roof}</em></div>`;
+}
 function tipHtml(it: Item | null) {
   if (!it) return "Выбери вещь. Редкость видна рамкой, как в Диабло: серое, синее, жёлтое, оранжевое, зелёный комплект.";
   const tune = getTune();
@@ -490,7 +513,15 @@ function tipHtml(it: Item | null) {
   const look = forgePreview(profile, it);
   const cost = look.lines.length ? look.lines.map((l) => `${l.name} ${l.have}/${l.n}`).join(", ") : "потолок";
   const forge = `<div class="tag">Пётр, сейчас +${look.cur}. Следующий клинок около ${look.nextDmg}, броня около ${look.nextArmor}. Цена: ${cost}.${look.miss ? " " + look.miss + "." : ""}</div>`;
-  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${curse}${ench}${low}${forge}`;
+  const cmp = compareGear(profile, it.id);
+  const ring = cmp.otherRing ? `<div class="tag">Встанет в ${cmp.slot === "ring1" ? "первое" : "второе"} кольцо. Другое: ${cmp.otherRing.item ? cmp.otherRing.item.name : "пусто"}.</div>` : "";
+  const note = cmp.blocked
+    ? `<div class="tag">${cmp.blocked}</div>`
+    : cmp.worn
+      ? `<div class="tag">Уже надето на этого героя.</div>`
+      : `<div class="tag">${cmp.empty ? "Слот пуст." : `Вместо «${PAPER_NAME[cmp.slot!]}».`} Итог уже с потолками крита, уклона и вампиризма. На сохранение это не пишется.</div>`;
+  const rows = cmp.blocked || cmp.worn ? "" : `<div class="cmp">${cmpRows(cmp.before.dmg, cmp.after.dmg, "урон")}${cmpRows(cmp.before.hp, cmp.after.hp, "жизнь")}${cmpRows(cmp.before.armor, cmp.after.armor, "броня")}${cmpRows(cmp.before.crit, cmp.after.crit, "крит", true, 0.4)}${cmpRows(cmp.before.dodge, cmp.after.dodge, "уклон", true, 0.4)}${cmpRows(cmp.before.ls, cmp.after.ls, "вампир", true, 0.1)}</div>`;
+  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${RARITY_NAME[it.rarity]} · +${it.up || 0} · ${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${curse}${ench}${low}${forge}${ring}${note}${rows}`;
 }
 function rewardLine(r: any) {
   const item = r.item;
@@ -843,6 +874,27 @@ async function endFight() {
   }
 }
 
+let hitAudio: AudioContext | null = null;
+let hitAt = 0;
+function hitBlip(freq: number) {
+  const now = performance.now();
+  if (now - hitAt < 42) return;
+  hitAt = now;
+  try {
+    hitAudio = hitAudio || new AudioContext();
+    const o = hitAudio.createOscillator();
+    const g = hitAudio.createGain();
+    o.type = "square";
+    o.frequency.value = freq;
+    g.gain.value = 0.03;
+    o.connect(g);
+    g.connect(hitAudio.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, hitAudio.currentTime + 0.05);
+    o.stop(hitAudio.currentTime + 0.06);
+  } catch { /* нет звукового выхода */ }
+}
+
 function loop(now: number) {
   const prev = (loop as any).last as number | undefined;
   const dt = Math.min(0.05, ((prev == null ? 16 : now - prev) || 16) / 1000);
@@ -863,7 +915,11 @@ function frame(now: number, dt: number) {
   if (view === "fight" && battle) {
     const me = battle.party.find((p) => p.id === youId) || battle.party[0];
     battle.press(youId, readBtn());
+    const hpBefore = me.hp;
+    const killsBefore = battle.kills;
     battle.step(dt);
+    if (battle.kills > killsBefore) hitBlip(520);
+    if (me.hp < hpBefore - 0.4) hitBlip(150);
     for (const id of battle.takeChests()) grantChest(id);
     cam.x += (me.x - cam.x) * 0.12;
     cam.y += (me.y - cam.y) * 0.12;

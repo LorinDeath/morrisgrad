@@ -1,6 +1,7 @@
 // «Орда Обители» — правила хаба. Прокачка, лут и сумка живут здесь, не в бою.
 // Тот же модуль считает награды на сервере (D1) и рисует их в клиенте.
 // Числа экономики и лута — в tune.ts. Меняет их только проверенный набор админки.
+import { HARD_CAP, capLabel, rateChance } from "./caps";
 import { DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
 import { UPG, upgCost, upgStats } from "../../../server/meta/upgrade.ts";
 import { MAT_NAME } from "./mats";
@@ -18,7 +19,7 @@ export type Stat = "str" | "dex" | "vit" | "ene";
 export type Slot = "weapon" | "helm" | "chest" | "gloves" | "boots" | "amulet" | "ring";
 export type Paper = "weapon" | "helm" | "chest" | "gloves" | "boots" | "amulet" | "ring1" | "ring2";
 export type Rarity = "common" | "magic" | "rare" | "legendary" | "set";
-export type AffStat = Stat | "dmg" | "hp" | "armor" | "crit" | "aspd" | "ls" | "skill";
+export type AffStat = Stat | "dmg" | "hp" | "armor" | "crit" | "dodge" | "aspd" | "ls" | "skill";
 export type Shape = "arc" | "circle" | "dash" | "line";
 
 export type Affix = { stat: AffStat; val: number; name: string };
@@ -50,7 +51,7 @@ export const OATHS = [
   { id: "pawn", name: "Пешка", note: "Золото этажа ×1.2, шаг ×0.9" },
   { id: "knight", name: "Конь", note: "Шаг ×1.12, здоровье ×0.88" },
   { id: "rook", name: "Ладья", note: "+12 брони, шаг ×0.86" },
-  { id: "harvest", name: "Руна жатвы", note: "Вампиризм +6%, урон ×0.92" },
+  { id: "harvest", name: "Руна жатвы", note: "Вампиризм +54 рейтинга, около 6% с нуля и меньше, если рейтинг уже есть. Урон ×0.92" },
   { id: "haste", name: "Руна спешки", note: "Скорость атаки ×1.12, здоровье ×0.9" },
   { id: "cup", name: "Кубок", note: "Ставка до боя: победа возвращает её дважды, поражение забирает" },
 ] as const;
@@ -308,9 +309,10 @@ const AFFIX_POOL: { stat: AffStat; name: string; min: number; max: number }[] = 
   { stat: "dmg", name: "к урону", min: 2, max: 9 },
   { stat: "hp", name: "здоровья", min: 12, max: 40 },
   { stat: "armor", name: "брони", min: 2, max: 8 },
-  { stat: "crit", name: "крита", min: 1, max: 4 },
+  { stat: "crit", name: "крита", min: 1, max: 3 },
+  { stat: "dodge", name: "уклонения", min: 1, max: 2 },
   { stat: "aspd", name: "скорости атаки", min: 2, max: 7 },
-  { stat: "ls", name: "вампиризма", min: 1, max: 3 },
+  { stat: "ls", name: "вампиризма", min: 1, max: 2 },
   { stat: "skill", name: "урона навыков", min: 2, max: 8 },
 ];
 
@@ -434,9 +436,13 @@ export type Sheet = {
   armor: number;
   aspd: number;
   crit: number;
+  critRaw: number;
+  dodge: number;
+  dodgeRaw: number;
   speed: number;
   skill: number;
   ls: number;
+  lsRaw: number;
   heal: number;
   gold: number;
   accent: string;
@@ -754,7 +760,7 @@ export function sheet(p: Profile): Sheet {
   let dex = h.base.dex + p.alloc.dex;
   let vit = h.base.vit + p.alloc.vit;
   let ene = h.base.ene + p.alloc.ene;
-  let dmg = 0, armor = 0, hp = 0, aspd = 0, crit = 0, ls = 0, skill = 0;
+  let dmg = 0, armor = 0, hp = 0, aspd = 0, crit = 0, dodge = 0, ls = 0, skill = 0;
   let speedMul = 1;
   const tune = getTune();
   for (const it of equipped(p)) {
@@ -776,9 +782,10 @@ export function sheet(p: Profile): Sheet {
       else if (a.stat === "dmg") dmg += val;
       else if (a.stat === "hp") hp += val;
       else if (a.stat === "armor") armor += val;
-      else if (a.stat === "crit") crit += val / 100;
+      else if (a.stat === "crit") crit += val;
+      else if (a.stat === "dodge") dodge += val;
       else if (a.stat === "aspd") aspd += val / 100;
-      else if (a.stat === "ls") ls += val / 100;
+      else if (a.stat === "ls") ls += val;
       else if (a.stat === "skill") skill += val / 100;
     }
   }
@@ -787,14 +794,16 @@ export function sheet(p: Profile): Sheet {
   let dmgOut = Math.round((8 + str * 1.15 + dmg) * (1 + set.dmg));
   let armorOut = Math.round(armor + set.armor);
   let aspdOut = Math.min(2.2, 1 + dex * 0.0065 + aspd + set.aspd);
-  let lsOut = Math.min(0.25, ls);
   let goldOut = goldFind(p);
   const vow = p.pending?.oath;
   if (vow === "pawn") { goldOut *= 1.2; speedMul *= 0.9; }
   else if (vow === "knight") { speedMul *= 1.12; hpOut = Math.round(hpOut * 0.88); }
   else if (vow === "rook") { armorOut += 12; speedMul *= 0.86; }
-  else if (vow === "harvest") { lsOut = Math.min(0.25, lsOut + 0.06); dmgOut = Math.round(dmgOut * 0.92); }
+  else if (vow === "harvest") { ls += 54; dmgOut = Math.round(dmgOut * 0.92); }
   else if (vow === "haste") { aspdOut = Math.min(2.2, aspdOut * 1.12); hpOut = Math.round(hpOut * 0.9); }
+  const critRaw = 22 + dex * 0.45 + crit;
+  const dodgeRaw = 4 + dex * 0.22 + dodge;
+  const lsRaw = ls;
   return {
     hero: h.id,
     name: h.name,
@@ -802,17 +811,41 @@ export function sheet(p: Profile): Sheet {
     dmg: dmgOut,
     armor: armorOut,
     aspd: aspdOut,
-    crit: Math.min(0.6, 0.04 + dex * 0.0025 + crit),
+    crit: rateChance(critRaw, "crit"),
+    critRaw,
+    dodge: rateChance(dodgeRaw, "dodge"),
+    dodgeRaw,
     speed: Math.round((214 + dex * 0.4) * Math.max(0.45, speedMul)),
     skill: 1 + ene * 0.012 + skill,
-    ls: lsOut,
+    ls: rateChance(lsRaw, "ls"),
+    lsRaw,
     heal: 1 + set.heal,
     gold: goldOut,
     accent: h.accent,
   };
 }
 
-/** Что даст одно очко, не тратя его. Сила растит урон, ловкость — крит и шаг, живучесть — здоровье, энергия — навыки. */
+export { HARD_CAP, capLabel };
+
+/** Сравнение вещи сумки с тем, что уже надето. Профиль не меняется. */
+export function compareGear(p: Profile, itemId: string) {
+  const before = sheet(p);
+  const it = p.bag.find((i) => i.id === itemId) || null;
+  if (!it) return { item: null, slot: null as Paper | null, otherRing: null as { slot: Paper; item: Item | null } | null, blocked: "Вещи нет в сумке", worn: false, empty: true, before, after: before };
+  const worn = (Object.keys(p.equip) as Paper[]).some((s) => p.equip[s]?.id === it.id);
+  const slot = paperFor(it, p.equip);
+  const otherRing = it.slot === "ring" && slot
+    ? { slot: (slot === "ring1" ? "ring2" : "ring1") as Paper, item: p.equip[slot === "ring1" ? "ring2" : "ring1"] }
+    : null;
+  const blocked = p.lvl < it.req ? `Требует уровень ${it.req}. Сейчас ${p.lvl}. Надеть нельзя, статы не придут.` : null;
+  const empty = !slot || !p.equip[slot];
+  if (blocked || worn || !slot) return { item: it, slot, otherRing, blocked, worn, empty, before, after: before };
+  const ghost = structuredClone(p);
+  ghost.equip[slot] = structuredClone(it);
+  return { item: it, slot, otherRing, blocked: null, worn: false, empty, before, after: sheet(ghost) };
+}
+
+/** Что даст одно очко, не тратя его. Сила растит урон, ловкость — крит, уклон и шаг, живучесть — здоровье, энергия — навыки. */
 export function statGlance(p: Profile, stat: Stat) {
   const before = sheet(p);
   p.alloc[stat] += 1;
@@ -822,7 +855,7 @@ export function statGlance(p: Profile, stat: Stat) {
 }
 
 function affixLine(a: { stat: AffStat; val: number; name: string }) {
-  if (a.stat === "crit" || a.stat === "aspd" || a.stat === "ls" || a.stat === "skill") return `+${a.val}% ${a.name}`;
+  if (a.stat === "crit" || a.stat === "dodge" || a.stat === "aspd" || a.stat === "ls" || a.stat === "skill") return `+${a.val} рейтинга ${a.name}`;
   return `+${a.val} ${a.name}`;
 }
 
@@ -1603,7 +1636,7 @@ export function modeFloor(p: Profile, id: ModeId): FloorDef {
     return { ...src, desc: spec.orda, play: { ...blank, soloBoss: true, playerDmg: 0.7, armor: 0.3, loot: 3 } };
   }
   const src = FLOORS.find((f) => f.sw === "dungeon_5" && f.goal === "boss") || floorByN(1);
-  return { ...src, sw: "mode_demiurge", name: "Рейд: Демиург", place: "Рейд", dungeonName: "Рейд: Демиург", desc: spec.orda, boss: "Демиург", bossTitle: "45 секунд, потом ярость", general: "Демиург", goal: "boss", spawnGeneral: 0, tint: "#0c1a24", ember: "#38bdf8", play: { ...blank, soloBoss: true, enrageSec: 45, foeHp: 2.2 } };
+  return { ...src, sw: "mode_demiurge", name: "Рейд: Демиург", place: "Рейд", dungeonName: "Рейд: Демиург", desc: spec.orda, boss: "Демиург", bossTitle: "45 секунд, потом ярость", general: "Демиург", goal: "boss", spawnGeneral: 0, tint: "#0c1a24", ember: "#38bdf8", play: { ...blank, soloBoss: true, enrageSec: 45, foeHp: 8 } };
 }
 
 export function modeLock(p: Profile, id: ModeId): string | null {
