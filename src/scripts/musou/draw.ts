@@ -458,10 +458,20 @@ function nameplate(ctx: CanvasRenderingContext2D, x: number, y: number, name: st
   ctx.font = `700 13px Cinzel, serif`;
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(0,0,0,0.55)";
-  const w = ctx.measureText(name).width + 16;
+  const w = ctx.measureText(name).width + 28;
   ctx.fillRect(x - w / 2, y - 12, w, 18);
+  const dx = x - w / 2 + 11;
+  const dy = y - 3;
   ctx.fillStyle = col;
-  ctx.fillText(name, x, y + 2);
+  ctx.beginPath();
+  ctx.moveTo(dx, dy - 5);
+  ctx.lineTo(dx + 5, dy);
+  ctx.lineTo(dx, dy + 5);
+  ctx.lineTo(dx - 5, dy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = col;
+  ctx.fillText(name, x + 6, y + 2);
 }
 
 function vignette(ctx: CanvasRenderingContext2D, w: number, h: number) {

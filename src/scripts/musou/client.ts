@@ -12,6 +12,18 @@ import { drawBattle, drawPortrait, type Cam } from "./draw";
 import { DIFF_CHAIN, DIFF_NAME, floorMut, getTune, setTune, validateTune } from "./tune";
 import { MODE_LIST, type ModeId } from "./modes";
 import { craftFor } from "./stagecraft";
+import itemsUrl from "../../assets/mc/items_atlas.png?url";
+
+const GEAR_ICON: Record<string, number> = { weapon: 85, helm: 86, chest: 87, gloves: 89, boots: 88, amulet: 96, ring: 95, ring1: 95, ring2: 90 };
+document.documentElement.style.setProperty("--items", `url("${itemsUrl}")`);
+
+function iconStyle(slot: string, px = 40) {
+  const ic = GEAR_ICON[slot] ?? 85;
+  const k = px / 20;
+  const col = ic % 20;
+  const row = Math.floor(ic / 20);
+  return `width:${px}px;height:${px}px;background-size:${400 * k}px auto;background-position:-${col * 20 * k}px -${row * 20 * k}px`;
+}
 
 const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const SITE = location.hostname === "morrisgrad.com" || location.hostname === "www.morrisgrad.com";
@@ -65,6 +77,9 @@ function show(name: string) {
   }
   $<HTMLElement>("top").style.display = name === "fight" ? "none" : "";
   document.body.classList.toggle("in-fight", name === "fight");
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 }
 function toast(t: string) {
   const el = $<HTMLElement>("toast");
@@ -171,28 +186,21 @@ function renderPick() {
   requestAnimationFrame(paintPicks);
 }
 
-function slotHtml(it: Item | null, empty: string) {
-  if (!it) return `<span>${empty}</span>`;
-  const col = RARITY_COLOR[it.rarity];
-  const mark = it.cursed ? " · проклята" : it.ench ? " · " + ENCH_NAME[it.ench - 1] : "";
-  return `<i style="color:${col}">${RARITY_NAME[it.rarity]}${mark}</i><b style="color:${col}">${it.name}</b>`;
+function slotHtml(it: Item | null, empty: string, slot?: string) {
+  if (!it) return slot ? `<i class="ic dim" style="${iconStyle(slot)}"></i>` : `<em>${empty}</em>`;
+  return `<i class="ic" style="${iconStyle(it.slot)};box-shadow:inset 0 0 0 2px ${RARITY_COLOR[it.rarity]}"></i>`;
 }
 
 function pct(n: number) { return `${Math.round(n * 100)}%`; }
 function offerText(floor: number, diff: number) {
   const o = runOffer(profile, floor, diff, 1);
-  const four = runOffer(profile, floor, diff, 4);
+  const act = { none: "без особого приёма", mend: "раны затягиваются", plate: "удар вязнет", blink: "скачок", brand: "линия", nova: "кольцо", killer: "рывок и призыв" }[o.act] || o.act;
+  return `${o.name}. ${o.lore} ${act}. Опыт ${o.xpFirst}, золото ${o.goldFirst}.`;
+}
+function offerFine(floor: number, diff: number) {
+  const o = runOffer(profile, floor, diff, 1);
   const q = dropQuality(profile.lvl, floor, diff);
-  const tune = getTune();
-  const act = { none: "без особого приёма", mend: "раны затягиваются", plate: "броня гасит удар", blink: "скачок к герою", brand: "клеймо бьёт линией", nova: "кольцо волны", killer: "рывок, проклятие и призыв" }[o.act] || o.act;
-  return [
-    `${o.icon} ${o.name}. ${o.lore} Приём: ${act}.`,
-    `Сейчас в наборе, не обещание баланса: твари ×${o.hp} здоровья и ×${o.dmg} урона. Тварь около ${o.mobHp}, босс около ${o.bossHp} здоровья и ${o.bossDmg} урона.`,
-    `Реген около ${(o.regen * 100).toFixed(1)}% в секунду, броня гасит около ${pct(o.soak)}. Первый проход около ${o.goldFirst} золота и ${o.xpFirst} опыта, повтор около ${o.goldReplay} и ${o.xpReplay}.`,
-    `Добыча не называет конкретную вещь. Свой ярус или младше, младший около ${pct(o.lower)}. Клинок этого яруса около ${q.dmg}, уровень вещи около ${q.ilvl}, аффиксов +${o.affix}. Редкость до ${pct(o.rare)}, легендарное ${pct(o.leg)}, сундуков ${o.chests}.`,
-    `Вчетвером босс около ${four.bossHp} здоровья (за союзника +${tune.combat.partyHpPerExtra}, потолок ×${tune.combat.partyHpCap}), золото группы ×${o.partyGold}. Награда своя у каждого.`,
-    o.why || "",
-  ].filter(Boolean).join(" ");
+  return `Сейчас в наборе: здоровье ×${o.hp}, урон ×${o.dmg}. Босс около ${o.bossHp} здоровья. Добыча своего цвета или младше (${pct(o.lower)}). Вещь около ${q.ilvl} уровня. Повтор — ${o.xpReplay} опыта.`;
 }
 function compareHtml(floor: number) {
   const board = chainAt(profile, floor);
@@ -202,7 +210,7 @@ function compareHtml(floor: number) {
     const q = dropQuality(profile.lvl, floor, id);
     const o = runOffer(profile, floor, id);
     const ink = step.color === "#0a0a0a" ? "#f4f4f5" : step.color;
-    return `<button type="button" class="dcard${diffPick === id ? " on" : ""}${o.why ? " lock" : ""}" data-diff="${id}" style="--sw:${ink}"><b style="color:${ink}">${step.icon} ${step.name}</b><span>${o.why ? "закрыта" : "открыта"}</span><span>×${o.hp} / ×${o.dmg}</span><span>вещь ур. ${q.ilvl}</span><span>младший ${pct(o.lower)}</span></button>`;
+    return `<button type="button" class="dcard${diffPick === id ? " on" : ""}${o.why ? " lock" : ""}" data-diff="${id}" style="--sw:${ink}" title="×${o.hp} здоровья, ×${o.dmg} урона, вещь ур. ${q.ilvl}, младший ${pct(o.lower)}"><b style="color:${ink}">${step.icon} ${step.name}</b><span>${o.why ? "закрыта" : "открыта"}</span></button>`;
   }).join("")}</div>`;
 }
 
@@ -210,7 +218,7 @@ function paintYard() {
   const meta = document.getElementById("yard-meta");
   const box = document.getElementById("yard-people");
   if (!meta || !box || !yardSnap) return;
-  meta.textContent = `${yardSnap.shard || "осколок"} · ${yardSnap.people.length} из ${yardSnap.cap}. Восемь осколков двора, комната забега на 2–4.`;
+  meta.textContent = yardSnap.people.length ? `${yardSnap.people.length} рядом` : "На дворе тихо";
   box.innerHTML = yardSnap.people.length
     ? yardSnap.people.map((p) => `<div class="who${p.tag === yardSnap!.you ? " me" : ""}"><b>${p.nick}</b><span>ур. ${p.lvl}</span>${p.say ? `<em>${p.say}</em>` : ""}</div>`).join("")
     : "<p>На этом осколке пока тихо.</p>";
@@ -234,7 +242,7 @@ async function ensureYard() {
   const info = await api("/musou/plaza", {});
   if (!info?.shard) {
     const meta = document.getElementById("yard-meta");
-    if (meta && info?.err) meta.textContent = `${info.err}. Забег остаётся комнатой на 2–4.`;
+    if (meta && info?.err) meta.textContent = "Двор сейчас недоступен";
     return;
   }
   const sock = new WebSocket(WS + "/musou/p/" + info.shard);
@@ -308,7 +316,7 @@ function renderHub() {
     </section>
     <section class="panel sheet">
       <div class="who-line"><h2>${hero.name}</h2><span class="tag">${hero.title}</span></div>
-      <p class="lvl">Уровень ${profile.lvl} · <b>${profile.gold} зл</b></p>
+      <p class="lvl">Уровень ${profile.lvl} · опыт ${profile.xp} / ${xpNeed(profile.lvl)} · <b>${profile.gold} зл</b></p>
       <div class="sheet-top">
         <div class="doll-wrap"><canvas id="doll"></canvas></div>
         <div class="sheet-meta">
@@ -343,7 +351,8 @@ function renderHub() {
         <h3>${mode ? mode.name : picked.dungeonName}</h3>
         <p class="pick-name">${mode ? `ур. ${getTune().modes[mode.id]} · побед ${profile.book.wins[MODE_LIST.findIndex((m) => m.id === mode.id)] || 0}` : `этаж ${open.stage}/${open.stagesInDungeon} · ${open.name}`}</p>
         <p class="pick-rule">${mode ? mode.orda : `${craft.env}. ${craft.rule}`}</p>
-        <p class="offer">${mode ? (mode.id === "abyss" ? `Сейчас этаж ${profile.book.abyss}. Рекорд ${profile.book.best}.` : mode.id === "bossrush" ? `Босс ${profile.book.rush + 1} из ${FLOORS.filter((f) => f.goal === "boss").length}: ${picked.boss}.` : picked.bossTitle) : `${DIFF_CHAIN[diffPick - 1].name}. ${open.goal === "boss" ? "Босс" : open.goal === "elite" ? "Элита" : "Толпа"}: ${open.boss}.${floorMut(openF) ? ` ${floorMut(openF)!.name} ×${floorMut(openF)!.mult}.` : ""}`}</p>
+        <p class="offer">${mode ? (mode.id === "abyss" ? `Этаж ${profile.book.abyss}. Рекорд ${profile.book.best}. Ярус растёт с этажом, не выше Чёрного.` : mode.id === "bossrush" ? `Босс ${profile.book.rush + 1} из ${FLOORS.filter((f) => f.goal === "boss").length}: ${picked.boss}.` : picked.bossTitle) : offerText(openF, diffPick)}</p>
+        ${mode ? "" : `<details class="fine"><summary>Числа этого цвета</summary><p>${offerFine(openF, diffPick)}</p></details>`}
         ${goWhy ? `<p class="lock-why">${goWhy}</p>` : ""}
         <button class="btn gold" id="go-floor" type="button" ${goWhy ? "disabled" : ""}>${mode ? `В бой · ${mode.name}` : goLabel(openF, diffPick)}</button>
       </article>
@@ -353,10 +362,10 @@ function renderHub() {
     </section>
     <section class="panel bag">
       <div class="bag-head"><h2>Сумка</h2><span class="${bagFree(profile) ? "" : "full"}">${profile.bag.length}/${profile.bagSize}</span></div>
-      <div class="paper">${(["weapon", "helm", "chest", "gloves", "boots", "amulet", "ring1", "ring2"] as Paper[]).map((sl) => `<button type="button" class="pslot" data-paper="${sl}" title="${PAPER_NAME[sl]}" style="border-color:${profile.equip[sl] ? RARITY_COLOR[profile.equip[sl]!.rarity] : ""}">${slotHtml(profile.equip[sl], PAPER_NAME[sl])}</button>`).join("")}</div>
+      <div class="paper">${(["weapon", "helm", "chest", "gloves", "boots", "amulet", "ring1", "ring2"] as Paper[]).map((sl) => `<button type="button" class="pslot" data-paper="${sl}" title="${profile.equip[sl] ? profile.equip[sl]!.name : PAPER_NAME[sl]}" style="border-color:${profile.equip[sl] ? RARITY_COLOR[profile.equip[sl]!.rarity] : ""}">${slotHtml(profile.equip[sl], PAPER_NAME[sl], sl)}</button>`).join("")}</div>
       <div class="grid">${Array.from({ length: profile.bagSize }, (_, i) => {
         const it = profile.bag[i];
-        return `<button type="button" class="slot${it && selected?.id === it.id ? " sel" : ""}${it ? "" : " empty"}" data-item="${it?.id || ""}" style="border-color:${it ? RARITY_COLOR[it.rarity] : ""}" ${it ? `aria-label="${it.name}, сравнить с надетым"` : "aria-label=\"пустая ячейка\""}>${it ? slotHtml(it, "") : ""}</button>`;
+        return `<button type="button" class="slot${it && selected?.id === it.id ? " sel" : ""}${it ? "" : " empty"}" data-item="${it?.id || ""}" style="border-color:${it ? RARITY_COLOR[it.rarity] : ""}" ${it ? `title="${it.name}" aria-label="${it.name}"` : "aria-label=\"пустая ячейка\""}>${it ? slotHtml(it, "") : ""}</button>`;
       }).join("")}</div>
       <div class="tip" id="tip">${tipHtml(selected)}</div>
       <div class="row">
@@ -504,24 +513,12 @@ function cmpRows(before: number, after: number, label: string, pct = false, cap 
   return `<div class="${cls}"><span>${label}</span><b>${show}</b><em>${mark}${roof}</em></div>`;
 }
 function tipHtml(it: Item | null) {
-  if (!it) return "Выбери вещь. Редкость видна рамкой, как в Диабло: серое, синее, жёлтое, оранжевое, зелёный комплект.";
-  const tune = getTune();
-  const curse = it.cursed ? `<div class="tag">Проклята: статы вещи ×${tune.curse.statMult}, шаг ×${tune.curse.speed}. Надетая вещь режет скорость всего героя.</div>` : "";
-  const tier = it.ench ? ENCH_NAME[it.ench - 1] : "";
-  const ench = it.ench ? `<div class="tag">${tier}: статы вещи ×${tune.ench.stat[it.ench - 1]}, шаг ×${tune.ench.speed[it.ench - 1]}. Чем выше ярус, тем тяжелее шаг.</div>` : "";
-  const low = profile.lvl < it.req ? `<div class="tag">Требует уровень ${it.req}. У ${heroById(profile.hero).name} сейчас ${profile.lvl}. Надеть нельзя, статы не придут.</div>` : `<div class="tag">Требует уровень ${it.req}.</div>`;
-  const look = forgePreview(profile, it);
-  const cost = look.lines.length ? look.lines.map((l) => `${l.name} ${l.have}/${l.n}`).join(", ") : "потолок";
-  const forge = `<div class="tag">Пётр, сейчас +${look.cur}. Следующий клинок около ${look.nextDmg}, броня около ${look.nextArmor}. Цена: ${cost}.${look.miss ? " " + look.miss + "." : ""}</div>`;
+  if (!it) return `<p class="muted">Наведи на вещь — здесь будет сравнение с надетым.</p>`;
   const cmp = compareGear(profile, it.id);
-  const ring = cmp.otherRing ? `<div class="tag">Встанет в ${cmp.slot === "ring1" ? "первое" : "второе"} кольцо. Другое: ${cmp.otherRing.item ? cmp.otherRing.item.name : "пусто"}.</div>` : "";
-  const note = cmp.blocked
-    ? `<div class="tag">${cmp.blocked}</div>`
-    : cmp.worn
-      ? `<div class="tag">Уже надето на этого героя.</div>`
-      : `<div class="tag">${cmp.empty ? "Слот пуст." : `Вместо «${PAPER_NAME[cmp.slot!]}».`} Итог уже с потолками крита, уклона и вампиризма. На сохранение это не пишется.</div>`;
+  const mark = [it.cursed ? "проклята" : "", it.ench ? ENCH_NAME[it.ench - 1] : "", it.up ? `+${it.up}` : ""].filter(Boolean).join(" · ");
   const rows = cmp.blocked || cmp.worn ? "" : `<div class="cmp">${cmpRows(cmp.before.dmg, cmp.after.dmg, "урон")}${cmpRows(cmp.before.hp, cmp.after.hp, "жизнь")}${cmpRows(cmp.before.armor, cmp.after.armor, "броня")}${cmpRows(cmp.before.crit, cmp.after.crit, "крит", true, 0.4)}${cmpRows(cmp.before.dodge, cmp.after.dodge, "уклон", true, 0.4)}${cmpRows(cmp.before.ls, cmp.after.ls, "вампир", true, 0.1)}</div>`;
-  return `<b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${RARITY_NAME[it.rarity]} · +${it.up || 0} · ${itemBlurb(it)} · ${itemPrice(it)} зл если продать за ${Math.round(itemPrice(it) * 0.4)}</div>${it.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${it.set ? `<div class="tag">комплект</div>` : ""}${curse}${ench}${low}${forge}${ring}${note}${rows}`;
+  const why = cmp.blocked || (profile.lvl < it.req ? `Нужен уровень ${it.req}` : cmp.worn ? "Уже надето" : "");
+  return `<div class="tip-head"><i class="ic" style="${iconStyle(it.slot)};box-shadow:inset 0 0 0 2px ${RARITY_COLOR[it.rarity]}"></i><div><b style="color:${RARITY_COLOR[it.rarity]}">${it.name}</b><div>${RARITY_NAME[it.rarity]}${mark ? " · " + mark : ""} · ${itemPrice(it)} зл</div></div></div>${it.affixes.slice(0, 3).map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}${why ? `<div class="tag">${why}</div>` : ""}${rows}`;
 }
 function rewardLine(r: any) {
   const item = r.item;
@@ -546,7 +543,7 @@ function openShop() {
   <p>Золото ${profile.gold}. Сумка ${profile.bag.length}/${profile.bagSize}. Обновить витрину — ${refreshCost(profile)} зл. Ранг сумки даёт +3% золота с этажей (сейчас +${Math.round(goldFind(profile) * 100)}%).</p>
   <div class="shop-grid">${offers.map((o) => o.kind === "bag"
     ? `<article class="offer bag"><h3>${o.name}</h3><p>${o.detail}</p><button class="btn gold" data-buy="${o.id}" type="button" ${profile.gold < o.price ? "disabled" : ""}>Купить · ${o.price} зл</button></article>`
-    : `<article class="offer"><h3 style="color:${RARITY_COLOR[o.item.rarity]}">${o.item.name}</h3><p>${itemBlurb(o.item)}</p>${o.item.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}<button class="btn gold" data-buy="${o.id}" type="button" ${profile.gold < o.price || bagFree(profile) < 1 ? "disabled" : ""}>${o.price} зл</button></article>`).join("")}</div>
+    : `<article class="offer"><i class="ic" style="${iconStyle(o.item.slot, 48)};box-shadow:inset 0 0 0 2px ${RARITY_COLOR[o.item.rarity]}"></i><h3 style="color:${RARITY_COLOR[o.item.rarity]}">${o.item.name}</h3><p>${RARITY_NAME[o.item.rarity]} · ур. ${o.item.req}</p>${o.item.affixes.slice(0, 2).map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}<button class="btn gold" data-buy="${o.id}" type="button" ${profile.gold < o.price || bagFree(profile) < 1 ? "disabled" : ""}>${o.price} зл</button></article>`).join("")}</div>
   <div class="row" style="margin-top:10px"><button class="btn" id="shop-refresh" type="button">Обновить витрину</button></div>`);
   $<HTMLButtonElement>("shop-x").onclick = closeModal;
   $<HTMLButtonElement>("shop-refresh").onclick = async () => {
@@ -636,7 +633,7 @@ async function connect(code: string, fromDrop = false) {
         return `<button type="button" class="btn${mode === id ? " gold" : ""}" data-room-diff="${id}" ${why ? "disabled" : ""}>${name}</button>`;
       }).join("") : "";
       const offer = runOffer(profile, m.floor | 0 || 1, mode, Math.max(1, m.seats.length));
-      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · ${DIFF_NAME[mode - 1] || "Базовая"}.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}${modes ? `<div class="diffs">${modes}</div>` : ""}<p class="offer">${offer.lore} Босс около ${offer.bossHp} здоровья и ${offer.bossDmg} урона. Первый проход этого цвета около ${offer.goldFirst} золота и ${offer.xpFirst} опыта, повтор около ${offer.goldReplay} и ${offer.xpReplay}. Младший ярус около ${Math.round(offer.lower * 100)}%. Старт идёт, только если цвет открыт у каждого.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0} · до «${(s.chain | 0) > 0 ? DIFF_NAME[(s.chain | 0) - 1] : "нет"}»${memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode, s.chain | 0) ? " · цвет закрыт" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">Цвет закрыт у: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём хоста. Сервер сверяет цепочку каждого.</p>"}`;
+      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · ${DIFF_NAME[mode - 1] || "Базовая"}.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}${modes ? `<div class="diffs">${modes}</div>` : ""}<p class="offer">${offer.lore} Опыт ${offer.xpFirst}, золото ${offer.goldFirst}.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode, s.chain | 0) ? " · цвет закрыт" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">Цвет закрыт у: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём, пока хост начнёт.</p>"}`;
       $<HTMLButtonElement>("room-start") && ($<HTMLButtonElement>("room-start").onclick = () => ws?.send(JSON.stringify({ type: "start" })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-floor]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "floor", floor: Number(b.dataset.roomFloor) })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-diff]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "diff", diff: Number(b.dataset.roomDiff) })));
@@ -656,7 +653,7 @@ async function connect(code: string, fromDrop = false) {
     if (m.type === "boom" && battle) {
       const me = battle.party.find((p) => p.id === youId);
       if (me && inBoom(me.x, me.y, m) && me.iframe <= 0) {
-        me.hp = Math.max(0, me.hp - 14);
+        me.hp = Math.max(0, me.hp - Math.round(14 * (Number(m.pow) || 1)));
         me.hurt = 0.3;
         me.iframe = 0.45;
       }
@@ -694,7 +691,7 @@ async function startSolo(floor: number) {
     const r = await act({ op: "start", floor, diff: diffPick });
     if (r?.nonce) {
       nonce = r.nonce;
-      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, diffPick);
+      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], profile.pending?.seed || 1, false, diffPick);
       return;
     }
     if (r?.err) return;
@@ -708,7 +705,7 @@ async function startSolo(floor: number) {
     if ("err" in b) return toast(b.err);
     nonce = b.nonce;
     saveLocal();
-    beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, diffPick);
+    beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], profile.pending?.seed || b.seed || 1, false, diffPick);
   }
 }
 
@@ -723,7 +720,7 @@ async function startMode(id: ModeId) {
     const r = await act({ op: "mode", id });
     if (r?.nonce) {
       nonce = r.nonce;
-      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, 1);
+      beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], profile.pending?.seed || 1, false, 1);
       return;
     }
     if (r?.err) return;
@@ -734,7 +731,7 @@ async function startMode(id: ModeId) {
   if ("err" in b) return toast(b.err);
   nonce = b.nonce;
   saveLocal();
-  beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], (Date.now() % 99991) + 1, false, 1);
+  beginBattle(floor, [{ id: "you", name: nick, hero: profile.hero || "lorin", sheet: sheet(profile) }], profile.pending?.seed || b.seed || 1, false, 1);
 }
 
 function beginBattle(floor: number | FloorDef, members: { id: string; name: string; hero: HeroId; sheet: any }[], seed: number, remote: boolean, diff = 1) {
@@ -817,7 +814,8 @@ function hud() {
   $<HTMLElement>("ms").style.width = me.musou + "%";
   const f = battle.floor;
   const wave = battle.wave < 3 ? (f.stages[battle.wave] || `Волна ${battle.wave + 1}`) : "Босс";
-  $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b> · ${DIFF_NAME[(battle.diff | 0) - 1] || "Обычная"}<div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown ? " · босс пал" : ""}</div>`;
+  const foe = battle.elites.find((e) => e.alive);
+  $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b> · ${DIFF_NAME[(battle.diff | 0) - 1] || "Обычная"}<div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown ? " · босс пал" : ""}${foe ? ` · цель: ${foe.name}` : ""}</div>`;
   $<HTMLButtonElement>("pause-btn").hidden = !!battle.remote;
   const chest = $<HTMLElement>("chest-hint");
   if (chest) chest.hidden = !battle.nearChest;
@@ -844,10 +842,10 @@ function showResult(report: RunReport | null, phase: string, reason?: RunReport[
   const items = report && "items" in report ? report.items : [];
   const pay = report && "gold" in report ? mode + (report.gold > 0 ? `+${report.gold} золота. ` : "Золота за этот исход нет. ") + (report.note || "") : (err ? `Награда не засчитана: ${err}.` : "Награда не засчитана.");
   paintPills();
-  const xpLine = report && "xp" in report ? `Уровень ${profile.lvl}${report.levels ? ` · новых ${report.levels}` : ""}. Опыт хода: ${report.xp}.` : `Уровень ${profile.lvl}.`;
+  const xpLine = report && "xp" in report ? `Уровень ${profile.lvl}. Опыт ${report.xp}. До следующего ${profile.xp} / ${xpNeed(profile.lvl)}.` : `Уровень ${profile.lvl}. Опыт ${profile.xp} / ${xpNeed(profile.lvl)}.`;
   $<HTMLElement>("v-result").innerHTML = `<article class="result-card"><p class="tag">${why === "win" ? "Победа" : why === "surrender" ? "Выход" : "Падение"}</p><h2>${title}</h2>
   <p class="lvl-line">${xpLine}</p>
-  <p>${pay} Квесты, которые уже выполнены, сдаются в хабе и тоже дают уровень.</p>
+  <p>${pay}</p>
   <div class="result-grid">${items.map((n) => `<article class="loot${n.sold ? " sold" : ""}" style="border-color:${RARITY_COLOR[n.item.rarity]}"><b style="color:${RARITY_COLOR[n.item.rarity]}">${n.item.name}</b><div>${itemBlurb(n.item)}</div>${n.held ? "<div>Редкая вещь ждёт у входа в хаб — сумка была полна.</div>" : n.sold ? `<div>Обычная вещь не влезла и ушла за ${n.gold} золота.</div>` : n.item.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}</article>`).join("") || "<p>Трофеев нет. Генералы и босс оставляют вещь, если сумка пускает.</p>"}</div>
   <div class="row" style="margin-top:14px"><button class="btn gold" id="back-hub" type="button">В хаб</button></div></article>`;
   $<HTMLButtonElement>("back-hub").onclick = () => { renderHub(); show("hub"); };
@@ -1015,7 +1013,7 @@ function paintPills() {
   $<HTMLElement>("gold-pill").textContent = profile.gold + " зл";
   $<HTMLElement>("bag-pill").textContent = profile.bag.length + "/" + profile.bagSize;
   $<HTMLElement>("lvl-pill").textContent = "ур. " + profile.lvl;
-  $<HTMLElement>("net-pill").textContent = online ? (verified ? "аккаунт" : "гость на сервере") : "это устройство";
+  $<HTMLElement>("net-pill").textContent = online ? (verified ? "в сети" : "гость") : "здесь";
 }
 
 function togglePause() {

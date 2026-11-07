@@ -11,11 +11,11 @@
   --ok: #7dcea0;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow-x: hidden; color: var(--text); font-family: "Exo 2", system-ui, sans-serif; background:
+html, body { margin: 0; min-height: 100%; color: var(--text); font-family: "Exo 2", system-ui, sans-serif; background:
   radial-gradient(ellipse at 50% -8%, rgba(226, 75, 59, 0.22), transparent 42%),
   radial-gradient(ellipse at 100% 100%, rgba(231, 201, 138, 0.08), transparent 36%),
   var(--bg); }
-body.in-fight { overflow: hidden; }
+body.in-fight { overflow: hidden; height: 100%; }
 button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 #orda { min-height: 100%; display: flex; flex-direction: column; }
@@ -196,14 +196,21 @@ button { cursor: pointer; }
 .bag-head { display: flex; justify-content: space-between; align-items: baseline; }
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
 .slot, .pslot {
-  aspect-ratio: 1; border: 1px solid rgba(224,192,122,.3); background: rgba(0,0,0,.35);
-  display: flex; align-items: flex-end; padding: 4px; font-size: 0.68rem; line-height: 1.15; text-align: left; position: relative;
-  overflow: hidden;
+  aspect-ratio: 1; border: 1px solid rgba(224,192,122,.3); background:
+    radial-gradient(circle at 50% 70%, rgba(231,201,138,.08), transparent 70%), rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; padding: 4px; position: relative; overflow: hidden;
 }
-.slot b { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.slot.empty, .pslot { color: var(--muted); align-items: center; justify-content: center; }
-.slot.sel { outline: 1px solid var(--gold-2); }
-.slot i { position: absolute; top: 3px; left: 4px; font-style: normal; font-size: 0.62rem; letter-spacing: 0.04em; }
+.slot.empty, .pslot em { color: var(--muted); font-style: normal; font-size: 0.62rem; text-align: center; }
+.slot.sel { outline: 2px solid var(--gold-2); }
+.ic {
+  width: 40px; height: 40px; display: block; image-rendering: pixelated;
+  background-image: var(--items); background-repeat: no-repeat; background-size: 800px auto;
+}
+.ic.dim { opacity: 0.38; filter: grayscale(0.4); }
+.tip-head { display: flex; gap: 8px; align-items: center; }
+.tip-head .ic { flex: none; }
+.fine { margin: 0 0 6px; color: var(--muted); font-size: 0.75rem; }
+.fine summary { cursor: pointer; color: var(--gold); }
 .tip { margin-top: 8px; padding: 8px; border: 1px solid rgba(224,192,122,.25); background: #10080c; font-size: 0.84rem; min-height: 72px; }
 .tip .aff { color: #d7ecff; }
 .cmp { display: grid; gap: 2px; margin-top: 6px; }

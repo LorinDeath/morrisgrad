@@ -134,6 +134,10 @@ const title = "Орда · набор чисел";
     if (mobDmg.every(Number.isFinite)) tune.combat.mobDmg = mobDmg;
     if (ench.every(Number.isFinite)) tune.ench.stat = ench;
     if (enchSpeed.every(Number.isFinite)) tune.ench.speed = enchSpeed;
+    for (const [key, n] of [["minTier", 7], ["up", 7], ["modeTier", 7]]) {
+      const got = Array.from({ length: n }, (_, i) => Number(document.querySelector(`[data-k="elite.${key}.${i}"]`).value));
+      if (got.every(Number.isFinite)) tune.elite[key] = got;
+    }
     if (mut.length === 10 && mut.every(Number.isFinite)) tune.mut.mult = mut;
     try { tune.floors = JSON.parse($("floors").value); } catch { tune.floors = null; }
     try { tune.diff = JSON.parse($("diffs").value); } catch { tune.diff = null; }
@@ -150,6 +154,10 @@ const title = "Орда · набор чисел";
     tune.combat.mobDmg.forEach((n, i) => { document.querySelector(`[data-k="combat.mobDmg.${i}"]`).value = String(n); });
     tune.ench.stat.forEach((n, i) => { document.querySelector(`[data-k="ench.stat.${i}"]`).value = String(n); });
     tune.ench.speed.forEach((n, i) => { document.querySelector(`[data-k="ench.speed.${i}"]`).value = String(n); });
+    const elite = tune.elite || { minTier: [0, 1, 2, 3, 4, 5, 6], up: [0.08, 0.07, 0.06, 0.05, 0.04, 0.035, 0.03], modeTier: [1, 2, 2, 3, 4, 5, 6] };
+    elite.minTier.forEach((n, i) => { document.querySelector(`[data-k="elite.minTier.${i}"]`).value = String(n); });
+    elite.up.forEach((n, i) => { document.querySelector(`[data-k="elite.up.${i}"]`).value = String(n); });
+    elite.modeTier.forEach((n, i) => { document.querySelector(`[data-k="elite.modeTier.${i}"]`).value = String(n); });
     $("muts").value = tune.mut.mult.join(", ");
     $("floors").value = JSON.stringify(tune.floors, null, 1);
     $("diffs").value = JSON.stringify(tune.diff, null, 1);
@@ -198,6 +206,9 @@ const title = "Орда · набор чисел";
       ["combat.mobDmg", "Урон трёх поведений", 3, buckets.combat],
       ["ench.stat", "Чары, статы яруса", 6, buckets.mark],
       ["ench.speed", "Чары, шаг яруса", 6, buckets.mark],
+      ["elite.minTier", "Минимальный ярус генерала", 7, buckets.mark],
+      ["elite.up", "Шанс яруса выше", 7, buckets.mark],
+      ["elite.modeTier", "Ярус чар режима", 7, buckets.mark],
     ]) {
       for (let i = 0; i < n; i++) {
         const lab = document.createElement("label");

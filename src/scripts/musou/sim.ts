@@ -8,6 +8,7 @@ import {
 import { mitigate, rateChance } from "./caps";
 import { DEATH_SEC } from "./anim";
 import { chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
+import { markAnchor, markColor, markMul, markTitle, rollMark } from "./mark";
 import { swarmName } from "./stagecraft";
 
 export const ARENA_W = 2400;
@@ -77,6 +78,10 @@ export type Elite = {
   r: number;
   sig: Sig;
   row: number;
+  tier: number;
+  up: number;
+  cursed: 0 | 1;
+  pow: number;
 };
 
 export type Chest = { id: number; x: number; y: number; open: boolean };
@@ -158,6 +163,7 @@ export class Battle {
   localId = "";
   hits: { id: string; kind: "light" | "heavy" | "skill" | "musou" }[] = [];
   rng: Rng;
+  seed = 1;
   private mobX = new Float32Array(MAX_MOBS);
   private mobY = new Float32Array(MAX_MOBS);
   private mobHp = new Float32Array(MAX_MOBS);
@@ -187,7 +193,8 @@ export class Battle {
     this.floor = typeof floor === "number" ? floorByN(floor) : floor;
     this.diff = diffRow(diff).id;
     this.kit = diffRow(this.diff).act;
-    this.rng = mulberry32(seed || 1);
+    this.seed = seed || 1;
+    this.rng = mulberry32(this.seed);
     const f = this.floor;
     this.party = members.slice(0, 4).map((m, i) => {
       const ang = (i / Math.max(1, members.length)) * Math.PI * 2;
@@ -209,6 +216,10 @@ export class Battle {
     if (f.play?.soloBoss) {
       this.wave = 3;
       this.budgets = [0, 0, 0, 0];
+    } else if (f.play?.kind === "horde") {
+      this.budgets = this.budgets.map((n) => Math.round(n * 1.45));
+    } else if (f.play?.kind === "arena") {
+      this.budgets = this.budgets.map((n) => Math.round(n * 1.15));
     } else if (swarmName(f.name)) {
       this.budgets = this.budgets.map((n) => Math.round(n * 1.5));
     }
@@ -272,6 +283,11 @@ export class Battle {
     }
     if (this.phase !== "fight") { this.decay(dt); return; }
     const play = this.floor.play;
+    if ((play?.kind === "arena" || play?.kind === "horde") && !this.generalOut && this.t >= 8 && !this.remote) {
+      this.generalOut = true;
+      this.spawnElite("general");
+      this.say(play.kind === "horde" ? "Подкрепление орды" : "Подкрепление арены", "Зачарованный генерал вышел на круг", 1.2);
+    }
     if (play?.enrageSec && this.t >= play.enrageSec) {
       this.phase = "lost";
       this.reason = "dead";
@@ -434,19 +450,24 @@ export class Battle {
     let hp = eliteHp(kind, n, this.party.length, getTune(), this.diff);
     if (boss && this.floor.play?.mirror) hp = Math.max(40, this.party[0]?.maxHp || hp);
     if (this.floor.play?.foeHp) hp = Math.max(40, Math.round(hp * this.floor.play.foeHp));
+    const id = boss ? "boss" : "g" + this.wave;
+    const mark = rollMark(this.seed, id, this.diff, this.floor.play?.kind, this.floor.play?.step || 0);
+    const mul = markMul(mark, markAnchor(this.diff, this.floor.play?.kind, this.floor.play?.step || 0));
+    hp = Math.max(40, Math.round(hp * mul.hp));
     const named = this.floor.play ? (boss ? this.floor.boss : this.floor.general) : eliteName(kind, n);
+    const ink = diffRow(this.diff).color === "#0a0a0a" ? "#f4f4f5" : diffRow(this.diff).color;
     this.elites.push({
-      kind, name: named,
+      kind, name: markTitle(named, mark),
       title: boss ? this.floor.bossTitle : "генерал волны",
       x: clamp((lead?.x ?? ARENA_W / 2) + Math.cos(ang) * dist, 120, ARENA_W - 120),
       y: clamp((lead?.y ?? ARENA_H / 2) + Math.sin(ang) * dist, 120, ARENA_H - 120),
-      id: boss ? "boss" : "g" + this.wave,
-      hp, maxHp: hp, facing: ang + Math.PI, alive: true,
+      id, hp, maxHp: hp, facing: ang + Math.PI, alive: true,
       wind: 0, windMax: 0.5, cd: 0.8, pattern: 0, swing: 0, stun: 0, die: 0, phase: 1,
-      tint: diffRow(this.diff).color === "#0a0a0a" ? "#f4f4f5" : diffRow(this.diff).color,
+      tint: markColor(mark, ink),
       r: boss ? 46 : 30,
       sig,
       row: boss ? this.floor.bRow : this.floor.gRow,
+      tier: mark.tier, up: mark.up, cursed: mark.cursed, pow: mul.dmg,
     });
     this.fxPush({ k: "ring", x: this.elites[this.elites.length - 1].x, y: this.elites[this.elites.length - 1].y, a: 0, r: boss ? 120 : 70, ang: 0, life: 0.45, max: 0.45, col: boss ? "#ffd76a" : "#ff6a4a", col2: "#fff" });
   }
@@ -479,7 +500,7 @@ export class Battle {
     a.x = x; a.y = y; a.facing = aim; a.aim = aim;
   }
 
-  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string; sig?: Sig; row?: number }[]) {
+  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string; sig?: Sig; row?: number; tier?: number; up?: number; cursed?: number; pow?: number }[]) {
     this.elites = list.map((e) => ({
       id: e.id, kind: e.kind, name: e.name, title: e.kind === "boss" ? "босс" : "генерал",
       x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
@@ -487,6 +508,7 @@ export class Battle {
       tint: e.tint, r: e.kind === "boss" ? 46 : 30,
       sig: e.sig || (e.kind === "boss" ? "cone" : "circle"),
       row: e.row || (e.kind === "boss" ? 37 : 36),
+      tier: e.tier | 0, up: e.up | 0, cursed: e.cursed ? 1 : 0, pow: e.pow || 1,
     }));
   }
 
@@ -502,7 +524,9 @@ export class Battle {
         if (d < bd) { bd = d; best = p; }
       }
       const kind = this.mobKind[i];
-      const reach = kind === 1 ? 22 : 30;
+      const ranged = kind === 1;
+      const reach = ranged ? 200 : kind === 2 ? 42 : 36;
+      if (ranged && bd < 130 * 130) continue;
       if (bd > reach * reach || best.iframe > 0) continue;
       if (this.rng() < rateChance(best.sheet.dodgeRaw, "dodge")) {
         this.text(best.x, best.y - 22, "уклон", "#d7ecff");
@@ -530,35 +554,40 @@ export class Battle {
 
   private wander(dt: number) {
     const act = diffRow(this.diff).act;
-    const spd = (26 + this.floor.n * 0.4) * (act === "killer" ? 1.45 : act === "blink" ? 0.85 : 1);
+    const prey = this.living();
+    const spd = (118 + Math.min(36, this.floor.n * 0.15)) * (act === "killer" ? 1.2 : 1);
     for (let i = 0; i < this.mobN; i++) {
       if (!this.mobAlive[i]) {
         if (this.mobDie[i] > 0) this.mobDie[i] -= dt;
         continue;
       }
-      if ((i & 3) !== (this.frame & 3) && this.mobCool[i] > 0) {
-        this.mobCool[i] -= dt;
-      } else {
-        this.mobCool[i] -= dt;
-        if (this.mobCool[i] <= 0) {
-          const lead = this.living()[0] || this.party[0];
-          const ang = this.rng() * Math.PI * 2;
-          const kind = this.mobKind[i];
-          const d = kind === 1 ? 150 + this.rng() * 70 : kind === 2 ? 36 + this.rng() * 40 : 28 + this.rng() * 50;
-          this.mobTx[i] = clamp(lead.x + Math.cos(ang) * d, 70, ARENA_W - 70);
-          this.mobTy[i] = clamp(lead.y + Math.sin(ang) * d, 70, ARENA_H - 70);
-          this.mobCool[i] = kind === 2 ? 1.6 : 0.8 + this.rng() * 0.8;
-        }
+      let tx = this.mobX[i], ty = this.mobY[i], best = 1e12;
+      const who = prey.length ? prey : this.party;
+      for (const p of who) {
+        const d = (p.x - this.mobX[i]) ** 2 + (p.y - this.mobY[i]) ** 2;
+        if (d < best) { best = d; tx = p.x; ty = p.y; }
       }
-      const dx = this.mobTx[i] - this.mobX[i];
-      const dy = this.mobTy[i] - this.mobY[i];
-      const L = len(dx, dy);
-      const kindSpd = this.mobKind[i] === 1 ? spd * 1.7 : this.mobKind[i] === 2 ? spd * 0.55 : spd * 1.15;
-      if (L > 6) {
-        this.mobX[i] += (dx / L) * kindSpd * dt;
-        this.mobY[i] += (dy / L) * kindSpd * dt;
-        this.mobFace[i] = Math.atan2(dy, dx);
+      const dx = tx - this.mobX[i];
+      const dy = ty - this.mobY[i];
+      const d = Math.sqrt(best);
+      const kind = this.mobKind[i];
+      const ranged = kind === 1;
+      let dir = 1;
+      if (ranged && d < 150) dir = -1;
+      else if (!ranged && d <= (kind === 2 ? 40 : 34)) dir = 0;
+      else if (ranged && d <= 220) dir = 0;
+      const side = ranged && dir === 0 ? 1 : 0;
+      const mx = side ? -dy : dx;
+      const my = side ? dx : dy;
+      const L = Math.hypot(mx, my) || 1;
+      const kindSpd = ranged ? spd * 0.92 : kind === 2 ? spd * 0.78 : spd;
+      if (dir !== 0 || side) {
+        this.mobX[i] = clamp(this.mobX[i] + (mx / L) * kindSpd * dt * (dir || 1), 70, ARENA_W - 70);
+        this.mobY[i] = clamp(this.mobY[i] + (my / L) * kindSpd * dt * (dir || 1), 70, ARENA_H - 70);
       }
+      this.mobFace[i] = Math.atan2(dy, dx);
+      this.mobTx[i] = tx;
+      this.mobTy[i] = ty;
     }
   }
 
@@ -574,14 +603,15 @@ export class Battle {
       }
       for (const e of this.elites) {
         if (!e.alive) continue;
-        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * row.regen * dt);
+        const extra = e.tier > row.tier ? 0.004 : 0;
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * (row.regen + extra) * dt);
       }
     }
     if ((row.act === "nova" || row.act === "killer") && this.frame % 100 === 0) {
       for (const e of this.elites) {
         if (!e.alive) continue;
         this.novas++;
-        const bite = eliteDmg(e.kind, this.floor.n, getTune(), this.diff) * 0.35;
+        const bite = eliteDmg(e.kind, this.floor.n, getTune(), this.diff) * 0.35 * (e.pow || 1);
         for (const p of this.living()) {
           const dx = p.x - e.x, dy = p.y - e.y;
           if (dx * dx + dy * dy > 140 * 140 || p.iframe > 0) continue;
@@ -1003,8 +1033,9 @@ export class Battle {
       e.facing = Math.atan2(dy, dx);
       this.markPhase(e);
       const act = diffRow(this.diff).act;
-      const spd = (e.kind === "boss" ? 62 : 78) * (act === "killer" ? 1.35 : 1) * (e.sig === "cone" ? 1.15 : 1);
-      if (act === "brand" && e.pattern % 2 === 0) e.sig = "line";
+      const spd = (e.kind === "boss" ? 92 : 118) * (act === "killer" || e.tier >= 6 || e.cursed ? 1.28 : 1) * (e.sig === "cone" ? 1.12 : 1) * (1 + Math.min(3, e.up) * 0.04);
+      if ((act === "brand" || e.tier >= 4) && e.pattern % 2 === 0) e.sig = "line";
+      if (e.tier >= 5 && e.pattern % 3 === 2) e.sig = "circle";
       const retreat = e.sig === "line" && d < 210;
       if (e.wind <= 0 && (retreat || d > e.r + 24)) {
         const dir = retreat ? -1 : 1;
@@ -1019,6 +1050,10 @@ export class Battle {
       } else {
         e.cd -= dt;
         if (e.cd <= 0 && prey.length) {
+          if (e.tier >= 3 && d > 260) {
+            e.x = clamp(tx - (dx / (d || 1)) * 110, 80, ARENA_W - 80);
+            e.y = clamp(ty - (dy / (d || 1)) * 110, 80, ARENA_H - 80);
+          }
           e.windMax = e.kind === "boss" ? (e.phase >= 3 ? 0.86 : e.phase === 2 ? 0.7 : 0.55) : e.sig === "line" ? 0.62 : 0.5;
           e.wind = e.windMax;
           e.cd = e.kind === "boss" ? (e.phase >= 3 ? 1.15 : 1.55) : e.sig === "cone" ? 1.45 : 1.85;
@@ -1061,7 +1096,7 @@ export class Battle {
     const cone = sig === "cone";
     const radius = cone || line ? 168 : boss ? 118 : 96;
     const ang = cone ? 1.05 : Math.PI;
-    const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n, getTune(), this.diff) * (e.phase >= 3 ? 1.3 : 1);
+    const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n, getTune(), this.diff) * (e.phase >= 3 ? 1.3 : 1) * (e.pow || 1);
     this.fxPush({ k: cone || line ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang: line ? 0.18 : ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
     this.shake = Math.max(this.shake, boss ? 7 : 4);
     for (const p of this.party) {

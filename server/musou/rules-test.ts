@@ -1,8 +1,9 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  beginMode, compareGear, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, statGlance, takeInbox, unequip,
+  affixText, beginMode, compareGear, finishRun, chainAt, diffLock, dropQuality, dungeonBudget, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, spendStat, stagePay, statGlance, takeInbox, unequip, xpNeed,
 } from "../../src/scripts/musou/rules";
+import { markGold, markPay, markSeed, rollBook, rollMark } from "../../src/scripts/musou/mark";
 import { Battle } from "../../src/scripts/musou/sim";
 import { pickShard } from "./plaza";
 import { DEFAULT_TUNE, DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, floorMut, getTune, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
@@ -299,6 +300,7 @@ const walker = newProfile(22);
 setHero(walker, "listaf");
 let chain = true;
 for (let f = 1; f <= FLOOR_N; f++) {
+  walker.lvl = Math.max(walker.lvl, floorNeed(f));
   if (!floorOpen(walker, f)) chain = false;
   if (f < FLOOR_N && FLOORS[f].dungeon === FLOORS[f - 1].dungeon && floorOpen(walker, f + 1)) chain = false;
   const go = beginRun(walker, f, 10_000 * f);
@@ -310,12 +312,12 @@ for (let f = 1; f <= FLOOR_N; f++) {
     if ("err" in got) chain = false;
   }
 }
-ok(chain && walker.lvl >= 300 && floorOpen(walker, FLOOR_N), `кампания всех этапов доводит уровень до ${walker.lvl}, следующий этаж того же данжа был закрыт до награды`);
+ok(chain && floorOpen(walker, FLOOR_N), `кампания открывает следующий этап только после предыдущего, уровень для входа берётся из файла: ${walker.lvl}`);
 const bare = newProfile(30);
 setHero(bare, "lorin");
 const bareGo = beginRun(bare, 1, 1000);
 const bareWin = finishRun(bare, { nonce: (bareGo as { nonce: string }).nonce, reason: "win", boss: true, kills: 0, generals: 0 }, 1000 + 40_000, mulberry32(9));
-ok(!("err" in bareWin) && bareWin.boss && bare.lvl >= 2, "победа на 40-й секунде даёт уровень даже без толпы");
+ok(!("err" in bareWin) && bareWin.boss && bare.lvl === 1 && bareWin.xp === stagePay(1, 1, 1, false).total && bareWin.xp < xpNeed(1), "одна зачистка первого этапа не поднимает уровень");
 
 const replayP = newProfile(41);
 setHero(replayP, "lorin");
@@ -333,10 +335,13 @@ ok(!("err" in chest) && chest.item && chest.item.item.rarity === "rare" && !ches
 ok("err" in againClaim && againClaim.err === "Награда уже взята" && replayP.gold === goldAfter && replayP.bag.length === bagAfter && replayP.inbox.length === inboxAfter && replayP.xp === xpAfter, "вторая сдача не даёт золото, опыт и вещь");
 const nextOpen = floorOpen(replayP, 8);
 const g2 = beginRun(replayP, 7, 90_000);
+const replayBook = !("err" in g2) ? replayP.pending?.marks : undefined;
+const replaySlice = stagePay(replayP.lvl, 7, 1, true);
+const replayBonus = markPay(marksOn(7, replayBook), 0, replaySlice.total);
 const w2 = finishRun(replayP, { nonce: (g2 as { nonce: string }).nonce, reason: "win", boss: true }, 90_000 + 40_000, mulberry32(73), { kills: killNeed(7), generals: 3, boss: true });
 const flat = DEFAULT_TUNE.economy.clearBase + 7 * DEFAULT_TUNE.economy.clearPerFloor + DEFAULT_TUNE.economy.bossBase + 7 * DEFAULT_TUNE.economy.bossPerFloor;
-const expectGold = Math.round(Math.round(flat * DEFAULT_TUNE.economy.replayGold) + killNeed(7) * DEFAULT_TUNE.economy.killGold + 3 * DEFAULT_TUNE.economy.generalGold);
-const expectXp = Math.round(DEFAULT_TUNE.floors[6].xp * DEFAULT_TUNE.economy.replayXp) + Math.floor(killNeed(7) * 0.2);
+const expectGold = Math.round(Math.round(flat * DEFAULT_TUNE.economy.replayGold) + killNeed(7) * DEFAULT_TUNE.economy.killGold + 3 * DEFAULT_TUNE.economy.generalGold) + markGold(replayBonus);
+const expectXp = replaySlice.total + replayBonus;
 const drop = !("err" in w2) ? w2.items[0].item : null;
 ok(!("err" in w2) && w2.replay && w2.quests.length === 0 && w2.xp === expectXp && w2.gold === expectGold && w2.gold < w1.gold, "повтор платит четверть опыта данжа и 40% золота этажа, квест молчит");
 ok(!!drop && (drop.rarity === "common" || drop.rarity === "magic") && !drop.unique && !drop.set, "повтор не даёт редкую, легендарную, сетовую или уникальную вещь");
@@ -369,7 +374,8 @@ for (let f = 1; f <= FLOOR_N; f++) {
     who.chain[f - 1] = d - 1;
     const o = runOffer(who, f, d, 1);
     if (o.hp !== ratiosHp[d - 1] || o.dmg !== ratiosDmg[d - 1] || o.name !== DIFF_NAME[d - 1]) matrix = false;
-    if (!(o.bossHp > prevHp && o.goldFirst > prevGold && o.xpFirst > prevXp)) matrix = false;
+    if (!(o.bossHp > prevHp && o.goldFirst > prevGold && o.xpFirst >= prevXp)) matrix = false;
+    if (d > 1 && !(dungeonBudget(who.lvl, floorByN(f).dungeon, d) > dungeonBudget(who.lvl, floorByN(f).dungeon, d - 1))) matrix = false;
     if (o.bossHp !== eliteHp("boss", f, 1, getTune(), d) || o.mobHp !== mobHp(0, f, getTune(), d)) matrix = false;
     if (o.chests !== chestTotal(d)) matrix = false;
     if (d > 1 && o.lower <= 0) matrix = false;
@@ -471,6 +477,7 @@ const lowGear = rollItem(mulberry32(11), { ilvl: qualities[0].ilvl, floor: 2, ra
 const highGear = rollItem(mulberry32(11), { ilvl: qualities[6].ilvl, floor: 2, rarity: "rare", bare: true, budget: qualities[6].budget, extraAffix: qualities[6].affix, act: "killer", tier: 6 });
 ok(highGear.ilvl > lowGear.ilvl && highGear.dmg + highGear.armor > lowGear.dmg + lowGear.armor && highGear.affixes.length > lowGear.affixes.length && highGear.ench === 6 && !lowGear.ench, "тот же посев на чёрном даёт вещь выше и с чёрными чарами");
 ok(highGear.affixes.some((a) => a.stat === "ls" || a.stat === "dmg"), "чёрная вещь несёт аффиксы убийцы, не только цвет");
+ok(affixText({ stat: "crit", val: 3, name: "рейтинга крита" }) === "+3 рейтинга крита" && affixText({ stat: "crit", val: 3, name: "крита" }) === "+3 рейтинга крита", "строка аффикса не двоит слово рейтинга");
 const smith = newProfile(77);
 setHero(smith, "lorin");
 smith.lvl = 12;
@@ -551,7 +558,7 @@ ok(!("err" in rushed) && rushed.boss === false && young.book.wins[0] === 0, "а�
 young.lvl = 10;
 const duel = beginMode(young, "duel", 5000);
 const duelFight = new Battle(modeFloor(young, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(young) }]);
-ok(duelFight.elites[0]?.name === "Теневой Двойник" && duelFight.elites[0].maxHp === sheet(young).hp, "дуэль — один двойник с здоровьем героя");
+ok(!!duelFight.elites[0] && duelFight.elites[0].name.includes("Теневой Двойник") && duelFight.elites[0].tier >= 2 && duelFight.elites[0].maxHp >= sheet(young).hp && duelFight.elites[0].maxHp <= Math.round(sheet(young).hp * 1.85), "дуэль — один зачарованный двойник, здоровье у здоровья героя");
 const duelEnd = finishRun(young, { nonce: "err" in duel ? "" : duel.nonce, boss: true, reason: "win", kills: 0 }, 14000, mulberry32(2));
 ok(!("err" in duelEnd) && duelEnd.boss && young.book.wins[1] === 1 && duelEnd.items.length === 1, "победа дуэли пишет победу и одну вещь");
 young.lvl = 20;
@@ -725,6 +732,90 @@ if (mirror) {
   for (let i = 0; i < 40; i++) mirrorFight.step(0.05);
   ok(mirror.phase === 3 && mirror.windMax >= 0.8 && mirrorFight.mobs().length >= 1, "босс зовёт прислужников и удлиняет замах на последней фазе");
 }
+
+const crowd = new Battle(1, [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(feelP) }], 7);
+crowd.introT = 0;
+const crowdHero = crowd.party[0];
+const farThen = Math.min(...crowd.mobs().filter((m) => m.alive).map((m) => Math.hypot(m.x - crowdHero.x, m.y - crowdHero.y)));
+const hpThen = crowdHero.hp;
+for (let i = 0; i < 260; i++) crowd.step(0.05);
+const farNow = Math.min(...crowd.mobs().filter((m) => m.alive).map((m) => Math.hypot(m.x - crowdHero.x, m.y - crowdHero.y)).concat([1e9]));
+ok(farNow < farThen - 30 && crowdHero.hp < hpThen, "толпа сама подходит и снимает здоровье, герой стоит");
+
+const duelMark = new Battle(modeFloor(feelP, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(feelP) }], 5);
+const duelBoss = duelMark.elites.find((e) => e.kind === "boss");
+ok(!!duelBoss && duelBoss.tier >= 2 && duelBoss.tier <= 6 && /Редкий|Странный|Легендарный|Божественный|Чёрный/.test(duelBoss.name) && duelBoss.pow <= 1.45, "дуэль показывает ярус чар и не множит урон выше потолка");
+if (duelBoss) {
+  const far = Math.hypot(duelBoss.x - duelMark.party[0].x, duelBoss.y - duelMark.party[0].y);
+  duelMark.introT = 0;
+  for (let i = 0; i < 40; i++) duelMark.step(0.05);
+  const near = Math.hypot(duelBoss.x - duelMark.party[0].x, duelBoss.y - duelMark.party[0].y);
+  ok(near < far - 20, "двойник сам сокращает дистанцию");
+}
+
+let under = 0;
+for (let d = 5; d <= 7; d++) for (let s = 1; s <= 300; s++) if (rollMark(s, "boss", d).tier < d - 1 || rollMark(s, "g0", d).tier > 6) under++;
+ok(under === 0, "с легендарной ступени ярус не ниже цвета и не выше Чёрного");
+let ups = 0;
+for (let s = 1; s <= 4000; s++) if (rollMark(s, "boss", 1).tier > 0) ups++;
+ok(ups === 315, `на базовой шаг вверх ровно 315 из 4000, сейчас ${ups}`);
+const blackPlus = rollMark(1, "boss", 7);
+ok(blackPlus.tier === 6 && blackPlus.up <= 3, "чёрный шаг вверх — плюс, не седьмой ярус");
+
+const roomSeed = markSeed("room-nonce", 1, 7);
+const one = rollBook(roomSeed, 7);
+const two = rollBook(roomSeed, 7);
+ok(JSON.stringify(one) === JSON.stringify(two) && one.boss.tier === 6, "один сид комнаты даёт одного и того же чёрного босса");
+const mateA = newProfile(81);
+const mateB = newProfile(82);
+setHero(mateA, "lorin");
+setHero(mateB, "lorin");
+mateA.lvl = 20;
+mateB.lvl = 20;
+mateA.chain[0] = 6;
+mateB.chain[0] = 6;
+const openA = beginRun(mateA, 1, 1, "room-nonce", false, 7);
+const openB = beginRun(mateB, 1, 1, "room-nonce", false, 7);
+ok(!("err" in openA) && !("err" in openB) && mateA.pending?.seed === mateB.pending?.seed && JSON.stringify(mateA.pending?.marks) === JSON.stringify(mateB.pending?.marks), "оба клиента комнаты получают одного генерала");
+const paid = finishRun(mateA, { nonce: "room-nonce", reason: "win", boss: true }, 50_000, mulberry32(3), { kills: 8, generals: 1, boss: true });
+const paidAgain = finishRun(mateA, { nonce: "room-nonce", reason: "win", boss: true }, 50_000, mulberry32(3), { kills: 8, generals: 1, boss: true });
+ok(!("err" in paid) && "err" in paidAgain && paidAgain.err === "Забег не начат", "повторный end не выдаёт награду второй раз");
+
+let budgetOk = true;
+const lengths = new Set<number>();
+for (const row of FLOORS) {
+  if (row.stage !== 1) continue;
+  const rows = FLOORS.filter((f) => f.dungeon === row.dungeon);
+  lengths.add(rows.length);
+  const lvl = floorNeed(row.n);
+  const sum1 = rows.reduce((s, f) => s + stagePay(lvl, f.n, 1, false).total, 0);
+  const sum3 = rows.reduce((s, f) => s + stagePay(lvl, f.n, 3, false).total, 0);
+  if (sum1 !== dungeonBudget(lvl, row.dungeon, 1) || sum3 !== dungeonBudget(lvl, row.dungeon, 3)) budgetOk = false;
+  const part = stagePay(lvl, row.n, 1, false);
+  if (part.mob + part.general + part.clear !== part.total) budgetOk = false;
+}
+ok(budgetOk && lengths.has(3) && lengths.has(12) && lengths.has(20), "бюджет полного данжа делится на этапы 3…20 без двойного счёта");
+for (const lvl of [1, 40, 120, 300]) {
+  const home = FLOORS.find((f) => {
+    if (f.stage !== 1) return false;
+    const next = FLOORS.find((n) => n.dungeon === f.dungeon + 1 && n.stage === 1);
+    const ceiling = next ? Math.max(floorNeed(f.n), floorNeed(next.n) - 1) : 300;
+    return floorNeed(f.n) <= lvl && lvl <= ceiling;
+  });
+  const rows = FLOORS.filter((f) => f.dungeon === home!.dungeon);
+  const got = rows.reduce((s, f) => s + stagePay(lvl, f.n, 1, false).total, 0);
+  const got3 = rows.reduce((s, f) => s + stagePay(lvl, f.n, 3, false).total, 0);
+  ok(!!home && got === Math.round(xpNeed(lvl) * 0.1) && got3 === Math.round(xpNeed(lvl) * 0.25) && relevance(lvl, home!.dungeon) === 1, `уровень ${lvl}: обычная ${got}, редкая ${got3}, порог ${xpNeed(lvl)}`);
+}
+ok(dungeonBudget(40, 1, 1) === Math.round(xpNeed(40) * 0.1 * relevance(40, 1)) && relevance(40, 1) < 0.2, "замок на 40 уровне не отдаёт десятую уровня");
+ok(HARD_CAP.crit === 0.4 && HARD_CAP.dodge === 0.4 && HARD_CAP.ls === 0.1 && sheet(feelP).crit <= HARD_CAP.crit, "потолки 40/40/10 не двигаются от чар генерала");
+
+const lowTune = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+lowTune.elite.minTier = [0, 1, 2, 3, 3, 5, 6];
+ok(!validateTune(lowTune).ok, "админка не опускает легендарный ярус ниже цвета");
+const fat = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+fat.elite.up = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+ok(!validateTune(fat).ok, "шанс шага вверх остаётся маленьким");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

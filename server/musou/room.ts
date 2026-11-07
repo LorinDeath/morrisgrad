@@ -4,11 +4,12 @@ import { identify } from "../strat/ident";
 import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limits";
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
-import { beginRun, chainAt, clampStrike, diffLock, finishRun, FLOOR_N, floorByN, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
+import { beginRun, chainAt, clampStrike, diffLock, finishRun, FLOOR_N, floorByN, floorLock, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
 import { diffRow, eliteHp, eliteName, floorKit, getTune } from "../../src/scripts/musou/tune";
+import { markAnchor, markColor, markMul, markSeed, markTitle, rollMark } from "../../src/scripts/musou/mark";
 
 type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[]; chain?: number[] };
-type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number };
+type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number; tier?: number; up?: number; cursed?: 0 | 1; pow?: number };
 type Lob = {
   code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; diff: number; nonce: string; started: number;
   seed: number; elites: Elite[]; pos: Record<string, { x: number; y: number; aim: number; at: number }>; paid: boolean; reports: Record<string, any>;
@@ -204,7 +205,7 @@ export class MusouRoom extends DurableObject {
     L.phase = "fight";
     L.nonce = nonce;
     L.started = now;
-    L.seed = (now % 100000) + L.floor;
+    L.seed = markSeed(nonce, L.floor, L.diff || 1);
     L.elites = [];
     L.pos = {};
     L.paid = false;
@@ -236,14 +237,18 @@ export class MusouRoom extends DurableObject {
     let changed = false;
     plan.forEach((s) => {
       if (elapsed < s.at || L.elites.some((e) => e.id === s.id)) return;
-      const hp = eliteHp(s.kind, L.floor, L.seats.length, getTune(), L.diff || 1);
+      const mark = rollMark(L.seed, s.id, L.diff || 1);
+      const mul = markMul(mark, markAnchor(L.diff || 1));
+      const hp = Math.max(40, Math.round(eliteHp(s.kind, L.floor, L.seats.length, getTune(), L.diff || 1) * mul.hp));
       const boss = s.kind === "boss";
       const sig = boss ? kit.bSig : kit.gSig;
+      const ink = diffRow(L.diff || 1).color === "#0a0a0a" ? "#f4f4f5" : diffRow(L.diff || 1).color;
       L.elites.push({
-        id: s.id, kind: s.kind, name: eliteName(s.kind, L.floor), x: 1200, y: 700, hp, maxHp: hp,
+        id: s.id, kind: s.kind, name: markTitle(eliteName(s.kind, L.floor), mark), x: 1200, y: 700, hp, maxHp: hp,
         facing: 0, wind: 0, alive: true, spawned: true, cd: 0.8, pat: 0,
-        tint: sig === "curse" ? "#c9b6ff" : boss ? "#ffd76a" : "#ff6a4a",
+        tint: markColor(mark, sig === "curse" ? "#c9b6ff" : ink),
         sig, row: boss ? art.bRow : art.gRow,
+        tier: mark.tier, up: mark.up, cursed: mark.cursed, pow: mul.dmg,
       });
       changed = true;
     });
@@ -254,13 +259,14 @@ export class MusouRoom extends DurableObject {
       if (!e.alive) continue;
       const dx = ax - e.x, dy = ay - e.y;
       const len = Math.hypot(dx, dy) || 1;
-      e.x += (dx / len) * 18;
-      e.y += (dy / len) * 18;
+      const chase = 28 * (e.tier && e.tier >= 6 ? 1.25 : 1);
+      e.x += (dx / len) * chase;
+      e.y += (dy / len) * chase;
       e.facing = Math.atan2(dy, dx);
       e.cd -= 0.1;
       if (e.wind > 0) {
         e.wind -= 0.1;
-        if (e.wind <= 0) { e.wind = 0; e.pat++; changed = true; this.broadcast({ type: "boom", id: e.id, x: e.x, y: e.y, facing: e.facing, sig: e.sig, r: e.sig === "line" || e.sig === "cone" ? 168 : e.kind === "boss" ? 118 : 96 }); }
+        if (e.wind <= 0) { e.wind = 0; e.pat++; changed = true; this.broadcast({ type: "boom", id: e.id, x: e.x, y: e.y, facing: e.facing, sig: e.sig, pow: e.pow || 1, r: e.sig === "line" || e.sig === "cone" ? 168 : e.kind === "boss" ? 118 : 96 }); }
       } else if (e.cd <= 0) {
         e.wind = 0.5;
         e.cd = e.kind === "boss" ? 2.4 : 1.8;

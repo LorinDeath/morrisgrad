@@ -74,6 +74,15 @@ export type OrdaTune = {
   forge: { on: number; drop: number; max: number };
   /** Пороги MODE_MIN_LVL. Имена режимов не меняются. */
   modes: { arena: number; duel: number; horde: number; abyss: number; bossrush: number; purgatory: number; demiurge: number };
+  /**
+   * Генерал и босс. minTier — гарантированный ярус чар на ступени сложности, не ниже её цвета.
+   * up — маленький шанс шага на один реальный ярус выше. modeTier — гарантированный ярус режима.
+   */
+  elite: {
+    minTier: Sept;
+    up: Sept;
+    modeTier: Sept;
+  };
 };
 
 export const DIFF_N = 7;
@@ -204,6 +213,11 @@ export const DEFAULT_TUNE: OrdaTune = {
     arena: SW_MODES.arena, duel: SW_MODES.duel, horde: SW_MODES.horde, abyss: SW_MODES.abyss,
     bossrush: SW_MODES.bossrush, purgatory: SW_MODES.purgatory, demiurge: SW_MODES.demiurge,
   },
+  elite: {
+    minTier: [0, 1, 2, 3, 4, 5, 6],
+    up: [0.08, 0.07, 0.06, 0.05, 0.04, 0.035, 0.03],
+    modeTier: [1, 2, 2, 3, 4, 5, 6],
+  },
   floors: SW_FLOORS.map((f) => ({ general: f.general, boss: f.boss, gSig: f.gSig, bSig: f.bSig, mut: f.mut, need: f.minLvl, xp: f.xp })),
 };
 
@@ -278,6 +292,9 @@ const ROW: Record<string, { n: number; b: Bound }> = {
   "ench.stat": { n: 6, b: { min: 1, max: 10 } },
   "ench.speed": { n: 6, b: { min: 0.5, max: 1 } },
   "mut.mult": { n: 10, b: { min: 1, max: 2.4 } },
+  "elite.minTier": { n: 7, b: { min: 0, max: 6, int: true } },
+  "elite.up": { n: 7, b: { min: 0.01, max: 0.12 } },
+  "elite.modeTier": { n: 7, b: { min: 0, max: 6, int: true } },
 };
 
 function clone(t: OrdaTune): OrdaTune {
@@ -301,7 +318,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge", "modes"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge", "modes", "elite"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
   if ("floors" in src) {
@@ -314,7 +331,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
     if (typeof diff === "string") return { ok: false, err: diff };
     out.diff = diff;
   }
-  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge", "modes"] as const;
+  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge", "modes", "elite"] as const;
   for (const sec of sections) {
     const block = src[sec];
     if (!block) continue;
@@ -372,6 +389,9 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   }
   const drop = out.loot.magicDrop + out.loot.rareDrop + out.loot.legBase + out.loot.setShop;
   if (drop > 0.95) return { ok: false, err: "сумма шансов дропа больше 0.95" };
+  for (let i = 0; i < 7; i++) {
+    if (out.elite.minTier[i] < i) return { ok: false, err: `elite.minTier[${i}] ниже цвета этой ступени` };
+  }
   void NUM;
   return { ok: true, tune: out };
 }
