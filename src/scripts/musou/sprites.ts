@@ -1,6 +1,6 @@
 // Боевые картинки «Орды» — готовые листы «Проклятых», не процедурные манекены.
 // Герои: src/assets/mc/heroes_atlas.png, клетка 48×60, 4 направления × 6 кадров
-//   (шаг, стойка, шаг, вдох, замах, удар). Ряды листа: копейщик, плут, маг, воин, Альзи, Лейр, Петр, Кьют.
+//   (шаг, стойка, шаг, вдох, замах, удар). Ряды листа: Нофорд, Кавега, Мариэль, Велес, Алзи, Лэйр, Петр, Кьют.
 // Толпа и элиты: src/assets/mc/bestiary_atlas.png, клетка 64, 12 кадров (шаг 0–3, удар 4–6, попадание 7, смерть 8–11).
 // Пол: src/assets/mc/tiles_atlas.png, клетка 16.
 // Удары и телеграфы: src/assets/mc/fx30 (hit, tele_circle_ring, tele_cone, nova_burst).
@@ -12,7 +12,7 @@ declare module "*.png?url" {
   export default src;
 }
 
-import { beastFrame, heroLocalFrame } from "./anim";
+import { beastFrame, heroDir, heroLocalFrame } from "./anim";
 import heroesUrl from "../../assets/mc/heroes_atlas.png?url";
 import beastsUrl from "../../assets/mc/bestiary_atlas.png?url";
 import tilesUrl from "../../assets/mc/tiles_atlas.png?url";
@@ -28,7 +28,9 @@ const HERO_COLS = 6;
 const BEAST = 64;
 const TILE = 16;
 
-/** Ближайший силуэт листа к герою Орды. Имя в бою остаётся именем Орды. */
+/** Строка heroes_atlas.png на стабильный heroId. Картинка и имя на карточке — один и тот же человек.
+ *  0 Нофорд, 1 Кавега, 2 Мариэль, 3 Велес, 4 Алзи, 5 Лэйр, 6 Петр, 7 Кьют
+ *  (build_hero_atlases.py ROWS, pixSprites.js HERO_ROWS / NPC_ROWS). */
 const HERO_ROW: Record<string, number> = {
   lorelin: 0,
   listaf: 1,
@@ -67,20 +69,13 @@ function ready(img: HTMLImageElement) {
   return img.complete && img.naturalWidth > 0;
 }
 
-function dir4(facing: number) {
-  const c = Math.cos(facing);
-  const s = Math.sin(facing);
-  if (Math.abs(c) >= Math.abs(s)) return c >= 0 ? 2 : 1;
-  return s >= 0 ? 0 : 3;
-}
-
 export function blitHero(
   ctx: CanvasRenderingContext2D, id: string, frame: number, x: number, y: number, scale: number, _flip: number, facing = 0, down = false,
 ) {
   if (!ready(heroes)) return;
   const row = HERO_ROW[id] ?? 4;
   const local = Math.max(0, Math.min(HERO_COLS - 1, frame | 0));
-  const col = dir4(facing) * HERO_COLS + local;
+  const col = heroDir(facing) * HERO_COLS + local;
   const dw = HERO_W * scale;
   const dh = HERO_H * scale;
   ctx.save();

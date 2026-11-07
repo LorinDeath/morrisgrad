@@ -16,6 +16,7 @@ import itemsUrl from "../../assets/mc/items_atlas.png?url";
 import iconsUrl from "../../assets/mc/skill_icons.png?url";
 import ICONS from "../../assets/mc/skill_icons.json";
 import { skillSeconds } from "./strike";
+import { clampMove, stickVector, travelAim } from "./input";
 
 const GEAR_ICON: Record<string, number> = { weapon: 85, helm: 86, chest: 87, gloves: 89, boots: 88, amulet: 196, ring: 185, ring1: 185, ring2: 195 };
 document.documentElement.style.setProperty("--items", `url("${itemsUrl}")`);
@@ -55,6 +56,10 @@ let ended = false;
 let cam: Cam = { x: 1200, y: 780 };
 const keys = new Set<string>();
 let pointerAim = 0;
+let mouseAim = false;
+let aimHeld = false;
+let aimPointer = -1;
+let stickId = -1;
 let holding = false;
 let dodgeQ = false;
 let stick = { x: 0, y: 0, on: false };
@@ -882,7 +887,7 @@ function buildSkills(heroId: HeroId) {
   $<HTMLElement>("skills").innerHTML = hero.skills.map((sk, i) => skillButton(sk, i)).join("");
   $<HTMLElement>("skills-touch").innerHTML = hero.skills.map((sk, i) => skillButton(sk, i, true)).join("");
   document.querySelectorAll<HTMLButtonElement>("#skills .skill").forEach((b) => {
-    b.onclick = () => { holding = false; queueSkill(Number(b.dataset.sk)); };
+    b.onclick = () => queueSkill(Number(b.dataset.sk));
   });
 }
 
@@ -919,8 +924,13 @@ function queueSkill(n: number) {
 }
 
 function readBtn(): Partial<Btn> {
-  const mx = (keys.has("a") || keys.has("arrowleft") ? -1 : 0) + (keys.has("d") || keys.has("arrowright") ? 1 : 0) + stick.x;
-  const my = (keys.has("w") || keys.has("arrowup") ? -1 : 0) + (keys.has("s") || keys.has("arrowdown") ? 1 : 0) + stick.y;
+  const rawX = (keys.has("a") || keys.has("arrowleft") ? -1 : 0) + (keys.has("d") || keys.has("arrowright") ? 1 : 0) + stick.x;
+  const rawY = (keys.has("w") || keys.has("arrowup") ? -1 : 0) + (keys.has("s") || keys.has("arrowdown") ? 1 : 0) + stick.y;
+  const moved = clampMove(rawX, rawY);
+  const mx = moved.x;
+  const my = moved.y;
+  const look = mouseAim || aimHeld;
+  pointerAim = travelAim(mx, my, pointerAim, look);
   const skill = queued;
   const heavy = heavyQ || keys.has("k");
   queued = 0;
@@ -935,7 +945,9 @@ function readBtn(): Partial<Btn> {
 function resize() {
   const c = $<HTMLCanvasElement>("field");
   if (!c) return;
-  const dpr = Math.min(1.75, devicePixelRatio || 1);
+  const small = c.clientWidth < 820 || c.clientHeight < 520;
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const dpr = Math.min(small || coarse ? 1.1 : 1.75, devicePixelRatio || 1);
   c.width = Math.max(2, c.clientWidth * dpr);
   c.height = Math.max(2, c.clientHeight * dpr);
 }
@@ -950,11 +962,15 @@ function hud() {
   const f = battle.floor;
   const wave = battle.wave < 3 ? (f.stages[battle.wave] || `Волна ${battle.wave + 1}`) : (f.goal === "pack" ? (f.stages[2] || "Зачистка") : "Босс");
   const foe = battle.elites.find((e) => e.alive);
-  $<HTMLElement>("obj").innerHTML = `<b>${f.name}</b> · ${DIFF_NAME[(battle.diff | 0) - 1] || "Обычная"}<div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown && f.goal !== "pack" ? " · босс пал" : ""}${foe ? ` · цель: ${foe.name}` : ""}</div>`;
+  const objHtml = `<b>${f.name}</b> · ${DIFF_NAME[(battle.diff | 0) - 1] || "Обычная"}<div>${wave} · тварей ${battle.kills} · генералов ${battle.genKills}${battle.bossDown && f.goal !== "pack" ? " · босс пал" : ""}${foe ? ` · цель: ${foe.name}` : ""}</div>`;
+  const obj = $<HTMLElement>("obj");
+  if (obj.innerHTML !== objHtml) obj.innerHTML = objHtml;
   $<HTMLButtonElement>("pause-btn").hidden = !!battle.remote;
   const chest = $<HTMLElement>("chest-hint");
   if (chest) chest.hidden = !battle.nearChest;
-  $<HTMLElement>("party").innerHTML = battle.party.map((p) => `<div><b>${p.name.split(" ")[0]}</b><div class="bar"><i style="width:${Math.max(0, p.hp / p.maxHp * 100)}%"></i></div></div>`).join("");
+  const partyHtml = battle.party.map((p) => `<div><b>${p.name.split(" ")[0]}</b><div class="bar"><i style="width:${Math.max(0, p.hp / p.maxHp * 100)}%"></i></div></div>`).join("");
+  const party = $<HTMLElement>("party");
+  if (party.innerHTML !== partyHtml) party.innerHTML = partyHtml;
   const hero = heroById(me.hero);
   document.querySelectorAll<HTMLButtonElement>(".skill, .skill-touch").forEach((b) => {
     const i = Number(b.dataset.sk) - 1;
@@ -967,12 +983,14 @@ function hud() {
     const fill = cd > 0 ? Math.round(Math.min(1, cd / Math.max(0.2, total)) * 100) : musouLock ? 100 : 0;
     if (sw) sw.style.background = fill ? `conic-gradient(rgba(5,3,12,.78) ${fill}%, transparent 0)` : "none";
     if (sec) sec.textContent = cd > 0 ? (cd >= 10 ? String(Math.ceil(cd)) : cd.toFixed(1)) : musouLock ? "пыл" : "";
-    b.disabled = cd > 0 || musouLock || me.hp <= 0;
+    const locked = cd > 0 || musouLock || me.hp <= 0;
+    b.disabled = false;
+    b.setAttribute("aria-disabled", locked ? "true" : "false");
     b.classList.toggle("cooling", cd > 0);
     b.classList.toggle("need", musouLock);
     b.classList.toggle("ready", cd <= 0 && !musouLock && me.hp > 0);
     b.dataset.cd = cd > 0 ? cd.toFixed(1) : "0";
-    b.dataset.ready = b.disabled ? "0" : "1";
+    b.dataset.ready = locked ? "0" : "1";
   });
 }
 
@@ -1104,7 +1122,8 @@ function frame(now: number, dt: number) {
   }
 }
 
-function aimFrom(ev: { clientX: number; clientY: number }) {
+function aimFrom(ev: { clientX: number; clientY: number; pointerId?: number }) {
+  if (ev.pointerId != null && ev.pointerId === stickId) return;
   const c = $<HTMLCanvasElement>("field");
   const r = c.getBoundingClientRect();
   const sx = (ev.clientX - r.left) * (c.width / r.width);
@@ -1219,32 +1238,81 @@ function bind() {
     if (e.key.toLowerCase() === "j") holding = false;
   });
   const field = $<HTMLCanvasElement>("field");
-  field.addEventListener("pointerdown", (e) => { if (e.button === 0) holding = true; if (e.button === 2) heavyQ = true; aimFrom(e); });
-  field.addEventListener("pointerup", () => { holding = false; });
-  field.addEventListener("pointermove", aimFrom);
+  field.addEventListener("pointerdown", (e) => {
+    if (e.pointerId === stickId) return;
+    if (e.pointerType === "mouse") {
+      mouseAim = true;
+      if (e.button === 0) holding = true;
+      if (e.button === 2) heavyQ = true;
+    } else {
+      aimHeld = true;
+      aimPointer = e.pointerId;
+    }
+    aimFrom(e);
+  });
+  field.addEventListener("pointerup", (e) => {
+    if (e.pointerType === "mouse") holding = false;
+    if (e.pointerId === aimPointer) { aimHeld = false; aimPointer = -1; }
+  });
+  field.addEventListener("pointercancel", (e) => {
+    if (e.pointerType === "mouse") holding = false;
+    if (e.pointerId === aimPointer) { aimHeld = false; aimPointer = -1; }
+  });
+  field.addEventListener("pointermove", (e) => {
+    if (e.pointerId === stickId) return;
+    if (e.pointerType === "mouse") { mouseAim = true; aimFrom(e); }
+    else if (aimHeld && e.pointerId === aimPointer) aimFrom(e);
+  });
   field.addEventListener("contextmenu", (e) => { e.preventDefault(); heavyQ = true; });
+  const stopScroll = (e: Event) => { if (document.body.classList.contains("in-fight")) e.preventDefault(); };
+  document.addEventListener("touchmove", stopScroll, { passive: false });
+  document.addEventListener("gesturestart", stopScroll);
   const st = $<HTMLElement>("stick");
   const knob = st.querySelector("i") as HTMLElement;
   const moveStick = (e: PointerEvent) => {
     const r = st.getBoundingClientRect();
     const dx = e.clientX - (r.left + r.width / 2);
     const dy = e.clientY - (r.top + r.height / 2);
-    const L = Math.hypot(dx, dy) || 1;
-    const k = Math.min(1, L / 46);
-    stick.x = dx / L * k;
-    stick.y = dy / L * k;
-    knob.style.transform = `translate(${stick.x * 28}px, ${stick.y * 28}px)`;
+    const v = stickVector(dx, dy, r.width * 0.46);
+    stick.x = v.x;
+    stick.y = v.y;
+    const reach = r.width * 0.30;
+    knob.style.transform = `translate(${stick.x * reach}px, ${stick.y * reach}px)`;
   };
-  st.addEventListener("pointerdown", (e) => { stick.on = true; st.setPointerCapture(e.pointerId); moveStick(e); });
-  st.addEventListener("pointermove", (e) => { if (stick.on) moveStick(e); });
-  st.addEventListener("pointerup", () => { stick.on = false; stick.x = 0; stick.y = 0; knob.style.transform = ""; });
+  const endStick = (e: PointerEvent) => {
+    if (stickId !== -1 && e.pointerId !== stickId) return;
+    stick.on = false;
+    stick.x = 0;
+    stick.y = 0;
+    stickId = -1;
+    knob.style.transform = "";
+  };
+  st.addEventListener("pointerdown", (e) => {
+    if (stickId !== -1 && e.pointerId !== stickId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    stickId = e.pointerId;
+    stick.on = true;
+    st.setPointerCapture(e.pointerId);
+    moveStick(e);
+  });
+  st.addEventListener("pointermove", (e) => { if (e.pointerId === stickId) { e.preventDefault(); moveStick(e); } });
+  st.addEventListener("pointerup", endStick);
+  st.addEventListener("pointercancel", endStick);
+  st.addEventListener("lostpointercapture", endStick);
   window.addEventListener("resize", resize);
   const holdBtn = (id: string, down: () => void, up?: () => void) => {
     const el = $<HTMLButtonElement>(id);
     if (!el) return;
-    el.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); down(); });
-    if (up) el.addEventListener("pointerup", up);
-    el.addEventListener("pointerleave", () => up?.());
+    el.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      down();
+    });
+    el.addEventListener("pointerup", () => up?.());
+    el.addEventListener("pointercancel", () => up?.());
   };
   holdBtn("m-light", () => { holding = true; }, () => { holding = false; });
   holdBtn("m-heavy", () => { heavyQ = true; });
@@ -1255,7 +1323,6 @@ function bind() {
     if (!b) return;
     e.preventDefault();
     e.stopPropagation();
-    holding = false;
     queueSkill(Number((b as HTMLButtonElement).dataset.sk));
   });
 }

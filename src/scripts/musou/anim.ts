@@ -3,6 +3,15 @@
 // Бестиарий, клетка 64, 12 кадров: шаг 0–3, удар 4–6, попадание 7, смерть 8–11.
 
 export const HERO_FRAME = { stepA: 0, stance: 1, stepB: 2, breath: 3, windup: 4, strike: 5 } as const;
+
+/** Столбец направления на heroes_atlas: 0 вниз, 1 влево, 2 вправо, 3 вверх.
+ *  Проверено по кадрам стойки листа: группа «вправо» смотрит вправо, «влево» — влево. Не зеркалить. */
+export function heroDir(facing: number) {
+  const c = Math.cos(facing);
+  const s = Math.sin(facing);
+  if (Math.abs(c) >= Math.abs(s)) return c >= 0 ? 2 : 1;
+  return s >= 0 ? 0 : 3;
+}
 export const BEAST_WALK = [0, 1, 2, 3] as const;
 export const BEAST_ATTACK = [4, 5, 6] as const;
 export const BEAST_HURT = 7;
