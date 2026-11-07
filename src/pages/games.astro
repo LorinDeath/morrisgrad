@@ -35,10 +35,9 @@ import geometriaImg from '../assets/geometria.png';
 
             <div class="game-card orda-card"
                  data-title="Орда Обители"
-                 data-desc="Мусоу по героям МоррисГрада. Один персонаж против толпы: твари только бродят, генералы и босс дерутся. Тринадцать этажей, волны и комбо. Прокачка, лут и конечная сумка — в хабе и лавке, как в Диабло. Онлайн-комната до четырёх и друзья с аккаунта сайта."
-                 data-game-url="/games/orda"
-                 data-changelog-url="/games/orda">
-                <span class="cherta-badge">новое</span>
+                 data-desc="Тестовая версия. Мусоу по семнадцати данжам Тёмного мира: этажи, цвет чар, толпа, генералы и боссы. Прокачка, лут и общая сумка героев — в хабе. Соло и комната до четырёх. Живьём проверены подвалы замка; остальные боссы и режимы в браузере не проходились."
+                 data-game-url="/games/orda">
+                <span class="orda-test">тест</span>
                 <img src="/orda/cover.svg" width="600" height="400" alt="Орда Обители" class="game-icon" style="object-fit: cover; background:#14080c;" />
                 <span class="game-title" style="color: #ffb089;">Орда Обители</span>
                 <div class="platforms">
@@ -508,6 +507,21 @@ import geometriaImg from '../assets/geometria.png';
     }
     .orda-card:hover { border-color: #ffd76a; box-shadow: 0 0 28px rgba(255, 176, 120, 0.45); }
     .orda-card .game-title { color: #ffb089; }
+    .orda-test {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 2;
+        background: rgba(12, 8, 8, 0.72);
+        color: #e7c98a;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: lowercase;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(231, 201, 138, 0.55);
+    }
     .modal-content.orda-theme {
         border-color: #e7c98a;
         background: linear-gradient(180deg, rgba(32, 14, 16, 0.97) 0%, rgba(8, 4, 6, 0.99) 100%);
@@ -865,7 +879,12 @@ import geometriaImg from '../assets/geometria.png';
                 if (modalTitle && title) modalTitle.textContent = title;
                 if (modalDesc && desc) modalDesc.textContent = desc;
                 if (startBtn && gameUrl) startBtn.setAttribute('href', gameUrl);
-                if (changelogLink && changelogUrl) changelogLink.setAttribute('href', changelogUrl);
+                if (changelogLink) {
+                    if (changelogUrl) {
+                        changelogLink.setAttribute('href', changelogUrl);
+                        changelogLink.hidden = false;
+                    } else changelogLink.hidden = true;
+                }
 
                 // Apply Theme based on card class
                 const themes = ['crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme', 'dungeon-theme', 'orda-theme'];

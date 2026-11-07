@@ -626,7 +626,8 @@ export function stageSlice(lvl: number, floor: number, diff: number): { total: n
 export function stagePay(lvl: number, floor: number, diff: number, replay: boolean) {
   const s = stageSlice(lvl, floor, diff);
   if (!replay) return s;
-  const total = Math.max(0, Math.round(s.total * getTune().economy.replayXp));
+  let total = Math.round(s.total * getTune().economy.replayXp);
+  if (s.total > 0 && total < 1) total = 1;
   if (total <= 0) return { total: 0, mob: 0, general: 0, clear: 0 };
   const general = s.general > 0 ? Math.min(total, Math.round(total * 0.34)) : 0;
   const mob = Math.min(Math.max(0, total - general), Math.round(total * 0.16));

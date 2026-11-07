@@ -320,6 +320,7 @@ setHero(bare, "lorin");
 const bareGo = beginRun(bare, 1, 1000);
 const bareWin = finishRun(bare, { nonce: (bareGo as { nonce: string }).nonce, reason: "win", boss: true, kills: 0, generals: 0 }, 1000 + 40_000, mulberry32(9));
 ok(!("err" in bareWin) && bareWin.boss && bare.lvl === 1 && bareWin.xp === stagePay(1, 1, 1, false).total && bareWin.xp < xpNeed(1), "одна зачистка первого этапа не поднимает уровень");
+ok(stagePay(1, 1, 1, false).total === 1 && stagePay(1, 1, 1, true).total === 1, "повтор первого этапа не обнуляет его единственный опыт");
 
 const replayP = newProfile(41);
 setHero(replayP, "lorin");
