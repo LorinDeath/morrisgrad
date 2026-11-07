@@ -7,7 +7,7 @@ import {
 } from "./rules";
 import { HARD_CAP, mitigate, rateChance } from "./caps";
 import { DEATH_SEC } from "./anim";
-import { chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, getTune, mobDmg, mobHp } from "./tune";
+import { ELITE_LINE_SIDE, diffRow, eliteBody, eliteDmg, eliteHp, eliteName, eliteReach, floorKit, getTune, mobDmg, mobHp } from "./tune";
 import { markAnchor, markColor, markMul, markTitle, rollMark } from "./mark";
 import { swarmName } from "./stagecraft";
 import { castOf, type Move } from "./scripts";
@@ -20,7 +20,7 @@ const MAX_MOBS = 180;
 const CELL = 96;
 
 export type Anim = "idle" | "run" | "swing" | "hurt" | "down";
-export type Btn = { mx: number; my: number; aim: number; hold?: boolean; light?: boolean; heavy?: boolean; skill?: number; dodge?: boolean; chest?: boolean };
+export type Btn = { mx: number; my: number; aim: number; hold?: boolean; light?: boolean; heavy?: boolean; skill?: number; dodge?: boolean; use?: boolean };
 
 export type Actor = {
   id: string;
@@ -93,7 +93,8 @@ export type Elite = {
   tell: string;
 };
 
-export type Chest = { id: number; x: number; y: number; open: boolean };
+export type Chest = { id: string; x: number; y: number; open: boolean; kind: "general" | "boss"; name: string };
+export type FreshDrop = { id: string; kind: "general" | "boss"; name: string; x: number; y: number };
 
 export type Fx = {
   k: "slash" | "ring" | "spark" | "beam" | "nova" | "zone" | "text" | "ghost" | "flash";
@@ -137,6 +138,8 @@ export class Battle {
   elites: Elite[] = [];
   chests: Chest[] = [];
   nearChest = false;
+  focusId = "";
+  focusName = "";
   fx: Fx[] = [];
   fxOut: Fx[] = [];
   phase: "intro" | "fight" | "won" | "lost" = "intro";
@@ -190,9 +193,9 @@ export class Battle {
   private budgets: number[] = [];
   private hash = new Map<number, number[]>();
   private hashed = -1;
-  private chestDwell = 0;
-  private wantChest = false;
-  private opened: number[] = [];
+  private wantUse = false;
+  private used: string[] = [];
+  private fresh: FreshDrop[] = [];
 
   constructor(floor: number | FloorDef, members: Member[], seed = 1, diff = 1) {
     this.floor = typeof floor === "number" ? floorByN(floor) : floor;
@@ -230,9 +233,6 @@ export class Battle {
       this.budgets = this.budgets.map((n) => Math.round(n * 1.5));
     }
     this.banner = f.name;
-    const spots: [number, number][] = [[ARENA_W / 2 - 320, ARENA_H / 2 - 140], [ARENA_W / 2 + 300, ARENA_H / 2 + 160], [ARENA_W / 2 - 80, ARENA_H / 2 + 280], [ARENA_W / 2 + 40, ARENA_H / 2 - 300]];
-    const chests = Math.min(spots.length, chestTotal(this.diff));
-    for (let i = 0; i < chests; i++) this.chests.push({ id: i, x: spots[i][0], y: spots[i][1], open: false });
     this.bannerSub = f.place;
     this.bannerT = 1.35;
     this.beginWave();
@@ -252,13 +252,24 @@ export class Battle {
     if (btn.heavy) a.bufHeavy = true;
     if (btn.dodge) a.bufDodge = true;
     if (btn.skill) a.bufSkill = btn.skill;
-    if (btn.chest) this.wantChest = true;
+    if (btn.use) this.wantUse = true;
   }
 
-  takeChests() {
-    const list = this.opened;
-    this.opened = [];
+  takeUses() {
+    const list = this.used;
+    this.used = [];
     return list;
+  }
+
+  takeFresh() {
+    const list = this.fresh;
+    this.fresh = [];
+    return list;
+  }
+
+  placeChest(c: Chest) {
+    if (this.chests.some((row) => row.id === c.id)) return;
+    this.chests.push(c);
   }
 
   mobs() {
@@ -401,6 +412,7 @@ export class Battle {
         }
       }
     } else if (this.bossDown) {
+      if (this.fresh.length || this.chests.some((c) => !c.open)) return;
       this.killAllPretty();
       this.phase = "won";
       this.reason = "win";
@@ -470,7 +482,7 @@ export class Battle {
       id, hp, maxHp: hp, facing: ang + Math.PI, alive: true,
       wind: 0, windMax: 0.5, cd: 0.8, pattern: 0, swing: 0, stun: 0, die: 0, phase: 1,
       tint: markColor(mark, ink),
-      r: boss ? 46 : 30,
+      r: eliteBody(kind),
       sig,
       row: boss ? this.floor.bRow : this.floor.gRow,
       tier: mark.tier, up: mark.up, cursed: mark.cursed, pow: mul.dmg,
@@ -489,6 +501,7 @@ export class Battle {
   private watchRemote() {
     const b = this.elites.find((e) => e.id === "boss");
     if (!b || b.alive || this.phase !== "fight") return;
+    if (this.chests.some((c) => !c.open)) return;
     this.bossDown = true;
     this.killAllPretty();
     this.phase = "won";
@@ -533,10 +546,10 @@ export class Battle {
         x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
         wind: e.wind, windMax: old?.windMax || 0.5, cd: old?.cd || 0, pattern: old?.pattern || 0, swing: e.wind > 0 ? 1 - Math.min(1, e.wind / 0.7) : 0, stun: old?.stun || 0,
         die: e.alive ? 0 : (old && !old.alive ? old.die : DEATH_SEC), phase,
-        tint: e.tint, r: e.kind === "boss" ? 46 : 30,
+        tint: e.tint, r: eliteBody(e.kind),
         sig: e.sig || (e.kind === "boss" ? "cone" : "circle"),
         row: e.row || (e.kind === "boss" ? 37 : 36),
-        tier: e.tier | 0, up: e.up | 0, cursed: e.cursed ? 1 : 0, pow: e.pow || 1,
+        tier: e.tier ?? 0, up: e.up ?? 0, cursed: e.cursed ? 1 : 0, pow: e.pow || 1,
         move: (e.move as Move) || old?.move || "circle", tell: e.tell || "",
       };
     });
@@ -1166,6 +1179,9 @@ export class Battle {
     e.die = DEATH_SEC;
     this.fxPush({ k: "nova", x: e.x, y: e.y, a: 0, r: e.r * 4, ang: 0, life: 0.5, max: 0.5, col: e.tint, col2: "#fff" });
     this.shake = Math.max(this.shake, e.kind === "boss" ? 16 : 8);
+    if (!this.remote && e.id && !this.fresh.some((s) => s.id === e.id) && !this.chests.some((c) => c.id === e.id)) {
+      this.fresh.push({ id: e.id, kind: e.kind, name: e.name, x: e.x, y: e.y });
+    }
     if (e.kind === "general") {
       this.genKills++;
       this.say(e.name + " пал", "Генерал волны сбит", 1.1);
@@ -1235,25 +1251,24 @@ export class Battle {
     }
   }
 
-  private tickChests(dt: number) {
+  private tickChests(_dt: number) {
     const me = this.party.find((p) => p.id === this.localId) || this.party[0];
-    if (!me || me.hp <= 0) { this.nearChest = false; this.chestDwell = 0; return; }
+    if (!me || me.hp <= 0) { this.nearChest = false; this.focusId = ""; this.focusName = ""; this.wantUse = false; return; }
     let near: Chest | null = null;
+    let best = 92 * 92;
     for (const c of this.chests) {
       if (c.open) continue;
-      if ((c.x - me.x) ** 2 + (c.y - me.y) ** 2 < 78 * 78) { near = c; break; }
+      const d = (c.x - me.x) ** 2 + (c.y - me.y) ** 2;
+      if (d < best) { best = d; near = c; }
     }
     this.nearChest = !!near;
-    if (!near) { this.chestDwell = 0; this.wantChest = false; return; }
-    this.chestDwell += dt;
-    if (this.wantChest || this.chestDwell >= 0.45) {
-      near.open = true;
-      this.opened.push(near.id);
-      this.chestDwell = 0;
-      this.wantChest = false;
-      this.nearChest = false;
+    this.focusId = near?.id || "";
+    this.focusName = near ? near.name : "";
+    if (!near) { this.wantUse = false; return; }
+    if (this.wantUse) {
+      this.used.push(near.id);
+      this.wantUse = false;
       this.text(near.x, near.y - 40, "сундук", "#ffd76a");
-      this.fxPush({ k: "ring", x: near.x, y: near.y, a: 0, r: 54, ang: 0, life: 0.4, max: 0.4, col: "#ffd76a", col2: "#fff" });
     }
   }
 
@@ -1266,7 +1281,7 @@ export class Battle {
     }
     const line = sig === "line";
     const cone = sig === "cone";
-    const radius = e.move === "pull" ? 78 : e.move === "bite" ? 112 : e.move === "slow" ? 150 : cone || line ? 168 : boss ? 118 : 96;
+    const radius = eliteReach(e.kind, e.move, sig);
     const ang = cone ? 1.05 : Math.PI;
     const dmg = eliteDmg(boss ? "boss" : "general", this.floor.n, getTune(), this.diff) * (e.phase >= 3 ? 1.3 : 1) * (e.pow || 1);
     this.fxPush({ k: cone || line ? "slash" : "ring", x: e.x, y: e.y, a: e.facing, r: radius, ang: line ? 0.18 : ang, life: 0.28, max: 0.28, col: e.tint, col2: "#fff", thick: 18 });
@@ -1277,7 +1292,7 @@ export class Battle {
       const along = dx * Math.cos(e.facing) + dy * Math.sin(e.facing);
       const side = Math.abs(-dx * Math.sin(e.facing) + dy * Math.cos(e.facing));
       const inside = line
-        ? along > 0 && along < radius && side < 34
+        ? along > 0 && along < radius && side < ELITE_LINE_SIDE
         : cone
           ? dx * dx + dy * dy <= radius * radius && Math.abs(angDiff(Math.atan2(dy, dx), e.facing)) <= ang
           : dx * dx + dy * dy <= radius * radius;

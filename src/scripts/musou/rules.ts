@@ -2,7 +2,7 @@
 // Тот же модуль считает награды на сервере (D1) и рисует их в клиенте.
 // Числа экономики и лута — в tune.ts. Меняет их только проверенный набор админки.
 import { HARD_CAP, capLabel, rateChance } from "./caps";
-import { DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
+import { DIFF_NAME, chestTotal, diffRow, dropChance, dropCount, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
 import { UPG, upgCost, upgStats } from "../../../server/meta/upgrade.ts";
 import { MAT_NAME } from "./mats";
 import { FLOOR_N, SW_DUNGEONS, SW_FLOORS, SW_QUESTS, fightScale, floorsOf } from "./sw-catalog";
@@ -402,6 +402,18 @@ export function questById(id: string) { return QUEST_BY.get(id) || null; }
 
 export type QuestState = { p: number; done: 0 | 1; claimed: 0 | 1 };
 export type Equip = Record<Paper, Item | null>;
+export type PersonalChest = {
+  /** nonce забега и id источника: один бросок на героя и это убийство. */
+  id: string;
+  source: "general" | "boss";
+  name: string;
+  items: Item[];
+  /** id вещей, которые ещё лежат в сундуке. Пусто — уже забрано. */
+  left: string[];
+  /** 1 — убийство прошло проверку, сундука нет. Повтор не бросает заново. */
+  missed: 0 | 1;
+};
+
 export type Pending = {
   floor: number; at: number; nonce: string; chests?: number; oath?: OathId; diff: number; hero?: HeroId; mode?: ModeId;
   /** Общий сид забега. Переподключение его не бросает заново. */
@@ -409,6 +421,8 @@ export type Pending = {
   /** Ярусы генералов и босса, выбранные при старте. */
   marks?: MarkBook;
   step?: number;
+  /** Личные сундуки этого забега. Содержимое уже брошено. */
+  drops?: PersonalChest[];
 };
 
 export type ModeBook = { abyss: number; best: number; rush: number; wins: number[] };
@@ -444,6 +458,8 @@ export type HeroCard = {
   book: ModeBook;
   /** Сияние навыков 0…9. Своё у героя. Числа — как у Проклятых: +6% силы за шаг, не выше +45%, перезарядка −2.5% за шаг. */
   radiance: number;
+  /** Сундуки этого героя после конца забега. Сумка общая, сундук — нет. */
+  holds?: PersonalChest[];
 };
 
 export type Profile = {
@@ -541,15 +557,16 @@ function freshCard(id: HeroId): HeroCard {
     id, lvl: 1, xp: 0, unspent: 0, alloc: { str: 0, dex: 0, vit: 0, ene: 0 },
     clears: Array.from({ length: FLOOR_N }, () => 0),
     chain: Array.from({ length: FLOOR_N }, () => 0),
-    quests: {}, equip: emptyEquip(), kills: 0, oath: "none", book: emptyBook(), radiance: 0,
+    quests: {}, equip: emptyEquip(), kills: 0, oath: "none", book: emptyBook(), radiance: 0, holds: [],
   };
 }
 
 function snapshot(p: Profile): HeroCard {
+  const prev = p.roster.find((r) => r.id === p.hero);
   return JSON.parse(JSON.stringify({
     id: p.hero, lvl: p.lvl, xp: p.xp, unspent: p.unspent, alloc: p.alloc,
     clears: p.clears, chain: p.chain, quests: p.quests, equip: p.equip, kills: p.kills, oath: p.oath, book: p.book,
-    radiance: p.radiance | 0,
+    radiance: p.radiance | 0, holds: prev?.holds || [],
   }));
 }
 
@@ -788,6 +805,7 @@ export function normalize(raw: any): Profile {
       ...(oath !== "none" ? { oath } : {}), ...(who ? { hero: who } : {}), ...(mode ? { mode } : {}),
       ...(seed ? { seed } : {}), ...(marks ? { marks } : {}),
       ...(raw.pending.step != null ? { step: Math.max(0, Math.min(999, raw.pending.step | 0)) } : {}),
+      drops: readChests(raw.pending.drops),
     };
   }
   p.oath = oathOf(raw.oath);
@@ -838,6 +856,7 @@ function readCard(raw: any): HeroCard | null {
     const it = raw.equip?.[slot];
     if (validItem(it)) card.equip[slot] = sanitizeItem({ ...it, affixes: it.affixes.slice(0, 6) });
   }
+  card.holds = readChests(raw.holds);
   return card;
 }
 
@@ -1595,12 +1614,188 @@ export type RunReport = {
   diffName: string;
 };
 
-export type ChestView = {
-  index: number;
-  item: Item;
-  curse: { stat: number; speed: number };
-  tiers: { n: 1 | 2 | 3 | 4 | 5 | 6; name: string; stat: number; speed: number }[];
-};
+function dropKey(nonce: string, source: string, hero: string) {
+  let h = 2166136261;
+  const s = `${nonce}|${source}|${hero}`;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0 || 1;
+}
+
+/** Уровень вещи сундука — порог данжа и прибавка цвета, не уровень аккаунта. */
+export function dungeonIlvl(floor: number, diff: number) {
+  const row = diffRow(diff);
+  return Math.max(1, Math.min(60, floorNeed(floor) + (row.ilvl | 0)));
+}
+
+function readChests(raw: unknown): PersonalChest[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PersonalChest[] = [];
+  for (const row of raw.slice(0, 24)) {
+    if (!row || typeof row !== "object") continue;
+    const id = String((row as { id?: unknown }).id || "").slice(0, 80);
+    const source = (row as { source?: unknown }).source === "boss" ? "boss" : (row as { source?: unknown }).source === "general" ? "general" : "";
+    if (!id || !source) continue;
+    const items = Array.isArray((row as { items?: unknown }).items)
+      ? ((row as { items: unknown[] }).items.filter(validItem).slice(0, 4).map((it) => sanitizeItem(it)))
+      : [];
+    const ids = new Set(items.map((it) => it.id));
+    const leftRaw = Array.isArray((row as { left?: unknown }).left) ? (row as { left: unknown[] }).left : items.map((it) => it.id);
+    const left = leftRaw.map((x) => String(x || "")).filter((x) => ids.has(x)).slice(0, 4);
+    out.push({
+      id, source, name: String((row as { name?: unknown }).name || "").slice(0, 48),
+      items, left, missed: (row as { missed?: unknown }).missed ? 1 : 0,
+    });
+  }
+  return out;
+}
+
+function sourceKind(floor: number, source: string, mode?: string): "general" | "boss" | null {
+  if (mode === "arena" || mode === "horde") return /^g[0-2]$/.test(source) ? "general" : null;
+  if (mode === "duel" || mode === "bossrush" || mode === "purgatory" || mode === "demiurge" || mode === "abyss") {
+    return source === "boss" ? "boss" : null;
+  }
+  const art = floorByN(floor);
+  if (source === "boss") {
+    if (art.goal === "pack" && !art.play?.soloBoss) return null;
+    return "boss";
+  }
+  if (!/^g[0-2]$/.test(source)) return null;
+  if (!art.spawnGeneral && art.play?.kind !== "arena" && art.play?.kind !== "horde") return null;
+  return "general";
+}
+
+function sourceReady(floor: number, seed: number, source: string, elapsed: number, mode?: string, step = 0): string | null {
+  const kind = sourceKind(floor, source, mode);
+  if (!kind) return "Сундук бывает только у генерала или босса";
+  if (mode === "abyss" && (step | 0) % 5 !== 0) return "Сундук бывает только у генерала или босса";
+  if (mode === "duel" || mode === "bossrush" || mode === "purgatory" || mode === "demiurge" || mode === "abyss") {
+    if (elapsed < 1500) return "Босс ещё не выходил";
+    return null;
+  }
+  if (mode === "arena" || mode === "horde") {
+    if (elapsed < 8000) return "Генерал ещё не выходил";
+    return null;
+  }
+  const script = makeScript(floor, seed || 1);
+  const at = source === "boss" ? script.bossAt : script.genAt[Number(source.slice(1))] || script.genAt[0];
+  if (elapsed < at) return source === "boss" ? "Босс ещё не выходил" : "Генерал ещё не выходил";
+  return null;
+}
+
+function rollChestItems(p: Profile, kind: "general" | "boss", floor: number, diff: number, rng: Rng): Item[] {
+  if (rng() >= dropChance(kind, diff)) return [];
+  const n = dropCount(kind, diff, rng);
+  const row = diffRow(diff);
+  const ilvl = dungeonIlvl(floor, diff);
+  const items: Item[] = [];
+  for (let i = 0; i < n; i++) {
+    const it = rollItem(rng, {
+      ilvl, floor, bare: true, budget: row.budget,
+      rarity: clearRarity(rng, floor, diff, chainAt(p, floor) >= row.id),
+      extraAffix: row.affix, curseMul: row.curse, enchMul: 0,
+      act: row.act, tier: rollDropTier(rng, diff),
+    });
+    it.id = mint(p);
+    items.push(sanitizeItem(it));
+  }
+  return items;
+}
+
+export type DropResult = { chest: PersonalChest } | { err: string };
+
+/** Один бросок на героя, забег и источник. Повтор и чужой список вещей не меняют содержимое. */
+export function noteDrop(p: Profile, source: string, name: string, now: number): DropResult {
+  const pend = p.pending;
+  if (!pend) return { err: "Сундук открывается только в забеге" };
+  if (!p.hero || (pend.hero && pend.hero !== p.hero)) return { err: "Это сундук другого героя" };
+  const id = `${pend.nonce}:${String(source || "").slice(0, 12)}`;
+  const have = (pend.drops || []).find((c) => c.id === id);
+  if (have) return { chest: have };
+  const elapsed = Math.max(0, now - (pend.at || now));
+  const early = sourceReady(pend.floor, pend.seed || 1, String(source || ""), elapsed, pend.mode, pend.step || 0);
+  if (early) return { err: early };
+  const kind = sourceKind(pend.floor, String(source || ""), pend.mode)!;
+  const items = rollChestItems(p, kind, pend.floor, pend.diff || 1, mulberry32(dropKey(pend.nonce, String(source), p.hero)));
+  const chest: PersonalChest = {
+    id, source: kind, name: String(name || (kind === "boss" ? "Босс" : "Генерал")).slice(0, 48),
+    items, left: items.map((it) => it.id), missed: items.length ? 0 : 1,
+  };
+  pend.drops = [...(pend.drops || []), chest];
+  return { chest };
+}
+
+export type TakeResult = { chest: PersonalChest; moved: Item[]; left: number; already: boolean };
+
+function chestOf(p: Profile, id: string): { chest: PersonalChest; where: "run" | "hold" } | null {
+  if (p.pending && (!p.pending.hero || p.pending.hero === p.hero)) {
+    const run = (p.pending.drops || []).find((c) => c.id === id);
+    if (run) return { chest: run, where: "run" };
+  }
+  const card = p.roster.find((r) => r.id === p.hero);
+  const held = (card?.holds || []).find((c) => c.id === id);
+  return held ? { chest: held, where: "hold" } : null;
+}
+
+/** Забрать сколько влезает. Остаток остаётся. Повтор не выдаёт уже взятое и не продаёт вещи. */
+export function takeDrop(p: Profile, id: string): TakeResult | { err: string } {
+  if (!p.hero) return { err: "Сначала выбери героя" };
+  const found = chestOf(p, String(id || ""));
+  if (!found) return { err: "Такого сундука нет" };
+  const chest = found.chest;
+  if (chest.missed || !chest.left.length) return { chest, moved: [], left: 0, already: true };
+  const moved: Item[] = [];
+  const stay: string[] = [];
+  const owned = new Set<string>();
+  for (const it of p.bag) owned.add(it.id);
+  for (const it of Object.values(p.equip)) if (it) owned.add(it.id);
+  for (const itemId of chest.left) {
+    const it = chest.items.find((row) => row.id === itemId);
+    if (!it || owned.has(it.id)) continue;
+    if (bagFree(p) < 1) { stay.push(itemId); continue; }
+    p.bag.push(it);
+    owned.add(it.id);
+    moved.push(it);
+  }
+  chest.left = stay;
+  return { chest, moved, left: stay.length, already: moved.length === 0 && stay.length === 0 };
+}
+
+export function listDrops(p: Profile): PersonalChest[] {
+  if (!p.hero) return [];
+  const run = p.pending && (!p.pending.hero || p.pending.hero === p.hero) ? (p.pending.drops || []) : [];
+  const held = p.roster.find((r) => r.id === p.hero)?.holds || [];
+  const seen = new Set<string>();
+  const out: PersonalChest[] = [];
+  for (const c of [...run, ...held]) {
+    if (seen.has(c.id) || c.missed || !c.left.length) continue;
+    seen.add(c.id);
+    out.push(c);
+  }
+  return out;
+}
+
+export function parkDrops(p: Profile, hero: HeroId, drops: PersonalChest[]) {
+  if (!hero || !drops.length) return;
+  let card = p.roster.find((r) => r.id === hero);
+  if (!card) {
+    card = freshCard(hero);
+    p.roster.push(card);
+  }
+  const next = [...(card.holds || [])];
+  for (const drop of drops) {
+    const i = next.findIndex((c) => c.id === drop.id);
+    if (i >= 0) next[i] = drop;
+    else next.push(drop);
+  }
+  card.holds = next.slice(0, 24);
+}
+
+export function chestCompare(p: Profile, it: Item) {
+  const slot = (it.slot === "ring" ? "ring1" : it.slot) as Paper;
+  const worn = p.equip[slot];
+  const line = (row: Item) => `${row.name} · ${RARITY_NAME[row.rarity]} · ур. ${row.ilvl} · урон ${row.dmg} · броня ${row.armor}`;
+  return { slot: PAPER_NAME[slot] || it.slot, worn: worn ? line(worn) : "пусто", next: line(it) };
+}
 
 function chestGate(p: Profile, index: number): string | null {
   if (!p.pending) return "Сундук открывается только в забеге";
@@ -1623,23 +1818,7 @@ function chestBase(p: Profile, rng: Rng): Item {
   });
 }
 
-export function chestChoices(p: Profile, index: number, rng: Rng): ChestView | { err: string } {
-  const err = chestGate(p, index);
-  if (err) return { err };
-  const tune = getTune();
-  return {
-    index: index | 0,
-    item: chestBase(p, rng),
-    curse: { stat: tune.curse.statMult, speed: tune.curse.speed },
-    tiers: ENCH_NAME.map((name, i) => ({
-      n: (i + 1) as 1 | 2 | 3 | 4 | 5 | 6,
-      name,
-      stat: tune.ench.stat[i],
-      speed: tune.ench.speed[i],
-    })),
-  };
-}
-
+/** Старый клиент на сайте выбирает чары у сундука этажа. Новый клиент этот запрос не шлёт. */
 export function parseChestPick(raw: unknown): ChestPick | null {
   if (raw === "plain" || raw === "curse") return raw;
   const n = typeof raw === "number" ? raw : Number(raw);
@@ -1727,17 +1906,9 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
   p.gold += gold;
   const levels = xp > 0 ? addXp(p, xp) : 0;
   const items: LootNote[] = [];
-  if (cleared) {
-    const bossMark = raw.marks?.boss;
-    const dropDiff = bossMark && bossMark.tier > anchor && floorByN(floor).goal !== "pack" ? bossMark.tier + 1 : row.id;
-    const q = dropQuality(p.lvl, floor, dropDiff);
-    const rarity = clearRarity(rng, floor, dropDiff, replay);
-    const tier = rollDropTier(rng, dropDiff);
-    items.push(giveItem(p, rollItem(rng, {
-      ilvl: q.ilvl, floor, rarity, budget: q.budget, act: row.act, tier,
-      extraAffix: q.affix, curseMul: row.curse, enchMul: 0,
-    })));
-  }
+  void rng;
+  void anchor;
+  const gear = " Вещи генерала и босса остаются в их сундуке и здесь не выдаются второй раз.";
   const partial = v.kills + v.generals > 0
     ? "В золото вошли только уже сбитые твари и генералы."
     : "Сбитых целей нет, золота за этаж нет.";
@@ -1747,10 +1918,10 @@ export function applyRun(p: Profile, raw: RunIn, rng: Rng): RunReport | { err: s
       : `Повтор на сложности «${row.name}». Опыт и золото этажа урезаны, квест не сдаётся снова. Редкость дропа остаётся от сложности.`)
     : `Первый проход, сложность «${row.name}».`;
   const note = reason === "win"
-    ? `${v.note ? v.note + " " : ""}${pass} Опыт ${xp}: твари ${mobXp}, генералы ${genXp}, зачистка ${clearXp}${bonusXp ? `, зачарованный ${bonusXp}` : ""}.`
+    ? `${v.note ? v.note + " " : ""}${pass} Опыт ${xp}: твари ${mobXp}, генералы ${genXp}, зачистка ${clearXp}${bonusXp ? `, зачарованный ${bonusXp}` : ""}.${gear}`
     : reason === "surrender"
-      ? `Сдача. ${partial} Босс не засчитан. Опыт ${xp}: твари ${mobXp}, генералы ${genXp}.`
-      : `Поражение: герой пал. ${partial} Босс не засчитан. Опыт ${xp}: твари ${mobXp}, генералы ${genXp}.`;
+      ? `Сдача. ${partial} Босс не засчитан. Опыт ${xp}: твари ${mobXp}, генералы ${genXp}.${gear}`
+      : `Поражение: герой пал. ${partial} Босс не засчитан. Опыт ${xp}: твари ${mobXp}, генералы ${genXp}.${gear}`;
   return { gold, xp, levels, items, quests, note, boss: cleared, reason, replay, diff: row.id, diffName: row.name };
 }
 
@@ -1874,7 +2045,9 @@ export type RunOffer = {
   color: string; icon: string; lore: string; act: string; tier: number;
   hp: number; dmg: number; mobHp: number; bossHp: number; bossDmg: number; bossHpParty4: number;
   goldFirst: number; goldReplay: number; xpFirst: number; xpReplay: number;
-  rare: number; leg: number; affix: number; curse: number; ench: number; chests: number;
+  rare: number; leg: number; affix: number; curse: number; ench: number;
+  /** Доли из набора: сундук генерала и сундук босса. Не число сундуков на полу. */
+  generalChest: number; bossChest: number;
   lower: number; soak: number; regen: number;
   partyGold: number; partyHp: number;
 };
@@ -1903,7 +2076,8 @@ export function runOffer(p: Profile, floor: number, diff: number, party = 1): Ru
     affix: row.affix,
     curse: Math.min(0.75, loot.curseChance * row.curse),
     ench: Math.min(0.75, loot.enchChance * row.ench),
-    chests: chestTotal(row.id),
+    generalChest: dropChance("general", row.id),
+    bossChest: dropChance("boss", row.id),
     lower: row.lower,
     soak: row.soak,
     regen: row.regen,
@@ -1996,7 +2170,8 @@ export function beginMode(p: Profile, rawId: string, now: number, nonce = startN
   const floor = modeFloor(p, id);
   const step = floor.play?.step || 0;
   const seed = markSeed(nonce, floor.n, 1);
-  p.pending = { floor: floor.n, at: now, nonce, chests: 0, diff: 1, hero: p.hero, mode: id, seed, step, marks: rollBook(seed, 1, id, step), ...(oath !== "none" ? { oath } : {}) };
+  if (p.pending?.drops?.length) parkDrops(p, p.pending.hero || p.hero, p.pending.drops);
+  p.pending = { floor: floor.n, at: now, nonce, chests: 0, diff: 1, hero: p.hero, mode: id, seed, step, marks: rollBook(seed, 1, id, step), drops: [], ...(oath !== "none" ? { oath } : {}) };
   return { nonce, seed };
 }
 
@@ -2029,14 +2204,11 @@ export function applyMode(p: Profile, raw: { id: ModeId; elapsedMs: number; kill
   const xp = cleared ? slice.total + bonusXp : 0;
   const levels = xp > 0 ? addXp(p, xp) : 0;
   const items: LootNote[] = [];
-  const lootN = cleared ? (floor.play?.loot || 1) + (raw.id === "abyss" && p.book.abyss % 5 === 0 ? 1 : 0) : 0;
-  const marked = live[0];
-  const dropDiff = marked && marked.tier > anchor ? marked.tier + 1 : 1;
-  for (let i = 0; i < lootN; i++) {
-    const tier = rollDropTier(rng, dropDiff);
-    const it = rollItem(rng, { ilvl: Math.max(1, p.lvl), floor: floor.n, bare: true, budget: 1, rarity: i === 0 && cleared ? "magic" : "common", extraAffix: 0, curseMul: 1, enchMul: 0, act: "none", tier });
-    items.push(giveItem(p, it));
-  }
+  void rng;
+  void live;
+  void anchor;
+  if (note) note += " Вещи генерала и босса остаются в их сундуке.";
+  else note = "Вещи генерала и босса остаются в их сундуке и в конце не выдаются второй раз.";
   if (cleared) {
     const ix = modeIndex(raw.id);
     if (ix >= 0) p.book.wins[ix] = (p.book.wins[ix] || 0) + 1;
@@ -2067,7 +2239,8 @@ export function beginRun(p: Profile, floor: number, now: number, nonce = startNo
     p.gold -= stake;
   }
   const seed = markSeed(nonce, floor, row.id);
-  p.pending = { floor, at: now, nonce, chests: 0, diff: row.id, hero: p.hero || undefined, seed, marks: rollBook(seed, row.id), ...(oath !== "none" ? { oath } : {}) };
+  if (p.pending?.drops?.length) parkDrops(p, p.pending.hero || p.hero, p.pending.drops);
+  p.pending = { floor, at: now, nonce, chests: 0, diff: row.id, hero: p.hero || undefined, seed, marks: rollBook(seed, row.id), drops: [], ...(oath !== "none" ? { oath } : {}) };
   return { nonce, seed };
 }
 
@@ -2079,7 +2252,10 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
   const elapsed = Math.max(0, now - (pend.at || now));
   const vow = pend.oath;
   const mode = pend.mode;
+  const savedDrops = pend.drops || [];
+  const owner = pend.hero || p.hero;
   p.pending = null;
+  if (owner) parkDrops(p, owner, savedDrops);
   if (mode) {
     const report = applyMode(p, { id: mode, elapsedMs: elapsed, kills: body.kills || 0, boss: !!body.boss, reason: body.reason, marks: pend.marks, step: pend.step }, rng);
     if ("err" in report) return report;

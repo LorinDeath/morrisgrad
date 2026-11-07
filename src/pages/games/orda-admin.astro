@@ -94,7 +94,7 @@ const title = "Орда · набор чисел";
     ["combat", "partyHpCap", "Потолок здоровья элиты"],
     ["loot", "curseChance", "Шанс проклятия"],
     ["loot", "enchChance", "Шанс чар"],
-    ["loot", "chestCount", "Сундуков на этаже"],
+    ["loot", "chestCount", "Старое поле сундуков на этаже: пол больше не ставит"],
     ["loot", "magicDrop", "Магический дроп"],
     ["loot", "rareDrop", "Редкий дроп"],
     ["curse", "statMult", "Проклятие × статы"],
@@ -143,6 +143,10 @@ const title = "Орда · набор чисел";
       if (got.every(Number.isFinite)) tune.elite[key] = got;
     }
     if (mut.length === 10 && mut.every(Number.isFinite)) tune.mut.mult = mut;
+    for (const key of ["generalChance", "bossChance", "generalMin", "generalMax", "bossMin", "bossMax"]) {
+      const got = Array.from({ length: 7 }, (_, i) => Number(document.querySelector(`[data-k="drops.${key}.${i}"]`).value));
+      if (got.every(Number.isFinite)) tune.drops[key] = got;
+    }
     try { tune.floors = JSON.parse($("floors").value); } catch { tune.floors = null; }
     try { tune.diff = JSON.parse($("diffs").value); } catch { tune.diff = null; }
     return tune;
@@ -163,6 +167,10 @@ const title = "Орда · набор чисел";
     elite.minTier.forEach((n, i) => { document.querySelector(`[data-k="elite.minTier.${i}"]`).value = String(n); });
     elite.up.forEach((n, i) => { document.querySelector(`[data-k="elite.up.${i}"]`).value = String(n); });
     elite.modeTier.forEach((n, i) => { document.querySelector(`[data-k="elite.modeTier.${i}"]`).value = String(n); });
+    const drops = tune.drops || DEFAULT_TUNE.drops;
+    for (const key of ["generalChance", "bossChance", "generalMin", "generalMax", "bossMin", "bossMax"]) {
+      (drops[key] || []).forEach((n, i) => { document.querySelector(`[data-k="drops.${key}.${i}"]`).value = String(n); });
+    }
     $("muts").value = tune.mut.mult.join(", ");
     $("floors").value = JSON.stringify(tune.floors, null, 1);
     $("diffs").value = JSON.stringify(tune.diff, null, 1);
@@ -183,6 +191,8 @@ const title = "Орда · набор чисел";
       `Чёрный, босс соло: ${p.bossBlack}`,
       `Опыт до 2 уровня: ${p.xp1}`,
       `Скорость с проклятой вещью: ×${p.curseSpeed}`,
+      `Сундук генерала, базовая: ${p.generalChest}`,
+      `Сундук босса, базовая: ${p.bossChest}`,
     ].join("\n");
   }
 
@@ -214,6 +224,12 @@ const title = "Орда · набор чисел";
       ["elite.minTier", "Минимальный ярус генерала", 7, buckets.mark],
       ["elite.up", "Шанс яруса выше", 7, buckets.mark],
       ["elite.modeTier", "Ярус чар режима", 7, buckets.mark],
+      ["drops.generalChance", "Шанс сундука генерала", 7, buckets.loot],
+      ["drops.bossChance", "Шанс сундука босса", 7, buckets.loot],
+      ["drops.generalMin", "Вещей генерала, минимум", 7, buckets.loot],
+      ["drops.generalMax", "Вещей генерала, максимум", 7, buckets.loot],
+      ["drops.bossMin", "Вещей босса, минимум", 7, buckets.loot],
+      ["drops.bossMax", "Вещей босса, максимум", 7, buckets.loot],
     ]) {
       for (let i = 0; i < n; i++) {
         const lab = document.createElement("label");

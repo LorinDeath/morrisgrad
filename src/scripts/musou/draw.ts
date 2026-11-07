@@ -3,6 +3,7 @@ import { heroById, type HeroDef } from "./rules";
 import { ARENA_H, ARENA_W, type Actor, type Anim, type Battle, type Fx } from "./sim";
 import { beastFrame, heroLocalFrame } from "./anim";
 import { FLOOR_TILE, blitChest, blitElite, blitHero, blitMob, blitNova, blitTeleCone, blitTeleRing, blitTile, pixelSlash } from "./sprites";
+import { eliteDraw, eliteReach } from "./tune";
 import { craftFor } from "./stagecraft";
 
 export type Cam = { x: number; y: number };
@@ -56,17 +57,27 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
     });
   }
   for (const c of b.chests) {
+    if (c.open) continue;
     const p = project(c.x, c.y, cam, w, h, zoom);
     spr.push({
       y: c.y,
-      draw: () => blitChest(ctx, p.sx, p.sy, Math.max(1.6, zoom * 1.8), c.open, (now / 80) | 0),
+      draw: () => {
+        blitChest(ctx, p.sx, p.sy, Math.max(1.6, zoom * 1.8), c.open, (now / 80) | 0);
+        if (c.id === b.focusId) {
+          ctx.strokeStyle = "rgba(255,215,106,0.9)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(p.sx, p.sy - 16 * zoom, 22 * zoom, 10 * zoom, 0, 0, TAU);
+          ctx.stroke();
+        }
+      },
     });
   }
   for (const e of b.elites) {
     const p = project(e.x, e.y, cam, w, h, zoom);
     spr.push({
       y: e.y,
-      draw: () => blitElite(ctx, e.kind === "boss", beastFrame(e.alive, e.die || 0, e.stun > 0 ? 0.2 : 0, e.wind > 0 ? Math.max(0.02, (1 - e.swing) * 0.32) : 0, now / 1000), p.sx, p.sy, Math.max(2, zoom * (e.kind === "boss" ? 3.1 : 2.5)), e.facing, e.alive, e.row),
+      draw: () => blitElite(ctx, e.kind === "boss", beastFrame(e.alive, e.die || 0, e.stun > 0 ? 0.2 : 0, e.wind > 0 ? Math.max(0.02, (1 - e.swing) * 0.32) : 0, now / 1000), p.sx, p.sy, Math.max(2, zoom * eliteDraw(e.kind)), e.facing, e.alive, e.row),
     });
   }
   for (const a of b.party) {
@@ -115,14 +126,15 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
   for (const e of b.elites) {
     if (!e.alive) continue;
     const p = project(e.x, e.y, cam, w, h, zoom);
-    nameplate(ctx, p.sx, p.sy - (e.kind === "boss" ? 128 : 102) * zoom, e.name, e.tint);
+    const plate = (eliteDraw(e.kind) * 46 + 18) * zoom;
+    nameplate(ctx, p.sx, p.sy - plate, e.name, e.tint, e.kind === "boss" ? 16 : 14);
     if (e.wind > 0 && e.tell) {
       ctx.font = `600 ${Math.max(11, 12 * zoom)}px "Exo 2", sans-serif`;
       ctx.textAlign = "center";
       ctx.fillStyle = "#fff6d8";
-      ctx.fillText(e.tell, p.sx, p.sy - (e.kind === "boss" ? 146 : 120) * zoom);
+      ctx.fillText(e.tell, p.sx, p.sy - plate - 16 * zoom);
     }
-    bar(ctx, p.sx, p.sy - (e.kind === "boss" ? 112 : 88) * zoom, (e.kind === "boss" ? 90 : 64) * zoom, 6, e.hp / e.maxHp, e.tint, "#2a0c0c");
+    if (e.kind === "general") bar(ctx, p.sx, p.sy - (plate - 16 * zoom), 92 * zoom, 7, e.hp / e.maxHp, e.tint, "#2a0c0c");
   }
 
   ctx.restore();
@@ -369,12 +381,12 @@ function drawGroundFx(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: nu
     if (!e.alive || e.wind <= 0) continue;
     const p = project(e.x, e.y, cam, w, h, zoom);
     const k = 1 - e.wind / (e.windMax || 0.5);
-    const rad = (e.kind === "boss" ? 118 : 96) * zoom * (0.72 + k * 0.28);
+    const rad = eliteReach(e.kind, e.move, e.sig) * zoom * (0.72 + k * 0.28);
     const cone = e.sig === "cone";
     const line = e.sig === "line";
     const tick = (now / 50) | 0;
     if (cone) {
-      const len = rad * 1.35;
+      const len = rad;
       blitTeleCone(ctx, p.sx, p.sy, e.facing, len, 0.45 + k * 0.45, tick);
       ctx.beginPath();
       ctx.moveTo(p.sx, p.sy);
@@ -386,7 +398,7 @@ function drawGroundFx(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: nu
       ctx.lineWidth = 2 + k * 2;
       ctx.stroke();
     } else if (line) {
-      const len = rad * 1.6;
+      const len = rad;
       const x2 = p.sx + Math.cos(e.facing) * len;
       const y2 = p.sy + Math.sin(e.facing) * len * 0.78;
       ctx.strokeStyle = rgba(e.tint, 0.35 + k * 0.5);
@@ -538,8 +550,8 @@ function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, hgt
   ctx.strokeRect(x - w / 2, y, w, hgt);
 }
 
-function nameplate(ctx: CanvasRenderingContext2D, x: number, y: number, name: string, col: string) {
-  ctx.font = `700 13px Cinzel, serif`;
+function nameplate(ctx: CanvasRenderingContext2D, x: number, y: number, name: string, col: string, size = 13) {
+  ctx.font = `700 ${size}px Cinzel, serif`;
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(0,0,0,0.55)";
   const w = ctx.measureText(name).width + 28;

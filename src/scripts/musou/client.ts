@@ -1,11 +1,11 @@
 // Хаб, лавка, отряд и бой «Орды Обители».
 import {
   BAG_MAX, ENCH_NAME, FLOORS, HEROES, OATHS, PAPER_NAME, RARITY_COLOR, RARITY_NAME,
-  affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  beginMode, buyRune, capLabel, compareGear, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, glowLine, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, raiseRadiance, RUNES, runOffer, seal, socketRune, statGlance,
-  normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
+  affixText, bagFree, bagPrice, beginRun, buyOffer, chestCompare, claimQuest, equipItem,
+  beginMode, buyRune, capLabel, compareGear, finishRun, chainAt, diffLock, dungeonIlvl, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, glowLine, goldFind, heroById, itemBlurb, itemPrice, listDrops, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, noteDrop, raiseRadiance, RUNES, runOffer, seal, socketRune, statGlance,
+  normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeDrop, takeInbox,
   sheet, shopOffers, skillBook, spendStat, unequip, xpNeed,
-  type ChestPick, type FloorDef, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
+  type FloorDef, type HeroId, type Item, type Paper, type PersonalChest, type Profile, type RunReport, type Stat,
 } from "./rules";
 import { Battle, type Btn } from "./sim";
 import { drawBattle, drawPortrait, type Cam } from "./draw";
@@ -210,18 +210,16 @@ function offerText(floor: number, diff: number) {
 }
 function offerFine(floor: number, diff: number) {
   const o = runOffer(profile, floor, diff, 1);
-  const q = dropQuality(profile.lvl, floor, diff);
-  return `Сейчас в наборе: здоровье ×${o.hp}, урон ×${o.dmg}. Босс около ${o.bossHp} здоровья. Добыча своего цвета или младше (${pct(o.lower)}). Вещь около ${q.ilvl} уровня. Повтор — ${o.xpReplay} опыта.`;
+  return `Сейчас в наборе: здоровье ×${o.hp}, урон ×${o.dmg}. Босс около ${o.bossHp} здоровья. Добыча своего цвета или младше (${pct(o.lower)}). Сундук генерала ${pct(o.generalChest)}, босса ${pct(o.bossChest)} — это числа набора, не обещание каждого убийства. Вещь сундука около ${dungeonIlvl(floor, diff)} уровня этого данжа. Опыт и золото приходят в конце забега. Повтор — ${o.xpReplay} опыта.`;
 }
 function compareHtml(floor: number) {
   const board = chainAt(profile, floor);
   const done = board > 0 ? `Доска этого героя: пройдено до «${DIFF_NAME[board - 1]}».` : "Доска этого героя: на этом данже ещё нет пройденного цвета.";
   return `<p class="derived">${done} Следующий цвет открывает прохождение предыдущего.</p><div class="chain">${DIFF_CHAIN.map((step, i) => {
     const id = i + 1;
-    const q = dropQuality(profile.lvl, floor, id);
     const o = runOffer(profile, floor, id);
     const ink = step.color === "#0a0a0a" ? "#f4f4f5" : step.color;
-    return `<button type="button" class="dcard${diffPick === id ? " on" : ""}${o.why ? " lock" : ""}" data-diff="${id}" style="--sw:${ink}" title="×${o.hp} здоровья, ×${o.dmg} урона, вещь ур. ${q.ilvl}, младший ${pct(o.lower)}"><b style="color:${ink}">${step.icon} ${step.name}</b><span>${o.why ? "закрыта" : "открыта"}</span></button>`;
+    return `<button type="button" class="dcard${diffPick === id ? " on" : ""}${o.why ? " lock" : ""}" data-diff="${id}" style="--sw:${ink}" title="×${o.hp} здоровья, ×${o.dmg} урона, сундук ур. ${dungeonIlvl(floor, id)}, генерал ${pct(o.generalChest)}, босс ${pct(o.bossChest)}, младший ${pct(o.lower)}"><b style="color:${ink}">${step.icon} ${step.name}</b><span>${o.why ? "закрыта" : "открыта"}</span></button>`;
   }).join("")}</div>`;
 }
 
@@ -428,6 +426,7 @@ function renderHub() {
         <button class="btn" id="sell" type="button">Продать</button>
         <button class="btn" id="unequip" type="button">Снять</button>
         <button class="btn" id="forge" type="button">Шлифовка</button>
+        ${listDrops(profile).length ? `<button class="btn gold" id="open-holds" type="button">Сундуки (${listDrops(profile).length})</button>` : ""}
       </div>
       <details class="fine">
         <summary>Сияние и гнёзда</summary>
@@ -536,6 +535,11 @@ function renderHub() {
       else { saveLocal(); toast("Шлифовка +" + r.up + ". Вещь не ломается."); }
       renderHub();
     }
+  };
+  const holdsBtn = document.getElementById("open-holds");
+  if (holdsBtn) holdsBtn.onclick = () => {
+    const first = listDrops(profile)[0];
+    if (first) showLoot(first.id);
   };
   const glowBtn = document.getElementById("glow");
   if (glowBtn) glowBtn.onclick = async () => {
@@ -759,7 +763,7 @@ async function connect(code: string, fromDrop = false) {
         return `<button type="button" class="btn${mode === id ? " gold" : ""}" data-room-diff="${id}" ${why ? "disabled" : ""}>${name}</button>`;
       }).join("") : "";
       const offer = runOffer(profile, m.floor | 0 || 1, mode, Math.max(1, m.seats.length));
-      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · ${DIFF_NAME[mode - 1] || "Базовая"}.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}${modes ? `<div class="diffs">${modes}</div>` : ""}<p class="offer">${offer.lore} Опыт ${offer.xpFirst}, золото ${offer.goldFirst}.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode, s.chain | 0) ? " · цвет закрыт" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">Цвет закрыт у: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём, пока хост начнёт.</p>"}`;
+      if (box) box.innerHTML = `<p>Код <b>${m.code}</b>. ${FLOORS[(m.floor | 0) - 1]?.name || "Данж"} · ${DIFF_NAME[mode - 1] || "Базовая"}.</p>${chips ? `<div class="row room-floors">${chips}</div>` : ""}${modes ? `<div class="diffs">${modes}</div>` : ""}<p class="offer">${offer.lore} Опыт ${offer.xpFirst}, золото ${offer.goldFirst}. Сундук генерала ${pct(offer.generalChest)}, босса ${pct(offer.bossChest)} — каждому свой.</p><ul class="seat-list">${m.seats.map((s: any) => `<li>${s.nick} · ур. ${s.lvl | 0}${memberDiffLock(s.lvl | 0, !!s.passed, m.floor | 0, mode, s.chain | 0) ? " · цвет закрыт" : ""}</li>`).join("")}</ul>${room.host ? `<div class="row"><button class="btn gold" id="room-start" type="button" ${low.length ? "disabled" : ""}>Начать данж</button></div>${low.length ? `<p class="lock-why">Цвет закрыт у: ${low.map((s) => s.nick).join(", ")}.</p>` : ""}` : "<p>Ждём, пока хост начнёт.</p>"}`;
       $<HTMLButtonElement>("room-start") && ($<HTMLButtonElement>("room-start").onclick = () => ws?.send(JSON.stringify({ type: "start" })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-floor]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "floor", floor: Number(b.dataset.roomFloor) })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-diff]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "diff", diff: Number(b.dataset.roomDiff) })));
@@ -785,8 +789,18 @@ async function connect(code: string, fromDrop = false) {
       if (me && m.heal > 0 && me.hp > 0) me.hp = Math.min(me.maxHp, me.hp + (m.heal | 0));
       if (m.snap && m.final) downSent = true;
     }
+    if (m.type === "chest" && m.chest) rememberChest(m.chest, Number(m.x) || 1200, Number(m.y) || 780);
+    if (m.type === "chests") {
+      for (const row of m.list || []) if (row?.chest) rememberChest(row.chest, Number(row.x) || 1200, Number(row.y) || 780);
+    }
+    if (m.type === "taken") {
+      if (m.profile) profile = normalize(m.profile);
+      if (m.err) toast(m.err);
+      else noteTake(String(m.id || ""), m.report || { moved: [], left: 0, already: true });
+    }
     if (m.type === "loot") {
       if (m.profile) profile = normalize(m.profile);
+      hideLoot();
       showResult(m.report, battle?.phase || "won");
     }
   };
@@ -867,6 +881,8 @@ function beginBattle(floor: number | FloorDef, members: { id: string; name: stri
   battle.remote = remote;
   battle.localId = youId || members[0].id;
   ended = false;
+  ending = false;
+  waitDrops.length = 0;
   downSent = false;
   const me = members.find((m) => m.id === youId) || members[0];
   cam = { x: 1200, y: 780 };
@@ -893,7 +909,13 @@ function buildSkills(heroId: HeroId) {
 
 let queued = 0;
 let heavyQ = false;
-let chestQ = false;
+let useQ = false;
+let openChestId = "";
+let chestHold = false;
+const knownChests: PersonalChest[] = [];
+const waitDrops: { id: string; kind: "general" | "boss"; name: string; x: number; y: number }[] = [];
+let dropFlight = 0;
+let ending = false;
 
 function inBoom(x: number, y: number, m: any) {
   const dx = x - m.x, dy = y - m.y;
@@ -937,9 +959,9 @@ function readBtn(): Partial<Btn> {
   heavyQ = false;
   const dodge = dodgeQ || keys.has(" ");
   dodgeQ = false;
-  const chest = chestQ || keys.has("g");
-  chestQ = false;
-  return { mx, my, aim: pointerAim, light: holding || keys.has("j"), heavy, skill, dodge, chest };
+  const use = useQ || (keys.has("g") && !openChestId);
+  useQ = false;
+  return { mx, my, aim: pointerAim, light: holding || keys.has("j"), heavy, skill, dodge, use };
 }
 
 function resize() {
@@ -967,7 +989,15 @@ function hud() {
   if (obj.innerHTML !== objHtml) obj.innerHTML = objHtml;
   $<HTMLButtonElement>("pause-btn").hidden = !!battle.remote;
   const chest = $<HTMLElement>("chest-hint");
-  if (chest) chest.hidden = !battle.nearChest;
+  if (chest) {
+    chest.hidden = !battle.nearChest;
+    if (battle.nearChest) chest.textContent = `Рядом «${battle.focusName || "сундук"}». G или «Использовать». Само не открывается.`;
+  }
+  const useBtn = $<HTMLButtonElement>("m-use");
+  if (useBtn) useBtn.classList.toggle("on", battle.nearChest);
+  const flee = $<HTMLButtonElement>("flee");
+  if (flee) flee.textContent = battle.bossDown ? "Дальше" : "Сдаться";
+  paintBoss();
   const partyHtml = battle.party.map((p) => `<div><b>${p.name.split(" ")[0]}</b><div class="bar"><i style="width:${Math.max(0, p.hp / p.maxHp * 100)}%"></i></div></div>`).join("");
   const party = $<HTMLElement>("party");
   if (party.innerHTML !== partyHtml) party.innerHTML = partyHtml;
@@ -1008,13 +1038,23 @@ function showResult(report: RunReport | null, phase: string, reason?: RunReport[
   $<HTMLElement>("v-result").innerHTML = `<article class="result-card"><p class="tag">${why === "win" ? "Победа" : why === "surrender" ? "Выход" : "Падение"}</p><h2>${title}</h2>
   <p class="lvl-line">${xpLine}</p>
   <p>${pay}</p>
-  <div class="result-grid">${items.map((n) => `<article class="loot${n.sold ? " sold" : ""}" style="border-color:${RARITY_COLOR[n.item.rarity]}"><b style="color:${RARITY_COLOR[n.item.rarity]}">${n.item.name}</b><div>${itemBlurb(n.item)}</div>${n.held ? "<div>Редкая вещь ждёт у входа в хаб — сумка была полна.</div>" : n.sold ? `<div>Обычная вещь не влезла и ушла за ${n.gold} золота.</div>` : n.item.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}</article>`).join("") || "<p>Трофеев нет. Генералы и босс оставляют вещь, если сумка пускает.</p>"}</div>
-  <div class="row" style="margin-top:14px"><button class="btn gold" id="back-hub" type="button">В хаб</button></div></article>`;
-  $<HTMLButtonElement>("back-hub").onclick = () => { renderHub(); show("hub"); };
+  <div class="result-grid">${items.map((n) => `<article class="loot${n.sold ? " sold" : ""}" style="border-color:${RARITY_COLOR[n.item.rarity]}"><b style="color:${RARITY_COLOR[n.item.rarity]}">${n.item.name}</b><div>${itemBlurb(n.item)}</div>${n.held ? "<div>Редкая вещь ждёт у входа в хаб — сумка была полна.</div>" : n.sold ? `<div>Обычная вещь не влезла и ушла за ${n.gold} золота.</div>` : n.item.affixes.map((a) => `<div class="aff">${affixText(a)}</div>`).join("")}</article>`).join("") || `<p>${listDrops(profile).length ? "Опыт и золото уже здесь. Вещи генерала и босса лежат в их сундуке и второй раз не выдаются." : "Опыт и золото за забег уже здесь. Сундука в этот раз не было."}</p>`}</div>
+  <div class="row" style="margin-top:14px">${listDrops(profile).length ? `<button class="btn gold" id="open-holds" type="button">Сундуки (${listDrops(profile).length})</button>` : ""}<button class="btn gold" id="back-hub" type="button">В хаб</button></div></article>`;
+  const again = document.getElementById("open-holds");
+  if (again) again.onclick = () => { const first = listDrops(profile)[0]; if (first) showLoot(first.id); };
+  $<HTMLButtonElement>("back-hub").onclick = () => { hideLoot(); renderHub(); show("hub"); };
 }
 
 async function endFight() {
-  if (ended || !battle) return;
+  if (ended || ending || !battle) return;
+  ending = true;
+  let spins = 0;
+  while ((dropFlight || waitDrops.length) && spins < 20) {
+    if (!dropFlight) await flushDrops(performance.now());
+    else await new Promise((r) => setTimeout(r, 40));
+    spins++;
+  }
+  if (ended || !battle) { ending = false; return; }
   ended = true;
   const b = battle;
   const reason = b.reason === "surrender" ? "surrender" : b.phase === "won" && b.bossDown ? "win" : "dead";
@@ -1092,7 +1132,12 @@ function frame(now: number, dt: number) {
     battle.step(dt);
     if (battle.kills > killsBefore) hitBlip(520);
     if (me.hp < hpBefore - 0.4) hitBlip(150);
-    for (const id of battle.takeChests()) grantChest(id);
+    void flushDrops(now);
+    for (const id of battle.takeUses()) {
+      if (openChestId) continue;
+      if (!battle.chests.some((c) => c.id === id && !c.open)) continue;
+      showLoot(id);
+    }
     cam.x += (me.x - cam.x) * 0.12;
     cam.y += (me.y - cam.y) * 0.12;
     const acts = battle.takeActs();
@@ -1116,7 +1161,9 @@ function frame(now: number, dt: number) {
     const ctx = c.getContext("2d");
     if (ctx) drawBattle(ctx, battle, c.width, c.height, cam, now);
     hud();
-    if (!ended && (battle.phase === "won" || battle.phase === "lost")) endFight();
+    const lootWaiting = dropFlight > 0 || waitDrops.length > 0 || battle.chests.some((c) => !c.open);
+    if (battle.phase === "won" && lootWaiting) battle.phase = "fight";
+    if (!ended && !ending && (battle.phase === "won" || battle.phase === "lost") && !(dropFlight || waitDrops.length)) endFight();
   } else if (view === "hub" || view === "pick") {
     if ((now / 50 | 0) % 2 === 0) paintPicks();
   }
@@ -1136,55 +1183,166 @@ function aimFrom(ev: { clientX: number; clientY: number; pointerId?: number }) {
   pointerAim = Math.atan2(y - me.y, x - me.x);
 }
 
-const chestWait: number[] = [];
-
-function chestSeed(index: number) {
-  return mulberry32((profile.nextId * 997 + index * 13) >>> 0);
+function esc(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c] || c));
 }
 
-function grantChest(index: number) {
-  if (document.getElementById("chest-card")) { chestWait.push(index); return; }
-  if (!profile.pending) return;
-  const view = chestChoices(profile, index, chestSeed(index));
-  if ("err" in view) { toast(view.err); return; }
-  if (battle && !battle.remote) battle.paused = true;
-  const it = view.item;
-  const line = (stat: number, speed: number) => `статы ×${stat}, шаг ×${speed}`;
-  openModal(`<div id="chest-card"><h2 style="font-family:Cinzel,serif;color:var(--gold-2);margin:0 0 8px">Сундук этажа</h2>
-  <p>Внутри ${it.name}. Забрать как есть, проклясть или выбрать ярус чар. Проклятие и чары меняют надетую вещь сразу: сила растёт, шаг тяжелеет. Это не тост — без выбора вещь не попадает в сумку.</p>
-  <div class="shop-grid">
-    <article class="offer"><h3>${it.name}</h3><p>Как есть. Скорость героя не режется этой вещью.</p><button class="btn gold" type="button" data-pick="plain">Забрать как есть</button></article>
-    <article class="offer"><h3>Проклясть</h3><p>${line(view.curse.stat, view.curse.speed)}. Вещь станет сильнее и будет тормозить героя, пока надета.</p><button class="btn" type="button" data-pick="curse">Проклясть и взять</button></article>
-    ${view.tiers.map((t) => `<article class="offer"><h3>${t.name}</h3><p>Ярус ${t.n}. ${line(t.stat, t.speed)}. ${t.n === 6 ? "Чёрный ярус Проклятых: статы ×10, шаг едва тянется." : "Чем выше ярус, тем дороже шаг."}</p><button class="btn" type="button" data-pick="${t.n}">Взять «${t.name}»</button></article>`).join("")}
-  </div></div>`);
-  document.querySelectorAll<HTMLButtonElement>("#chest-card [data-pick]").forEach((b) => b.onclick = () => {
-    const pick = (b.dataset.pick === "plain" || b.dataset.pick === "curse" ? b.dataset.pick : Number(b.dataset.pick)) as ChestPick;
-    void takeChest(index, pick);
-  });
-}
-
-async function takeChest(index: number, pick: ChestPick) {
-  let note: { item: Item } | { err: string } | null = null;
-  if (online) {
-    const data = await act({ op: "chest", index, pick });
-    if (!data) {
-      toast("Сервер не принял выбор. Сундук ещё закрыт.");
-      return;
-    }
-    if (data.err) return;
-    note = data.report || null;
-  } else {
-    const got = claimChest(profile, index, chestSeed(index), pick);
-    saveLocal();
-    if ("err" in got) { toast(got.err); return; }
-    note = got;
+function paintBoss() {
+  const el = $<HTMLElement>("boss-hud");
+  if (!el || !battle) return;
+  const boss = battle.elites.find((e) => e.kind === "boss" && e.alive && e.hp > 0);
+  if (!boss) { el.hidden = true; return; }
+  el.hidden = false;
+  const phase = boss.phase >= 3 ? "Последняя фаза" : boss.phase === 2 ? "Вторая фаза" : "Первая фаза";
+  const name = el.querySelector("b");
+  if (!name || name.textContent !== boss.name) {
+    el.innerHTML = `<b></b><div class="boss-track"><i></i></div><span></span>`;
+    el.querySelector("b")!.textContent = boss.name;
   }
-  closeModal();
-  if (battle && !battle.remote) battle.paused = false;
-  const item = note && "item" in note ? note.item : null;
-  if (item?.name) toast("В сумке: " + item.name);
-  const next = chestWait.shift();
-  if (next != null) grantChest(next);
+  const bar = el.querySelector("i") as HTMLElement | null;
+  const meta = el.querySelector("span");
+  if (bar) bar.style.width = Math.max(0, Math.min(100, boss.maxHp > 0 ? boss.hp / boss.maxHp * 100 : 0)) + "%";
+  if (meta) meta.textContent = `${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp} · ${phase}`;
+}
+
+function rememberChest(raw: PersonalChest, x: number, y: number) {
+  if (!raw?.id) return;
+  const i = knownChests.findIndex((c) => c.id === raw.id);
+  if (i >= 0) knownChests[i] = raw;
+  else knownChests.push(raw);
+  if (profile.pending && (!profile.pending.hero || profile.pending.hero === profile.hero)) {
+    const drops = profile.pending.drops || [];
+    const j = drops.findIndex((c) => c.id === raw.id);
+    if (j >= 0) drops[j] = raw;
+    else profile.pending.drops = [...drops, raw];
+  }
+  if (battle && !raw.missed && raw.left?.length) {
+    battle.placeChest({ id: raw.id, x, y, open: false, kind: raw.source, name: raw.name });
+  }
+}
+
+function chestById(id: string) {
+  return listDrops(profile).find((c) => c.id === id) || knownChests.find((c) => c.id === id && !c.missed && c.left.length) || null;
+}
+
+function showLoot(id: string) {
+  if (!chestById(id)) { toast("Сундук ещё считается"); return; }
+  if (battle && !battle.remote && !chestHold) {
+    battle.paused = true;
+    chestHold = true;
+  }
+  openChestId = id;
+  paintLoot(id);
+}
+
+function hideLoot() {
+  const panel = $<HTMLElement>("loot-panel");
+  if (panel) panel.hidden = true;
+  openChestId = "";
+  if (chestHold && battle) {
+    battle.paused = false;
+    chestHold = false;
+  }
+}
+
+function paintLoot(id: string) {
+  const panel = $<HTMLElement>("loot-panel");
+  const card = $<HTMLElement>("loot-card");
+  const chest = chestById(id);
+  if (!panel || !card || !chest) { hideLoot(); return; }
+  openChestId = id;
+  panel.hidden = false;
+  const rows = chest.items.filter((it) => chest.left.includes(it.id));
+  const openList = battle ? battle.chests.filter((c) => !c.open) : listDrops(profile);
+  const tabs = openList.length < 2 ? "" : openList.map((c) => {
+    const row = "left" in c ? c : chestById(c.id);
+    if (!row || !("source" in row)) return "";
+    return `<button type="button" class="btn${row.id === id ? " gold" : ""}" data-chest="${esc(row.id)}">${esc(row.name)}</button>`;
+  }).join("");
+  card.innerHTML = `<div class="row"><h2>Сундук</h2><button type="button" class="btn" id="loot-x">Закрыть</button></div>
+    <p>${esc(chest.name)} · ${chest.source === "boss" ? "босс" : "генерал"}. Свободно в сумке ${bagFree(profile)}.</p>
+    ${tabs ? `<div class="row chest-tabs">${tabs}</div>` : ""}
+    <div class="chest-rows">${rows.map((it) => {
+      const cmp = chestCompare(profile, it);
+      return `<article class="loot" style="border-color:${RARITY_COLOR[it.rarity]}"><div class="tip-head">${slotHtml(it, "")}<div><b style="color:${RARITY_COLOR[it.rarity]}">${esc(it.name)}</b><div>${RARITY_NAME[it.rarity]} · ур. ${it.ilvl}</div></div></div><div class="cmp"><div><b>Слот</b><span>${esc(cmp.slot)}</span></div><div><b>Надето</b><span>${esc(cmp.worn)}</span></div><div><b>В сундуке</b><span>${esc(cmp.next)}</span></div></div></article>`;
+    }).join("") || "<p>Пусто.</p>"}</div>
+    <div class="row"><button type="button" class="btn gold" id="loot-take">Забрать всё</button></div>
+    <p class="derived" id="loot-status"></p>`;
+  card.querySelector<HTMLButtonElement>("#loot-x")!.onclick = () => hideLoot();
+  card.querySelector<HTMLButtonElement>("#loot-take")!.onclick = () => { void claimChestNow(id); };
+  card.querySelectorAll<HTMLButtonElement>("[data-chest]").forEach((b) => { b.onclick = () => paintLoot(b.dataset.chest || id); });
+}
+
+function noteTake(id: string, r: { moved?: Item[]; left?: number; already?: boolean }) {
+  const moved = r.moved?.length || 0;
+  const left = r.left ?? 0;
+  const line = r.already && !moved ? "Уже забрано." : left ? `В сумке ${moved}. В сундуке осталось ${left}: места нет.` : moved ? `Забрано ${moved}.` : "Пусто.";
+  const known = knownChests.find((c) => c.id === id);
+  if (known && !left) known.left = [];
+  if (!left) {
+    const world = battle?.chests.find((c) => c.id === id);
+    if (world) world.open = true;
+    hideLoot();
+    toast(line);
+  } else if (openChestId === id) {
+    paintLoot(id);
+    const status = $<HTMLElement>("loot-status");
+    if (status) status.textContent = line;
+  } else toast(line);
+  paintPills();
+  if (view === "hub") renderHub();
+}
+
+async function claimChestNow(id: string) {
+  if (ws && ws.readyState === 1 && room) {
+    ws.send(JSON.stringify({ type: "take", id }));
+    return;
+  }
+  if (online) {
+    const data = await act({ op: "take", id });
+    if (!data || data.err) return;
+    noteTake(id, data.report || { moved: [], left: 0, already: true });
+    return;
+  }
+  const got = takeDrop(profile, id);
+  saveLocal();
+  if ("err" in got) return toast(got.err);
+  noteTake(id, got);
+}
+
+async function flushDrops(_now: number) {
+  if (!battle || battle.remote) return;
+  const live = battle;
+  for (const s of live.takeFresh()) waitDrops.push(s);
+  if (!waitDrops.length || dropFlight) return;
+  dropFlight++;
+  try {
+    const batch = waitDrops.splice(0, waitDrops.length);
+    for (const s of batch) {
+      if (battle !== live) return;
+      const again = await askDrop(s);
+      if (again && battle === live) waitDrops.push(s);
+    }
+  } finally {
+    dropFlight--;
+  }
+}
+
+async function askDrop(s: { id: string; name: string; x: number; y: number }): Promise<boolean> {
+  if (online) {
+    const data = await api("/musou/act", { op: "drop", source: s.id, name: s.name });
+    if (data?.profile) profile = normalize(data.profile);
+    if (!data) return true;
+    if (data.err) return String(data.err).includes("ещё не выходил");
+    const chest = data.report?.chest as PersonalChest | undefined;
+    if (chest) rememberChest(chest, s.x, s.y);
+    return false;
+  }
+  const r = noteDrop(profile, s.id, s.name, Date.now());
+  if ("err" in r) return r.err.includes("ещё не выходил");
+  saveLocal();
+  rememberChest(r.chest, s.x, s.y);
+  return false;
 }
 
 function openFloor() {
@@ -1216,6 +1374,12 @@ function bind() {
   $<HTMLButtonElement>("pause-leave").onclick = () => { $<HTMLElement>("pause").hidden = true; $<HTMLButtonElement>("flee").click(); };
   $<HTMLButtonElement>("flee").onclick = () => {
     if (!battle) return;
+    if (battle.bossDown) {
+      battle.reason = "win";
+      battle.phase = "won";
+      endFight();
+      return;
+    }
     battle.reason = "surrender";
     battle.phase = "lost";
     endFight();
@@ -1229,7 +1393,10 @@ function bind() {
     if (fresh && key === "p" && !room && battle) togglePause();
     if (key === "j") holding = true;
     if (fresh && key === "k") heavyQ = true;
-    if (fresh && key === "g") chestQ = true;
+    if (fresh && key === "g") {
+      if (openChestId) hideLoot();
+      else useQ = true;
+    }
     const map: Record<string, number> = { q: 1, e: 2, r: 3, f: 4 };
     if (fresh && map[key]) queueSkill(map[key]);
   });
@@ -1317,7 +1484,10 @@ function bind() {
   holdBtn("m-light", () => { holding = true; }, () => { holding = false; });
   holdBtn("m-heavy", () => { heavyQ = true; });
   holdBtn("m-dodge", () => { dodgeQ = true; });
-  holdBtn("m-chest", () => { chestQ = true; });
+  holdBtn("m-use", () => {
+    if (openChestId) hideLoot();
+    else useQ = true;
+  });
   document.getElementById("skills-touch")?.addEventListener("pointerdown", (e) => {
     const b = (e.target as HTMLElement).closest("button");
     if (!b) return;
