@@ -1,15 +1,27 @@
 ---
 import LpShell from '../../../components/loropedia/LpShell.astro';
 import LpCard from '../../../components/loropedia/LpCard.astro';
+import LpClosed from '../../../components/loropedia/LpClosed.astro';
 import StatusFilter from '../../../components/loropedia/StatusFilter.astro';
-import { LP, tagBySlug, article } from '../../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../../lib/loropedia/guard';
+import { bind, corpus, pageMode } from '../../../lib/loropedia/select';
 
-const t = tagBySlug(Astro.params.tag || '');
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+const view = bind(corpus(mode));
+const LP = view.data;
+const t = view.tagBySlug(Astro.params.tag || '');
 if (!t) return new Response(null, { status: 404, statusText: 'Not found' });
-const items = t.slugs.map(article).filter((x) => !!x).sort((a, b) => a!.title.localeCompare(b!.title, 'ru'));
+const items = t.slugs.map(view.article).filter((x) => !!x).sort((a, b) => a!.title.localeCompare(b!.title, 'ru'));
 const others = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(0, 40);
 ---
-<LpShell title={`#${t.name} — Лоропедия МоррисГрада`} description={`Статьи Лоропедии МоррисГрада с тегом «${t.name}»: ${items.length} шт.`} crumbs={[[`#${t.name}`, `/loropedia/tag/${t.slug}`]]}>
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} noindex>
+    <LpClosed />
+  </LpShell>
+) : (
+<LpShell title={`#${t.name} — Лоропедия МоррисГрада`} description={`Статьи Лоропедии МоррисГрада с тегом «${t.name}»: ${items.length} шт.`} crumbs={[[`#${t.name}`, `/loropedia/tag/${t.slug}`]]} noindex={spoil}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">#</span>
     <div><h1 class="lp-page-title">{t.name}</h1><p class="lp-page-sub">{items.length} статей с этим тегом</p></div>
@@ -21,3 +33,4 @@ const others = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slic
     <div class="lp-tagcloud">{others.map((x) => <a class:list={['lp-tag', { active: x.slug === t.slug }]} href={`/loropedia/tag/${x.slug}`}>#{x.name} <small>{x.slugs.length}</small></a>)}</div>
   </section>
 </LpShell>
+)}

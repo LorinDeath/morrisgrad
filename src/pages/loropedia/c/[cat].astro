@@ -1,9 +1,18 @@
 ---
 import LpShell from '../../../components/loropedia/LpShell.astro';
 import LpCard from '../../../components/loropedia/LpCard.astro';
+import LpClosed from '../../../components/loropedia/LpClosed.astro';
 import StatusFilter from '../../../components/loropedia/StatusFilter.astro';
-import { LP, category, inCategory, article, CAT_COLORS } from '../../../lib/loropedia';
+import { CAT_COLORS } from '../../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../../lib/loropedia/guard';
+import { bind, corpus, pageMode } from '../../../lib/loropedia/select';
 
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+const view = bind(corpus(mode));
+const LP = view.data;
+const { category, inCategory, article } = view;
 const c = category(Astro.params.cat || '');
 if (!c) return new Response(null, { status: 404, statusText: 'Not found' });
 if (c.slug === 'khronologiya-razdel') return Astro.redirect('/loropedia/khronologiya', 301);
@@ -21,7 +30,12 @@ if (c.slug === 'personazhi') {
 } else groups = [{ name: '', items }];
 const desc = `${c.name} летописи «Обитель смерти» — ${c.count} статей Лоропедии МоррисГрада. ${c.desc}.`;
 ---
-<LpShell title={`${c.name} — Лоропедия МоррисГрада`} description={desc} crumbs={[[c.name, `/loropedia/c/${c.slug}`]]}>
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} noindex>
+    <LpClosed />
+  </LpShell>
+) : (
+<LpShell title={`${c.name} — Лоропедия МоррисГрада`} description={desc} crumbs={[[c.name, `/loropedia/c/${c.slug}`]]} noindex={spoil}>
   <header class="lp-page-head" style={`--cat:${CAT_COLORS[c.slug]}`}>
     <span class="lp-page-icon" aria-hidden="true">{c.icon}</span>
     <div>
@@ -44,3 +58,4 @@ const desc = `${c.name} летописи «Обитель смерти» — ${c
     ))}
   </div>
 </LpShell>
+)}

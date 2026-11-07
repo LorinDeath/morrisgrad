@@ -1,0 +1,174 @@
+{
+  "contractVersion": "1.0.0",
+  "example": true,
+  "notice": "Учебный пример. Это не канон и не текст летописи.",
+  "books": [
+    { "id": "book:example", "title": "Учебная книга, не летопись" }
+  ],
+  "parts": [
+    { "id": "part:example.1", "bookId": "book:example", "partNumber": 1 }
+  ],
+  "chapters": [
+    { "id": "chapter:example.1", "bookId": "book:example", "chapterNumber": 1, "partId": "part:example.1" },
+    { "id": "chapter:example.2", "bookId": "book:example", "chapterNumber": 2, "partId": "part:example.1" }
+  ],
+  "fragments": [
+    {
+      "id": "frag:example.early",
+      "bookId": "book:example",
+      "chapterId": "chapter:example.1",
+      "partId": "part:example.1",
+      "quote": "EARLYQUOTE пример, не летопись",
+      "locator": "учебная книга, глава 1, абзац 1",
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 1, "partNumber": 1 },
+      "provenance": { "mode": "direct", "truthClaim": false }
+    },
+    {
+      "id": "frag:example.late",
+      "bookId": "book:example",
+      "chapterId": "chapter:example.2",
+      "partId": "part:example.1",
+      "quote": "LATESECRET пример поздней цитаты",
+      "locator": "учебная книга, глава 2, абзац 4",
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "memory", "truthClaim": false }
+    }
+  ],
+  "entities": [
+    {
+      "id": "ent:example.early",
+      "name": "Пример-ранний",
+      "aliases": ["Раннее прозвище"],
+      "tags": ["пример-тег"],
+      "infobox": [{ "label": "Роль", "text": "ранняя роль" }],
+      "sourceIds": ["frag:example.early"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 1, "partNumber": 1 },
+      "provenance": { "mode": "direct", "truthClaim": false },
+      "status": "canon"
+    },
+    {
+      "id": "ent:example.late",
+      "name": "LATENAME",
+      "aliases": ["LATEALIAS"],
+      "tags": ["late-tag"],
+      "infobox": [{ "label": "Роль", "text": "LATEBOX" }],
+      "sourceIds": ["frag:example.late"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "retelling", "truthClaim": false },
+      "status": "disputed"
+    }
+  ],
+  "facts": [
+    {
+      "id": "fact:example.early",
+      "text": "Ранний учебный факт.",
+      "sourceIds": ["frag:example.early"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 1, "partNumber": 1 },
+      "provenance": { "mode": "direct", "truthClaim": false },
+      "status": "canon"
+    },
+    {
+      "id": "fact:example.late",
+      "text": "LATEFACT поздний учебный факт.",
+      "sourceIds": ["frag:example.late"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "memory", "truthClaim": false },
+      "status": "disputed"
+    }
+  ],
+  "events": [
+    {
+      "id": "event:example.late",
+      "text": "LATEEVENT позднее учебное событие.",
+      "sourceIds": ["frag:example.late"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "retelling", "truthClaim": false },
+      "status": "disputed"
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel:example.late",
+      "kind": "knows",
+      "fromId": "ent:example.early",
+      "toId": "ent:example.late",
+      "label": "LATEREL",
+      "sourceIds": ["frag:example.late"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "memory", "truthClaim": false },
+      "status": "disputed"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev:example.for",
+      "stance": "for",
+      "text": "Учебный довод за, не летопись.",
+      "sourceIds": ["frag:example.early"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 1, "partNumber": 1 },
+      "provenance": { "mode": "direct", "truthClaim": false },
+      "status": "canon"
+    },
+    {
+      "id": "ev:example.against",
+      "stance": "against",
+      "text": "LATEAGAINST учебный довод против.",
+      "sourceIds": ["frag:example.late"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "memory", "truthClaim": false },
+      "status": "disputed"
+    },
+    {
+      "id": "ev:example.gap",
+      "stance": "gap",
+      "text": "LATEGAP учебный пробел.",
+      "sourceIds": ["frag:example.late"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "unknown", "truthClaim": false },
+      "status": "ref"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "hyp:example.guess",
+      "kind": "historian-guess",
+      "label": "Предположения Историка — не канон",
+      "claim": "GUESSCLAIM учебное предположение.",
+      "hideable": true,
+      "readerResult": false,
+      "sourceIds": ["frag:example.early"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 1, "partNumber": 1 },
+      "provenance": { "mode": "direct", "truthClaim": false },
+      "status": "ref"
+    }
+  ],
+  "derived": [
+    {
+      "id": "route:example.late",
+      "kind": "route",
+      "text": "LATEROUTE необязательный учебный маршрут.",
+      "optional": true,
+      "sourceIds": ["fact:example.late"]
+    }
+  ],
+  "images": [
+    {
+      "id": "img:example.early",
+      "alt": "EARLYALT",
+      "reconstruction": false,
+      "generated": false,
+      "sourceIds": ["frag:example.early"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 1, "partNumber": 1 },
+      "provenance": { "mode": "direct", "truthClaim": false }
+    },
+    {
+      "id": "img:example.late",
+      "alt": "LATEALT реконструкция",
+      "reconstruction": true,
+      "generated": false,
+      "sourceIds": ["frag:example.late"],
+      "spoilerFrom": { "bookId": "book:example", "chapterNumber": 2, "partNumber": 1 },
+      "provenance": { "mode": "memory", "truthClaim": false }
+    }
+  ]
+}

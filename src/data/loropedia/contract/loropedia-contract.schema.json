@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrisgrad.com/loropedia/contract/v1",
+  "title": "LoropediaContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "books", "chapters", "parts", "fragments", "entities", "facts", "events", "relations", "evidence", "hypotheses", "derived", "images"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "example": { "type": "boolean" },
+    "notice": { "type": "string", "minLength": 1 },
+    "books": { "type": "array", "items": { "$ref": "#/$defs/book" } },
+    "chapters": { "type": "array", "items": { "$ref": "#/$defs/chapter" } },
+    "parts": { "type": "array", "items": { "$ref": "#/$defs/part" } },
+    "fragments": { "type": "array", "items": { "$ref": "#/$defs/fragment" } },
+    "entities": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "facts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } },
+    "relations": { "type": "array", "items": { "$ref": "#/$defs/relation" } },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+    "hypotheses": { "type": "array", "items": { "$ref": "#/$defs/hypothesis" } },
+    "derived": { "type": "array", "items": { "$ref": "#/$defs/derived" } },
+    "images": { "type": "array", "items": { "$ref": "#/$defs/image" } }
+  },
+  "x-contractVersion": "1.0.0",
+  "x-historianGuessLabel": "Предположения Историка — не канон",
+  "x-forbiddenGuessLabels": ["Идея Алекса"],
+  "x-surfaces": ["title", "aliases", "body", "infobox", "excerpts", "links", "images", "alt", "search", "snippets", "tags", "counts", "chronology", "graph", "previews", "sourceTitles", "metadata"],
+  "x-idPrefixes": ["book", "chapter", "part", "frag", "ent", "fact", "event", "rel", "ev", "hyp", "route", "img"],
+  "x-ux": {
+    "readerControlsInvestigation": true,
+    "entry": "free",
+    "hooks": "optional",
+    "order": "reader-chosen",
+    "routes": "optional",
+    "hints": "on-request-only",
+    "tutorial": "none",
+    "lockedSteps": false,
+    "imposedConclusion": false,
+    "readerVersions": "mutable-and-rejectable",
+    "historianHypotheses": "hideable",
+    "authorSpeculationIsNotReaderResult": true,
+    "spoilerFilterOnFreeNavigation": true,
+    "fieldsRequiredBeforeFirstAction": [],
+    "firstActionMayBe": ["open-loropedia", "toggle-protection", "set-one-book-cursor", "write-local-note"]
+  },
+  "x-stages": [
+    { "id": 1, "status": "this", "delivers": ["schema", "validator", "projector", "local-progress", "leak-tests", "opt-in-protected-shell"], "dependsOn": [] },
+    { "id": 2, "status": "blocked", "delivers": ["annotated-corpus-for-three-books-and-part-9"], "dependsOn": [1], "blockedBecause": "Историк ещё не передал проверенную разметку. Главы и цитаты не угадываются." },
+    { "id": 3, "status": "later", "delivers": ["investigation-ui"], "dependsOn": [2] },
+    { "id": 4, "status": "later", "delivers": ["mechanics-only-where-annotated-data-exists"], "dependsOn": [2], "note": "Пустые вкладки не выпускаются. Одиннадцать механик описаны как будущие kind, не как экраны." }
+  ],
+  "x-mechanicsLater": [
+    "dossier-at-cursor",
+    "investigation-for-against-gap",
+    "who-knows",
+    "artifact-path",
+    "scene-comparison",
+    "optional-routes",
+    "personal-chronicle",
+    "letter-archive",
+    "pair-by-scene",
+    "direct-memory-retelling",
+    "illustrated-walk"
+  ],
+  "x-boundaries": {
+    "openArchive": "Без cookie lp_protect=1 адрес /loropedia остаётся прежней энциклопедией: те же URL, тот же HTML, те же арты. Его индексируют поисковики.",
+    "protectedShell": "С cookie сервер не вставляет в HTML название, алиасы, тело, инфобокс, выдержки, связи, alt, поиск, теги статей, счётчики, хронологию, граф, превью и подписи источников. У 161 статей нет provenance, поэтому закрывается вся страница, а не «поздний абзац».",
+    "rawFiles": "data.json, search.json и картинки по-прежнему лежат в открытом сайте. Защита не делает их секретными. Она убирает случайный спойлер в интерфейсе.",
+    "noJs": "Защищённый ответ и без JavaScript не содержит текста статей. Открытый архив без cookie по-прежнему виден без JavaScript.",
+    "seo": "Защищённый ответ отдаётся с noindex. Общий sitemap и открытые статьи не прячутся: это уже опубликованный архив.",
+    "progress": "Номер главы и номер части хранятся в localStorage этого браузера, отдельно по книге. На сервер не отправляются. Cookie несёт только признак защиты.",
+    "notes": "Личные заметки только в браузере. В ссылке для другого человека их нет. Импорт ссылки не меняет прогресс и не показывает то, что собственный фильтр закрыл.",
+    "cursorDoesNotOpenLegacy": "Сохранённая глава не открывает нынешние статьи: для них нет проверенной пометки spoilerFrom.",
+    "unknownProvenance": "Нет provenance, mode=unknown или truthClaim не false — в защите закрыто. Это не эвристика «наверно рано».",
+    "partIsNotChapter": "chapterNumber и partNumber — разные числа. Номер части не подставляется вместо номера главы."
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^(book|chapter|part|frag|ent|fact|event|rel|ev|hyp|route|img):[a-z0-9]+(?:[.][a-z0-9]+)*$" },
+    "status": { "enum": ["canon", "disputed", "ref"] },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "truthClaim"],
+      "properties": {
+        "mode": { "enum": ["direct", "memory", "retelling", "unknown"] },
+        "truthClaim": { "const": false }
+      }
+    },
+    "spoilerFrom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bookId", "chapterNumber", "partNumber"],
+      "properties": {
+        "bookId": { "$ref": "#/$defs/id" },
+        "chapterNumber": { "type": "integer", "minimum": 0 },
+        "partNumber": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "sourced": {
+      "type": "object",
+      "required": ["sourceIds", "spoilerFrom", "provenance", "status"],
+      "properties": {
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "book": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "type": "string", "minLength": 1 }
+      }
+    },
+    "chapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "bookId", "chapterNumber", "partId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "bookId": { "$ref": "#/$defs/id" },
+        "chapterNumber": { "type": "integer", "minimum": 1 },
+        "partId": { "type": ["string", "null"] }
+      }
+    },
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "bookId", "partNumber"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "bookId": { "$ref": "#/$defs/id" },
+        "partNumber": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "fragment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "bookId", "chapterId", "partId", "quote", "locator", "spoilerFrom", "provenance"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "bookId": { "$ref": "#/$defs/id" },
+        "chapterId": { "$ref": "#/$defs/id" },
+        "partId": { "type": ["string", "null"] },
+        "quote": { "type": "string", "minLength": 1 },
+        "locator": { "type": "string", "minLength": 1 },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "aliases", "tags", "infobox", "sourceIds", "spoilerFrom", "provenance", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "infobox": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "text"],
+            "properties": { "label": { "type": "string" }, "text": { "type": "string" } }
+          }
+        },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "sourceIds", "spoilerFrom", "provenance", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "text": { "type": "string", "minLength": 1 },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "sourceIds", "spoilerFrom", "provenance", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "text": { "type": "string", "minLength": 1 },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "fromId", "toId", "label", "sourceIds", "spoilerFrom", "provenance", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["knows", "artifact-path", "scene-comparison", "pair-scene", "other"] },
+        "fromId": { "$ref": "#/$defs/id" },
+        "toId": { "$ref": "#/$defs/id" },
+        "label": { "type": "string" },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "stance", "text", "sourceIds", "spoilerFrom", "provenance", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "stance": { "enum": ["for", "against", "gap"] },
+        "text": { "type": "string", "minLength": 1 },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "claim", "hideable", "readerResult", "sourceIds", "spoilerFrom", "provenance", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "const": "historian-guess" },
+        "label": { "const": "Предположения Историка — не канон" },
+        "claim": { "type": "string", "minLength": 1 },
+        "hideable": { "const": true },
+        "readerResult": { "const": false },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "derived": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "text", "optional", "sourceIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["route", "comparison", "dossier", "walk", "graph", "search-snippet", "count"] },
+        "text": { "type": "string" },
+        "optional": { "const": true },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "alt", "reconstruction", "generated", "sourceIds", "spoilerFrom", "provenance"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "alt": { "type": "string" },
+        "reconstruction": { "type": "boolean" },
+        "generated": { "const": false },
+        "sourceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "spoilerFrom": { "$ref": "#/$defs/spoilerFrom" },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "readerAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bookId": { "$ref": "#/$defs/id" },
+        "chapterNumber": { "type": ["integer", "null"], "minimum": 0 },
+        "partNumber": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    }
+  }
+}

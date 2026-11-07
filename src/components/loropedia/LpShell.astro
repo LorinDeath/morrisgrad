@@ -1,7 +1,9 @@
 ---
 // Каркас всех страниц Лоропедии: общий Layout сайта + своя навигация, крошки и поиск.
 import Layout from '../../layouts/Layout.astro';
+import LpReader from './LpReader.astro';
 import { breadcrumbs } from '../../lib/seo';
+import { PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
 import '../../styles/loropedia.css';
 
 interface Props {
@@ -15,6 +17,7 @@ interface Props {
   noindex?: boolean;
 }
 const { title, description, image = null, type = 'website', crumbs = [], active, jsonLd = [], noindex = false } = Astro.props;
+const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 const trail: [string, string][] = [['Лоропедия', '/loropedia'], ...crumbs];
 const q = Astro.url.searchParams.get('q') || '';
 const nav = [
@@ -26,7 +29,7 @@ const nav = [
 ---
 <Layout title={title} description={description} image={image} type={type} robots={noindex ? 'noindex,follow' : null}
   jsonLd={[breadcrumbs([['Главная', '/'], ...trail]), ...jsonLd]}>
-  <div class="lp container">
+  <div class="lp container" data-lp-protect={protect ? '1' : '0'}>
     <div class="lp-topbar">
       <a class="lp-brand" href="/loropedia">
         <span class="lp-brand-mark" aria-hidden="true">📜</span>
@@ -40,6 +43,7 @@ const nav = [
         <button type="submit" aria-label="Искать">⌕</button>
       </form>
     </div>
+    <LpReader />
     {trail.length > 1 && (
       <nav class="lp-crumbs" aria-label="Навигационная цепочка">
         {trail.map(([name, path], i) => i < trail.length - 1

@@ -1,11 +1,25 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
+import LpClosed from '../../components/loropedia/LpClosed.astro';
 import StatusBadge from '../../components/loropedia/StatusBadge.astro';
 import EgoMap from '../../components/loropedia/EgoMap.astro';
-import { LP, article, category, CAT_COLORS } from '../../lib/loropedia';
+import { LP as PUBLIC, CAT_COLORS } from '../../lib/loropedia';
 import { clip } from '../../lib/seo';
+import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
+import { bind, corpus, knownSlug, pageMode } from '../../lib/loropedia/select';
 
-const a = article(Astro.params.slug || '');
+const slug = Astro.params.slug || '';
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+if (!knownSlug(slug)) return new Response(null, { status: 404, statusText: 'Not found' });
+if (!spoil && !PUBLIC.articles.some((item) => item.slug === slug)) return new Response(null, { status: 404, statusText: 'Not found' });
+const view = bind(corpus(mode));
+const LP = view.data;
+const article = view.article;
+const category = view.category;
+const a = article(slug);
 if (!a) return new Response(null, { status: 404, statusText: 'Not found' });
 const cat = category(a.cat)!;
 const isTimeline = a.type === 'хронология';
@@ -23,8 +37,13 @@ const ld = { '@context': 'https://schema.org', '@type': 'Article', headline: a.t
   isPartOf: { '@type': 'CollectionPage', name: 'Лоропедия МоррисГрада', url: 'https://morrisgrad.com/loropedia' }, keywords: [...a.tags, ...a.aliases].join(', ') };
 const showToc = a.toc.length >= 2 || isTimeline;
 ---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} noindex>
+    <LpClosed />
+  </LpShell>
+) : (
 <LpShell title={`${a.title} — Лоропедия МоррисГрада`} description={desc} image={a.image?.jpg} type="article" crumbs={crumbs}
-  active={isTimeline ? 'timeline' : undefined} jsonLd={[ld]}>
+  active={isTimeline ? 'timeline' : undefined} jsonLd={[ld]} noindex={spoil}>
   <article class="lp-article" style={`--cat:${CAT_COLORS[a.cat] || '#c9a86c'}`} data-pagefind-body>
     <header class="lp-art-head">
       <a class="lp-art-cat" href={isTimeline ? '/loropedia' : `/loropedia/c/${cat.slug}`}><span aria-hidden="true">{cat.icon}</span> {cat.name}</a>
@@ -36,7 +55,14 @@ const showToc = a.toc.length >= 2 || isTimeline;
       </div>
     </header>
 
-    {nonCanon && (
+    {spoil && <p class="lp-spoil-banner" role="note">Полный редакторский текст. Это не открытие по проверенным фактам.</p>}
+    {a.historianGuess && (
+      <div class="lp-banner lp-guess-banner" role="note">
+        <span class="lp-banner-icon" aria-hidden="true">💭</span>
+        <div><b>{HISTORIAN_GUESS_LABEL}.</b> Это не замысел автора и не вывод читателя.</div>
+      </div>
+    )}
+    {nonCanon && !a.historianGuess && (
       <div class="lp-banner lp-banner-idea" role="note">
         <span class="lp-banner-icon" aria-hidden="true">💡</span>
         <div><b>Не канон.</b> Этого нет в тексте книги: замысел или додумка автора. Может измениться или так и не появиться в летописи.</div>
@@ -152,3 +178,4 @@ const showToc = a.toc.length >= 2 || isTimeline;
     </div>
   </article>
 </LpShell>
+)}

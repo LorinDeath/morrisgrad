@@ -1,0 +1,4761 @@
+{
+ "contractVersion": "1.0.0",
+ "notice": "Корпус Историка для трёх книг. truthClaim=false везде; canon = «так лежит в указанном источнике».",
+ "books": [
+  {
+   "id": "book:obitel",
+   "title": "Летопись «Обитель смерти»"
+  },
+  {
+   "id": "book:pravednye",
+   "title": "Праведные коты"
+  },
+  {
+   "id": "book:kill",
+   "title": "KILL"
+  }
+ ],
+ "chapters": [
+  {
+   "id": "chapter:obitel.c01",
+   "bookId": "book:obitel",
+   "chapterNumber": 1,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c02",
+   "bookId": "book:obitel",
+   "chapterNumber": 2,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c03",
+   "bookId": "book:obitel",
+   "chapterNumber": 3,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c04",
+   "bookId": "book:obitel",
+   "chapterNumber": 4,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c05",
+   "bookId": "book:obitel",
+   "chapterNumber": 5,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c06",
+   "bookId": "book:obitel",
+   "chapterNumber": 6,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c07",
+   "bookId": "book:obitel",
+   "chapterNumber": 7,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c08",
+   "bookId": "book:obitel",
+   "chapterNumber": 8,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c09",
+   "bookId": "book:obitel",
+   "chapterNumber": 9,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c10",
+   "bookId": "book:obitel",
+   "chapterNumber": 10,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c11",
+   "bookId": "book:obitel",
+   "chapterNumber": 11,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c12",
+   "bookId": "book:obitel",
+   "chapterNumber": 12,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c13",
+   "bookId": "book:obitel",
+   "chapterNumber": 13,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c14",
+   "bookId": "book:obitel",
+   "chapterNumber": 14,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c15",
+   "bookId": "book:obitel",
+   "chapterNumber": 15,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c16",
+   "bookId": "book:obitel",
+   "chapterNumber": 16,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c17",
+   "bookId": "book:obitel",
+   "chapterNumber": 17,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c18",
+   "bookId": "book:obitel",
+   "chapterNumber": 18,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c19",
+   "bookId": "book:obitel",
+   "chapterNumber": 19,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c20",
+   "bookId": "book:obitel",
+   "chapterNumber": 20,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c21",
+   "bookId": "book:obitel",
+   "chapterNumber": 21,
+   "partId": null
+  },
+  {
+   "id": "chapter:obitel.c22",
+   "bookId": "book:obitel",
+   "chapterNumber": 22,
+   "partId": null
+  },
+  {
+   "id": "chapter:pravednye.c01",
+   "bookId": "book:pravednye",
+   "chapterNumber": 1,
+   "partId": null
+  },
+  {
+   "id": "chapter:kill.c01",
+   "bookId": "book:kill",
+   "chapterNumber": 1,
+   "partId": null
+  }
+ ],
+ "parts": [],
+ "fragments": [
+  {
+   "id": "frag:obitel.c03.p6",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c03",
+   "partId": null,
+   "quote": "С таким клинком, красавица, ты, должно быть, рубишь не только ледяные глыбы, но и мужские сердца",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И1.2 Дети ночи» = главa 3 книги; файл sources/ch_03.txt (sha256 83c42d35dc08f300b67127f97d898e7eca77f10aec8de7a20e0be31493b806d1); абзац 6 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 3,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c04.p3",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c04",
+   "partId": null,
+   "quote": "Осторожнее со сталью, котик!",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И1.3 Пламя» = главa 4 книги; файл sources/ch_04.txt (sha256 ddd42c4e9fc17f405948f0b641cbabcc915c3751d4f090c2e2dd461095db0463); абзац 3 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 4,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c07.p2",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c07",
+   "partId": null,
+   "quote": "В мгновение ока она оказалась прямо перед Нофордом, самоотверженно заслоняя его своим хрупким телом",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И1.6 Чёрная магия» = главa 7 книги; файл sources/ch_07.txt (sha256 d9f59317e5eb366635d1a581c1d22ff8e5639125f330df6497f18e1651cbc7ac); абзац 2 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 7,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c08.p6",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c08",
+   "partId": null,
+   "quote": "А то я, кажется, женюсь!",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И1.7 Кавега» = главa 8 книги; файл sources/ch_08.txt (sha256 c918aff8664cab1d4e1f8a72ba38caa7aca0443978e27a6b2c390a4d143bc2d2); абзац 6 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 8,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c08.p21",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c08",
+   "partId": null,
+   "quote": "Моя будущая жена полна тайн.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И1.7 Кавега» = главa 8 книги; файл sources/ch_08.txt (sha256 c918aff8664cab1d4e1f8a72ba38caa7aca0443978e27a6b2c390a4d143bc2d2); абзац 21 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 8,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c10.p12",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c10",
+   "partId": null,
+   "quote": "познакомить невесту с Дар",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «Гл.2 Тёплый вечер» = главa 10 книги; файл sources/ch_10.txt (sha256 bab8e98bbfa1978248c71936eafabd665d632976aa153e361e70d73ddd6d0048); абзац 12 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 10,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c17.p79",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c17",
+   "partId": null,
+   "quote": "на прощание чмокнув Нофорда в щеку",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.4 Готический замок» = главa 17 книги; файл sources/ch_17.txt (sha256 af934cbc61c64ab8ea762297048d29eb69af8d1660d80588f0727c72998c414d); абзац 79 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 17,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c20.p131",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c20",
+   "partId": null,
+   "quote": "Я с тобой, котик",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.7 Незаконченное дело» = главa 20 книги; файл sources/ch_20.txt (sha256 4db0395a201000fbbea34563f54071446a36ede8299f5d95dfe6de8d5ed1421a); абзац 131 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c20.p148",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c20",
+   "partId": null,
+   "quote": "Кьют, держащая Нофорда за руку",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.7 Незаконченное дело» = главa 20 книги; файл sources/ch_20.txt (sha256 4db0395a201000fbbea34563f54071446a36ede8299f5d95dfe6de8d5ed1421a); абзац 148 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p69",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "Я позвал пламя, а пламя спит. И оно утянуло меня за собой",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 69 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p76",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "И белки его глаз начали чернеть.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 76 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p78",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "Кавега никогда не видел этого кинжала",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 78 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p83",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "— Ты меня видишь? — шепотом спросил Нофорд.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 83 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p90",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "Глаза у него были обычные. Белые. Веселые.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 90 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p101",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "Ничего, Госпожа. Показалось.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 101 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p102",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "Он врал. Он врал мне впервые, и делал это плохо.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 102 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p104",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "А что это с вами, мальчики?",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 104 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p3",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "долго разглядывал в ней свое отражение, оттягивая пальцами веки",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 3 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c20.p88",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c20",
+   "partId": null,
+   "quote": "У Кавеги, у Петра, у Нофорда склеры снова побелели.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.7 Незаконченное дело» = главa 20 книги; файл sources/ch_20.txt (sha256 4db0395a201000fbbea34563f54071446a36ede8299f5d95dfe6de8d5ed1421a); абзац 88 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c18.p68",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c18",
+   "partId": null,
+   "quote": "Черные склеры. Красные зрачки. Чужая сила, перетекающая в чужие тела",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.5 Чёрный взгляд» = главa 18 книги; файл sources/ch_18.txt (sha256 a5ae9df8bec87ac1ecee072989467e54afb7ec36dba92f64b630fc7292991d92); абзац 68 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 18,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p106",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Не показалось.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 106 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p107",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "был ли это вообще Нофорд",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 107 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p98",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Нофорд убил своих возлюбленных. Троих. Его будут судить.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 98 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p100",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Больше я сейчас ничего сказать не могу.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 100 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p96",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "будто он говорил, прикрыв рот ладонью",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 96 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p114",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Нофорда будут судить, — сказал он наконец. — Он убил троих.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 114 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p270",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Я ещё не был на месте. Я не видел ни тел, ни его.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 270 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p280",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Я не знаю, что произошло.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 280 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p116",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Нофорд, над которым Кьют мурлыкала утешения. Убил троих?",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 116 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p107.q1",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "где остались Мэл, Знахарь, Кьют",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 107 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c09.p14",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c09",
+   "partId": null,
+   "quote": "По прозрачному лезвию, искажая преломленный свет, судорожно бегали темные, пиксельные пятна — глитчи.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «Гл.1 Любопытство во льду» = главa 9 книги; файл sources/ch_09.txt (sha256 dc8ed5e837d9317ac5e433744a3a3d077271e0645fb4ccd85f72513a35b7a590); абзац 14 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c09.p15",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c09",
+   "partId": null,
+   "quote": "Это был предмет из другого, совершенно иного мира",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «Гл.1 Любопытство во льду» = главa 9 книги; файл sources/ch_09.txt (sha256 dc8ed5e837d9317ac5e433744a3a3d077271e0645fb4ccd85f72513a35b7a590); абзац 15 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c09.p28",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c09",
+   "partId": null,
+   "quote": "от раны по его телу поползла стремительная, мертвенно-синяя корка льда",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «Гл.1 Любопытство во льду» = главa 9 книги; файл sources/ch_09.txt (sha256 dc8ed5e837d9317ac5e433744a3a3d077271e0645fb4ccd85f72513a35b7a590); абзац 28 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c12.p7",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c12",
+   "partId": null,
+   "quote": "Кэйдж",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «Гл.4 Темнейший из светлейших» = главa 12 книги; файл sources/ch_12.txt (sha256 ddd156049e8d78de730f3aa62c4d9814a1859d1ca162241f0bf256a268af8c4c); абзац 7 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 12,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c09.p35",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c09",
+   "partId": null,
+   "quote": "взорвалось тысячами ледяных осколков",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «Гл.1 Любопытство во льду» = главa 9 книги; файл sources/ch_09.txt (sha256 dc8ed5e837d9317ac5e433744a3a3d077271e0645fb4ccd85f72513a35b7a590); абзац 35 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c12.p28",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c12",
+   "partId": null,
+   "quote": "Это был ледяной кинжал, созданный словно из чешуи ледяного дракона",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «Гл.4 Темнейший из светлейших» = главa 12 книги; файл sources/ch_12.txt (sha256 ddd156049e8d78de730f3aa62c4d9814a1859d1ca162241f0bf256a268af8c4c); абзац 28 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 12,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c18.p14",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c18",
+   "partId": null,
+   "quote": "Он сломал систему один раз — кинжалом, чужой, украденной силой.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.5 Чёрный взгляд» = главa 18 книги; файл sources/ch_18.txt (sha256 a5ae9df8bec87ac1ecee072989467e54afb7ec36dba92f64b630fc7292991d92); абзац 14 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 18,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p21",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "Точка А, — подумал он, прикидывая. — Я. Точка Б — клинок.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 21 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c19.p108",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c19",
+   "partId": null,
+   "quote": "Ледяной клинок торчал в стене напротив окна, вогнанный по самую рукоять",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.6 Замкнутый круг» = главa 19 книги; файл sources/ch_19.txt (sha256 3d8f16b73cc29dba2f5dce7527337471edf6de84208d17dbf7adca0c44f36c3f); абзац 108 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c20.p79",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c20",
+   "partId": null,
+   "quote": "клинок, не встретив цели, прошил пустоту, пролетел над поляной и вонзился в ствол одинокого дерева",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.7 Незаконченное дело» = главa 20 книги; файл sources/ch_20.txt (sha256 4db0395a201000fbbea34563f54071446a36ede8299f5d95dfe6de8d5ed1421a); абзац 79 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p68",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "«Обморожение».",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 68 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p78",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Обычная рука, испачканная серым и красным. Никаких искр.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 78 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p80",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Как стрелка компаса.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 80 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p206",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "его рука в чёрной кожаной перчатке взметнулась вверх, и пальцы сомкнулись на лезвии",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 206 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p208",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "И в ту же секунду клинок сделал то, что делал всегда. Точка А, точка Б.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 208 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p220",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Он медленно стянул с правой руки окровавленную перчатку. Посмотрел на неё. И швырнул Ликёру в лицо.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 220 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p224",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Немного крови щитоносца, наверное, с разбитых костяшек.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 224 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p230",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "И перчатка её выпила.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 230 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p231",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Тёмные. Не синие, не белые, а тёмные, почти чёрные, с фиолетовым отсветом.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 231 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p234",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "И обе тянули его холодом. Одинаковым холодом.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 234 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p236",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Перчатка силы. А что, звучит.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 236 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p241",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Крыса, — сказал он. — Большая.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 241 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p114",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Лет двенадцати, не больше.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 114 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p127",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Голой ладонью.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 127 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p141",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Тише, малыш. Никто тебя не тронет. Слышишь?",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 141 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p148",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "— Мариэль, — поправился он. Еще тише.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 148 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p154",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Мы уже сделали плохое",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 154 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p164",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Он торопился не напасть. Он торопился встать между нами и своим домом.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 164 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p168",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Потому что я захотела узнать, откуда прилетают железные птицы.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 168 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p10",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Ради железной птицы, которая перелетела через океан",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 10 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p178",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "Я ее старшей сестрой называла.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 178 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p180",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "И глаза красные.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 180 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c21.p185",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c21",
+   "partId": null,
+   "quote": "А вы убили моего отца",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.8 Чужое убежище» = главa 21 книги; файл sources/ch_21.txt (sha256 fe84871836167a4a93297336ff78af51ec5e2bca26d60a09e15a88303f22f9f6); абзац 185 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p16",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Чтобы она могла видеть меня, если захочет. Не ближе.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 16 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p21",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Чтобы не услышал сын.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 21 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "memory",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p23",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Помню, как сын стоял в дверях, и руки у него были вытянуты вперёд, и они тряслись.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 23 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "memory",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p26",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Дальше было белое небо и Обитель.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 26 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "memory",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p28",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Мне не хотелось думать, что моё горе даёт мне право понимать её. Оно не давало.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 28 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p70",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Не протянула ей в руки. Просто поставила.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 70 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p75",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Вы меня не трогаете",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 75 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p132",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Не надо будет нас любить. Просто жить.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 132 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p139",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Это твоё решение.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 139 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p143",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Дров осталось на два дня. Рыбы нет.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 143 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p151",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Я пойду, — сказала она наконец. — Но не потому, что вы хорошие.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 151 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p171",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Мы оставили его целым.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 171 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p251",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Она не взяла мою руку. Она взялась за лямку мешка Петра.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 251 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p259",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "На моём плече.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 259 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:obitel.c22.p276",
+   "bookId": "book:obitel",
+   "chapterId": "chapter:obitel.c22",
+   "partId": null,
+   "quote": "Девочка проснулась, вздрогнула и отодвинулась от меня.",
+   "locator": "obitel.fb2 (sha256 7be32d2552afde49d07e4cd932bbb413d0c0704c0bb1bffb21fd6135579b919d); глава «И2.9 Разбитая душа» = главa 22 книги; файл sources/ch_22.txt (sha256 00c68624d2890815065526ca519352bed0cec90d87ad0ec8b86bac3089d019f9); абзац 276 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:pravednye.c01.p8",
+   "bookId": "book:pravednye",
+   "chapterId": "chapter:pravednye.c01",
+   "partId": null,
+   "quote": "сквозь щели которого угадывалось слабое, болезненное мерцание магического купола",
+   "locator": "pravednye.fb2 (sha256 42e74381fb02bcc533f9e91363c21b96b05f4c55490fbd75f6e869498fab53a6); глава «Праведные коты — Пробуждение» = главa 1 книги; файл sources/ch_24.txt (sha256 f01dab2dea4438b727d8478ca5482487874863fed6fb36d1410d2d4c86ecd5d7); абзац 8 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:pravednye.c01.p16",
+   "bookId": "book:pravednye",
+   "chapterId": "chapter:pravednye.c01",
+   "partId": null,
+   "quote": "А в его руке был намертво зажат кинжал.",
+   "locator": "pravednye.fb2 (sha256 42e74381fb02bcc533f9e91363c21b96b05f4c55490fbd75f6e869498fab53a6); глава «Праведные коты — Пробуждение» = главa 1 книги; файл sources/ch_24.txt (sha256 f01dab2dea4438b727d8478ca5482487874863fed6fb36d1410d2d4c86ecd5d7); абзац 16 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:pravednye.c01.p19",
+   "bookId": "book:pravednye",
+   "chapterId": "chapter:pravednye.c01",
+   "partId": null,
+   "quote": "И пронзительные, невыносимо яркие фиолетовые глаза.",
+   "locator": "pravednye.fb2 (sha256 42e74381fb02bcc533f9e91363c21b96b05f4c55490fbd75f6e869498fab53a6); глава «Праведные коты — Пробуждение» = главa 1 книги; файл sources/ch_24.txt (sha256 f01dab2dea4438b727d8478ca5482487874863fed6fb36d1410d2d4c86ecd5d7); абзац 19 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:pravednye.c01.p84",
+   "bookId": "book:pravednye",
+   "chapterId": "chapter:pravednye.c01",
+   "partId": null,
+   "quote": "Листаф? Кто, черт возьми, такой Листаф?",
+   "locator": "pravednye.fb2 (sha256 42e74381fb02bcc533f9e91363c21b96b05f4c55490fbd75f6e869498fab53a6); глава «Праведные коты — Пробуждение» = главa 1 книги; файл sources/ch_24.txt (sha256 f01dab2dea4438b727d8478ca5482487874863fed6fb36d1410d2d4c86ecd5d7); абзац 84 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:pravednye.c01.p96",
+   "bookId": "book:pravednye",
+   "chapterId": "chapter:pravednye.c01",
+   "partId": null,
+   "quote": "тот самый молот, с которого еще капала кровь моей \"матери\"",
+   "locator": "pravednye.fb2 (sha256 42e74381fb02bcc533f9e91363c21b96b05f4c55490fbd75f6e869498fab53a6); глава «Праведные коты — Пробуждение» = главa 1 книги; файл sources/ch_24.txt (sha256 f01dab2dea4438b727d8478ca5482487874863fed6fb36d1410d2d4c86ecd5d7); абзац 96 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:pravednye.c01.p118",
+   "bookId": "book:pravednye",
+   "chapterId": "chapter:pravednye.c01",
+   "partId": null,
+   "quote": "— Убить!",
+   "locator": "pravednye.fb2 (sha256 42e74381fb02bcc533f9e91363c21b96b05f4c55490fbd75f6e869498fab53a6); глава «Праведные коты — Пробуждение» = главa 1 книги; файл sources/ch_24.txt (sha256 f01dab2dea4438b727d8478ca5482487874863fed6fb36d1410d2d4c86ecd5d7); абзац 118 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:pravednye.c01.p132",
+   "bookId": "book:pravednye",
+   "chapterId": "chapter:pravednye.c01",
+   "partId": null,
+   "quote": "Мой череп разлетелся на куски под тяжестью стали",
+   "locator": "pravednye.fb2 (sha256 42e74381fb02bcc533f9e91363c21b96b05f4c55490fbd75f6e869498fab53a6); глава «Праведные коты — Пробуждение» = главa 1 книги; файл sources/ch_24.txt (sha256 f01dab2dea4438b727d8478ca5482487874863fed6fb36d1410d2d4c86ecd5d7); абзац 132 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:kill.c01.p1",
+   "bookId": "book:kill",
+   "chapterId": "chapter:kill.c01",
+   "partId": null,
+   "quote": "В полуразрушенной лачуге за чертой пульсирующего купола",
+   "locator": "kill.fb2 (sha256 371b392030b79ce80d51f5b4df9e9ee6d88a5493772ff058f8a839dcc91b73a7); глава «KILL — Глава 0. Не главный герой» = главa 1 книги; файл sources/ch_26.txt (sha256 c67c037e3bed9bc246f9093f4468c916bf8990488eb37c803315cf9b8a089ca4); абзац 1 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:kill.c01.p38",
+   "bookId": "book:kill",
+   "chapterId": "chapter:kill.c01",
+   "partId": null,
+   "quote": "— Обморожение, — прохрипел Ликёр, выбросив ладонь к небу.",
+   "locator": "kill.fb2 (sha256 371b392030b79ce80d51f5b4df9e9ee6d88a5493772ff058f8a839dcc91b73a7); глава «KILL — Глава 0. Не главный герой» = главa 1 книги; файл sources/ch_26.txt (sha256 c67c037e3bed9bc246f9093f4468c916bf8990488eb37c803315cf9b8a089ca4); абзац 38 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:kill.c01.p34",
+   "bookId": "book:kill",
+   "chapterId": "chapter:kill.c01",
+   "partId": null,
+   "quote": "— Точка А. Препятствие. Точка Б, — прошептал он с сухим смешком.",
+   "locator": "kill.fb2 (sha256 371b392030b79ce80d51f5b4df9e9ee6d88a5493772ff058f8a839dcc91b73a7); глава «KILL — Глава 0. Не главный герой» = главa 1 книги; файл sources/ch_26.txt (sha256 c67c037e3bed9bc246f9093f4468c916bf8990488eb37c803315cf9b8a089ca4); абзац 34 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  },
+  {
+   "id": "frag:kill.c01.p57",
+   "bookId": "book:kill",
+   "chapterId": "chapter:kill.c01",
+   "partId": null,
+   "quote": "Победителю — овации арены и право на следующую жизнь!",
+   "locator": "kill.fb2 (sha256 371b392030b79ce80d51f5b4df9e9ee6d88a5493772ff058f8a839dcc91b73a7); глава «KILL — Глава 0. Не главный герой» = главa 1 книги; файл sources/ch_26.txt (sha256 c67c037e3bed9bc246f9093f4468c916bf8990488eb37c803315cf9b8a089ca4); абзац 57 (0 = заголовок, непустые строки)",
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   }
+  }
+ ],
+ "entities": [
+  {
+   "id": "ent:obitel.kavega",
+   "name": "Кавега",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:obitel.c19.p69"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:obitel.mariel",
+   "name": "Мариэль",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:obitel.c19.p101"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:obitel.kyut",
+   "name": "Кьют",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:obitel.c03.p6"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 3,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:obitel.pyotr",
+   "name": "Пётр",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:obitel.c22.p114"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:obitel.veles",
+   "name": "Велес",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:obitel.ledyanoyklinok",
+   "name": "Ледяной клинок (основная книга)",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:obitel.c09.p14"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:obitel.perchatkasily",
+   "name": "Перчатка силы",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:obitel.c22.p236"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:pravednye.likyor",
+   "name": "Ликёр (книга «Праведные коты»)",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:pravednye.c01.p8"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:pravednye.kinzhal",
+   "name": "Ледяной кинжал в зеркале (книга «Праведные коты»)",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:pravednye.c01.p16"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:kill.likyor",
+   "name": "Ликёр Владолларс (книга KILL)",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:kill.c01.p1"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ent:kill.klinok",
+   "name": "Ледяной клинок (книга KILL)",
+   "aliases": [],
+   "tags": [],
+   "infobox": [],
+   "sourceIds": [
+    "frag:kill.c01.p38"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact:obitel.noford.kyut.04",
+   "text": "После рейда Нофорд говорит Лорин: «А то я, кажется, женюсь!»; Лорин спрашивает, нашёл ли он невесту.",
+   "sourceIds": [
+    "frag:obitel.c08.p6"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 8,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.noford.kyut.05",
+   "text": "Нофорд называет Кьют «моя будущая жена».",
+   "sourceIds": [
+    "frag:obitel.c08.p21"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 8,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.noford.kyut.08",
+   "text": "Когда Кьют молча дёргает его за рукав, Нофорд соглашается уйти домой: «Я с тобой, котик… Домой так домой».",
+   "sourceIds": [
+    "frag:obitel.c20.p131"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.stasis.06",
+   "text": "На вопрос Мариэль Кавега отвечает: «Показалось».",
+   "sourceIds": [
+    "frag:obitel.c19.p101"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.stasis.07",
+   "text": "Мариэль понимает, что Кавега лжёт, но не знает, что он видел.",
+   "sourceIds": [
+    "frag:obitel.c19.p102"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.stasis.08",
+   "text": "Кьют с открытым интерфейсом удивлённо смотрит на Кавегу и Нофорда и спрашивает, что с ними.",
+   "sourceIds": [
+    "frag:obitel.c19.p104"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.stasis.11",
+   "text": "Велес вспоминает увиденное: «черные склеры, красные зрачки, чужая сила, перетекающая в чужие тела», и спрашивает себя, что такое Мариэль.",
+   "sourceIds": [
+    "frag:obitel.c18.p68"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 18,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.stasis.12",
+   "text": "В И2.9, услышав весть Велеса, Кавега решает, что увиденное в стазисе «не показалось».",
+   "sourceIds": [
+    "frag:obitel.c22.p106"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.stasis.13",
+   "text": "Кавега не знает, что произошло с Нофордом, откуда кинжал и был ли это вообще Нофорд; считает, что промолчал.",
+   "sourceIds": [
+    "frag:obitel.c22.p107"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.01",
+   "text": "Велес по руне вызова говорит Кавеге: «Нофорд убил своих возлюбленных. Троих. Его будут судить». Это слова Велеса; сам он, по его же словам, не был на месте. Суд не состоялся.",
+   "sourceIds": [
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.02",
+   "text": "Велес говорит, что больше сказать сейчас не может и не знает, когда снова выйдет на связь.",
+   "sourceIds": [
+    "frag:obitel.c22.p100"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.03",
+   "text": "Голос Велеса в руне глухой, сдавленный, «будто он говорил, прикрыв рот ладонью».",
+   "sourceIds": [
+    "frag:obitel.c22.p96"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.04",
+   "text": "Кавега пересказывает Петру слова Велеса: «Нофорда будут судить. Он убил троих». Мариэль у входа в шатёр это слышит.",
+   "sourceIds": [
+    "frag:obitel.c22.p114"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.05",
+   "text": "В карете Велес говорит Кавеге, что не знает, как это случилось: ему сообщили, он не был на месте, не видел ни тел, ни Нофорда.",
+   "sourceIds": [
+    "frag:obitel.c22.p270"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.06",
+   "text": "У ворот Обители Велес повторяет: «Я не знаю, что произошло».",
+   "sourceIds": [
+    "frag:obitel.c22.p280"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.07",
+   "text": "Услышав пересказ, Мариэль вспоминает, как Нофорд махал им у барьера и как Кьют «мурлыкала» ему утешения, и не может в это поверить.",
+   "sourceIds": [
+    "frag:obitel.c22.p116"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.veles.msg.08",
+   "text": "Кавега думает, что в Обители остались Мэл, Знахарь и Кьют и там «что-то пошло не так».",
+   "sourceIds": [
+    "frag:obitel.c22.p107.q1"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.blade.02",
+   "text": "Кинжал транслирует боль дракона; повествователь называет его предметом из иного мира.",
+   "sourceIds": [
+    "frag:obitel.c09.p15"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.blade.05",
+   "text": "Тифани на допросе описывает кинжал «словно из чешуи ледяного дракона» с тёмными пятнами.",
+   "sourceIds": [
+    "frag:obitel.c12.p28"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 12,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.blade.06",
+   "text": "Ликёр сам оценивает: систему он сломал один раз — кинжалом, «чужой, украденной силой».",
+   "sourceIds": [
+    "frag:obitel.c18.p14"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 18,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.blade.11",
+   "text": "Ликёр чувствует едва заметное покалывание, «то ли было, то ли нет»; затем никаких искр на руке.",
+   "sourceIds": [
+    "frag:obitel.c21.p78"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.glove.02",
+   "text": "На перчатке кровь Ликёра и, вероятно, немного крови Петра.",
+   "sourceIds": [
+    "frag:obitel.c22.p224"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.glove.05",
+   "text": "Клинок и перчатка тянут Ликёра «одинаковым холодом»; он «только догадывался».",
+   "sourceIds": [
+    "frag:obitel.c22.p234"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.glove.06",
+   "text": "Название «Перчатка силы» даёт сам Ликёр.",
+   "sourceIds": [
+    "frag:obitel.c22.p236"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.glove.07",
+   "text": "Пётр выходит без перчатки и говорит Кавеге, что там была «Крыса. Большая».",
+   "sourceIds": [
+    "frag:obitel.c22.p241"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.04",
+   "text": "Кавега оговаривается, назвав Мариэль «Лорин», и поправляется.",
+   "sourceIds": [
+    "frag:obitel.c21.p148"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.05",
+   "text": "Кавега прямо говорит девочке: «Мы уже сделали плохое».",
+   "sourceIds": [
+    "frag:obitel.c21.p154"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.06",
+   "text": "Мариэль приходит к выводу, что маг торопился не напасть, а встать между отрядом и своим домом. Это её вывод, не установленный факт.",
+   "sourceIds": [
+    "frag:obitel.c21.p164"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.07",
+   "text": "Мариэль связывает смерть мага со своей целью — найти, откуда прилетают «железные птицы» (дрон).",
+   "sourceIds": [
+    "frag:obitel.c21.p168",
+    "frag:obitel.c21.p10"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.08",
+   "text": "Языку девочку научила пришедшая зимой «девочка» постарше, которую она называла старшей сестрой.",
+   "sourceIds": [
+    "frag:obitel.c21.p178"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.09",
+   "text": "У «старшей сестры» короткие чёрные волосы и красные глаза; она ушла, сказав, что ей надо.",
+   "sourceIds": [
+    "frag:obitel.c21.p180"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.10",
+   "text": "Девочка говорит: «А вы убили моего отца».",
+   "sourceIds": [
+    "frag:obitel.c21.p185"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.12",
+   "text": "Воспоминание Мариэль: на кухне её бьёт Шарль (рука с обручальным кольцом); она старалась не кричать, чтобы не услышал сын. Он услышал.",
+   "sourceIds": [
+    "frag:obitel.c22.p21"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "memory",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.13",
+   "text": "Воспоминание с провалами: пистолет в доме, звук выстрела (один или два — не помнит), сын в дверях с вытянутыми дрожащими руками.",
+   "sourceIds": [
+    "frag:obitel.c22.p23"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "memory",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.14",
+   "text": "После — недели или месяцы в темноте, затем реклама МоррисГрада и решение журналистки, «дальше было белое небо и Обитель».",
+   "sourceIds": [
+    "frag:obitel.c22.p26"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "memory",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.15",
+   "text": "Мариэль сопоставляет и отвергает параллель: её горе не даёт ей права понимать девочку.",
+   "sourceIds": [
+    "frag:obitel.c22.p28"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.17",
+   "text": "Девочка замечает: «Вы меня не трогаете».",
+   "sourceIds": [
+    "frag:obitel.c22.p75"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.18",
+   "text": "Утром Мариэль предлагает пойти в Обитель: «Не надо будет нас любить. Просто жить».",
+   "sourceIds": [
+    "frag:obitel.c22.p132"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.19",
+   "text": "Девочка отказывается; Мариэль принимает отказ: «Это твоё решение».",
+   "sourceIds": [
+    "frag:obitel.c22.p139"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.20",
+   "text": "Девочка перечисляет, что дров на два дня, рыбы нет, сетей ставить она не умеет.",
+   "sourceIds": [
+    "frag:obitel.c22.p143"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:obitel.girl.21",
+   "text": "Девочка соглашается идти, но «не потому, что вы хорошие».",
+   "sourceIds": [
+    "frag:obitel.c22.p151"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:pravednye.pk.04",
+   "text": "Ликёр не знает, откуда в его голове имя Листаф.",
+   "sourceIds": [
+    "frag:pravednye.c01.p84"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "fact:kill.kill.04",
+   "text": "Распорядитель объявляет победителю «право на следующую жизнь».",
+   "sourceIds": [
+    "frag:kill.c01.p57"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  }
+ ],
+ "events": [
+  {
+   "id": "event:obitel.noford.kyut.01",
+   "text": "При первой встрече в И1.2 Нофорд флиртует с Кьют.",
+   "sourceIds": [
+    "frag:obitel.c03.p6"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 3,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.noford.kyut.02",
+   "text": "На привале Кьют зовёт Нофорда «котик», он её — «красавица»; они садятся рядом.",
+   "sourceIds": [
+    "frag:obitel.c04.p3"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 4,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.noford.kyut.03",
+   "text": "В бою с Охотницей Кьют телепортируется и закрывает Нофорда собой.",
+   "sourceIds": [
+    "frag:obitel.c07.p2"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 7,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.noford.kyut.06",
+   "text": "В Гл.2 Нофорд с разрешения Мэл приводит Кьют в Обитель познакомить «невесту» с Дар.",
+   "sourceIds": [
+    "frag:obitel.c10.p12"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 10,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.noford.kyut.07",
+   "text": "В замке «Детей ночи» Кьют на прощание целует Нофорда в щёку.",
+   "sourceIds": [
+    "frag:obitel.c17.p79"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 17,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.noford.kyut.09",
+   "text": "Четверо (Велес, Знахарь, Кьют, Нофорд) уходят к стене; Кьют держит Нофорда за руку, он машет оставшимся.",
+   "sourceIds": [
+    "frag:obitel.c20.p148"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.stasis.01",
+   "text": "Кавега зовёт Адское пламя за стеной, и мир для него останавливается: он понимает это как стазис.",
+   "sourceIds": [
+    "frag:obitel.c19.p69"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.stasis.02",
+   "text": "Кавега видит в остановленном мире: у Нофорда двигаются глаза, белки чернеют.",
+   "sourceIds": [
+    "frag:obitel.c19.p76"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.stasis.03",
+   "text": "Кавега видит в остановленном мире: в руке Нофорда появляется длинный чёрный кинжал, которого Кавега никогда у него не видел.",
+   "sourceIds": [
+    "frag:obitel.c19.p78"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.stasis.04",
+   "text": "Кавега видит в остановленном мире: Нофорд хватает его за горло, держит остриё у глаза и шепчет: «Ты меня видишь?»",
+   "sourceIds": [
+    "frag:obitel.c19.p83"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.stasis.05",
+   "text": "Кавега отпускает пламя; мир возвращается, ни пальцев, ни кинжала; Нофорд с обычными глазами лепит снежок и машет ему.",
+   "sourceIds": [
+    "frag:obitel.c19.p90"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.stasis.09",
+   "text": "До стазиса: после того как Мариэль делилась чернотой, белки глаз у Кавеги и Петра снова белые, а Нофорд проверяет свои глаза в луже.",
+   "sourceIds": [
+    "frag:obitel.c19.p3"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.stasis.10",
+   "text": "В бою И2.7 склеры у Кавеги, Петра и Нофорда чернеют от черноты Мариэль и белеют, когда она её отпускает.",
+   "sourceIds": [
+    "frag:obitel.c20.p88"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.01",
+   "text": "В Гл.1 Ликёр достаёт из останков Харебры ледяной кинжал с глитчами на лезвии.",
+   "sourceIds": [
+    "frag:obitel.c09.p14"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.03",
+   "text": "Ликёр вонзает кинжал в Кэйджа; тело покрывается коркой льда.",
+   "sourceIds": [
+    "frag:obitel.c09.p28",
+    "frag:obitel.c12.p7"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 12,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.04",
+   "text": "Удар второго мечника разбивает замороженное тело на тысячи осколков.",
+   "sourceIds": [
+    "frag:obitel.c09.p35"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.07",
+   "text": "У барьера Ликёр рассчитывает бросок клинка через открывшуюся дверь: «Точка А — я. Точка Б — клинок».",
+   "sourceIds": [
+    "frag:obitel.c19.p21"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.08",
+   "text": "Ликёр оказывается в комнате за стеной; клинок в стене, вокруг чёрная плесень глитча; прыжок стоит ему крови.",
+   "sourceIds": [
+    "frag:obitel.c19.p108"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.09",
+   "text": "В бою И2.7 Ликёр бросает клинок в шею мага, промахивается; клинок вонзается в дерево.",
+   "sourceIds": [
+    "frag:obitel.c20.p79"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.10",
+   "text": "Ликёр «Обморожением» промораживает шею уже мёртвого мага.",
+   "sourceIds": [
+    "frag:obitel.c21.p68"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.12",
+   "text": "Чёрные пиксели на лезвии сбиваются к острию и дрожат, «как стрелка компаса».",
+   "sourceIds": [
+    "frag:obitel.c21.p80"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.13",
+   "text": "В И2.9 Ликёр бросает клинок в затылок Петру; Пётр ловит лезвие рукой в чёрной кожаной перчатке.",
+   "sourceIds": [
+    "frag:obitel.c22.p206"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.blade.14",
+   "text": "Клинок срабатывает «Точкой А — Точкой Б» и переносит Ликёра к Петру.",
+   "sourceIds": [
+    "frag:obitel.c22.p208"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.glove.01",
+   "text": "Пётр стягивает окровавленную перчатку и швыряет её Ликёру в лицо.",
+   "sourceIds": [
+    "frag:obitel.c22.p220"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.glove.03",
+   "text": "Ликёр касается перчатки остриём; чёрная магия течёт с лезвия туманом, и перчатка её «выпивает».",
+   "sourceIds": [
+    "frag:obitel.c22.p230"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.glove.04",
+   "text": "По пальцам перчатки бегут тёмные, почти чёрные искры с фиолетовым отсветом.",
+   "sourceIds": [
+    "frag:obitel.c22.p231"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.01",
+   "text": "В шатре девочка лет двенадцати, зелёные волосы, жёлтые глаза; говорит «на нашем» языке с чужим выговором.",
+   "sourceIds": [
+    "frag:obitel.c21.p114"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.02",
+   "text": "Девочка бросается с мечом отца; Кавега ловит лезвие голой ладонью.",
+   "sourceIds": [
+    "frag:obitel.c21.p127"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.03",
+   "text": "Мариэль опускается на корточки, показывает пустые руки и говорит девочке: «Никто тебя не тронет».",
+   "sourceIds": [
+    "frag:obitel.c21.p141"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 21,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.11",
+   "text": "В И2.9 Мариэль садится так, чтобы девочка могла её видеть, «не ближе».",
+   "sourceIds": [
+    "frag:obitel.c22.p16"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.16",
+   "text": "Мариэль ставит миску рядом, не в руки; девочка ест.",
+   "sourceIds": [
+    "frag:obitel.c22.p70"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.22",
+   "text": "У тела отца Мариэль ловит девочку и держит, чтобы та не подбежала: «Это не мы… Мы оставили его целым».",
+   "sourceIds": [
+    "frag:obitel.c22.p171"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.23",
+   "text": "У двери в куполе девочка не берёт руку Мариэль, а держится за лямку мешка Петра.",
+   "sourceIds": [
+    "frag:obitel.c22.p251"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.24",
+   "text": "В карете девочка засыпает у Мариэль на плече.",
+   "sourceIds": [
+    "frag:obitel.c22.p259"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:obitel.girl.25",
+   "text": "Проснувшись у ворот Обители, девочка отодвигается от Мариэль.",
+   "sourceIds": [
+    "frag:obitel.c22.p276"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:pravednye.pk.01",
+   "text": "«Праведные коты»: Ликёр просыпается в полуразрушенном доме; за заколоченным окном мерцает магический купол.",
+   "sourceIds": [
+    "frag:pravednye.c01.p8"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:pravednye.pk.02",
+   "text": "В зеркале Ликёр видит двойника с ледяным кинжалом в руке, по лезвию змеятся чёрные аномалии.",
+   "sourceIds": [
+    "frag:pravednye.c01.p16"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:pravednye.pk.03",
+   "text": "За спиной отражения стоит девушка: короткие чёрные волосы с красными кончиками, фиолетовые глаза.",
+   "sourceIds": [
+    "frag:pravednye.c01.p19"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:pravednye.pk.05",
+   "text": "Инквизиторы молотом убивают женщину, которую Ликёр называет «матерью» в кавычках.",
+   "sourceIds": [
+    "frag:pravednye.c01.p96"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:pravednye.pk.06",
+   "text": "Ликёр словом «Убить!» убивает инквизитора, раненного осколком зеркала.",
+   "sourceIds": [
+    "frag:pravednye.c01.p118"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:pravednye.pk.07",
+   "text": "Второй инквизитор проламывает Ликёру череп, как было в зеркале.",
+   "sourceIds": [
+    "frag:pravednye.c01.p132"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:kill.kill.01",
+   "text": "«KILL»: Ликёра из лачуги за куполом пространственным сбоем выбрасывает на арену.",
+   "sourceIds": [
+    "frag:kill.c01.p1"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:kill.kill.02",
+   "text": "Ликёр зовёт клинок словом «Обморожение»; клинок пробивает деревянный барьер и попадает эльфу между лопаток.",
+   "sourceIds": [
+    "frag:kill.c01.p38"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "event:kill.kill.03",
+   "text": "Ликёр использует перенос «Точка А. Препятствие. Точка Б»; за это у него лопаются капилляры в лёгких.",
+   "sourceIds": [
+    "frag:kill.c01.p34"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  }
+ ],
+ "relations": [
+  {
+   "id": "rel:001.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "event:obitel.stasis.01",
+   "label": "присутствовал; сцена дана с его точки зрения (не означает достоверного знания)",
+   "sourceIds": [
+    "frag:obitel.c19.p69"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:002.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "event:obitel.stasis.02",
+   "label": "присутствовал; сцена дана с его точки зрения (не означает достоверного знания)",
+   "sourceIds": [
+    "frag:obitel.c19.p76"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:003.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "event:obitel.stasis.03",
+   "label": "присутствовал; сцена дана с его точки зрения (не означает достоверного знания)",
+   "sourceIds": [
+    "frag:obitel.c19.p78"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:004.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "event:obitel.stasis.04",
+   "label": "присутствовал; сцена дана с его точки зрения (не означает достоверного знания)",
+   "sourceIds": [
+    "frag:obitel.c19.p83"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:005.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "event:obitel.stasis.05",
+   "label": "присутствовал; сцена дана с его точки зрения (не означает достоверного знания)",
+   "sourceIds": [
+    "frag:obitel.c19.p90"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:006.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.mariel",
+   "toId": "fact:obitel.stasis.06",
+   "label": "присутствовала, услышала ответ «Показалось»",
+   "sourceIds": [
+    "frag:obitel.c19.p101"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:007.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.mariel",
+   "toId": "fact:obitel.stasis.07",
+   "label": "её собственное наблюдение о лжи; содержание сцены ей неизвестно по тексту",
+   "sourceIds": [
+    "frag:obitel.c19.p102"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:008.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kyut",
+   "toId": "fact:obitel.stasis.08",
+   "label": "присутствовала, задала вопрос; что заметила — не сказано",
+   "sourceIds": [
+    "frag:obitel.c19.p104"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:009.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "fact:obitel.veles.msg.01",
+   "label": "услышал по руне вызова",
+   "sourceIds": [
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:010.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "fact:obitel.veles.msg.02",
+   "label": "услышал по руне вызова",
+   "sourceIds": [
+    "frag:obitel.c22.p100"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:011.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.pyotr",
+   "toId": "fact:obitel.veles.msg.04",
+   "label": "услышал пересказ Кавеги",
+   "sourceIds": [
+    "frag:obitel.c22.p114"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:012.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.mariel",
+   "toId": "fact:obitel.veles.msg.04",
+   "label": "услышала пересказ у входа в шатёр",
+   "sourceIds": [
+    "frag:obitel.c22.p114"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:013.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "fact:obitel.veles.msg.05",
+   "label": "услышал в карете",
+   "sourceIds": [
+    "frag:obitel.c22.p270"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:014.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.mariel",
+   "toId": "fact:obitel.veles.msg.05",
+   "label": "услышала в карете (И2.9, абз.261: «Я слышала каждое слово»)",
+   "sourceIds": [
+    "frag:obitel.c22.p270"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:015.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.kavega",
+   "toId": "fact:obitel.veles.msg.06",
+   "label": "услышал у ворот",
+   "sourceIds": [
+    "frag:obitel.c22.p280"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:016.knows",
+   "kind": "knows",
+   "fromId": "ent:obitel.mariel",
+   "toId": "fact:obitel.veles.msg.06",
+   "label": "присутствовала у ворот",
+   "sourceIds": [
+    "frag:obitel.c22.p280"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:017.artifactpath",
+   "kind": "artifact-path",
+   "fromId": "ent:obitel.ledyanoyklinok",
+   "toId": "event:obitel.glove.03",
+   "label": "чёрная магия с лезвия впитывается перчаткой (И2.9)",
+   "sourceIds": [
+    "frag:obitel.c22.p230"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:018.other",
+   "kind": "other",
+   "fromId": "ent:pravednye.likyor",
+   "toId": "event:pravednye.pk.02",
+   "label": "видит двойника с кинжалом в зеркале",
+   "sourceIds": [
+    "frag:pravednye.c01.p16"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:pravednye",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "rel:019.other",
+   "kind": "other",
+   "fromId": "ent:kill.likyor",
+   "toId": "event:kill.kill.02",
+   "label": "зовёт клинок «Обморожением»",
+   "sourceIds": [
+    "frag:kill.c01.p38"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:kill",
+    "chapterNumber": 1,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  }
+ ],
+ "evidence": [
+  {
+   "id": "ev:noford.stasislink.for1",
+   "stance": "for",
+   "text": "Кавега видит в остановленном мире: в руке Нофорда появляется длинный чёрный кинжал, которого Кавега никогда у него не видел.",
+   "sourceIds": [
+    "frag:obitel.c19.p78"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.stasislink.for2",
+   "stance": "for",
+   "text": "Кавега видит в остановленном мире: Нофорд хватает его за горло, держит остриё у глаза и шепчет: «Ты меня видишь?»",
+   "sourceIds": [
+    "frag:obitel.c19.p83"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.stasislink.for3",
+   "stance": "for",
+   "text": "В И2.9, услышав весть Велеса, Кавега решает, что увиденное в стазисе «не показалось».",
+   "sourceIds": [
+    "frag:obitel.c22.p106"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.stasislink.against1",
+   "stance": "against",
+   "text": "Кавега отпускает пламя; мир возвращается, ни пальцев, ни кинжала; Нофорд с обычными глазами лепит снежок и машет ему.",
+   "sourceIds": [
+    "frag:obitel.c19.p90"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 19,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.stasislink.against2",
+   "stance": "against",
+   "text": "В бою И2.7 склеры у Кавеги, Петра и Нофорда чернеют от черноты Мариэль и белеют, когда она её отпускает.",
+   "sourceIds": [
+    "frag:obitel.c20.p88"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.stasislink.against3",
+   "stance": "against",
+   "text": "Кавега не знает, что произошло с Нофордом, откуда кинжал и был ли это вообще Нофорд; считает, что промолчал.",
+   "sourceIds": [
+    "frag:obitel.c22.p107"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.stasislink.gap1",
+   "stance": "gap",
+   "text": "Неизвестно, произошло ли в стазисе что-то физически: после него нет ни пальцев, ни кинжала.",
+   "sourceIds": [
+    "frag:obitel.c19.p78",
+    "frag:obitel.c19.p83",
+    "frag:obitel.c19.p90",
+    "frag:obitel.c20.p88",
+    "frag:obitel.c22.p106",
+    "frag:obitel.c22.p107"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:noford.stasislink.gap2",
+   "stance": "gap",
+   "text": "Кавега сам не уверен, «был ли это вообще Нофорд».",
+   "sourceIds": [
+    "frag:obitel.c19.p78",
+    "frag:obitel.c19.p83",
+    "frag:obitel.c19.p90",
+    "frag:obitel.c20.p88",
+    "frag:obitel.c22.p106",
+    "frag:obitel.c22.p107"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:noford.stasislink.gap3",
+   "stance": "gap",
+   "text": "Чёрные склеры в книге вызывает и чернота Мариэль, так что сам этот признак не уникален.",
+   "sourceIds": [
+    "frag:obitel.c19.p78",
+    "frag:obitel.c19.p83",
+    "frag:obitel.c19.p90",
+    "frag:obitel.c20.p88",
+    "frag:obitel.c22.p106",
+    "frag:obitel.c22.p107"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:noford.stasislink.gap4",
+   "stance": "gap",
+   "text": "Обстоятельства того, о чём сообщил Велес, не названы.",
+   "sourceIds": [
+    "frag:obitel.c19.p78",
+    "frag:obitel.c19.p83",
+    "frag:obitel.c19.p90",
+    "frag:obitel.c20.p88",
+    "frag:obitel.c22.p106",
+    "frag:obitel.c22.p107"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.for1",
+   "stance": "for",
+   "text": "Нофорд называет Кьют «моя будущая жена».",
+   "sourceIds": [
+    "frag:obitel.c08.p21"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 8,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.for2",
+   "stance": "for",
+   "text": "В Гл.2 Нофорд с разрешения Мэл приводит Кьют в Обитель познакомить «невесту» с Дар.",
+   "sourceIds": [
+    "frag:obitel.c10.p12"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 10,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.for3",
+   "stance": "for",
+   "text": "Четверо (Велес, Знахарь, Кьют, Нофорд) уходят к стене; Кьют держит Нофорда за руку, он машет оставшимся.",
+   "sourceIds": [
+    "frag:obitel.c20.p148"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 20,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.for4",
+   "stance": "for",
+   "text": "Велес по руне вызова говорит Кавеге: «Нофорд убил своих возлюбленных. Троих. Его будут судить». Это слова Велеса; сам он, по его же словам, не был на месте. Суд не состоялся.",
+   "sourceIds": [
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.against1",
+   "stance": "against",
+   "text": "В карете Велес говорит Кавеге, что не знает, как это случилось: ему сообщили, он не был на месте, не видел ни тел, ни Нофорда.",
+   "sourceIds": [
+    "frag:obitel.c22.p270"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.gap1",
+   "stance": "gap",
+   "text": "Велес не называет жертв и сам не видел тел.",
+   "sourceIds": [
+    "frag:obitel.c08.p21",
+    "frag:obitel.c10.p12",
+    "frag:obitel.c20.p148",
+    "frag:obitel.c22.p270",
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.gap2",
+   "stance": "gap",
+   "text": "Множественное «возлюбленных» допускает, что среди троих могут быть другие люди.",
+   "sourceIds": [
+    "frag:obitel.c08.p21",
+    "frag:obitel.c10.p12",
+    "frag:obitel.c20.p148",
+    "frag:obitel.c22.p270",
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:kyut.possiblyinvolved.gap3",
+   "stance": "gap",
+   "text": "Судьба Кьют в тексте не сообщается; гибель не утверждается.",
+   "sourceIds": [
+    "frag:obitel.c08.p21",
+    "frag:obitel.c10.p12",
+    "frag:obitel.c20.p148",
+    "frag:obitel.c22.p270",
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:noford.guiltunproven.for1",
+   "stance": "for",
+   "text": "В карете Велес говорит Кавеге, что не знает, как это случилось: ему сообщили, он не был на месте, не видел ни тел, ни Нофорда.",
+   "sourceIds": [
+    "frag:obitel.c22.p270"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.guiltunproven.for2",
+   "stance": "for",
+   "text": "У ворот Обители Велес повторяет: «Я не знаю, что произошло».",
+   "sourceIds": [
+    "frag:obitel.c22.p280"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.guiltunproven.against1",
+   "stance": "against",
+   "text": "Велес по руне вызова говорит Кавеге: «Нофорд убил своих возлюбленных. Троих. Его будут судить». Это слова Велеса; сам он, по его же словам, не был на месте. Суд не состоялся.",
+   "sourceIds": [
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "retelling",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:noford.guiltunproven.gap1",
+   "stance": "gap",
+   "text": "Кто сообщил Велесу, неизвестно.",
+   "sourceIds": [
+    "frag:obitel.c22.p270",
+    "frag:obitel.c22.p280",
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:noford.guiltunproven.gap2",
+   "stance": "gap",
+   "text": "Суд ещё не состоялся.",
+   "sourceIds": [
+    "frag:obitel.c22.p270",
+    "frag:obitel.c22.p280",
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:blade.glovetransfer.for1",
+   "stance": "for",
+   "text": "Ликёр касается перчатки остриём; чёрная магия течёт с лезвия туманом, и перчатка её «выпивает».",
+   "sourceIds": [
+    "frag:obitel.c22.p230"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:blade.glovetransfer.for2",
+   "stance": "for",
+   "text": "Клинок и перчатка тянут Ликёра «одинаковым холодом»; он «только догадывался».",
+   "sourceIds": [
+    "frag:obitel.c22.p234"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:blade.glovetransfer.against1",
+   "stance": "against",
+   "text": "На перчатке кровь Ликёра и, вероятно, немного крови Петра.",
+   "sourceIds": [
+    "frag:obitel.c22.p224"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:blade.glovetransfer.gap1",
+   "stance": "gap",
+   "text": "Роль крови Ликёра и Петра на перчатке не объяснена.",
+   "sourceIds": [
+    "frag:obitel.c22.p224",
+    "frag:obitel.c22.p230",
+    "frag:obitel.c22.p234"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:blade.glovetransfer.gap2",
+   "stance": "gap",
+   "text": "Что перчатка умеет, в тексте не показано; название дал Ликёр.",
+   "sourceIds": [
+    "frag:obitel.c22.p224",
+    "frag:obitel.c22.p230",
+    "frag:obitel.c22.p234"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:blade.origin.for1",
+   "stance": "for",
+   "text": "Кинжал транслирует боль дракона; повествователь называет его предметом из иного мира.",
+   "sourceIds": [
+    "frag:obitel.c09.p15"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:blade.origin.against1",
+   "stance": "against",
+   "text": "Кинжал транслирует боль дракона; повествователь называет его предметом из иного мира.",
+   "sourceIds": [
+    "frag:obitel.c09.p15"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:blade.origin.gap1",
+   "stance": "gap",
+   "text": "Тот же абзац называет его «предметом из другого, совершенно иного мира»; происхождение двойственно.",
+   "sourceIds": [
+    "frag:obitel.c09.p15"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:blade.origin.gap2",
+   "stance": "gap",
+   "text": "Связь с предметами из других книг текстом не установлена.",
+   "sourceIds": [
+    "frag:obitel.c09.p15"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:mariel.choice.for1",
+   "stance": "for",
+   "text": "Воспоминание с провалами: пистолет в доме, звук выстрела (один или два — не помнит), сын в дверях с вытянутыми дрожащими руками.",
+   "sourceIds": [
+    "frag:obitel.c22.p23"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "memory",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:mariel.choice.for2",
+   "stance": "for",
+   "text": "Мариэль сопоставляет и отвергает параллель: её горе не даёт ей права понимать девочку.",
+   "sourceIds": [
+    "frag:obitel.c22.p28"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:mariel.choice.against1",
+   "stance": "against",
+   "text": "Мариэль сопоставляет и отвергает параллель: её горе не даёт ей права понимать девочку.",
+   "sourceIds": [
+    "frag:obitel.c22.p28"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:mariel.choice.against2",
+   "stance": "against",
+   "text": "Девочка перечисляет, что дров на два дня, рыбы нет, сетей ставить она не умеет.",
+   "sourceIds": [
+    "frag:obitel.c22.p143"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "canon"
+  },
+  {
+   "id": "ev:mariel.choice.gap1",
+   "stance": "gap",
+   "text": "Мариэль сама отвергает параллель.",
+   "sourceIds": [
+    "frag:obitel.c22.p143",
+    "frag:obitel.c22.p23",
+    "frag:obitel.c22.p28"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  },
+  {
+   "id": "ev:mariel.choice.gap2",
+   "stance": "gap",
+   "text": "Решение девочки текст объясняет практичными причинами (дрова, рыба), а не доверием.",
+   "sourceIds": [
+    "frag:obitel.c22.p143",
+    "frag:obitel.c22.p23",
+    "frag:obitel.c22.p28"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "unknown",
+    "truthClaim": false
+   },
+   "status": "ref"
+  }
+ ],
+ "hypotheses": [
+  {
+   "id": "hyp:noford.stasislink",
+   "kind": "historian-guess",
+   "label": "Предположения Историка — не канон",
+   "claim": "Сцена стазиса может иметь отношение к делу, о котором сообщил Велес.",
+   "hideable": true,
+   "readerResult": false,
+   "sourceIds": [
+    "frag:obitel.c19.p78",
+    "frag:obitel.c19.p83",
+    "frag:obitel.c19.p90",
+    "frag:obitel.c20.p88",
+    "frag:obitel.c22.p106",
+    "frag:obitel.c22.p107"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "disputed"
+  },
+  {
+   "id": "hyp:kyut.possiblyinvolved",
+   "kind": "historian-guess",
+   "label": "Предположения Историка — не канон",
+   "claim": "Сообщение о трёх «возлюбленных» может касаться Кьют, поскольку её отношения с Нофордом показаны в тексте.",
+   "hideable": true,
+   "readerResult": false,
+   "sourceIds": [
+    "frag:obitel.c08.p21",
+    "frag:obitel.c10.p12",
+    "frag:obitel.c20.p148",
+    "frag:obitel.c22.p270",
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "disputed"
+  },
+  {
+   "id": "hyp:noford.guiltunproven",
+   "kind": "historian-guess",
+   "label": "Предположения Историка — не канон",
+   "claim": "Вина Нофорда пока остаётся версией из сообщения, а не установленным фактом.",
+   "hideable": true,
+   "readerResult": false,
+   "sourceIds": [
+    "frag:obitel.c22.p270",
+    "frag:obitel.c22.p280",
+    "frag:obitel.c22.p98"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "disputed"
+  },
+  {
+   "id": "hyp:blade.glovetransfer",
+   "kind": "historian-guess",
+   "label": "Предположения Историка — не канон",
+   "claim": "Перчатка получила свойства от клинка, а не была особой сама по себе.",
+   "hideable": true,
+   "readerResult": false,
+   "sourceIds": [
+    "frag:obitel.c22.p224",
+    "frag:obitel.c22.p230",
+    "frag:obitel.c22.p234"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "disputed"
+  },
+  {
+   "id": "hyp:blade.origin",
+   "kind": "historian-guess",
+   "label": "Предположения Историка — не канон",
+   "claim": "Клинок связан с болью Харебры, а не просто лежал в его теле.",
+   "hideable": true,
+   "readerResult": false,
+   "sourceIds": [
+    "frag:obitel.c09.p15"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 9,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "disputed"
+  },
+  {
+   "id": "hyp:mariel.choice",
+   "kind": "historian-guess",
+   "label": "Предположения Историка — не канон",
+   "claim": "Поведение Мариэль с девочкой опирается на её собственный опыт ребёнка, оставшегося без отца.",
+   "hideable": true,
+   "readerResult": false,
+   "sourceIds": [
+    "frag:obitel.c22.p143",
+    "frag:obitel.c22.p23",
+    "frag:obitel.c22.p28"
+   ],
+   "spoilerFrom": {
+    "bookId": "book:obitel",
+    "chapterNumber": 22,
+    "partNumber": null
+   },
+   "provenance": {
+    "mode": "direct",
+    "truthClaim": false
+   },
+   "status": "disputed"
+  }
+ ],
+ "derived": [
+  {
+   "id": "route:seed.itempath",
+   "kind": "route",
+   "text": "Путь предмета: ледяной клинок в основной книге от Гл.1 до И2.9 и перчатка (необязательный маршрут). Побочные книги не включены.",
+   "optional": true,
+   "sourceIds": [
+    "event:obitel.blade.01",
+    "fact:obitel.blade.02",
+    "event:obitel.blade.03",
+    "event:obitel.blade.04",
+    "fact:obitel.blade.05",
+    "fact:obitel.blade.06",
+    "event:obitel.blade.07",
+    "event:obitel.blade.08",
+    "event:obitel.blade.09",
+    "event:obitel.blade.10",
+    "fact:obitel.blade.11",
+    "event:obitel.blade.12",
+    "event:obitel.blade.13",
+    "event:obitel.blade.14",
+    "event:obitel.glove.01",
+    "fact:obitel.glove.02",
+    "event:obitel.glove.03",
+    "event:obitel.glove.04",
+    "fact:obitel.glove.05",
+    "fact:obitel.glove.06",
+    "fact:obitel.glove.07"
+   ]
+  },
+  {
+   "id": "route:seed.marielgirl",
+   "kind": "dossier",
+   "text": "Мариэль и девочка, И2.8–И2.9: события, реплики, наблюдения и воспоминания Мариэль раздельно.",
+   "optional": true,
+   "sourceIds": [
+    "event:obitel.girl.01",
+    "event:obitel.girl.02",
+    "event:obitel.girl.03",
+    "fact:obitel.girl.04",
+    "fact:obitel.girl.05",
+    "fact:obitel.girl.06",
+    "fact:obitel.girl.07",
+    "fact:obitel.girl.08",
+    "fact:obitel.girl.09",
+    "fact:obitel.girl.10",
+    "event:obitel.girl.11",
+    "fact:obitel.girl.12",
+    "fact:obitel.girl.13",
+    "fact:obitel.girl.14",
+    "fact:obitel.girl.15",
+    "event:obitel.girl.16",
+    "fact:obitel.girl.17",
+    "fact:obitel.girl.18",
+    "fact:obitel.girl.19",
+    "fact:obitel.girl.20",
+    "fact:obitel.girl.21",
+    "event:obitel.girl.22",
+    "event:obitel.girl.23",
+    "event:obitel.girl.24",
+    "event:obitel.girl.25"
+   ]
+  },
+  {
+   "id": "route:seed.kavegaestasis",
+   "kind": "dossier",
+   "text": "Кавега и Нофорд: кто присутствовал при сцене и кто что услышал; слова Велеса — сообщение, не установленный факт.",
+   "optional": true,
+   "sourceIds": [
+    "event:obitel.noford.kyut.01",
+    "event:obitel.noford.kyut.02",
+    "event:obitel.noford.kyut.03",
+    "fact:obitel.noford.kyut.04",
+    "fact:obitel.noford.kyut.05",
+    "event:obitel.noford.kyut.06",
+    "event:obitel.noford.kyut.07",
+    "fact:obitel.noford.kyut.08",
+    "event:obitel.noford.kyut.09",
+    "event:obitel.stasis.01",
+    "event:obitel.stasis.02",
+    "event:obitel.stasis.03",
+    "event:obitel.stasis.04",
+    "event:obitel.stasis.05",
+    "fact:obitel.stasis.06",
+    "fact:obitel.stasis.07",
+    "fact:obitel.stasis.08",
+    "event:obitel.stasis.09",
+    "event:obitel.stasis.10",
+    "fact:obitel.stasis.11",
+    "fact:obitel.stasis.12",
+    "fact:obitel.stasis.13",
+    "fact:obitel.veles.msg.01",
+    "fact:obitel.veles.msg.02",
+    "fact:obitel.veles.msg.03",
+    "fact:obitel.veles.msg.04",
+    "fact:obitel.veles.msg.05",
+    "fact:obitel.veles.msg.06",
+    "fact:obitel.veles.msg.07",
+    "fact:obitel.veles.msg.08",
+    "rel:001.knows",
+    "rel:002.knows",
+    "rel:003.knows",
+    "rel:004.knows",
+    "rel:005.knows",
+    "rel:006.knows",
+    "rel:007.knows",
+    "rel:008.knows",
+    "rel:009.knows",
+    "rel:010.knows",
+    "rel:011.knows",
+    "rel:012.knows",
+    "rel:013.knows",
+    "rel:014.knows",
+    "rel:015.knows",
+    "rel:016.knows"
+   ]
+  }
+ ],
+ "images": []
+}
