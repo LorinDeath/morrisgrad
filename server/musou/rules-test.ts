@@ -14,7 +14,9 @@ import { MODE_LIST } from "../../src/scripts/musou/modes";
 import { craftFor } from "../../src/scripts/musou/stagecraft";
 import { HARD_CAP, mitigate, rateChance } from "../../src/scripts/musou/caps";
 import { blowAmount, bossPhase, castTiming, eliteArmorK, freshHand, skillSeconds, tickHand, trySwing } from "../../src/scripts/musou/strike.ts";
-import { HERO_FRAME, beastFrame, heroLocalFrame } from "../../src/scripts/musou/anim";
+import { HERO_FRAME, beastFrame, heroDir, heroLocalFrame } from "../../src/scripts/musou/anim";
+import { HEROES, heroById } from "../../src/scripts/musou/rules";
+import { clampMove, stickVector, travelAim } from "../../src/scripts/musou/input";
 import { BOSS_SCRIPTS, GENERAL_SCRIPTS, castOf } from "../../src/scripts/musou/scripts";
 import { SW_MODES } from "../../src/scripts/musou/sw-catalog";
 
@@ -945,6 +947,68 @@ coopBattle.step(0.02);
 coopBattle.applyHand([2.2, 0, 0, 0], 40, 0, true, false, 0, 0);
 for (let i = 0; i < 4; i++) coopBattle.step(0.05);
 ok(coopBattle.party[0].cd[0] < 2.05 && coopBattle.party[0].cd[0] > 1.85, "снимок комнаты оставляет серверный откат, а не полный заново");
+
+const canon: Record<string, string> = {
+  lorin: "Алзи", lorelin: "Нофорд", veles: "Велес", listaf: "Кавега",
+  chronos: "Мариэль", fox: "Кьют", itrain: "Петр", alex: "Лэйр",
+};
+ok(HEROES.map((h) => h.id).join() === "lorin,lorelin,veles,listaf,chronos,fox,itrain,alex", "heroId на месте");
+ok(Object.entries(canon).every(([id, name]) => heroById(id).name === name), "имя на карточке совпадает со строкой атласа");
+ok(heroById("lorin").skills[0].id === "harvest" && heroById("veles").skills[0].id === "wall", "навыки остались на своих heroId");
+ok(heroDir(0) === 2 && heroDir(Math.PI) === 1 && heroDir(Math.PI / 2) === 0 && heroDir(-Math.PI / 2) === 3, "вправо — столбец 2, влево — столбец 1");
+const fullStick = stickVector(80, 0, 46);
+const halfStick = stickVector(28, 0, 46);
+const deadStick = stickVector(4, 0, 46);
+ok(Math.abs(fullStick.x - 1) < 0.05 && halfStick.x > 0.3 && halfStick.x < 0.7 && deadStick.x === 0, "стик: мёртвая зона и аналоговая длина");
+const diag = stickVector(80, 80, 46);
+ok(Math.abs(Math.hypot(diag.x, diag.y) - 1) < 0.05, "полный диагональный стик не длиннее 1");
+ok(Math.abs(travelAim(1, 0, Math.PI, false)) < 0.01 && Math.abs(Math.abs(travelAim(-1, 0, 0, false)) - Math.PI) < 0.01, "без взгляда тело смотрит по шагу");
+ok(travelAim(1, 0, -1.2, true) === -1.2, "мышь или второй палец держат взгляд");
+const clamped = clampMove(1, 1);
+ok(Math.abs(Math.hypot(clamped.x, clamped.y) - 1) < 1e-9, "клавиши по диагонали сжимаются до 1");
+
+function paceWalk(dt: number, steps: number, mx: number, my: number) {
+  const b = new Battle(1, [{ id: "you", name: "Алзи", hero: "lorin", sheet: sheet(setHero(newProfile(1), "lorin") || newProfile(1)) }], 3);
+  b.phase = "fight";
+  b.introT = 0;
+  const x0 = b.party[0].x;
+  const y0 = b.party[0].y;
+  for (let i = 0; i < steps; i++) {
+    b.press("you", { mx, my, aim: Math.atan2(my, mx || 1) });
+    b.step(dt);
+  }
+  return Math.hypot(b.party[0].x - x0, b.party[0].y - y0);
+}
+const sec60 = paceWalk(1 / 60, 60, 1, 0);
+const sec30 = paceWalk(1 / 30, 30, 1, 0);
+const sec120 = paceWalk(1 / 120, 120, 1, 0);
+ok(Math.abs(sec30 - sec60) < 1.5 && Math.abs(sec120 - sec60) < 1.5, "шаг за секунду одинаков на 30, 60 и 120");
+const halfSec = paceWalk(1 / 60, 60, 0.5, 0);
+ok(halfSec > sec60 * 0.42 && halfSec < sec60 * 0.58, "половина стика — около половины скорости");
+const diagSec = paceWalk(1 / 60, 60, 1, 1);
+ok(Math.abs(diagSec - sec60) < 1.5, "диагональ не быстрее прямого шага");
+const swinging = new Battle(1, [{ id: "you", name: "Алзи", hero: "lorin", sheet: sheet(setHero(newProfile(1), "lorin") || newProfile(1)) }], 4);
+swinging.phase = "fight";
+swinging.press("you", { light: true, mx: 1, my: 0, aim: 0 });
+swinging.step(0.05);
+const xSwing = swinging.party[0].x;
+swinging.press("you", { light: true, mx: 1, my: 0, aim: 0 });
+swinging.step(0.05);
+ok(swinging.party[0].x > xSwing + 2 && swinging.party[0].atk?.kind === "light", "лёгкий удар не прибивает шаг");
+const queuedCast = new Battle(1, [{ id: "you", name: "Алзи", hero: "lorin", sheet: sheet(setHero(newProfile(1), "lorin") || newProfile(1)) }], 5);
+queuedCast.phase = "fight";
+queuedCast.press("you", { light: true, aim: 0, mx: 0, my: 0 });
+queuedCast.step(0.016);
+queuedCast.press("you", { skill: 1, aim: 0, mx: 0, my: 0 });
+queuedCast.step(0.016);
+ok(queuedCast.party[0].atk?.kind === "skill", "навык забирает замах лёгкого удара");
+const frozen = new Battle(1, [{ id: "you", name: "Алзи", hero: "lorin", sheet: sheet(setHero(newProfile(1), "lorin") || newProfile(1)) }], 6);
+frozen.phase = "fight";
+frozen.hitstop = 0.05;
+const xHit = frozen.party[0].x;
+frozen.press("you", { mx: 1, my: 0, aim: 0 });
+frozen.step(0.05);
+ok(frozen.party[0].x > xHit + 2, "хитстоп не замораживает шаг");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

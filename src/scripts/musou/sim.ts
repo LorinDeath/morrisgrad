@@ -310,7 +310,7 @@ export class Battle {
       return;
     }
     if (this.paused && !this.remote) { this.decay(dt); return; }
-    if (this.hitstop > 0) { this.hitstop -= dt; this.decay(dt); return; }
+    if (this.hitstop > 0) this.hitstop = Math.max(0, this.hitstop - dt);
 
     for (const a of this.party) if (!this.localId || a.id === this.localId) this.actor(a, dt);
     this.tickChests(dt);
@@ -816,6 +816,8 @@ export class Battle {
     if (a.stepT > 0) a.stepT -= dt;
     else if (a.step !== 0 && !a.atk) a.step = 0;
     this.tickAtk(a, dt);
+    if (a.bufDodge && a.dodgeCd <= 0 && a.atk?.kind === "light" && (a.atk.phase === "startup" || a.atk.phase === "recovery")) a.atk = null;
+    else if (a.bufSkill && a.atk?.kind === "light" && a.atk.phase === "startup") a.atk = null;
     if (a.atk?.phase === "recovery") {
       if (a.bufDodge && a.dodgeCd <= 0) { a.atk = null; this.beginDodge(a); }
       else if (a.bufHeavy) { a.atk = null; this.beginHeavy(a); }
@@ -828,10 +830,12 @@ export class Battle {
       else if (a.holdLight || a.bufLight) this.beginLight(a);
     }
     a.bufHeavy = false;
-    a.bufDodge = false;
     a.bufLight = false;
-    a.bufSkill = 0;
-    const committed = a.atk && a.atk.phase !== "recovery" && a.atk.kind !== "dodge";
+    const latchSkill = a.bufSkill > 0 && !!a.atk && a.atk.phase !== "recovery";
+    const latchDodge = a.bufDodge && a.dodgeCd <= 0 && !!a.atk && a.atk.phase === "active";
+    if (!latchSkill) a.bufSkill = 0;
+    if (!latchDodge) a.bufDodge = false;
+    const rooted = !!a.atk && (a.atk.kind === "dodge" || (a.atk.kind === "heavy" && a.atk.phase !== "recovery") || (a.atk.kind === "skill" && a.atk.phase === "active"));
     if (a.curse > 0) a.curse = Math.max(0, a.curse - dt);
     if (a.slow > 0) a.slow = Math.max(0, a.slow - dt);
     if (a.haste > 0) a.haste = Math.max(0, a.haste - dt);
@@ -847,9 +851,11 @@ export class Battle {
       }
     }
     const sp = Math.hypot(a.mx, a.my);
-    if (sp > 0.18 && !committed) {
+    if (sp > 0.12 && !rooted) {
+      const mag = Math.min(1, sp);
       const nx = a.mx / sp, ny = a.my / sp;
-      const spd = a.sheet.speed * (a.atk ? 0.62 : 1) * (a.curse > 0 ? 0.75 : 1) * (a.slow > 0 ? 0.62 : 1) * (a.haste > 0 ? 1.25 : 1);
+      const swing = a.atk ? 0.82 : 1;
+      const spd = a.sheet.speed * swing * mag * (a.curse > 0 ? 0.75 : 1) * (a.slow > 0 ? 0.62 : 1) * (a.haste > 0 ? 1.25 : 1);
       a.x = clamp(a.x + nx * spd * dt, 48, ARENA_W - 48);
       a.y = clamp(a.y + ny * spd * dt, 48, ARENA_H - 48);
       if (!a.atk) a.anim = "run";

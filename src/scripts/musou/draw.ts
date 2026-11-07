@@ -2,7 +2,7 @@
 import { heroById, type HeroDef } from "./rules";
 import { ARENA_H, ARENA_W, type Actor, type Anim, type Battle, type Fx } from "./sim";
 import { beastFrame, heroLocalFrame } from "./anim";
-import { FLOOR_TILE, blitChest, blitElite, blitHero, blitMob, blitNova, blitTeleCone, blitTeleRing, blitTile, blitWeapon, pixelSlash } from "./sprites";
+import { FLOOR_TILE, blitChest, blitElite, blitHero, blitMob, blitNova, blitTeleCone, blitTeleRing, blitTile, pixelSlash } from "./sprites";
 import { craftFor } from "./stagecraft";
 
 export type Cam = { x: number; y: number };
@@ -126,7 +126,7 @@ export function drawBattle(ctx: CanvasRenderingContext2D, b: Battle, w: number, 
   }
 
   ctx.restore();
-  vignette(ctx, w, h);
+  if (Math.min(w, h) >= 900) vignette(ctx, w, h);
   if (b.flash > 0) {
     ctx.fillStyle = rgba(b.flashCol || "#fff", Math.min(0.45, b.flash));
     ctx.fillRect(0, 0, w, h);
@@ -141,7 +141,71 @@ function cellHash(tx: number, ty: number, n: number) {
   return (h ^ (h >>> 16)) >>> 0;
 }
 
+const FLOOR_ORIGIN = -480;
+let floorBuf: HTMLCanvasElement | null = null;
+let floorKey = "";
+
+function bakeFloor(b: Battle, zoom: number) {
+  const key = `${b.floor.n}:${b.floor.sw}:${zoom.toFixed(3)}`;
+  if (floorBuf && floorKey === key) return floorBuf;
+  const span = ARENA_W - FLOOR_ORIGIN * 2;
+  const bw = Math.max(2, Math.ceil(span * zoom));
+  const bh = Math.max(2, Math.ceil(span * zoom * 0.78));
+  const c = document.createElement("canvas");
+  c.width = bw;
+  c.height = bh;
+  const g = c.getContext("2d");
+  if (!g) return c;
+  g.imageSmoothingEnabled = false;
+  const S = 92;
+  const tint = b.floor.tint;
+  const x0 = Math.floor(FLOOR_ORIGIN / S) - 1;
+  const x1 = Math.ceil((ARENA_W - FLOOR_ORIGIN) / S) + 1;
+  const y0 = x0;
+  const y1 = Math.ceil((ARENA_H - FLOOR_ORIGIN) / S) + 1;
+  let painted = false;
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      const wx = tx * S + S / 2;
+      const wy = ty * S + S / 2;
+      const sx = (wx - FLOOR_ORIGIN) * zoom;
+      const sy = (wy - FLOOR_ORIGIN) * zoom * 0.78;
+      const tw = S * zoom * 0.5;
+      const th = tw * 0.78;
+      const alt = (tx + ty) & 1;
+      const tile = FLOOR_TILE[(b.floor.n - 1) % FLOOR_TILE.length] + (alt ? 1 : 0);
+      g.save();
+      g.beginPath();
+      g.moveTo(sx, sy - th);
+      g.lineTo(sx + tw, sy);
+      g.lineTo(sx, sy + th);
+      g.lineTo(sx - tw, sy);
+      g.closePath();
+      g.clip();
+      if (blitTile(g, tile, sx, sy, tw * 2, th * 2)) painted = true;
+      else {
+        g.fillStyle = alt ? "#16141a" : "#0c0a10";
+        g.fillRect(sx - tw, sy - th, tw * 2, th * 2);
+      }
+      g.fillStyle = rgba(tint, alt ? 0.18 : 0.08);
+      g.fillRect(sx - tw, sy - th, tw * 2, th * 2);
+      g.restore();
+    }
+  }
+  if (painted) { floorBuf = c; floorKey = key; }
+  return c;
+}
+
 function drawFloor(ctx: CanvasRenderingContext2D, b: Battle, w: number, h: number, cam: Cam, zoom: number, now: number) {
+  const lean = Math.min(w, h) < 900;
+  if (lean) {
+    const img = bakeFloor(b, zoom);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, (FLOOR_ORIGIN - cam.x) * zoom + w / 2, (FLOOR_ORIGIN - cam.y) * zoom * 0.78 + h * 0.58);
+    const c = project(ARENA_W / 2, ARENA_H / 2, cam, w, h, zoom);
+    medallion(ctx, c.sx, c.sy, 22 * zoom, b.floor.n);
+    return;
+  }
   const tint = b.floor.tint;
   const craft = craftFor(b.floor.dungeon, b.floor.sw);
   const left = cam.x - w / zoom;
@@ -272,6 +336,7 @@ function pillar(ctx: CanvasRenderingContext2D, x: number, y: number, z: number) 
 }
 
 function embers(ctx: CanvasRenderingContext2D, cam: Cam, w: number, h: number, zoom: number, now: number, col: string) {
+  if (Math.min(w, h) < 900) return;
   for (let i = 0; i < 16; i++) {
     const x = (i * 173) % ARENA_W;
     const base = (i * 97) % ARENA_H;
@@ -462,7 +527,6 @@ export function paintHero(
   }
   blitHero(ctx, hero.id, frame, x, y, s, flip, facing, down);
   ctx.restore();
-  if (anim === "swing") blitWeapon(ctx, hero.id, x, y, facing, s, swing);
 }
 
 function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, hgt: number, k: number, fill: string, back: string) {

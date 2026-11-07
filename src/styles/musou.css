@@ -15,7 +15,7 @@ html, body { margin: 0; min-height: 100%; color: var(--text); font-family: "Exo 
   radial-gradient(ellipse at 50% -8%, rgba(226, 75, 59, 0.22), transparent 42%),
   radial-gradient(ellipse at 100% 100%, rgba(231, 201, 138, 0.08), transparent 36%),
   var(--bg); }
-body.in-fight { overflow: hidden; height: 100%; }
+body.in-fight { overflow: hidden; height: 100%; touch-action: none; overscroll-behavior: none; }
 button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 #orda { min-height: 100%; display: flex; flex-direction: column; }
@@ -239,7 +239,7 @@ button { cursor: pointer; }
 .view.fight.on { position: fixed; inset: 0; z-index: 6; height: 100dvh; width: 100%; background: #070406; }
 .view.fight.on canvas { width: 100%; height: 100%; display: block; }
 .fight-top, .dock, .hintkeys, .stick { position: absolute; z-index: 2; pointer-events: none; }
-.fight-top { top: 10px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.fight-top { top: max(10px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
 .fight-top button, .dock button, .stick { pointer-events: auto; }
 .obj { background: rgba(8,4,6,.72); border: 1px solid var(--line); padding: 6px 10px; max-width: 46vw; }
 .obj b { font-family: Cinzel, serif; color: var(--gold-2); }
@@ -282,20 +282,21 @@ button { cursor: pointer; }
 .hintkeys { top: 78px; left: 12px; right: 280px; margin: 0; color: var(--muted); font-size: 0.75rem; }
 #controls-hint { display: none; }
 .stick {
-  width: 116px; height: 116px; border-radius: 50%; border: 1px solid var(--line);
-  left: 18px; bottom: 24px; background: rgba(10,6,8,.45); display: none;
+  width: 128px; height: 128px; border-radius: 50%; border: 1px solid var(--line);
+  left: max(16px, env(safe-area-inset-left)); bottom: max(18px, env(safe-area-inset-bottom));
+  background: rgba(10,6,8,.45); display: none; touch-action: none;
 }
-.stick i { position: absolute; width: 42px; height: 42px; border-radius: 50%; background: rgba(231,201,138,.35); left: 37px; top: 37px; }
-.skills-touch { display: none; }
+.stick i { position: absolute; width: 42%; height: 42%; border-radius: 50%; background: rgba(231,201,138,.55); left: 29%; top: 29%; }
+.skills-touch { display: none; pointer-events: none; touch-action: none; }
 .skill-touch {
-  position: relative; overflow: hidden; min-width: 0; min-height: 64px; padding: 4px; pointer-events: auto;
+  position: relative; overflow: hidden; min-width: 72px; min-height: 72px; padding: 4px; pointer-events: auto; touch-action: none;
   border: 1px solid var(--gold); background: rgba(16,8,10,.92); color: var(--gold);
   font: 600 0.72rem "Exo 2", sans-serif;
 }
 .skill-touch.cooling { opacity: 1; }
-.pad { display: none; position: absolute; right: 12px; bottom: 108px; z-index: 3; gap: 8px; }
+.pad { display: none; position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 3; gap: 8px; pointer-events: none; touch-action: none; }
 .pad button {
-  min-width: 64px; min-height: 64px; border-radius: 50%;
+  min-width: 72px; min-height: 72px; border-radius: 50%; pointer-events: auto; touch-action: none;
   border: 1px solid var(--gold); background: rgba(16,8,10,.72); color: var(--gold); font: 600 0.78rem "Exo 2", sans-serif;
 }
 .toast {
@@ -313,13 +314,15 @@ body.in-fight .toast { bottom: 108px; }
 @media (pointer: coarse) {
   .hintkeys { display: none; }
   .stick { display: block; }
-  .pad { display: flex; }
+  .pad { display: grid; grid-template-columns: 1fr 1fr; }
   .skills-touch {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-    position: absolute; left: 12px; bottom: 156px; z-index: 8; width: 168px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    position: absolute; right: max(12px, env(safe-area-inset-right)); left: auto;
+    bottom: calc(168px + env(safe-area-inset-bottom)); z-index: 8; width: 160px;
   }
   #skills { display: none; }
   .view.fight.on { height: 100dvh; }
+  .dock { top: max(52px, calc(env(safe-area-inset-top) + 46px)); bottom: auto; left: max(12px, env(safe-area-inset-left)); transform: none; }
 }
 @media (max-width: 980px) {
   .hub { grid-template-columns: 1fr 1fr; height: auto; overflow: visible; }
@@ -342,26 +345,31 @@ body.in-fight .toast { bottom: 108px; }
   .brand { flex: 1 1 100%; order: -1; }
   .pills { margin-left: auto; }
   .hintkeys { display: none; }
-  .stick, .pad { display: flex; }
+  .stick { display: block; }
+  .pad { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .skills-touch {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-    position: absolute; left: 12px; bottom: 156px; z-index: 8; width: 168px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    position: absolute; right: max(8px, env(safe-area-inset-right)); left: auto;
+    bottom: calc(168px + env(safe-area-inset-bottom)); z-index: 8; width: 160px;
   }
   #skills { display: none; }
   .brand small { display: none; }
   .top { padding: 8px; }
-  .stick { width: 92px; height: 92px; left: 8px; bottom: 8px; }
-  .stick i { width: 36px; height: 36px; left: 28px; top: 28px; }
-  .skills-touch { left: 8px; bottom: 108px; width: 156px; }
-  .skill-touch { min-height: 68px; }
+  .stick { width: 132px; height: 132px; left: max(10px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); }
+  .skill-touch { min-height: 72px; min-width: 72px; }
   .skill-touch .sec { font-size: 1.05rem; }
   .skill-book { max-height: none; }
-  .pad {
-    right: 8px; bottom: 8px;
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-  }
-  .pad button { min-width: 56px; min-height: 56px; }
-  .dock { left: 108px; right: 132px; bottom: 22px; transform: none; width: auto; padding: 6px; }
+  .pad { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); }
+  .pad button { min-width: 72px; min-height: 72px; }
+  .dock { top: max(52px, calc(env(safe-area-inset-top) + 46px)); bottom: auto; left: max(8px, env(safe-area-inset-left)); right: auto; transform: none; width: auto; padding: 6px; }
   .obj { max-width: 46vw; font-size: 0.68rem; padding: 4px 6px; }
+}
+@media (pointer: coarse) and (max-height: 520px) {
+  .stick { top: 50%; bottom: auto; transform: translateY(-50%); width: 116px; height: 116px; }
+  .skills-touch { display: flex; width: auto; bottom: max(8px, env(safe-area-inset-bottom)); right: max(168px, calc(env(safe-area-inset-right) + 160px)); }
+  .skill-touch { width: 64px; min-width: 64px; min-height: 64px; }
+  .pad { bottom: max(8px, env(safe-area-inset-bottom)); }
+  .pad button { min-width: 64px; min-height: 64px; }
+  .dock { top: max(8px, env(safe-area-inset-top)); }
   .vitals { width: auto; }
 }

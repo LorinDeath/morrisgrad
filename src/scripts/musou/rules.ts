@@ -177,11 +177,17 @@ export type Play = {
 
 const sk = (p: SkillDef): SkillDef => p;
 
+// Имя на карточке — тот, кто нарисован в строке heroes_atlas.png для этого heroId.
+// Строки: tools/mc-sprites/build_hero_atlases.py и src/pages/MorrisCurse/_core/engine/pixSprites.js.
+// Классы: server/meta/shared.ts HERO_NAMES, src/pages/MorrisCurse/_core/survivors/data.js RUN_CLASSES.
+// NPC: server/meta/shared.ts NPCS. У Петра в визуальной новелле (vnChars.ts) написано «Пётр» — в мире и на листе он Петр.
+// heroId не переименовывается: сохранения, сумка и надетое остаются на прежних ключах.
+// Навыковые id и числа удара те же. Отдельных листов Лорина, Лорелин, Листафа, Хроноса, Вайт Фокса, Айтрейна и Алекса в атласе нет.
 export const HEROES: HeroDef[] = [
   {
-    id: "lorin", name: "Лорин Дэс", title: "Смерть", faction: "Адское пламя",
-    blurb: "Коса по толпе. Финальный взмах сжигает всё, что стоит рядом.",
-    hair: "#1a0a0c", cloth: "#3a1014", accent: "#ff4a32", skin: "#f0c8b0", metal: "#c9a27a",
+    id: "lorin", name: "Алзи", title: "Создатель Мэлвелдила", faction: "Мэлвелдил",
+    blurb: "Алзи у древнего шпиля. Мир держится на опорах.",
+    hair: "#0c1018", cloth: "#1a2430", accent: "#7ee7ff", skin: "#f3d2bd", metal: "#9bd4ff",
     weapon: "scythe", hairStyle: "long",
     base: { str: 16, dex: 8, vit: 9, ene: 7 },
     skills: [
@@ -192,9 +198,9 @@ export const HEROES: HeroDef[] = [
     ],
   },
   {
-    id: "lorelin", name: "Лорелин Сэйлор", title: "Лекарь", faction: "Обитель тьмы",
-    blurb: "Свет режет орду и поднимает отряд. Круг жизни — по своим.",
-    hair: "#2a1038", cloth: "#4a2060", accent: "#e7b6ff", skin: "#f3d0c4", metal: "#e7d2ff",
+    id: "lorelin", name: "Нофорд", title: "Копья пронзают ряды", faction: "Копейщик",
+    blurb: "Копейщик. Копья пронзают ряды врагов насквозь.",
+    hair: "#eceef4", cloth: "#f4f4f6", accent: "#ef4444", skin: "#f3d2bd", metal: "#22c55e",
     weapon: "staff", hairStyle: "waves",
     base: { str: 6, dex: 8, vit: 10, ene: 16 },
     skills: [
@@ -205,9 +211,9 @@ export const HEROES: HeroDef[] = [
     ],
   },
   {
-    id: "veles", name: "Велес", title: "Главный страж", faction: "Модераторы",
-    blurb: "Щит и широкий клинок. Держит генерала лицом к себе.",
-    hair: "#1c2430", cloth: "#1c3048", accent: "#8ec5ff", skin: "#e7c2a4", metal: "#d5dee8",
+    id: "veles", name: "Велес", title: "Крепкий и бронированный", faction: "Воин",
+    blurb: "Воин. Крепкий и бронированный. Метательные топоры возвращаются как бумеранг.",
+    hair: "#d8d2c0", cloth: "#1f6a3a", accent: "#f5c542", skin: "#f3d2bd", metal: "#f1f5f9",
     weapon: "sword", hairStyle: "short",
     base: { str: 12, dex: 7, vit: 16, ene: 6 },
     skills: [
@@ -218,9 +224,9 @@ export const HEROES: HeroDef[] = [
     ],
   },
   {
-    id: "listaf", name: "Листаф Элфдид", title: "Губитель", faction: "Ядовитый эфир",
-    blurb: "Быстрые кинжалы. Веер накрывает пачку, тень прошивает её насквозь.",
-    hair: "#14301c", cloth: "#143222", accent: "#3dff9a", skin: "#efc8b4", metal: "#b7f5c8",
+    id: "listaf", name: "Кавега", title: "Быстрые кинжалы веером", faction: "Разбойник",
+    blurb: "Разбойник. Быстрые кинжалы веером. Навык лечит часть нанесённого урона.",
+    hair: "#4a2622", cloth: "#1c1b22", accent: "#22c55e", skin: "#f3d2bd", metal: "#c0262d",
     weapon: "daggers", hairStyle: "hood",
     base: { str: 8, dex: 16, vit: 7, ene: 8 },
     skills: [
@@ -231,9 +237,9 @@ export const HEROES: HeroDef[] = [
     ],
   },
   {
-    id: "chronos", name: "Хронос", title: "Библиотекарь", faction: "ДаргСирром",
-    blurb: "Останавливает генерала на взмахе и бьёт в чужое замедленное время.",
-    hair: "#3a3018", cloth: "#3a2c16", accent: "#f0d080", skin: "#f0d0b8", metal: "#ffe7a8",
+    id: "chronos", name: "Мариэль", title: "Огненные искры по площади", faction: "Маг",
+    blurb: "Маг. Хрупкий, но смертоносный. Огненные искры взрываются по площади.",
+    hair: "#c0163f", cloth: "#f7f6fb", accent: "#a855f7", skin: "#f3d2bd", metal: "#8b3fe0",
     weapon: "hour", hairStyle: "tie",
     base: { str: 7, dex: 9, vit: 8, ene: 16 },
     skills: [
@@ -244,9 +250,9 @@ export const HEROES: HeroDef[] = [
     ],
   },
   {
-    id: "fox", name: "Вайт Фокс", title: "Белая охота", faction: "Альказак",
-    blurb: "Рывки и клыки. Длинный мусоу прочерчивает арену белой дугой.",
-    hair: "#f4f7ff", cloth: "#d8e2f2", accent: "#9fd6ff", skin: "#f6d5c4", metal: "#ffffff",
+    id: "fox", name: "Кьют", title: "Испытание отражений", faction: "Дуэли",
+    blurb: "Кьют выпускает своё отражение. Арена дуэлей — розовый портал.",
+    hair: "#f4c2d8", cloth: "#3a2030", accent: "#f472b6", skin: "#f3d2bd", metal: "#f9a8d4",
     weapon: "katana", hairStyle: "fox",
     base: { str: 10, dex: 15, vit: 8, ene: 7 },
     skills: [
@@ -257,9 +263,9 @@ export const HEROES: HeroDef[] = [
     ],
   },
   {
-    id: "itrain", name: "Айтрейн", title: "Машинист", faction: "Рельсы",
-    blurb: "Удар идёт рельсом: прямая полоса через всю пачку.",
-    hair: "#2a2418", cloth: "#2c2414", accent: "#ffd15a", skin: "#e8c4a8", metal: "#7ecbff",
+    id: "itrain", name: "Петр", title: "Распаковщик архивов", faction: "Ремесло",
+    blurb: "Петр распаковывает архивы. Ремесло и улучшение — у него.",
+    hair: "#3a2a18", cloth: "#4a3418", accent: "#fbbf24", skin: "#f3d2bd", metal: "#e7c96a",
     weapon: "rail", hairStyle: "spiky",
     base: { str: 9, dex: 14, vit: 8, ene: 10 },
     skills: [
@@ -270,9 +276,9 @@ export const HEROES: HeroDef[] = [
     ],
   },
   {
-    id: "alex", name: "Алекс Сэйлор", title: "Поехавший", faction: "Сбой",
-    blurb: "Глитч путает взмахи. Перегруз рвёт круг, мусоу — три кольца сразу.",
-    hair: "#ff3d8a", cloth: "#2a1030", accent: "#ff3d8a", skin: "#f0c8c0", metal: "#7a5cff",
+    id: "alex", name: "Лэйр", title: "Хозяйка лугов Мэлвелдила", faction: "Мэлвелдил",
+    blurb: "Лэйр на фиалковом лугу. Ветер она ждала долго.",
+    hair: "#f7c2d8", cloth: "#f3d6e4", accent: "#f9a8d4", skin: "#f3d2bd", metal: "#fff",
     weapon: "glitch", hairStyle: "messy",
     base: { str: 11, dex: 11, vit: 8, ene: 12 },
     skills: [
