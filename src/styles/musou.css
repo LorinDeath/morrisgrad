@@ -203,6 +203,14 @@ button { cursor: pointer; }
 .boss-track { height: 14px; margin: 6px 0 4px; background: #2a0c0c; border: 1px solid rgba(224,192,122,.45); }
 .boss-track i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6a1818, #e24b3b 70%, #ffd76a); }
 .boss-hud span { display: block; text-align: center; color: var(--gold); font-size: 0.78rem; letter-spacing: 0.04em; }
+.exit-count {
+  position: absolute; z-index: 6; top: 112px; left: 50%; transform: translateX(-50%);
+  pointer-events: none; padding: 8px 18px;
+  background: rgba(12, 6, 8, .92); border: 1px solid var(--gold-2);
+  color: var(--gold-2); font-family: Cinzel, serif; font-size: 1.45rem; letter-spacing: 0.06em;
+  text-shadow: 0 2px 0 #000;
+}
+.exit-count[hidden] { display: none !important; }
 .loot-panel {
   position: fixed; z-index: 12; pointer-events: none;
   top: max(72px, calc(env(safe-area-inset-top) + 56px));
@@ -412,6 +420,7 @@ body.in-fight .toast { bottom: 108px; }
   .dock { top: max(52px, calc(env(safe-area-inset-top) + 46px)); bottom: auto; left: max(8px, env(safe-area-inset-left)); right: auto; transform: none; width: auto; padding: 6px; }
   .obj { max-width: 46vw; font-size: 0.68rem; padding: 4px 6px; }
   .boss-hud { top: 128px; width: calc(100vw - 16px); }
+  .exit-count { top: 168px; font-size: 1.2rem; padding: 6px 12px; }
   .loot-panel { top: 176px; left: 8px; right: 8px; width: auto; transform: none; max-height: calc(100dvh - 176px - 330px); }
   .loot-card { padding: 8px 10px; }
   .loot-card h2 { font-size: 0.95rem; }

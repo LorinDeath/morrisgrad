@@ -5,6 +5,7 @@ import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limit
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
 import { beginRun, chainAt, diffLock, finishRun, FLOOR_N, floorByN, floorLock, floorNeed, makeScript, memberDiffLock, mulberry32, noteDrop, roomOutcome, sheet, takeDrop, type Sheet } from "../../src/scripts/musou/rules";
+import { armExitAt, exitDue } from "../../src/scripts/musou/exit";
 import { ELITE_LINE_SIDE, diffRow, eliteDmg, eliteHp, eliteName, eliteReach, floorKit, getTune } from "../../src/scripts/musou/tune";
 import { castOf } from "../../src/scripts/musou/scripts";
 import { markAnchor, markColor, markMul, markSeed, markTitle, rollMark } from "../../src/scripts/musou/mark";
@@ -17,7 +18,7 @@ type Spot = { id: string; x: number; y: number };
 type Lob = {
   code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; diff: number; nonce: string; started: number;
   seed: number; elites: Elite[]; pos: Record<string, { x: number; y: number; aim: number; at: number; guard?: number }>; paid: boolean; reports: Record<string, any>; spots?: Spot[];
-  party?: any[]; claim?: "win";
+  party?: any[]; claim?: "win"; exitAt?: number;
 };
 type Att = { url: string; pkey?: string; tk: number; at: number; st: number };
 
@@ -131,9 +132,12 @@ export class MusouRoom extends DurableObject {
           return { chest: c, x: spot?.x || 1200, y: spot?.y || 780 };
         }) });
       }
+      if (L.exitAt && L.phase === "fight") this.send(ws, { type: "exit", until: L.exitAt });
       if (L.paid) {
         const saved = await loadProfile(this.env.GAME_DB, key);
         this.send(ws, { type: "loot", report: L.reports[key] || null, profile: saved, err: L.reports[key] ? null : "Награда этой комнаты уже разобрана" });
+      } else if (L.phase === "fight" && exitDue(L.exitAt || 0, Date.now())) {
+        await this.finish("win");
       }
       return;
     }
@@ -205,9 +209,24 @@ export class MusouRoom extends DurableObject {
       this.send(ws, { type: "err", err: "Сундук считает комната, не сообщение об убийстве" });
       return;
     }
+    if (m.type === "exit" && L.phase === "fight") {
+      const outcome = roomOutcome(makeScript(L.floor, L.seed), Date.now() - L.started, L.elites || []);
+      const next = armExitAt(Date.now(), L.exitAt, !!outcome.boss);
+      if (outcome.boss && next !== (L.exitAt || 0)) {
+        L.exitAt = next;
+        await this.save();
+      }
+      if (L.exitAt) this.broadcast({ type: "exit", until: L.exitAt });
+      if (exitDue(L.exitAt || 0, Date.now())) await this.finish("win");
+      return;
+    }
     if (m.type === "end" && L.phase === "fight") {
       if (m.reason === "surrender") return this.finish("surrender");
       const outcome = roomOutcome(makeScript(L.floor, L.seed), Date.now() - L.started, L.elites || []);
+      if (outcome.boss && L.exitAt) {
+        if (exitDue(L.exitAt, Date.now())) return this.finish("win");
+        return;
+      }
       if (outcome.boss) return this.finish("win");
       if (m.reason === "win") {
         L.claim = "win";
@@ -342,7 +361,9 @@ export class MusouRoom extends DurableObject {
         changed = true;
       }
     }
-    if (L.claim === "win" && roomOutcome(script, elapsed, L.elites).boss) void this.finish("win");
+    const bossDown = roomOutcome(script, elapsed, L.elites).boss;
+    if (!L.exitAt && L.claim === "win" && bossDown) void this.finish("win");
+    if (exitDue(L.exitAt || 0, Date.now())) void this.finish("win");
     if (changed || L.elites.length) this.broadcast({ type: "elite", elites: this.eliteView() });
   }
 
