@@ -1,0 +1,84 @@
+---
+// «Орда Обители» — мусоу по данжам Тёмного мира. Хаб, лавка и сумка: src/scripts/musou. Бой на канвасе.
+import SeoHead from '../../components/seo/SeoHead.astro';
+import '../../styles/musou.css';
+const title = 'Орда Обители | Моррис Град';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Орда Обители — мусоу МоррисГрада: семнадцать данжей Тёмного мира, этажи внутри данжа, цвет чар, генералы и боссы, лавка и сумка с пределом. Комнаты на четверых." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+<main id="orda">
+  <header class="top" id="top">
+    <a href="/games">← Мини-игры</a>
+    <div class="brand"><b>Орда Обители</b><small>тест · семнадцать данжей</small></div>
+    <div class="pills">
+      <span class="pill" id="lvl-pill">ур. 1</span>
+      <span class="pill" id="gold-pill">0 зл</span>
+      <span class="pill" id="bag-pill">0/12</span>
+      <span class="pill" id="net-pill">…</span>
+    </div>
+  </header>
+  <section id="v-boot" class="view boot on"><div class="spinner"></div><h1>Орда Обители</h1><p>Герой выходит на двор.</p></section>
+  <section id="v-menu" class="view menu"></section>
+  <section id="v-pick" class="view pick"></section>
+  <section id="v-hub" class="view"></section>
+  <section id="v-fight" class="view fight">
+    <canvas id="field"></canvas>
+    <div class="fight-top">
+      <button class="btn" id="pause-btn" type="button">Пауза</button>
+      <button class="btn danger" id="flee" type="button">Сдаться</button>
+      <div class="obj" id="obj"></div>
+      <div class="party" id="party"></div>
+    </div>
+    <div class="stick" id="stick"><i></i></div>
+    <div class="skills-touch" id="skills-touch">
+      <button type="button" class="skill-touch" id="m-sk1" data-sk="1">Q</button>
+      <button type="button" class="skill-touch" id="m-sk2" data-sk="2">E</button>
+      <button type="button" class="skill-touch" id="m-sk3" data-sk="3">R</button>
+      <button type="button" class="skill-touch" id="m-sk4" data-sk="4">F</button>
+    </div>
+    <div class="pad">
+      <button type="button" id="m-light">Удар</button>
+      <button type="button" id="m-heavy">Тяж</button>
+      <button type="button" id="m-dodge">Рывок</button>
+      <button type="button" id="m-chest">Сундук</button>
+    </div>
+    <div class="dock">
+      <div class="vitals"><div class="hp"><i id="hp"></i></div><b id="hp-num">0</b><div class="ms"><i id="ms"></i></div><span>пыл</span></div>
+      <div class="skills" id="skills"></div>
+    </div>
+    <p class="hintkeys" id="chest-hint" hidden>Рядом сундук. G или кнопка «Сундук», либо постой у него.</p>
+    <p class="hintkeys" id="controls-hint">WASD — шаг, мышь — взгляд, ЛКМ или J — удар, K — тяжёлый, Q E R F — навыки, пробел — рывок, G — сундук, P — пауза.</p>
+    <div id="pause" class="pause" hidden>
+      <div class="pause-card">
+        <p class="tag">Соло</p>
+        <h2>Пауза</h2>
+        <p>Бой стоит. Можно продолжить или сдаться.</p>
+        <p class="derived">Шаг — WASD или стик. Удар и тяжёлый — кнопки внизу. Навыки — Q E R F. Рывок — пробел, сундук — G.</p>
+        <label class="check"><input type="checkbox" id="opt-shake" checked /> Тряска ударов</label>
+        <div class="row">
+          <button class="btn gold" id="pause-go" type="button">Продолжить</button>
+          <button class="btn danger" id="pause-leave" type="button">Сдаться</button>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="v-result" class="view result"></section>
+  <div id="modal" class="modal" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+</main>
+<script>
+  import '../../scripts/musou/client';
+</script>
+</body>
+</html>

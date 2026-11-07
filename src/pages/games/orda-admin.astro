@@ -1,0 +1,318 @@
+---
+import SeoHead from "../../components/seo/SeoHead.astro";
+const title = "Орда · набор чисел";
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <SeoHead title={title} description="Набор чисел Орды Обители. Запись только у Lorin Death по Clerk uid." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #14080c; color: #f3e6d4; font: 16px/1.45 "Exo 2", system-ui, sans-serif; }
+    main { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+    a { color: #e7c98a; }
+    h1 { font-family: Cinzel, serif; color: #f0d080; font-size: 1.6rem; margin: 8px 0; }
+    h2 { font-size: 1rem; color: #e7c98a; margin: 22px 0 8px; }
+    p { color: #cbbba6; }
+    .status { min-height: 1.4em; color: #ffb0a0; }
+    label { display: grid; gap: 4px; font-size: 0.85rem; color: #cbbba6; }
+    input, textarea { background: #1c0e12; color: #f3e6d4; border: 1px solid rgba(224,192,122,.4); padding: 6px 8px; width: 100%; box-sizing: border-box; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    button { background: transparent; color: #f0d080; border: 1px solid #e7c98a; padding: 8px 12px; cursor: pointer; }
+    button.gold { background: #e7c98a; color: #14080c; }
+    pre { white-space: pre-wrap; background: #1c0e12; padding: 12px; border: 1px solid rgba(224,192,122,.25); }
+    .rev { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(224,192,122,.15); padding: 6px 0; }
+  </style>
+</head>
+<body>
+<main>
+  <a href="/games/orda">← К Орде</a>
+  <h1>Набор чисел Орды</h1>
+  <p>Запись проверяет сервер по Clerk uid Lorin Death, тем же, что у боевых шахмат. Ник ничего не открывает. Гость и чужой uid получают отказ. Прод-воркер этой страницей не выкладывается: локально нужен wrangler на 127.0.0.1:8787 и флаг стенда MC_DEV_TRUST_USERID=1.</p>
+  <p class="status" id="status"></p>
+  <div class="grid">
+    <label>Локальный uid стенда<input id="dev" autocomplete="off" spellcheck="false" /></label>
+    <label>Заметка к версии<input id="note" maxlength="160" /></label>
+  </div>
+  <h2>Экономика</h2>
+  <div class="grid" id="f-economy"></div>
+  <h2>Бой</h2>
+  <div class="grid" id="f-combat"></div>
+  <h2>Шансы лута</h2>
+  <div class="grid" id="f-loot"></div>
+  <h2>Проклятие и чары</h2>
+  <div class="grid" id="f-mark"></div>
+  <h2>Опыт</h2>
+  <div class="grid" id="f-xp"></div>
+  <div class="row">
+    <button class="gold" id="save" type="button">Записать следующему бою</button>
+    <button id="reload" type="button">Перечитать</button>
+  </div>
+  <h2>Что изменится на этаже 1</h2>
+  <pre id="preview"></pre>
+  <h2>Версии</h2>
+  <div id="history"></div>
+</main>
+<script>
+  import { DEFAULT_TUNE, previewTune, validateTune } from "../../scripts/musou/tune.ts";
+
+  const $ = (id) => document.getElementById(id);
+  const host = location.hostname;
+  const local = host === "localhost" || host === "127.0.0.1";
+  const site = host === "morrisgrad.com" || host === "www.morrisgrad.com";
+  const http = local ? "http://127.0.0.1:8787" : "https://morris-multiplayer.alexseylyou.workers.dev";
+  let rev = 0;
+
+  const FIELDS = [
+    ["economy", "startGold", "Старт золота"],
+    ["economy", "killGold", "Золото за тварь"],
+    ["economy", "generalGold", "Золото за генерала"],
+    ["economy", "clearBase", "База зачистки"],
+    ["economy", "clearPerFloor", "Зачистка за этаж"],
+    ["economy", "bossBase", "База босса"],
+    ["economy", "bossPerFloor", "Босс за этаж"],
+    ["economy", "partyGold", "Множитель группы"],
+    ["economy", "replayGold", "Повтор: доля золота этажа"],
+    ["economy", "replayXp", "Повтор: доля опыта этажа"],
+    ["economy", "bagGoldFind", "Золото за ранг сумки"],
+    ["combat", "mobHpPerFloor", "Здоровье твари за этаж"],
+    ["combat", "contactIframe", "Окно после касания"],
+    ["combat", "generalHp", "Здоровье генерала"],
+    ["combat", "generalHpPerFloor", "Генерал за этаж"],
+    ["combat", "bossHp", "Здоровье босса"],
+    ["combat", "bossHpPerFloor", "Босс за этаж"],
+    ["combat", "generalDmg", "Урон генерала"],
+    ["combat", "generalDmgPerFloor", "Урон генерала за этаж"],
+    ["combat", "bossDmg", "Урон босса"],
+    ["combat", "bossDmgPerFloor", "Урон босса за этаж"],
+    ["combat", "partyHpPerExtra", "Здоровье элиты за союзника"],
+    ["combat", "partyHpCap", "Потолок здоровья элиты"],
+    ["loot", "curseChance", "Шанс проклятия"],
+    ["loot", "enchChance", "Шанс чар"],
+    ["loot", "chestCount", "Сундуков на этаже"],
+    ["loot", "magicDrop", "Магический дроп"],
+    ["loot", "rareDrop", "Редкий дроп"],
+    ["curse", "statMult", "Проклятие × статы"],
+    ["curse", "speed", "Проклятие × скорость"],
+    ["oath", "on", "Клятвы: 1 включены, 0 нет"],
+    ["oath", "stake", "Ставка кубка"],
+    ["xp", "base", "База опыта"],
+    ["xp", "pow", "Степень опыта"],
+    ["forge", "on", "Кузница: 1 включена, 0 нет"],
+    ["forge", "drop", "Материала Петра за зачистку"],
+    ["forge", "max", "Потолок плюса, не выше 58"],
+    ["modes", "arena", "Арена, уровень"],
+    ["modes", "duel", "Дуэль, уровень"],
+    ["modes", "horde", "Орда Бездны, уровень"],
+    ["modes", "abyss", "Фрактальная Бездна, уровень"],
+    ["modes", "bossrush", "Босс-Раш, уровень"],
+    ["modes", "purgatory", "Чистилище, уровень"],
+    ["modes", "demiurge", "Рейд Демиурга, уровень"],
+    ["craft", "sockets", "Гнёзда рун: 1 открыты, 0 нет"],
+    ["craft", "radianceMax", "Сияние, потолок шагов 0–9"],
+    ["craft", "radianceGold", "Золото за шаг сияния"],
+    ["craft", "runeGold", "Золото за руну"],
+  ];
+
+  function draft() {
+    const tune = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+    for (const [sec, key] of FIELDS) {
+      const el = document.querySelector(`[data-k="${sec}.${key}"]`);
+      if (!el) continue;
+      const n = Number(el.value);
+      if (Number.isFinite(n)) tune[sec][key] = n;
+    }
+    const prices = $("prices").value.split(",").map((s) => Number(s.trim()));
+    if (prices.length === 9 && prices.every((n) => Number.isFinite(n))) tune.economy.bagPrices = prices;
+    const mobHp = [0, 1, 2].map((i) => Number(document.querySelector(`[data-k="combat.mobHp.${i}"]`).value));
+    const mobDmg = [0, 1, 2].map((i) => Number(document.querySelector(`[data-k="combat.mobDmg.${i}"]`).value));
+    const ench = [0, 1, 2, 3, 4, 5].map((i) => Number(document.querySelector(`[data-k="ench.stat.${i}"]`).value));
+    const enchSpeed = [0, 1, 2, 3, 4, 5].map((i) => Number(document.querySelector(`[data-k="ench.speed.${i}"]`).value));
+    const mut = $("muts").value.split(",").map((s) => Number(s.trim()));
+    if (mobHp.every(Number.isFinite)) tune.combat.mobHp = mobHp;
+    if (mobDmg.every(Number.isFinite)) tune.combat.mobDmg = mobDmg;
+    if (ench.every(Number.isFinite)) tune.ench.stat = ench;
+    if (enchSpeed.every(Number.isFinite)) tune.ench.speed = enchSpeed;
+    for (const [key, n] of [["minTier", 7], ["up", 7], ["modeTier", 7]]) {
+      const got = Array.from({ length: n }, (_, i) => Number(document.querySelector(`[data-k="elite.${key}.${i}"]`).value));
+      if (got.every(Number.isFinite)) tune.elite[key] = got;
+    }
+    if (mut.length === 10 && mut.every(Number.isFinite)) tune.mut.mult = mut;
+    try { tune.floors = JSON.parse($("floors").value); } catch { tune.floors = null; }
+    try { tune.diff = JSON.parse($("diffs").value); } catch { tune.diff = null; }
+    return tune;
+  }
+
+  function paint(tune) {
+    for (const [sec, key] of FIELDS) {
+      const el = document.querySelector(`[data-k="${sec}.${key}"]`);
+      if (el) el.value = String(tune[sec][key]);
+    }
+    $("prices").value = tune.economy.bagPrices.join(", ");
+    tune.combat.mobHp.forEach((n, i) => { document.querySelector(`[data-k="combat.mobHp.${i}"]`).value = String(n); });
+    tune.combat.mobDmg.forEach((n, i) => { document.querySelector(`[data-k="combat.mobDmg.${i}"]`).value = String(n); });
+    tune.ench.stat.forEach((n, i) => { document.querySelector(`[data-k="ench.stat.${i}"]`).value = String(n); });
+    tune.ench.speed.forEach((n, i) => { document.querySelector(`[data-k="ench.speed.${i}"]`).value = String(n); });
+    tune.craft = tune.craft || { sockets: 1, radianceMax: 9, radianceGold: 80, runeGold: 160 };
+    const elite = tune.elite || { minTier: [0, 1, 2, 3, 4, 5, 6], up: [0.08, 0.07, 0.06, 0.05, 0.04, 0.035, 0.03], modeTier: [1, 2, 2, 3, 4, 5, 6] };
+    elite.minTier.forEach((n, i) => { document.querySelector(`[data-k="elite.minTier.${i}"]`).value = String(n); });
+    elite.up.forEach((n, i) => { document.querySelector(`[data-k="elite.up.${i}"]`).value = String(n); });
+    elite.modeTier.forEach((n, i) => { document.querySelector(`[data-k="elite.modeTier.${i}"]`).value = String(n); });
+    $("muts").value = tune.mut.mult.join(", ");
+    $("floors").value = JSON.stringify(tune.floors, null, 1);
+    $("diffs").value = JSON.stringify(tune.diff, null, 1);
+    showPreview();
+  }
+
+  function showPreview() {
+    const checked = validateTune(draft());
+    if (!checked.ok) { $("preview").textContent = checked.err; return; }
+    const p = previewTune(checked.tune, 1);
+    $("preview").textContent = [
+      `Зачистка без убийств: ${p.clearGold} золота`,
+      `Сдача без целей: ${p.surrenderGold}`,
+      `10 тварей без зачистки: ${p.killGold10} золота`,
+      `Ближняя тварь: ${p.mobHp} здоровья`,
+      `Босс соло: ${p.bossHpSolo}`,
+      `Босс вчетвером: ${p.bossHpParty4}`,
+      `Чёрный, босс соло: ${p.bossBlack}`,
+      `Опыт до 2 уровня: ${p.xp1}`,
+      `Скорость с проклятой вещью: ×${p.curseSpeed}`,
+    ].join("\n");
+  }
+
+  function build() {
+    const buckets = { economy: $("f-economy"), combat: $("f-combat"), loot: $("f-loot"), mark: $("f-mark"), xp: $("f-xp") };
+    for (const [sec, key, label] of FIELDS) {
+      const where = sec === "curse" || sec === "ench" || sec === "forge" || sec === "modes" || sec === "craft" ? buckets.mark : buckets[sec];
+      const lab = document.createElement("label");
+      lab.textContent = label;
+      const input = document.createElement("input");
+      input.dataset.k = `${sec}.${key}`;
+      input.inputMode = "decimal";
+      input.addEventListener("input", showPreview);
+      lab.append(input);
+      where.append(lab);
+    }
+    const price = document.createElement("label");
+    price.textContent = "Цены сумки, 9 чисел";
+    const box = document.createElement("input");
+    box.id = "prices";
+    box.addEventListener("input", showPreview);
+    price.append(box);
+    buckets.economy.append(price);
+    for (const [key, label, n, where] of [
+      ["combat.mobHp", "Здоровье трёх поведений", 3, buckets.combat],
+      ["combat.mobDmg", "Урон трёх поведений", 3, buckets.combat],
+      ["ench.stat", "Чары, статы яруса", 6, buckets.mark],
+      ["ench.speed", "Чары, шаг яруса", 6, buckets.mark],
+      ["elite.minTier", "Минимальный ярус генерала", 7, buckets.mark],
+      ["elite.up", "Шанс яруса выше", 7, buckets.mark],
+      ["elite.modeTier", "Ярус чар режима", 7, buckets.mark],
+    ]) {
+      for (let i = 0; i < n; i++) {
+        const lab = document.createElement("label");
+        lab.textContent = `${label} ${i + 1}`;
+        const input = document.createElement("input");
+        input.dataset.k = `${key}.${i}`;
+        input.addEventListener("input", showPreview);
+        lab.append(input);
+        where.append(lab);
+      }
+    }
+    const mutLab = document.createElement("label");
+    mutLab.textContent = "Мутации Тёмного мира, 10 множителей до 2.4";
+    const mutBox = document.createElement("input");
+    mutBox.id = "muts";
+    mutBox.addEventListener("input", showPreview);
+    mutLab.append(mutBox);
+    buckets.mark.append(mutLab);
+    const names = document.createElement("label");
+    names.textContent = "Этапы данжей: 169 объектов или старые 13 данжей. Поля general, boss, gSig, bSig, mut, need (1…300), xp. JSON";
+    const area = document.createElement("textarea");
+    area.id = "floors";
+    area.rows = 8;
+    area.addEventListener("input", showPreview);
+    names.append(area);
+    buckets.mark.append(names);
+    const diffLab = document.createElement("label");
+    diffLab.textContent = "Цепочка чар: Базовая, Необычный, Редкий, Странный, Легендарный, Божественный, Чёрный. По 7 чисел: hp, dmg, gold, xp, rare, leg, affix, ilvl, budget, curse, ench, chest, lower, near, soak, regen. Имена и цвета не меняются.";
+    const diffBox = document.createElement("textarea");
+    diffBox.id = "diffs";
+    diffBox.rows = 8;
+    diffBox.addEventListener("input", showPreview);
+    diffLab.append(diffBox);
+    buckets.mark.append(diffLab);
+    paint(DEFAULT_TUNE);
+  }
+
+  function authQuery() {
+    const uid = $("dev").value.trim();
+    if (!local || !uid) return "";
+    return "?devUser=" + encodeURIComponent(uid);
+  }
+
+  async function load() {
+    if (!local && !site) { $("status").textContent = "Этот адрес к воркеру не ходит: превью не в списке CORS, запись некуда слать."; return; }
+    $("status").textContent = "Читаем набор…";
+    try {
+      const r = await fetch(http + "/musou/admin/tune" + authQuery());
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { $("status").textContent = j.msg || j.err || ("Отказ " + r.status); return; }
+      rev = j.rev || 0;
+      paint(j.tune);
+      $("status").textContent = `Версия ${rev}. ${j.who || ""}`;
+      $("history").replaceChildren();
+      for (const h of j.history || []) {
+        const row = document.createElement("div");
+        row.className = "rev";
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = `Вернуть ${h.rev}`;
+        b.addEventListener("click", () => rollback(h.rev));
+        row.append(`${h.rev}. ${h.note || "без заметки"}`, b);
+        $("history").append(row);
+      }
+    } catch {
+      $("status").textContent = "Воркер не ответил. Локально это 127.0.0.1:8787. Запись не сделана.";
+    }
+  }
+
+  async function save() {
+    const checked = validateTune(draft());
+    if (!checked.ok) { $("status").textContent = checked.err; return; }
+    const r = await fetch(http + "/musou/admin/tune" + authQuery(), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tune: checked.tune, note: $("note").value, base: rev }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $("status").textContent = j.msg || j.err || ("Отказ " + r.status); return; }
+    rev = j.rev;
+    $("status").textContent = `Записана версия ${rev}. Следующий заход на этаж возьмёт эти числа.`;
+    await load();
+  }
+
+  async function rollback(to) {
+    const r = await fetch(http + "/musou/admin/rollback" + authQuery(), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ rev: to }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $("status").textContent = j.msg || j.err || ("Отказ " + r.status); return; }
+    await load();
+  }
+
+  build();
+  $("save").addEventListener("click", save);
+  $("reload").addEventListener("click", load);
+  if (local || site) load();
+</script>
+</body>
+</html>

@@ -24,6 +24,14 @@
       {
         "name": "CHESS_INDEX",
         "class_name": "ChessIndex"
+      },
+      {
+        "name": "MUSOU_ROOM",
+        "class_name": "MusouRoom"
+      },
+      {
+        "name": "MUSOU_INDEX",
+        "class_name": "MusouIndex"
       }
     ]
   },
@@ -46,6 +54,13 @@
       "new_sqlite_classes": [
         "ChessMatch",
         "ChessIndex"
+      ]
+    },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": [
+        "MusouRoom",
+        "MusouIndex"
       ]
     }
   ],
