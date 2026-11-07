@@ -40,6 +40,7 @@ const title = 'Орда Обители | Моррис Град';
       <div class="obj" id="obj"></div>
       <div class="party" id="party"></div>
     </div>
+    <div id="boss-hud" class="boss-hud" hidden></div>
     <div class="stick" id="stick"><i></i></div>
     <div class="skills-touch" id="skills-touch">
       <button type="button" class="skill-touch" id="m-sk1" data-sk="1">Q</button>
@@ -51,20 +52,20 @@ const title = 'Орда Обители | Моррис Град';
       <button type="button" id="m-light">Удар</button>
       <button type="button" id="m-heavy">Тяж</button>
       <button type="button" id="m-dodge">Рывок</button>
-      <button type="button" id="m-chest">Сундук</button>
+      <button type="button" id="m-use">Использовать</button>
     </div>
     <div class="dock">
       <div class="vitals"><div class="hp"><i id="hp"></i></div><b id="hp-num">0</b><div class="ms"><i id="ms"></i></div><span>пыл</span></div>
       <div class="skills" id="skills"></div>
     </div>
-    <p class="hintkeys" id="chest-hint" hidden>Рядом сундук. G или кнопка «Сундук», либо постой у него.</p>
-    <p class="hintkeys" id="controls-hint">WASD — шаг, мышь — взгляд, ЛКМ или J — удар, K — тяжёлый, Q E R F — навыки, пробел — рывок, G — сундук, P — пауза.</p>
+    <p class="hintkeys" id="chest-hint" hidden>Рядом сундук. G или «Использовать».</p>
+    <p class="hintkeys" id="controls-hint">WASD — шаг, мышь — взгляд, ЛКМ или J — удар, K — тяжёлый, Q E R F — навыки, пробел — рывок, G — использовать, P — пауза.</p>
     <div id="pause" class="pause" hidden>
       <div class="pause-card">
         <p class="tag">Соло</p>
         <h2>Пауза</h2>
         <p>Бой стоит. Можно продолжить или сдаться.</p>
-        <p class="derived">Шаг — WASD или стик. Удар и тяжёлый — кнопки внизу. Навыки — Q E R F. Рывок — пробел, сундук — G.</p>
+        <p class="derived">Шаг — WASD или стик. Удар и тяжёлый — кнопки внизу. Навыки — Q E R F. Рывок — пробел, сундук — G или «Использовать».</p>
         <label class="check"><input type="checkbox" id="opt-shake" checked /> Тряска ударов</label>
         <div class="row">
           <button class="btn gold" id="pause-go" type="button">Продолжить</button>
@@ -74,6 +75,7 @@ const title = 'Орда Обители | Моррис Град';
     </div>
   </section>
   <section id="v-result" class="view result"></section>
+  <div id="loot-panel" class="loot-panel" hidden><div class="loot-card" id="loot-card"></div></div>
   <div id="modal" class="modal" hidden></div>
   <div id="toast" class="toast" hidden></div>
 </main>

@@ -1,12 +1,12 @@
 // bun server/musou/rules-test.ts
 import {
-  BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  affixText, beginMode, buyRune, compareGear, finishRun, chainAt, diffLock, dropQuality, dungeonBudget, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillBook, skillGlow, socketRune, spendStat, stagePay, statGlance, takeInbox, unequip, xpNeed,
+  BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, claimQuest, equipItem,
+  affixText, beginMode, buyRune, compareGear, finishRun, chainAt, chestCompare, diffLock, dropQuality, dungeonBudget, dungeonIlvl, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, listDrops, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, noteDrop, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillBook, skillGlow, socketRune, spendStat, stagePay, statGlance, takeDrop, takeInbox, unequip, xpNeed,
 } from "../../src/scripts/musou/rules";
 import { markGold, markPay, markSeed, rollBook, rollMark } from "../../src/scripts/musou/mark";
 import { Battle } from "../../src/scripts/musou/sim";
 import { pickShard } from "./plaza";
-import { DEFAULT_TUNE, DIFF_NAME, chestTotal, diffRow, eliteDmg, eliteHp, eliteName, floorKit, floorMut, getTune, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
+import { DEFAULT_TUNE, DIFF_NAME, diffRow, dropChance, eliteBody, eliteDmg, eliteDraw, eliteHp, eliteName, eliteReach, floorKit, floorMut, getTune, mobHp, previewTune, resetTune, setTune, validateTune } from "../../src/scripts/musou/tune";
 import { FLOOR_N } from "../../src/scripts/musou/sw-catalog";
 import { fightScale } from "../../src/scripts/musou/sw-catalog";
 import { auditShadowCatalog } from "./sw-audit";
@@ -188,10 +188,8 @@ resetTune();
 const chestWho = newProfile(8);
 setHero(chestWho, "veles");
 beginRun(chestWho, 1, 4000);
-const loot = claimChest(chestWho, 0, mulberry32(4));
-ok(!("err" in loot) && (chestWho.bag.length + chestWho.inbox.length) === 1, "сундук кладёт одну вещь");
-ok("err" in claimChest(chestWho, 0, mulberry32(5)), "тот же сундук не выдаёт второй раз");
-ok(DEFAULT_TUNE.loot.curseChance > 0 && DEFAULT_TUNE.loot.enchChance > 0 && DEFAULT_TUNE.loot.chestCount === 2, "чары и проклятия выпадают, сундуков два");
+ok("err" in noteDrop(chestWho, "boss", "Страж", 4000), "босс до явки сундук не бросает");
+ok(DEFAULT_TUNE.loot.curseChance > 0 && DEFAULT_TUNE.loot.enchChance > 0 && DEFAULT_TUNE.loot.chestCount === 2, "чары и проклятия в наборе, старое поле сундуков на полу больше их не ставит");
 
 const marked = new Battle(4, [{ id: "you", name: "Велес", hero: "veles", sheet: sheet(chestWho) }], 2);
 while (marked.phase === "intro") marked.step(0.05);
@@ -205,24 +203,14 @@ marked.elites.push({
 });
 marked.step(0.05);
 ok(me.curse > 0, "проклятие генерала вешает метку на героя");
-me.x = marked.chests[0].x;
-me.y = marked.chests[0].y;
+ok(marked.chests.length === 0, "на локации нет заранее стоящих сундуков");
+marked.placeChest({ id: "stay:g0", x: me.x, y: me.y, open: false, kind: "general", name: "Могильный Упырь" });
 let dwell = 0;
-while (!marked.chests[0].open && dwell < 2) { marked.step(0.05); dwell += 0.05; }
-ok(marked.chests[0].open && marked.takeChests().length === 1, "стояние у сундука открывает его");
-
-const chooser = newProfile(11);
-setHero(chooser, "lorin");
-beginRun(chooser, 1, 5000);
-const offer = chestChoices(chooser, 1, mulberry32((chooser.nextId * 997 + 1 * 13) >>> 0));
-ok(!("err" in offer) && offer.tiers.length === 6 && offer.tiers[5].name === "Чёрный" && offer.tiers[5].stat === 10, "сундук показывает шесть ярусов, включая Чёрный");
-const cursed = claimChest(chooser, 1, mulberry32((chooser.nextId * 997 + 1 * 13) >>> 0), "curse");
-ok(!("err" in cursed) && cursed.item.cursed === 1, "выбор проклятия пишет метку на вещь");
-const blackWho = newProfile(12);
-setHero(blackWho, "lorin");
-beginRun(blackWho, 1, 5000);
-const black = claimChest(blackWho, 0, mulberry32(3), 6);
-ok(!("err" in black) && black.item.ench === 6 && black.item.name.startsWith("Чёрный"), "чёрный ярус выбирается, а не выпадает молча");
+while (dwell < 1) { marked.step(0.05); dwell += 0.05; }
+ok(!marked.chests[0].open && marked.takeUses().length === 0, "стояние у сундука его не открывает");
+marked.press("you", { use: true, mx: 0, my: 0, aim: 0 });
+marked.step(0.05);
+ok(marked.takeUses()[0] === "stay:g0" && !marked.chests[0].open, "использовать выбирает ближайший сундук и не забирает его само");
 const trade = (mark: { cursed?: 1; ench?: 6 }) => {
   const who = newProfile(15);
   setHero(who, "lorin");
@@ -343,13 +331,20 @@ const g2 = beginRun(replayP, 7, 90_000);
 const replayBook = !("err" in g2) ? replayP.pending?.marks : undefined;
 const replaySlice = stagePay(replayP.lvl, 7, 1, true);
 const replayBonus = markPay(marksOn(7, replayBook), 0, replaySlice.total);
+const sureReplay = JSON.parse(JSON.stringify(getTune()));
+sureReplay.drops.bossChance = [1, 1, 1, 1, 1, 1, 1];
+sureReplay.drops.bossMin = [1, 1, 1, 1, 1, 1, 1];
+sureReplay.drops.bossMax = [1, 1, 1, 1, 1, 1, 1];
+const sureReplayOk = validateTune(sureReplay);
+if (sureReplayOk.ok) setTune(sureReplayOk.tune);
+const replayDrop = noteDrop(replayP, "boss", "Босс", 90_000 + 36000);
+resetTune();
 const w2 = finishRun(replayP, { nonce: (g2 as { nonce: string }).nonce, reason: "win", boss: true }, 90_000 + 40_000, mulberry32(73), { kills: killNeed(7), generals: 3, boss: true });
 const flat = DEFAULT_TUNE.economy.clearBase + 7 * DEFAULT_TUNE.economy.clearPerFloor + DEFAULT_TUNE.economy.bossBase + 7 * DEFAULT_TUNE.economy.bossPerFloor;
 const expectGold = Math.round(Math.round(flat * DEFAULT_TUNE.economy.replayGold) + killNeed(7) * DEFAULT_TUNE.economy.killGold + 3 * DEFAULT_TUNE.economy.generalGold) + markGold(replayBonus);
 const expectXp = replaySlice.total + replayBonus;
-const drop = !("err" in w2) ? w2.items[0].item : null;
-ok(!("err" in w2) && w2.replay && w2.quests.length === 0 && w2.xp === expectXp && w2.gold === expectGold && w2.gold < w1.gold, "повтор платит четверть опыта данжа и 40% золота этажа, квест молчит");
-ok(!!drop && (drop.rarity === "common" || drop.rarity === "magic") && !drop.unique && !drop.set, "повтор не даёт редкую, легендарную, сетовую или уникальную вещь");
+ok(!("err" in w2) && w2.items.length === 0 && w2.replay && w2.quests.length === 0 && w2.xp === expectXp && w2.gold === expectGold && w2.gold < w1.gold, "повтор платит четверть опыта данжа и 40% золота этажа, квест молчит, вещи в конце нет");
+ok("err" in replayDrop, "этап без босса не выдаёт сундук босса");
 ok(floorOpen(replayP, 7) && (!nextOpen || floorOpen(replayP, 8)), "повтор не закрывает ни этот данж, ни уже открытый следующий");
 const still = claimQuest(replayP, "b7", mulberry32(74));
 ok("err" in still && still.err === "Награда уже взята", "квест после повтора остаётся сданным");
@@ -382,7 +377,7 @@ for (let f = 1; f <= FLOOR_N; f++) {
     if (!(o.bossHp > prevHp && o.goldFirst > prevGold && o.xpFirst >= prevXp)) matrix = false;
     if (d > 1 && !(dungeonBudget(who.lvl, floorByN(f).dungeon, d) > dungeonBudget(who.lvl, floorByN(f).dungeon, d - 1))) matrix = false;
     if (o.bossHp !== eliteHp("boss", f, 1, getTune(), d) || o.mobHp !== mobHp(0, f, getTune(), d)) matrix = false;
-    if (o.chests !== chestTotal(d)) matrix = false;
+    if (o.generalChest !== dropChance("general", d) || o.bossChest !== dropChance("boss", d)) matrix = false;
     if (d > 1 && o.lower <= 0) matrix = false;
     if (d === 1 && o.lower !== 0) matrix = false;
     if (diffLock(who, f, d)) matrix = false;
@@ -420,35 +415,48 @@ const oWin = finishRun(ordinary, { nonce: (oGo as { nonce: string }).nonce, reas
 const expectOrdinary = Math.round(flat1 + 20 * DEFAULT_TUNE.economy.killGold + DEFAULT_TUNE.economy.generalGold);
 ok(!("err" in oWin) && oWin.diff === 1 && oWin.gold === expectOrdinary && oWin.gold < expectBlack, "базовая плата меньше чёрной при тех же целях");
 
-let hardRare = false, plainRare = false;
-for (let seed = 1; seed <= 40 && (!hardRare || !plainRare); seed++) {
+let hardRare = false, plainRare = false, endGear = false;
+const sure = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+sure.drops.bossChance = [1, 1, 1, 1, 1, 1, 1];
+sure.drops.bossMin = [1, 1, 1, 1, 1, 1, 1];
+sure.drops.bossMax = [1, 1, 1, 1, 1, 1, 1];
+const sureOk = validateTune(sure);
+if (sureOk.ok) setTune(sureOk.tune);
+for (let seed = 1; seed <= 40 && (!hardRare || plainRare); seed++) {
   const farm = newProfile(800 + seed);
   setHero(farm, "lorin");
-  farm.lvl = 60;
+  farm.lvl = 80;
   farm.clears[0] = 1;
-  farm.chain[0] = 1;
-  const stay = beginRun(farm, 1, 3000, undefined, false, 1);
-  const plain = finishRun(farm, { nonce: (stay as { nonce: string }).nonce, reason: "win", boss: true }, 3000 + 40_000, mulberry32(seed), { kills: 10, generals: 1, boss: true });
-  if (!("err" in plain) && plain.replay && (plain.items[0].item.rarity === "rare" || plain.items[0].item.rarity === "legendary")) plainRare = true;
+  farm.chain[1] = 1;
+  beginRun(farm, 2, 3000, "plain-" + seed, false, 1);
+  const plainDrop = noteDrop(farm, "boss", "Страж", 3000 + 36000);
+  const plainItem = !("err" in plainDrop) ? plainDrop.chest.items[0] : null;
+  if (!plainItem || plainItem.rarity === "rare" || plainItem.rarity === "legendary" || plainItem.ilvl !== dungeonIlvl(2, 1)) plainRare = true;
+  const plainEnd = finishRun(farm, { nonce: farm.pending?.nonce, reason: "win", boss: true }, 3000 + 40_000, mulberry32(seed), { kills: 10, generals: 1, boss: true });
+  if (!("err" in plainEnd) && plainEnd.items.length) endGear = true;
   const up = newProfile(900 + seed);
   setHero(up, "lorin");
-  up.lvl = 60;
+  up.lvl = 80;
   up.clears[0] = 1;
-  up.chain[0] = 7;
-  up.quests.b1 = { p: 1, done: 1, claimed: 1 };
-  const go = beginRun(up, 1, 4000, undefined, false, 7);
-  const won = finishRun(up, { nonce: (go as { nonce: string }).nonce, reason: "win", boss: true }, 4000 + 40_000, mulberry32(seed + 90), { kills: 10, generals: 1, boss: true });
-  const item = !("err" in won) ? won.items[0].item : null;
-  if (item && won.replay && won.quests.length === 0 && item.affixes.length >= 2 && (item.rarity === "rare" || item.rarity === "legendary")) hardRare = true;
+  up.chain[1] = 7;
+  up.quests.b2 = { p: 1, done: 1, claimed: 1 };
+  beginRun(up, 2, 4000, "black-" + seed, false, 7);
+  const wonDrop = noteDrop(up, "boss", "Страж", 4000 + 36000);
+  const item = !("err" in wonDrop) ? wonDrop.chest.items[0] : null;
+  const won = finishRun(up, { nonce: up.pending?.nonce, reason: "win", boss: true }, 4000 + 40_000, mulberry32(seed + 90), { kills: 10, generals: 1, boss: true });
+  if (!("err" in won) && won.items.length) endGear = true;
+  if (item && !("err" in won) && won.replay && won.quests.length === 0 && item.affixes.length >= 2 && (item.rarity === "rare" || item.rarity === "legendary") && item.ilvl === dungeonIlvl(2, 7)) hardRare = true;
 }
-ok(!plainRare && hardRare, "базовый повтор не даёт редкое, чёрный повтор даёт и не сдаёт квест");
+resetTune();
+ok(!plainRare && hardRare && !endGear, "базовый повтор сундука не даёт редкое и не уровень аккаунта, чёрный может, конец забега вещи не выдаёт");
 
 const box = newProfile(73);
 setHero(box, "lorin");
 box.lvl = 60;
-box.chain[0] = 6;
-const boxed = beginRun(box, 1, 5000, undefined, false, 7);
-ok(!("err" in boxed) && !("err" in chestChoices(box, 2, mulberry32(3))) && "err" in chestChoices(box, 3, mulberry32(4)), "чёрный открывает третий сундук и не четвёртый сверх лимита");
+box.clears[22] = 1;
+box.chain[23] = 6;
+const boxed = beginRun(box, 24, 5000, undefined, false, 7);
+ok(!("err" in boxed) && !("err" in noteDrop(box, "g2", "Генерал", 5000 + 36000)) && !("err" in noteDrop(box, "boss", "Владыка", 5000 + 36000)) && "err" in noteDrop(box, "g3", "Лишний", 5000 + 36000) && "err" in noteDrop(box, "mob", "Тварь", 5000 + 36000), "сундук бывает у генерала или босса, не у четвёртого и не у твари");
 
 const grown = JSON.parse(JSON.stringify(DEFAULT_TUNE));
 grown.combat.partyHpPerExtra = 0.2;
@@ -465,7 +473,7 @@ const blackFight = new Battle(1, member, 5, 7);
 const pink = new Battle(1, member, 5, 4);
 let walked = 0;
 while (walked < 6) { calm.step(0.05); blackFight.step(0.05); pink.step(0.05); walked += 0.05; }
-ok(calm.kit === "none" && pink.kit === "blink" && blackFight.kit === "killer" && calm.lastMobHp > 0 && blackFight.lastMobHp === calm.lastMobHp * 20 && blackFight.chests.length === calm.chests.length + 1, "чёрная тварь ×20, другой приём и сундук на один больше");
+ok(calm.kit === "none" && pink.kit === "blink" && blackFight.kit === "killer" && calm.lastMobHp > 0 && blackFight.lastMobHp === calm.lastMobHp * 20 && calm.chests.length === 0 && blackFight.chests.length === 0, "чёрная тварь ×20, другой приём, сундуков на полу нет");
 ok(pink.blinks > 0 && calm.blinks === 0, "странный скачет к герою, базовая нет");
 
 const bareDiff = JSON.parse(JSON.stringify(DEFAULT_TUNE));
@@ -489,9 +497,17 @@ smith.lvl = 12;
 smith.clears[0] = 1;
 smith.chain[1] = 1;
 const forged = beginRun(smith, 2, 8000, undefined, false, 2);
+const sureSmith = JSON.parse(JSON.stringify(getTune()));
+sureSmith.drops.bossChance = [1, 1, 1, 1, 1, 1, 1];
+sureSmith.drops.bossMin = [1, 1, 1, 1, 1, 1, 1];
+sureSmith.drops.bossMax = [1, 1, 1, 1, 1, 1, 1];
+const sureSmithOk = validateTune(sureSmith);
+if (sureSmithOk.ok) setTune(sureSmithOk.tune);
+const forgedDrop = !("err" in forged) ? noteDrop(smith, "boss", "Босс", 8000 + 36000) : forged;
+resetTune();
 const forgedRun = !("err" in forged) ? finishRun(smith, { nonce: forged.nonce, reason: "win", boss: true, diff: 1 }, 8000 + 40_000, mulberry32(15), { kills: killNeed(2), generals: 1, boss: true }) : forged;
-const wantIlvl = dropQuality(12, 2, 2).ilvl;
-ok(!("err" in forgedRun) && forgedRun.items[0].item.ilvl === wantIlvl && wantIlvl === 13 && forgedRun.diff === 2 && smith.chain[1] === 2, "итог необычного пишет уровень вещи из забега и открывает следующий цвет");
+const wantIlvl = dungeonIlvl(2, 2);
+ok(!("err" in forgedRun) && !("err" in forgedDrop) && forgedDrop.chest.items[0].ilvl === wantIlvl && wantIlvl !== dropQuality(smith.lvl, 2, 2).ilvl && forgedRun.items.length === 0 && forgedRun.diff === 2 && smith.chain[1] === 2, "сундук необычного берёт уровень данжа, не аккаунта, конец забега вещь не выдаёт и открывает следующий цвет");
 let sawHome = false, sawLower = false;
 for (let s = 1; s <= 80; s++) {
   const tier = rollDropTier(mulberry32(s), 7);
@@ -563,9 +579,9 @@ ok(!("err" in rushed) && rushed.boss === false && young.book.wins[0] === 0, "а�
 young.lvl = 10;
 const duel = beginMode(young, "duel", 5000);
 const duelFight = new Battle(modeFloor(young, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(young) }]);
-ok(!!duelFight.elites[0] && duelFight.elites[0].name.includes("Теневой Двойник") && duelFight.elites[0].tier >= 2 && duelFight.elites[0].maxHp >= sheet(young).hp && duelFight.elites[0].maxHp <= Math.round(sheet(young).hp * 1.85), "дуэль — один зачарованный двойник, здоровье у здоровья героя");
+ok(!!duelFight.elites[0] && duelFight.elites[0].name.includes("Теневой Двойник") && duelFight.elites[0].tier >= 2 && duelFight.elites[0].r === eliteBody("boss") && duelFight.elites[0].maxHp >= sheet(young).hp && duelFight.elites[0].maxHp <= Math.round(sheet(young).hp * 1.85), "дуэль — один зачарованный двойник, крупное тело, здоровье у здоровья героя");
 const duelEnd = finishRun(young, { nonce: "err" in duel ? "" : duel.nonce, boss: true, reason: "win", kills: 0 }, 14000, mulberry32(2));
-ok(!("err" in duelEnd) && duelEnd.boss && young.book.wins[1] === 1 && duelEnd.items.length === 1, "победа дуэли пишет победу и одну вещь");
+ok(!("err" in duelEnd) && duelEnd.boss && young.book.wins[1] === 1 && duelEnd.items.length === 0, "победа дуэли пишет победу, вещь остаётся в сундуке");
 young.lvl = 20;
 const abyss = beginMode(young, "abyss", 20000);
 const abyssEnd = finishRun(young, { nonce: "err" in abyss ? "" : abyss.nonce, boss: true, reason: "win", kills: 3 }, 28000, mulberry32(3));
@@ -1009,6 +1025,154 @@ const xHit = frozen.party[0].x;
 frozen.press("you", { mx: 1, my: 0, aim: 0 });
 frozen.step(0.05);
 ok(frozen.party[0].x > xHit + 2, "хитстоп не замораживает шаг");
+
+ok(eliteDraw("boss") > eliteDraw("general") && eliteDraw("general") > 2.1 && eliteBody("boss") > eliteBody("general") && eliteBody("general") > 30, "босс крупнее генерала, генерал крупнее толпы");
+ok(eliteReach("boss", "", "line") > eliteReach("general", "", "line") && eliteReach("boss") > eliteBody("boss"), "дальность удара больше тела и растёт вместе с боссом");
+const preview = previewTune(DEFAULT_TUNE, 1);
+ok(preview.generalChest === DEFAULT_TUNE.drops.generalChance[0] && preview.bossChest === DEFAULT_TUNE.drops.bossChance[0], "превью показывает шансы сундука из набора");
+const broken = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+broken.drops.generalChance[0] = 1.2;
+ok(!validateTune(broken).ok, "шанс сундука выше 1 отвергнут");
+const flipped = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+flipped.drops.bossMax[0] = 0;
+flipped.drops.bossMin[0] = 1;
+ok(!validateTune(flipped).ok, "максимум вещей меньше минимума отвергнут");
+const oldDrops = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+delete oldDrops.drops;
+const oldDropsOk = validateTune(oldDrops);
+ok(oldDropsOk.ok && oldDropsOk.tune.drops.bossChance[0] === DEFAULT_TUNE.drops.bossChance[0] && oldDropsOk.tune.v === 1, "старый набор без таблиц сундука получает числа по умолчанию и версию 1");
+
+const none = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+none.drops.generalChance = [0, 0, 0, 0, 0, 0, 0];
+none.drops.bossChance = [0, 0, 0, 0, 0, 0, 0];
+const always = JSON.parse(JSON.stringify(DEFAULT_TUNE));
+always.drops.generalChance = [1, 1, 1, 1, 1, 1, 1];
+always.drops.bossChance = [1, 1, 1, 1, 1, 1, 1];
+always.drops.bossMin = [2, 2, 2, 2, 2, 2, 2];
+always.drops.bossMax = [2, 2, 2, 2, 2, 2, 2];
+const noneOk = validateTune(none);
+const alwaysOk = validateTune(always);
+if (noneOk.ok) setTune(noneOk.tune);
+const dry = newProfile(501);
+setHero(dry, "lorin");
+dry.lvl = 30;
+dry.clears[22] = 1;
+beginRun(dry, 24, 1000, "dry");
+const missed = new Set<string>();
+for (let i = 0; i < 12; i++) {
+  const row = noteDrop(dry, i < 6 ? "g0" : "boss", "Сухой", 1000 + 36000);
+  if (!("err" in row) && row.chest.missed) missed.add(row.chest.id);
+}
+ok(missed.size === 2 && (dry.pending?.drops || []).length === 2, "шанс 0 не кладёт вещь и повтор того же убийства не бросает заново");
+if (alwaysOk.ok) setTune(alwaysOk.tune);
+const wet = newProfile(502);
+setHero(wet, "lorin");
+wet.lvl = 80;
+wet.clears[0] = 1;
+beginRun(wet, 2, 2000, "wet");
+const tooEarly = noteDrop(wet, "boss", "Страж", 2000 + 1000);
+const first = noteDrop(wet, "boss", "Страж", 2000 + 36000);
+const sameRoll = noteDrop(wet, "boss", "Страж", 2000 + 50000);
+ok("err" in tooEarly && !("err" in first) && !("err" in sameRoll) && first.chest.items.length === 2 && sameRoll.chest.items.map((it) => it.id).join() === first.chest.items.map((it) => it.id).join() && first.chest.items.every((it) => it.ilvl === dungeonIlvl(2, 1)), "шанс 1 даёт две вещи данжа, ранний и повторный запрос не меняют бросок");
+const mate = newProfile(503);
+setHero(mate, "veles");
+mate.lvl = 3;
+mate.clears[0] = 1;
+beginRun(mate, 2, 2000, "mate");
+const theirs = noteDrop(mate, "boss", "Страж", 2000 + 36000);
+const markOf = (rows: { name: string; rarity: string; dmg: number; armor: number }[]) => rows.map((it) => `${it.name}|${it.rarity}|${it.dmg}|${it.armor}`).join("/");
+ok(!("err" in theirs) && markOf(theirs.chest.items) !== markOf(first.chest.items), "два героя получают разное содержимое с одного босса");
+const purseBefore = wet.gold;
+wet.bagSize = 1;
+wet.bag = [{ id: "fill", base: "blade", name: "Пыль", slot: "weapon", rarity: "common", ilvl: 1, req: 1, dmg: 1, armor: 0, affixes: [] }];
+const partial = takeDrop(wet, first.chest.id);
+ok(!("err" in partial) && partial.moved.length === 0 && partial.left === 2 && wet.gold === purseBefore && wet.bag.length === 1, "полная сумка ничего не уничтожает и не продаёт");
+wet.bag = [];
+const rest = takeDrop(wet, first.chest.id);
+wet.bag = [];
+const rest2 = takeDrop(wet, first.chest.id);
+const retake = takeDrop(wet, first.chest.id);
+ok(!("err" in rest) && rest.moved.length === 1 && rest.left === 1 && !("err" in rest2) && rest2.moved.length === 1 && rest2.left === 0 && !("err" in retake) && retake.already && retake.moved.length === 0 && new Set([...rest.moved, ...rest2.moved].map((it) => it.id)).size === 2, "повторный забор добирает остаток и не двоит вещи");
+ok("err" in takeDrop(mate, first.chest.id) && mate.bag.length === 0, "чужой сундук не забирается");
+const dead = finishRun(wet, { nonce: wet.pending?.nonce, reason: "dead", boss: false }, 2000 + 10_000, mulberry32(9), { kills: 1, generals: 0, boss: false });
+const twice = finishRun(wet, { nonce: "wet", reason: "dead" }, 2000 + 20_000, mulberry32(10));
+ok(!("err" in dead) && dead.items.length === 0 && "err" in twice && listDrops(wet).length === 0, "смерть не выдаёт вторую вещь и не плодит сундук");
+const keeper = newProfile(504);
+setHero(keeper, "lorin");
+keeper.lvl = 30;
+keeper.clears[22] = 1;
+beginRun(keeper, 24, 3000, "kept");
+const keptDrop = noteDrop(keeper, "g0", "Генерал", 3000 + 36000);
+const keptId = !("err" in keptDrop) ? keptDrop.chest.id : "";
+const deadRun = finishRun(keeper, { nonce: "kept", reason: "dead", boss: false }, 3000 + 20_000, mulberry32(11), { kills: 2, generals: 1, boss: false });
+const deadAgain = finishRun(keeper, { nonce: "kept", reason: "win", boss: true }, 3000 + 40_000, mulberry32(12));
+ok(!("err" in deadRun) && "err" in deadAgain && listDrops(keeper).length === 1 && listDrops(keeper)[0].id === keptId, "смерть оставляет заслуженный сундук на герое и повтор конца его не двоит");
+setHero(keeper, "veles");
+ok(listDrops(keeper).length === 0 && "err" in takeDrop(keeper, keptId), "сундук другого героя не виден в его сумке");
+setHero(keeper, "lorin");
+const compareLine = !("err" in keptDrop) ? chestCompare(keeper, keptDrop.chest.items[0]) : null;
+const took = takeDrop(keeper, keptId);
+ok(!("err" in took) && took.moved.length === 1 && listDrops(keeper).length === 0 && compareLine && compareLine.worn === "пусто", "забор кладёт вещь в общую сумку своего героя и показывает сравнение");
+resetTune();
+
+const yard = new Battle(1, [{ id: "you", name: "Алзи", hero: "lorin", sheet: sheet(setHero(newProfile(505), "lorin") || newProfile(505)) }], 8);
+ok(yard.chests.length === 0, "бой начинается без сундуков");
+yard.phase = "fight";
+const hero = yard.party[0];
+yard.elites.push({
+  kind: "general", id: "g0", name: "Генерал", title: "генерал", x: hero.x + 8, y: hero.y, hp: 1, maxHp: 80,
+  facing: 0, alive: true, wind: 0, windMax: 0.5, cd: 9, pattern: 0, swing: 0, stun: 0, die: 0, phase: 1,
+  tint: "#fff", r: eliteBody("general"), sig: "circle", row: 0, tier: 0, up: 0, cursed: 0, pow: 1, move: "circle", tell: "",
+});
+for (let i = 0; i < 30 && yard.elites[0].alive; i++) {
+  yard.press("you", { light: true, mx: 0, my: 0, aim: 0 });
+  yard.step(0.05);
+}
+const sources = yard.takeFresh();
+ok(!yard.elites[0].alive && sources.length === 1 && sources[0].id === "g0" && sources[0].kind === "general" && yard.chests.length === 0, "смерть генерала даёт источник сундука, тварь его не даёт");
+const bossBody = {
+  kind: "boss" as const, id: "boss", name: "Страж", title: "босс", x: hero.x + 400, y: hero.y + 400, hp: 100, maxHp: 100,
+  facing: 0, alive: true, wind: 0, windMax: 0.5, cd: 9, pattern: 0, swing: 0, stun: 0, die: 0, phase: 1,
+  tint: "#ffd76a", r: eliteBody("boss"), sig: "line" as const, row: 1, tier: 0, up: 0, cursed: 0 as const, pow: 1, move: "circle" as const, tell: "",
+};
+yard.elites.push(bossBody);
+bossBody.hp = 20;
+yard.step(0.05);
+ok(bossBody.phase === 3 && bossBody.r === eliteBody("boss"), "полоса босса читает последнюю фазу и крупное тело");
+const duelist = newProfile(506);
+setHero(duelist, "lorin");
+duelist.lvl = 10;
+const duelGo = beginMode(duelist, "duel", 1000);
+ok("err" in noteDrop(duelist, "boss", "Двойник", 1000 + 400) && "err" in noteDrop(duelist, "g0", "Нет", 1000 + 4000), "дуэль не принимает раннего босса и генерала");
+const duelDrop = noteDrop(duelist, "boss", "Теневой Двойник", 1000 + 1600);
+ok(!("err" in duelGo) && !("err" in duelDrop), "дуэль после выхода двойника может оставить сундук");
+const arenaWho = newProfile(507);
+setHero(arenaWho, "lorin");
+arenaWho.lvl = 5;
+beginMode(arenaWho, "arena", 2000);
+ok("err" in noteDrop(arenaWho, "boss", "Волна", 2000 + 9000) && "err" in noteDrop(arenaWho, "g0", "Подкрепление", 2000 + 1000) && !("err" in noteDrop(arenaWho, "g0", "Подкрепление", 2000 + 8000)), "арена даёт сундук подкреплению, не волне и не раньше явки");
+const hold = new Battle(modeFloor(duelist, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(duelist) }], 9);
+hold.introT = 0;
+hold.phase = "fight";
+const twin = hold.elites.find((e) => e.kind === "boss");
+ok(!!twin, "дуэль для окна сундука выпускает двойника");
+if (twin) {
+  for (let i = 0; i < 40 && twin.alive; i++) {
+    twin.x = hold.party[0].x + 8;
+    twin.y = hold.party[0].y;
+    twin.hp = 1;
+    hold.press("you", { light: true, mx: 0, my: 0, aim: 0 });
+    hold.step(0.05);
+  }
+  const born = hold.takeFresh();
+  ok(!twin.alive && hold.phase === "fight" && born.length === 1 && born[0].kind === "boss", "смерть босса оставляет забег, пока сундук не положен");
+  hold.placeChest({ id: born[0].id, x: twin.x, y: twin.y, open: false, kind: "boss", name: twin.name });
+  hold.step(0.05);
+  ok(hold.phase === "fight" && hold.nearChest, "сундук босса стоит на земле, и к нему можно подойти");
+  hold.chests[0].open = true;
+  hold.step(0.05);
+  ok(hold.phase === "won" && hold.reason === "win", "после забранного сундука дуэль завершается победой");
+}
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

@@ -85,6 +85,19 @@ export type OrdaTune = {
   };
   /** Гнёзда рун Тёмного мира и сияние навыков Проклятых. Шлифовка — это forge. */
   craft: { sockets: number; radianceMax: number; radianceGold: number; runeGold: number };
+  /**
+   * Сундук генерала и сундук босса. Семь чисел — базовая и шесть цветов чар.
+   * Шанс — доля убийств, после которых сундук есть. min/max — сколько вещей внутри.
+   * Это стартовая таблица админки, не обещание с листа: запись проверяет границы.
+   */
+  drops: {
+    generalChance: Sept;
+    bossChance: Sept;
+    generalMin: Sept;
+    generalMax: Sept;
+    bossMin: Sept;
+    bossMax: Sept;
+  };
 };
 
 export const DIFF_N = 7;
@@ -221,6 +234,14 @@ export const DEFAULT_TUNE: OrdaTune = {
     modeTier: [1, 2, 2, 3, 4, 5, 6],
   },
   craft: { sockets: 1, radianceMax: 9, radianceGold: 80, runeGold: 160 },
+  drops: {
+    generalChance: [0.35, 0.42, 0.48, 0.55, 0.62, 0.7, 0.78],
+    bossChance: [0.7, 0.76, 0.82, 0.88, 0.93, 0.97, 1],
+    generalMin: [1, 1, 1, 1, 1, 1, 1],
+    generalMax: [1, 1, 1, 1, 1, 2, 2],
+    bossMin: [1, 1, 1, 1, 1, 1, 2],
+    bossMax: [1, 1, 2, 2, 2, 2, 3],
+  },
   floors: SW_FLOORS.map((f) => ({ general: f.general, boss: f.boss, gSig: f.gSig, bSig: f.bSig, mut: f.mut, need: f.minLvl, xp: f.xp })),
 };
 
@@ -302,6 +323,12 @@ const ROW: Record<string, { n: number; b: Bound }> = {
   "elite.minTier": { n: 7, b: { min: 0, max: 6, int: true } },
   "elite.up": { n: 7, b: { min: 0.01, max: 0.12 } },
   "elite.modeTier": { n: 7, b: { min: 0, max: 6, int: true } },
+  "drops.generalChance": { n: 7, b: { min: 0, max: 1 } },
+  "drops.bossChance": { n: 7, b: { min: 0, max: 1 } },
+  "drops.generalMin": { n: 7, b: { min: 0, max: 4, int: true } },
+  "drops.generalMax": { n: 7, b: { min: 0, max: 4, int: true } },
+  "drops.bossMin": { n: 7, b: { min: 0, max: 4, int: true } },
+  "drops.bossMax": { n: 7, b: { min: 0, max: 4, int: true } },
 };
 
 function clone(t: OrdaTune): OrdaTune {
@@ -325,7 +352,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, err: "набор должен быть объектом" };
   const src = raw as Record<string, unknown>;
   if (src.v !== 1) return { ok: false, err: "нужна версия набора 1" };
-  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge", "modes", "elite", "craft"]);
+  const allow = new Set(["v", "economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "floors", "diff", "forge", "modes", "elite", "craft", "drops"]);
   for (const k of Object.keys(src)) if (!allow.has(k)) return { ok: false, err: `лишнее поле ${k}` };
   const out = clone(DEFAULT_TUNE);
   if ("floors" in src) {
@@ -338,7 +365,7 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
     if (typeof diff === "string") return { ok: false, err: diff };
     out.diff = diff;
   }
-  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge", "modes", "elite", "craft"] as const;
+  const sections = ["economy", "combat", "loot", "curse", "ench", "mut", "oath", "xp", "forge", "modes", "elite", "craft", "drops"] as const;
   for (const sec of sections) {
     const block = src[sec];
     if (!block) continue;
@@ -396,6 +423,11 @@ export function validateTune(raw: unknown): { ok: true; tune: OrdaTune } | { ok:
   }
   const drop = out.loot.magicDrop + out.loot.rareDrop + out.loot.legBase + out.loot.setShop;
   if (drop > 0.95) return { ok: false, err: "сумма шансов дропа больше 0.95" };
+  for (let i = 0; i < 7; i++) {
+    if (out.drops.generalMax[i] < out.drops.generalMin[i] || out.drops.bossMax[i] < out.drops.bossMin[i]) {
+      return { ok: false, err: `drops: на ступени ${i + 1} максимум вещей меньше минимума` };
+    }
+  }
   for (let i = 0; i < 7; i++) {
     if (out.elite.minTier[i] < i) return { ok: false, err: `elite.minTier[${i}] ниже цвета этой ступени` };
   }
@@ -557,6 +589,46 @@ export function chestTotal(diff = 1, t = active) {
   return Math.max(0, Math.min(4, (t.loot.chestCount | 0) + diffRow(diff, t).chest));
 }
 
+function dropIndex(diff: number) {
+  return Math.max(0, Math.min(6, (diff | 0) - 1));
+}
+
+/** Доля убийств, после которых сундук появляется. Число из набора, не обещание листа. */
+export function dropChance(kind: "general" | "boss", diff = 1, t = active) {
+  const row = kind === "boss" ? t.drops.bossChance : t.drops.generalChance;
+  return row[dropIndex(diff)];
+}
+
+/** Сколько вещей в сундуке этого убийства. Минимум и максимум — из набора. */
+export function dropCount(kind: "general" | "boss", diff: number, rng: () => number, t = active) {
+  const i = dropIndex(diff);
+  const min = (kind === "boss" ? t.drops.bossMin : t.drops.generalMin)[i] | 0;
+  const max = Math.max(min, (kind === "boss" ? t.drops.bossMax : t.drops.generalMax)[i] | 0);
+  if (max <= min) return min;
+  return min + Math.floor(rng() * (max - min + 1));
+}
+
+/** Радиус тела в мире. Рисунок элиты крупнее толпы, удар читает тот же рост. */
+export function eliteBody(kind: "general" | "boss") {
+  return kind === "boss" ? 68 : 44;
+}
+
+/** Множитель спрайта. Толпа остаётся на 2.1, эти двое заметно выше. */
+export function eliteDraw(kind: "general" | "boss") {
+  return kind === "boss" ? 4.6 : 3.6;
+}
+
+/** Дальность удара в тех же единицах, что и телеграф. К моменту удара кольцо доходит сюда. */
+export function eliteReach(kind: "general" | "boss", move = "", sig = "") {
+  if (move === "pull") return kind === "boss" ? 110 : 96;
+  if (move === "bite") return kind === "boss" ? 160 : 140;
+  if (move === "slow") return kind === "boss" ? 210 : 186;
+  if (sig === "line" || sig === "cone") return kind === "boss" ? 248 : 210;
+  return kind === "boss" ? 175 : 138;
+}
+
+export const ELITE_LINE_SIDE = 40;
+
 export function mobHp(kind: number, floor: number, t = active, diff = 1) {
   const i = ((kind % 3) + 3) % 3;
   const base = t.combat.mobHp[i] + fightScale(floor) * t.combat.mobHpPerFloor;
@@ -597,6 +669,8 @@ export type TunePreview = {
   bossBlack: number;
   xp1: number;
   curseSpeed: number;
+  generalChest: number;
+  bossChest: number;
 };
 
 /** Сводка для экрана админки. Не пишет в профиль. */
@@ -614,6 +688,8 @@ export function previewTune(t: OrdaTune, floor = 1): TunePreview {
     bossBlack: eliteHp("boss", floor, 1, t, DIFF_N),
     xp1: Math.round(t.xp.base * Math.pow(1, t.xp.pow)),
     curseSpeed: t.curse.speed,
+    generalChest: t.drops.generalChance[0],
+    bossChest: t.drops.bossChance[0],
   };
 }
 
