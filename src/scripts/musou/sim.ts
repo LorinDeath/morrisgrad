@@ -12,6 +12,7 @@ import { markAnchor, markColor, markMul, markTitle, rollMark } from "./mark";
 import { swarmName } from "./stagecraft";
 import { castOf, type Move } from "./scripts";
 import { skillGlow } from "./rules";
+import { LIGHT, HEAVY, castTiming, paceOf, type ActKind } from "./strike";
 
 export const ARENA_W = 2400;
 export const ARENA_H = 1560;
@@ -113,14 +114,7 @@ export type Fx = {
 };
 
 export type Member = { id: string; name: string; hero: HeroId; sheet: Sheet };
-
-const LIGHT = [
-  { r: 100, ang: 0.85, mul: 0.85, startup: 0.07, active: 0.05, recovery: 0.13 },
-  { r: 124, ang: 1.2, mul: 1.05, startup: 0.06, active: 0.05, recovery: 0.12 },
-  { r: 148, ang: 1.55, mul: 1.3, startup: 0.08, active: 0.06, recovery: 0.14 },
-  { r: 196, ang: 2.45, mul: 1.95, startup: 0.11, active: 0.07, recovery: 0.2 },
-];
-const HEAVY = { r: 176, ang: 1.2, mul: 2.2, startup: 0.14, active: 0.07, recovery: 0.24 };
+export type Act = { kind: ActKind; skill: number; echo: number; ids: string[]; gauge: number };
 
 function angDiff(a: number, b: number) {
   let d = a - b;
@@ -169,7 +163,8 @@ export class Battle {
   remote = false;
   paused = false;
   localId = "";
-  hits: { id: string; kind: "light" | "heavy" | "skill" | "musou" }[] = [];
+  acts: Act[] = [];
+  private curAct: Act | null = null;
   rng: Rng;
   seed = 1;
   private mobX = new Float32Array(MAX_MOBS);
@@ -484,6 +479,7 @@ export class Battle {
 
   private waveClear() {
     if (!this.remote) return this.elites.every((e) => e.kind !== "general" || !e.alive);
+    if (!this.floor.spawnGeneral) return true;
     const g = this.elites.find((e) => e.id === "g" + this.wave);
     return !!g && !g.alive;
   }
@@ -498,10 +494,21 @@ export class Battle {
     this.say("Этаж зачищен", this.floor.name, 2.4);
   }
 
-  takeHits() {
-    const list = this.hits;
-    this.hits = [];
+  takeActs() {
+    const list = this.acts;
+    this.acts = [];
     return list;
+  }
+
+  private openAct(kind: ActKind, skill: number, echo = 0, gauge = 0) {
+    if (!this.remote) return;
+    this.curAct = { kind, skill, echo, ids: [], gauge };
+  }
+
+  private closeAct() {
+    if (!this.curAct) return;
+    this.acts.push(this.curAct);
+    this.curAct = null;
   }
 
   applyWho(id: string, x: number, y: number, aim: number) {
@@ -510,17 +517,94 @@ export class Battle {
     a.x = x; a.y = y; a.facing = aim; a.aim = aim;
   }
 
-  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string; sig?: Sig; row?: number; tier?: number; up?: number; cursed?: number; pow?: number; move?: Move; tell?: string }[]) {
-    this.elites = list.map((e) => ({
-      id: e.id, kind: e.kind, name: e.name, title: e.kind === "boss" ? "босс" : "генерал",
-      x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
-      wind: e.wind, windMax: 0.5, cd: 0, pattern: 0, swing: e.wind > 0 ? 1 - e.wind / 0.5 : 0, stun: 0, die: e.alive ? 0 : DEATH_SEC, phase: 1,
-      tint: e.tint, r: e.kind === "boss" ? 46 : 30,
-      sig: e.sig || (e.kind === "boss" ? "cone" : "circle"),
-      row: e.row || (e.kind === "boss" ? 37 : 36),
-      tier: e.tier | 0, up: e.up | 0, cursed: e.cursed ? 1 : 0, pow: e.pow || 1,
-      move: e.move || "circle", tell: e.tell || "",
-    }));
+  applyElites(list: { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; tint: string; sig?: Sig; row?: number; tier?: number; up?: number; cursed?: number; pow?: number; move?: Move; tell?: string; phase?: number }[]) {
+    const prev = new Map(this.elites.map((e) => [e.id || "", e]));
+    this.elites = list.map((e) => {
+      const old = prev.get(e.id);
+      const phase = e.phase || old?.phase || 1;
+      if (e.kind === "boss" && old && phase > old.phase && phase >= 2) {
+        this.say(e.name, phase === 2 ? "Вторая фаза: шире замах" : "Последняя фаза: окно перед ударом", 1.4);
+        for (let i = 0; i < 4; i++) this.spawnMob(e.x + Math.cos(i * 1.6) * 96, e.y + Math.sin(i * 1.6) * 96);
+      }
+      return {
+        id: e.id, kind: e.kind, name: e.name, title: e.kind === "boss" ? "босс" : "генерал",
+        x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, alive: e.alive,
+        wind: e.wind, windMax: old?.windMax || 0.5, cd: old?.cd || 0, pattern: old?.pattern || 0, swing: e.wind > 0 ? 1 - Math.min(1, e.wind / 0.7) : 0, stun: old?.stun || 0,
+        die: e.alive ? 0 : (old && !old.alive ? old.die : DEATH_SEC), phase,
+        tint: e.tint, r: e.kind === "boss" ? 46 : 30,
+        sig: e.sig || (e.kind === "boss" ? "cone" : "circle"),
+        row: e.row || (e.kind === "boss" ? 37 : 36),
+        tier: e.tier | 0, up: e.up | 0, cursed: e.cursed ? 1 : 0, pow: e.pow || 1,
+        move: (e.move as Move) || old?.move || "circle", tell: e.tell || "",
+      };
+    });
+  }
+
+  applyHand(cd: number[], musou: number, haste: number, snap: boolean, spentMusou: boolean, down: number, final: number) {
+    const me = this.party.find((p) => p.id === this.localId);
+    if (!me || !Array.isArray(cd) || cd.length < 4) return;
+    me.cd = [cd[0] || 0, cd[1] || 0, cd[2] || 0, cd[3] || 0];
+    if (snap) me.haste = haste || 0;
+    else if (haste > me.haste) me.haste = haste;
+    if (snap || spentMusou) me.musou = Math.max(0, Math.min(100, musou || 0));
+    if (snap && final) {
+      me.hp = 0;
+      me.revives = 0;
+      me.downT = 99;
+      me.anim = "down";
+    } else if (snap && down && me.hp > 0) {
+      me.hp = 0;
+      me.downT = 4;
+      me.anim = "down";
+    }
+  }
+
+  noteBlow(who: string, name: string, dmg: number, crit: boolean, x: number, y: number, heal: number) {
+    this.text(x, y - 18, (crit ? "★" : "") + Math.max(1, Math.round(dmg)), crit ? "#ffe08a" : "#fff");
+    if (name) this.text(x, y - 40, name, "#ffe7c2");
+    const me = this.party.find((p) => p.id === this.localId);
+    if (who === this.localId && me && heal > 0 && me.hp > 0) me.hp = Math.min(me.maxHp, me.hp + heal);
+  }
+
+  noteBoom(m: { x: number; y: number; facing?: number; sig?: string; r?: number; tell?: string; hurts?: { id: string; dmg: number; dodge?: number; curse?: number; slow?: number }[] }) {
+    const sig = m.sig || "circle";
+    const radius = m.r || 100;
+    this.fxPush({ k: sig === "line" || sig === "cone" ? "slash" : "ring", x: m.x, y: m.y, a: m.facing || 0, r: radius, ang: sig === "line" ? 0.18 : sig === "cone" ? 1.05 : Math.PI, life: 0.28, max: 0.28, col: "#ffb0a0", col2: "#fff", thick: 18 });
+    if (sig === "summon") {
+      for (let i = 0; i < 5; i++) this.spawnMob(m.x + Math.cos(i) * 80, m.y + Math.sin(i * 1.7) * 80);
+    }
+    for (const h of m.hurts || []) this.noteHurt(h);
+    if (m.tell) this.text(m.x, m.y - 72, m.tell, "#ffd0c2");
+  }
+
+  private noteHurt(h: { id: string; dmg: number; dodge?: number; curse?: number; slow?: number }) {
+    const p = this.party.find((a) => a.id === h.id);
+    if (!p || p.hp <= 0) return;
+    if (h.dodge) {
+      this.text(p.x, p.y - 28, "уклон", "#d7ecff");
+      p.iframe = Math.max(p.iframe, 0.16);
+      return;
+    }
+    if (p.id === this.localId && p.iframe > 0) return;
+    p.hp -= h.dmg;
+    p.hurt = 0.28;
+    p.iframe = Math.max(p.iframe, 0.45);
+    if (h.curse) {
+      p.curse = 4;
+      this.text(p.x, p.y - 46, "проклятие", "#f4f4f5");
+    }
+    if (h.slow) {
+      p.slow = Math.max(p.slow, 2.2);
+      this.text(p.x, p.y - 58, "медленно", "#c7dcff");
+    }
+    this.text(p.x, p.y - 30, "−" + Math.max(1, Math.round(h.dmg)), "#ff8d7a");
+    if (p.hp <= 0) {
+      p.hp = 0;
+      p.downT = p.revives > 0 ? 6 : 99;
+      p.downAge = 0;
+      p.anim = "down";
+      this.text(p.x, p.y - 48, p.revives > 0 ? "подъём через мгновение" : p.name + " пал", "#ffd0c8");
+    }
   }
 
   private touchPlayers(dt: number) {
@@ -697,10 +781,11 @@ export class Battle {
   }
 
   private actor(a: Actor, dt: number) {
-    if (a.cd[0] > 0) a.cd[0] -= dt;
-    if (a.cd[1] > 0) a.cd[1] -= dt;
-    if (a.cd[2] > 0) a.cd[2] -= dt;
-    if (a.cd[3] > 0) a.cd[3] -= dt;
+    const rate = a.haste > 0 ? 1.25 : 1;
+    if (a.cd[0] > 0) a.cd[0] -= dt * rate;
+    if (a.cd[1] > 0) a.cd[1] -= dt * rate;
+    if (a.cd[2] > 0) a.cd[2] -= dt * rate;
+    if (a.cd[3] > 0) a.cd[3] -= dt * rate;
     if (a.iframe > 0) a.iframe -= dt;
     if (a.hurt > 0) a.hurt -= dt;
     if (a.hp <= 0) {
@@ -781,15 +866,16 @@ export class Battle {
       a.y = clamp(a.y + ny * 280 * dt, 48, ARENA_H - 48);
     }
     if (atk.left > 0) return;
+    const pace = atk.kind === "light" || atk.kind === "heavy" ? paceOf(a.sheet) : 1;
     if (atk.phase === "startup") {
       atk.phase = "active";
-      atk.left = spec.active;
+      atk.left = spec.active / pace;
       this.fire(a, atk);
       return;
     }
     if (atk.phase === "active") {
       atk.phase = "recovery";
-      atk.left = spec.recovery;
+      atk.left = spec.recovery / pace;
       return;
     }
     a.atk = null;
@@ -802,10 +888,14 @@ export class Battle {
     if (atk.kind === "light") {
       const s = LIGHT[atk.step] || LIGHT[0];
       const fin = atk.step === 3;
+      this.openAct("light", -1, 0, a.musou);
       this.strike(a, { shape: "arc", r: s.r, ang: s.ang, mul: s.mul, skill: false, finisher: fin, kind: "light", col: heroById(a.hero).accent, col2: "#fff4e0" });
+      this.closeAct();
       if (fin) { this.hitstop = 0.04; this.shake = Math.max(this.shake, 5); }
     } else if (atk.kind === "heavy") {
+      this.openAct("heavy", -1, 0, a.musou);
       this.strike(a, { shape: "arc", r: HEAVY.r, ang: HEAVY.ang, mul: HEAVY.mul, skill: false, finisher: true, kind: "heavy", col: "#fff", col2: heroById(a.hero).accent });
+      this.closeAct();
       this.hitstop = 0.05;
       this.shake = Math.max(this.shake, 6);
     } else if (atk.kind === "skill" && atk.idx != null) {
@@ -817,7 +907,7 @@ export class Battle {
     if (a.stepT <= 0) a.step = 0;
     const step = a.step;
     const s = LIGHT[step];
-    a.atk = { kind: "light", step, phase: "startup", left: s.startup, hit: false };
+    a.atk = { kind: "light", step, phase: "startup", left: s.startup / paceOf(a.sheet), hit: false };
     a.pose = 4 + step;
     a.anim = "swing";
     a.swing = 0;
@@ -828,7 +918,7 @@ export class Battle {
 
   private beginHeavy(a: Actor) {
     a.step = 0;
-    a.atk = { kind: "heavy", step: 0, phase: "startup", left: HEAVY.startup, hit: false };
+    a.atk = { kind: "heavy", step: 0, phase: "startup", left: HEAVY.startup / paceOf(a.sheet), hit: false };
     a.pose = 8;
     a.anim = "swing";
     a.swing = 0;
@@ -863,6 +953,7 @@ export class Battle {
     if (!sk) return;
     const glow = skillGlow(a.hero, idx, a.sheet.radiance | 0);
     const reach = (a.sheet.radiusMul || 1) * (glow === "extend" ? 1.4 : 1);
+    const gauge = a.musou;
     if (sk.musou) {
       if (a.musou < 100 || a.cd[idx] > 0) return;
       a.musou = 0;
@@ -872,6 +963,7 @@ export class Battle {
     a.lock = 0.28;
     a.swing = 0;
     a.anim = "swing";
+    this.openAct(sk.musou ? "musou" : "skill", idx, 0, gauge);
     if (sk.dash) {
       const nx = Math.cos(a.aim), ny = Math.sin(a.aim);
       for (let g = 0; g < 3; g++) {
@@ -896,6 +988,7 @@ export class Battle {
       this.hitstop = 0.07;
       this.fxPush({ k: "nova", x: a.x, y: a.y, a: 0, r: sk.r, ang: 0, life: 0.55, max: 0.55, col: sk.fx, col2: sk.fx2 });
     }
+    this.closeAct();
   }
 
   private echoStrike(a: Actor, idx: number, mul: number) {
@@ -903,7 +996,9 @@ export class Battle {
     if (!sk || a.hp <= 0) return;
     const glow = skillGlow(a.hero, idx, a.sheet.radiance | 0);
     const reach = (a.sheet.radiusMul || 1) * (glow === "extend" ? 1.4 : 1);
+    this.openAct("skill", idx, 1, a.musou);
     this.strike(a, { shape: sk.shape, r: sk.r * reach, ang: sk.ang || 0.5, mul: sk.dmg * mul, skill: true, finisher: false, col: sk.fx, col2: sk.fx2, stun: sk.stun, def: sk, vamp: glow === "vamp" });
+    this.closeAct();
     this.text(a.x, a.y - 64, "эхо", sk.fx);
   }
 
@@ -967,7 +1062,7 @@ export class Battle {
     for (const e of this.elites) {
       if (!e.alive || !touch(e.x, e.y)) continue;
       if (this.remote && e.id) {
-        this.hits.push({ id: e.id, kind: o.kind || (o.skill ? "skill" : "light") });
+        if (this.curAct && !this.curAct.ids.includes(e.id)) this.curAct.ids.push(e.id);
         this.spark(e.x, e.y, o.col);
         continue;
       }
@@ -1109,9 +1204,10 @@ export class Battle {
             e.x = clamp(tx - (dx / (d || 1)) * 110, 80, ARENA_W - 80);
             e.y = clamp(ty - (dy / (d || 1)) * 110, 80, ARENA_H - 80);
           }
-          e.windMax = e.move === "pull" ? 0.9 : e.kind === "boss" ? (e.phase >= 3 ? 0.86 : e.phase === 2 ? 0.7 : 0.55) : e.sig === "line" ? 0.62 : 0.5;
+          const timing = castTiming(e.kind, e.move, e.sig, e.phase);
+          e.windMax = timing.wind;
           e.wind = e.windMax;
-          e.cd = e.kind === "boss" ? (e.phase >= 3 ? 1.15 : 1.55) : e.sig === "cone" ? 1.45 : 1.85;
+          e.cd = timing.cd;
           e.pattern++;
           this.text(e.x, e.y - 72, cast.tell, e.tint);
         }

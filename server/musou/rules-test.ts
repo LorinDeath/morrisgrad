@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
-  affixText, beginMode, buyRune, compareGear, finishRun, chainAt, diffLock, dropQuality, dungeonBudget, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillGlow, socketRune, spendStat, stagePay, statGlance, takeInbox, unequip, xpNeed,
+  affixText, beginMode, buyRune, compareGear, finishRun, chainAt, diffLock, dropQuality, dungeonBudget, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillBook, skillGlow, socketRune, spendStat, stagePay, statGlance, takeInbox, unequip, xpNeed,
 } from "../../src/scripts/musou/rules";
 import { markGold, markPay, markSeed, rollBook, rollMark } from "../../src/scripts/musou/mark";
 import { Battle } from "../../src/scripts/musou/sim";
@@ -13,6 +13,7 @@ import { auditShadowCatalog } from "./sw-audit";
 import { MODE_LIST } from "../../src/scripts/musou/modes";
 import { craftFor } from "../../src/scripts/musou/stagecraft";
 import { HARD_CAP, mitigate, rateChance } from "../../src/scripts/musou/caps";
+import { blowAmount, bossPhase, castTiming, eliteArmorK, freshHand, skillSeconds, tickHand, trySwing } from "../../src/scripts/musou/strike.ts";
 import { HERO_FRAME, beastFrame, heroLocalFrame } from "../../src/scripts/musou/anim";
 import { BOSS_SCRIPTS, GENERAL_SCRIPTS, castOf } from "../../src/scripts/musou/scripts";
 import { SW_MODES } from "../../src/scripts/musou/sw-catalog";
@@ -876,6 +877,56 @@ const legacyOk = validateTune(legacyCraft);
 ok(legacyOk.ok && legacyOk.tune.craft.radianceMax === 9 && legacyOk.tune.craft.sockets === 1, "старый набор без гнёзд оставляет сияние и руны включёнными");
 const ringBack = normalize(JSON.parse(JSON.stringify(jewel)));
 ok(ringBack.radiance === 9 && ringBack.equip.weapon?.sockets?.join(",") === "r_chrono,r_nova" && ringBack.roster.find((r) => r.id === "lorin")?.radiance === 9, "сияние и гнёзда переживают снимок героя");
+
+const strong = newProfile(11);
+setHero(strong, "lorin");
+strong.lvl = 20;
+strong.alloc.str = 40;
+const tank = newProfile(12);
+setHero(tank, "veles");
+const sl = sheet(strong);
+const sv = sheet(tank);
+const hl = freshHand(0);
+const hv = freshHand(0);
+const cutL = trySwing(hl, "lorin", sl, { kind: "skill", skill: 0 }, 5000);
+const cutV = trySwing(hv, "veles", sv, { kind: "skill", skill: 0 }, 5000);
+ok(cutL.ok && cutV.ok && cutL.ok && cutV.ok && cutL.mul !== cutV.mul, "Жатва и Стена — разные навыки");
+const dmgL = blowAmount(sl, cutL.ok ? cutL.mul : 0, true, false, false, eliteArmorK("boss", 0));
+const dmgV = blowAmount(sv, cutV.ok ? cutV.mul : 0, true, false, false, eliteArmorK("boss", 0));
+ok(Math.round(dmgL) !== Math.round(dmgV), "сила Лорин и лист Велеса дают разный урон боссу");
+const cdLeft = hl.cd[0];
+const repeatCut = trySwing(hl, "lorin", sl, { kind: "skill", skill: 0 }, 5300);
+ok(!repeatCut.ok && hl.cd[0] < cdLeft && hl.cd[0] > cdLeft - 0.5, "повтор во время отката не обновляет навык");
+const hm = freshHand(0);
+ok(!trySwing(hm, "lorin", sl, { kind: "musou", skill: 3 }, 1000).ok, "пыл без шкалы не тратится");
+hm.musou = 100;
+const fired = trySwing(hm, "lorin", sl, { kind: "musou", skill: 3 }, 1000);
+ok(fired.ok && hm.musou === 0 && Math.abs(hm.cd[3] - 1.2) < 1e-9, "пыл тратит шкалу и ставит свой откат");
+ok(!trySwing(hm, "lorin", sl, { kind: "musou", skill: 3 }, 1200).ok, "пыл сразу второй раз не проходит");
+hm.cd[0] = 4;
+hm.haste = 2;
+tickHand(hm, 1);
+ok(Math.abs(hm.cd[0] - 2.75) < 1e-6, "порыв тратит откат быстрее");
+ok(skillSeconds("lorin", 0, sheet(jewel)) < 3.2 * 0.75, "сияние и Хронос короче Жатву");
+ok(bossPhase(50, 300) === 3 && castTiming("boss", "circle", "circle", 3).wind >= 0.8 && castTiming("boss", "circle", "circle", 3).cd < castTiming("boss", "circle", "circle", 1).cd, "третья фаза босса длиннее замах и короче паузу");
+const bookL = skillBook(jewel);
+ok(bookL.cards[0].name === "Жатва" && bookL.cards.length === 4 && bookL.passives.length >= 5 && bookL.step === 9, "вкладка навыков Лорин: четыре активных и пассивы сияния");
+setHero(jewel, "veles");
+const bookV = skillBook(jewel);
+ok(bookV.cards[0].name === "Стена" && bookV.step === 0 && bookV.cards.every((c) => c.name !== "Жатва"), "чужой герой не тащит навыки и сияние Лорин");
+setHero(jewel, "lorin");
+ok(skillBook(jewel).step === 9 && skillBook(jewel).cards[0].name === "Жатва", "возврат к Лорин возвращает его сияние");
+const coopBattle = new Battle(1, [{ id: "a", name: "А", hero: "lorin", sheet: sl }], 1, 1);
+coopBattle.remote = true;
+coopBattle.localId = "a";
+let skillWalk = 0;
+while (coopBattle.phase === "intro" && skillWalk < 3) { coopBattle.step(0.05); skillWalk += 0.05; }
+coopBattle.press("a", { skill: 1, aim: 0 });
+for (let i = 0; i < 6 && coopBattle.party[0].cd[0] <= 0; i++) coopBattle.step(0.05);
+const cdNow = coopBattle.party[0].cd[0];
+ok(cdNow > 1 && coopBattle.takeActs().some((a) => a.kind === "skill" && a.skill === 0), "клиент шлёт именно Жатву и ставит её откат");
+for (let i = 0; i < 8; i++) { coopBattle.press("a", { skill: 1, aim: 0 }); coopBattle.step(0.05); }
+ok(coopBattle.party[0].cd[0] < cdNow, "повтор клавиши во время отката не запускает Жатву снова");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

@@ -1327,6 +1327,106 @@ export function forgeItem(p: Profile, id: string, expect?: number): { up: number
   return { up: it.up };
 }
 
+const SKILL_ICON: Record<string, string> = {
+  harvest: "whirlwind", ash: "fireball", wing: "dash", hell: "meteor",
+  pulse: "dew_splash", circle: "p_regen", shine: "starfall", abode: "eclipse",
+  wall: "shield_wall", bash: "warden_slam", line: "pierce", mod: "total_silence",
+  poison: "w_plague_flask", fan: "w_fly_blades", shade: "shadow_step", ether: "eclipse",
+  slow: "frost_nova", break: "trick_strike", loop: "vortex_pull", chronicle: "dead_calm",
+  rush: "leap_strike", fangs: "w_daggers", snow: "frost_nova", hunt: "dash",
+  rail: "w_sun_beam", train: "spear_rain", whistle: "w_soul_spark", express: "w_chain_bolt",
+  glitch: "w_split_shard", loopa: "vortex_pull", over: "meteor", mad: "eclipse",
+};
+const GLOW_ICON: Record<GlowId, string> = { echo: "whirlwind", vamp: "p_regen", nova: "starfall", swift: "p_swift", extend: "p_area" };
+
+export type SkillRow = {
+  name: string;
+  key: string;
+  icon: string;
+  kind: "active" | "passive";
+  text: string;
+  meta: string;
+  level: string;
+  lock: string;
+  effect: string;
+};
+
+function skillBlurb(sk: SkillDef) {
+  const form = sk.shape === "arc" ? "Дуга перед героем" : sk.shape === "circle" ? "Круг вокруг героя" : sk.shape === "line" ? "Полоса по взгляду" : "Рывок по взгляду";
+  const bits = [form];
+  if (sk.heal) bits.push(`лечит своих на ${Math.round(sk.heal * 100)}% здоровья`);
+  if (sk.stun) bits.push(`останавливает цель`);
+  if (sk.dash) bits.push("уносит героя вперёд");
+  bits.push(sk.musou ? "бьёт сильнее обычного удара, когда пыл полон" : "бьёт от силы навыка");
+  return bits.join(". ") + ".";
+}
+
+export function skillBook(p: Profile) {
+  const h = heroById(p.hero);
+  const now = sheet(p);
+  const step = radianceStep(p);
+  const max = getTune().craft.radianceMax | 0;
+  const ghost = structuredClone(p);
+  ghost.radiance = Math.min(max, step + 1);
+  const nxt = step < max ? sheet(ghost) : now;
+  const row = HERO_GLOW[h.id] || HERO_GLOW.lorin;
+  const cards: SkillRow[] = h.skills.map((sk, i) => {
+    const glow = i < 3 ? skillGlow(h.id, i, step) : null;
+    const prop = i < 3 ? RADIANCE_PROP[row[i]] : null;
+    const need = i === 0 ? 3 : i === 1 ? 6 : i === 2 ? 9 : 0;
+    const sec = sk.musou ? 1.2 : sk.cd * (now.cdMul || 1);
+    const secNext = sk.musou ? 1.2 : sk.cd * (nxt.cdMul || 1);
+    const open = glow && prop ? `${prop.name}: ${prop.note}` : "";
+    return {
+      name: sk.name,
+      key: sk.key,
+      icon: SKILL_ICON[sk.id] || "attack",
+      kind: "active" as const,
+      text: skillBlurb(sk),
+      meta: sk.musou ? "пыл, затем 1.2 с" : `${sec.toFixed(1)} с`,
+      level: sk.musou ? "пыл" : glow && prop ? `сияние ${step} · ${prop.name}` : need ? `откроется на сиянии ${need}` : "открыт",
+      lock: sk.musou ? "Нужна полная шкала пыла" : "",
+      effect: [open, step < max && !sk.musou ? `следующий шаг: ${secNext.toFixed(1)} с` : ""].filter(Boolean).join(". "),
+    };
+  });
+  const passives: SkillRow[] = [
+    { name: "Сила навыка", key: "", icon: "p_might", kind: "passive", text: "Энергия и сияние поднимают навыки.", meta: "всегда", level: `×${now.skill.toFixed(2)}`, lock: "", effect: step < max ? `следующий шаг ×${nxt.skill.toFixed(2)}` : "дальше набор не пускает" },
+    { name: "Перезарядка", key: "", icon: "p_haste", kind: "passive", text: "Сияние и Руна Хроноса короче откат. Порыв тратит оставшиеся секунды быстрее.", meta: "всегда", level: `×${now.cdMul.toFixed(2)}`, lock: "", effect: step < max ? `следующий шаг ×${nxt.cdMul.toFixed(2)}` : "" },
+  ];
+  for (let i = 0; i < 3; i++) {
+    const id = row[i];
+    const prop = RADIANCE_PROP[id];
+    const need = i === 0 ? 3 : i === 1 ? 6 : 9;
+    const open = step >= need;
+    passives.push({
+      name: prop.name, key: h.skills[i]?.name || "", icon: GLOW_ICON[id], kind: "passive",
+      text: `${h.skills[i]?.name || "Навык"}. ${prop.note}`,
+      meta: open ? "в бою" : `с сияния ${need}`,
+      level: open ? `сияние ${step}` : `закрыто до ${need}`,
+      lock: open ? "" : `Откроется на сиянии ${need}`,
+      effect: open ? "уже на герое" : "поднять сияние во вкладке",
+    });
+  }
+  for (const rune of RUNES) {
+    const on = !!p.equip.weapon?.sockets?.includes(rune.id);
+    const icon = rune.id === "r_chrono" ? "p_haste" : rune.id === "r_nova" ? "p_area" : rune.id === "r_vamp" ? "p_regen" : "p_might";
+    passives.push({
+      name: rune.name, key: "", icon, kind: "passive", text: rune.note, meta: on ? "в оружии" : "гнездо",
+      level: on ? "вставлена" : "нет в оружии", lock: on ? "" : "Нужно гнездо на оружии", effect: on ? "уже меняет бой" : "купить и вставить в сумке",
+    });
+  }
+  if (p.oath && p.oath !== "none") {
+    const oath = OATHS.find((o) => o.id === p.oath);
+    passives.push({ name: oath?.name || "Клятва", key: "", icon: "p_mastery", kind: "passive", text: oath?.note || "", meta: "до боя", level: "клятва", lock: "", effect: "снимается выбором другой клятвы" });
+  }
+  const cost = (getTune().craft.radianceGold | 0) * (step + 1);
+  const can = step < max && p.gold >= cost;
+  const preview = step >= max
+    ? `Сияние ${step}. Дальше этот набор не пускает.`
+    : `Сияние ${step} → ${step + 1}. Сила навыка ${now.skill.toFixed(2)} → ${nxt.skill.toFixed(2)}. Откат ×${now.cdMul.toFixed(2)} → ×${nxt.cdMul.toFixed(2)}. ${p.gold < cost ? "Не хватает золота." : ""}`.trim();
+  return { hero: h.id, cards, passives, preview, cost, can, step, max };
+}
+
 export function raiseRadiance(p: Profile): { step: number; gold: number } | { err: string } {
   if (!p.hero) return { err: "Сначала выбери героя" };
   const max = getTune().craft.radianceMax | 0;

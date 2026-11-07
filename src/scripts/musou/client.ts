@@ -4,7 +4,7 @@ import {
   affixText, bagFree, bagPrice, beginRun, buyOffer, chestChoices, claimChest, claimQuest, equipItem,
   beginMode, buyRune, capLabel, compareGear, finishRun, chainAt, diffLock, dropQuality, floorLock, floorNeed, floorOpen, forgeItem, forgePreview, glowLine, goldFind, heroById, itemBlurb, itemPrice, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, raiseRadiance, RUNES, runOffer, seal, socketRune, statGlance,
   normalize, questViews, readyQuests, refreshCost, refreshShop, salvage, setBonus, setHero, setOath, takeInbox,
-  sheet, shopOffers, spendStat, unequip, xpNeed,
+  sheet, shopOffers, skillBook, spendStat, unequip, xpNeed,
   type ChestPick, type FloorDef, type HeroId, type Item, type Paper, type Profile, type RunReport, type Stat,
 } from "./rules";
 import { Battle, type Btn } from "./sim";
@@ -13,6 +13,9 @@ import { DIFF_CHAIN, DIFF_NAME, floorMut, getTune, setTune, validateTune } from 
 import { MODE_LIST, type ModeId } from "./modes";
 import { craftFor } from "./stagecraft";
 import itemsUrl from "../../assets/mc/items_atlas.png?url";
+import iconsUrl from "../../assets/mc/skill_icons.png?url";
+import ICONS from "../../assets/mc/skill_icons.json";
+import { skillSeconds } from "./strike";
 
 const GEAR_ICON: Record<string, number> = { weapon: 85, helm: 86, chest: 87, gloves: 89, boots: 88, amulet: 196, ring: 185, ring1: 185, ring2: 195 };
 document.documentElement.style.setProperty("--items", `url("${itemsUrl}")`);
@@ -42,6 +45,8 @@ let view = "boot";
 let floorPick = 1;
 let diffPick = 1;
 let modePick: ModeId | "" = "";
+let hubTab: "sheet" | "skills" = "sheet";
+let downSent = false;
 let selected: Item | null = null;
 let hovered: Item | null = null;
 let battle: Battle | null = null;
@@ -307,6 +312,42 @@ function renderMenu() {
   if (go) go.onclick = () => { floorPick = openFloor(); renderHub(); show("hub"); };
 }
 
+function iconCell(id: string, px = 40) {
+  const n = (ICONS.index as Record<string, number>)[id] ?? (ICONS.index as Record<string, number>).empty ?? 52;
+  const k = px / ICONS.cell;
+  const col = n % ICONS.cols;
+  const row = Math.floor(n / ICONS.cols);
+  return `<i class="sic" style="width:${px}px;height:${px}px;background-image:url('${iconsUrl}');background-size:${ICONS.cols * ICONS.cell * k}px auto;background-position:-${col * ICONS.cell * k}px -${row * ICONS.cell * k}px"></i>`;
+}
+
+function skillsPane() {
+  const book = skillBook(profile);
+  const row = (r: { name: string; key: string; icon: string; text: string; meta: string; level: string; lock: string; effect: string }) =>
+    `<article class="skill-row${r.lock ? " lock" : ""}">${iconCell(r.icon, 44)}<div><b>${r.key ? r.key + " · " : ""}${r.name}</b><p>${r.text}</p><p class="meta">${r.meta} · ${r.level}${r.lock ? " · " + r.lock : ""}</p>${r.effect ? `<p class="effect">${r.effect}</p>` : ""}</div></article>`;
+  return `<div class="skill-book">
+    <p class="preview">${book.preview}</p>
+    <div class="row"><button class="btn gold" id="glow" type="button" ${book.can ? "" : "disabled"}>Поднять сияние · ${book.cost} зл</button></div>
+    <h3>Активные</h3>
+    ${book.cards.map(row).join("")}
+    <h3>Пассивные</h3>
+    ${book.passives.map(row).join("")}
+  </div>`;
+}
+
+function hubPane(hero: ReturnType<typeof heroById>, s: ReturnType<typeof sheet>, set: ReturnType<typeof setBonus>, glance: (k: Stat) => string) {
+  if (hubTab === "skills") return `<p class="lvl">${hero.name}. Сияние ${profile.radiance}.</p>`;
+  const stats = (["str", "dex", "vit", "ene"] as Stat[]).map((k) => {
+    const name = { str: "Сила", dex: "Ловкость", vit: "Живучесть", ene: "Энергия" }[k];
+    const base = hero.base[k] + profile.alloc[k];
+    return `<div class="stat"><span>${name}</span><span class="glance">${glance(k)}</span><span><b>${base}</b> ${profile.unspent ? `<button class="plus" data-stat="${k}" type="button" title="${glance(k)}">+</button>` : ""}</span></div>`;
+  }).join("");
+  const inbox = profile.inbox.length ? `<div class="stat"><span>У входа</span><b>${profile.inbox[0].name}</b></div><div class="row"><button class="btn" id="in-bag" type="button">В сумку</button><button class="btn" id="in-sell" type="button">Продать</button><button class="btn" id="in-drop" type="button">Оставить</button></div>` : "";
+  return `<p class="lvl">Уровень ${profile.lvl} · опыт ${profile.xp} / ${xpNeed(profile.lvl)} · <b>${profile.gold} зл</b></p>
+    <div class="sheet-top"><div class="doll-wrap"><canvas id="doll"></canvas></div><div class="sheet-meta"><div class="bar" title="опыт"><i style="width:${Math.min(100, profile.xp / xpNeed(profile.lvl) * 100)}%"></i></div>
+    <p class="derived">Свободно ${profile.unspent}. Урон ${s.dmg} · жизнь ${s.hp} · крит ${capLabel("crit", s.critRaw)} · уклон ${capLabel("dodge", s.dodgeRaw)} · вампир ${capLabel("ls", s.lsRaw)} · шаг ${s.speed}${set.got.map((g) => ` · ${g.name}`).join("")}</p></div></div>
+    ${stats}${inbox}`;
+}
+
 function renderHub() {
   const s = sheet(profile);
   const hero = heroById(profile.hero);
@@ -335,24 +376,13 @@ function renderHub() {
     </section>
     <section class="panel sheet">
       <div class="who-line"><h2>${hero.name}</h2><span class="tag">${hero.title}</span></div>
-      <p class="lvl">Уровень ${profile.lvl} · опыт ${profile.xp} / ${xpNeed(profile.lvl)} · <b>${profile.gold} зл</b></p>
-      <div class="sheet-top">
-        <div class="doll-wrap"><canvas id="doll"></canvas></div>
-        <div class="sheet-meta">
-          <div class="bar" title="опыт"><i style="width:${Math.min(100, profile.xp / xpNeed(profile.lvl) * 100)}%"></i></div>
-          <p class="derived">Свободно ${profile.unspent}. Урон ${s.dmg} · жизнь ${s.hp} · крит ${capLabel("crit", s.critRaw)} · уклон ${capLabel("dodge", s.dodgeRaw)} · вампир ${capLabel("ls", s.lsRaw)} · шаг ${s.speed}${set.got.map((g) => ` · ${g.name}`).join("")}</p>
-        </div>
-      </div>
-      ${(["str", "dex", "vit", "ene"] as Stat[]).map((k) => {
-        const name = { str: "Сила", dex: "Ловкость", vit: "Живучесть", ene: "Энергия" }[k];
-        const base = hero.base[k] + profile.alloc[k];
-        return `<div class="stat"><span>${name}</span><span class="glance">${glance(k)}</span><span><b>${base}</b> ${profile.unspent ? `<button class="plus" data-stat="${k}" type="button" title="${glance(k)}">+</button>` : ""}</span></div>`;
-      }).join("")}
-      ${profile.inbox.length ? `<div class="stat"><span>У входа</span><b>${profile.inbox[0].name}</b></div><div class="row"><button class="btn" id="in-bag" type="button">В сумку</button><button class="btn" id="in-sell" type="button">Продать</button><button class="btn" id="in-drop" type="button">Оставить</button></div>` : ""}
+      <div class="tabs"><button type="button" class="btn${hubTab === "sheet" ? " gold" : ""}" data-htab="sheet">Лист</button><button type="button" class="btn${hubTab === "skills" ? " gold" : ""}" data-htab="skills">Навыки</button></div>
+      ${hubPane(hero, s, set, glance)}
       <div class="row"><button class="btn" id="open-menu" type="button">Меню</button><button class="btn" id="open-heroes" type="button">Герои</button><button class="btn" id="open-shop" type="button">Лавка</button><button class="btn" id="open-party" type="button">Отряд</button><button class="btn" id="open-friends" type="button">Друзья</button></div>
     </section>
     <section class="panel board">
-      <div class="board-head"><h2>${mode ? mode.name : "Кампания"}</h2><span class="tag">ур. ${profile.lvl}</span></div>
+      ${hubTab === "skills" ? `<div class="board-head"><h2>Навыки</h2><span class="tag">${hero.name}</span></div><div class="skill-stage">${skillsPane()}</div>` : `<div class="board-head"><h2>${mode ? mode.name : "Кампания"}</h2><span class="tag">ур. ${profile.lvl}</span></div>`}
+      <div class="campaign-rest"${hubTab === "skills" ? " hidden" : ""}>
       <div class="mode-row">${MODE_LIST.map((m) => {
         const why = modeLock(profile, m.id);
         const on = modePick === m.id;
@@ -378,6 +408,7 @@ function renderHub() {
       <div class="row modes">${OATHS.map((o) => `<button type="button" class="btn${profile.oath === o.id ? " gold" : ""}" data-oath="${o.id}" title="${o.note}">${o.name}</button>`).join("")}</div>
       ${quests.filter((q) => q.ready || q.p > 0).slice(0, 3).map((q) => `<div class="quest${q.ready ? " ready" : ""}"><b>${q.name}</b><span>${q.p}/${q.need}</span>${q.ready ? `<button class="btn gold" data-claim="${q.id}" type="button">Забрать</button>` : ""}</div>`).join("")}
       ${ready.filter((q) => q.floor !== openF && q.floor !== 0).map((q) => `<div class="quest ready"><b>${q.name}</b><button class="btn gold" data-claim="${q.id}" type="button">Забрать</button></div>`).join("")}
+      </div>
     </section>
     <section class="panel bag">
       <div class="bag-head"><h2>Сумка</h2><span class="${bagFree(profile) ? "" : "full"}">${profile.bag.length}/${profile.bagSize}</span></div>
@@ -395,13 +426,13 @@ function renderHub() {
       </div>
       <details class="fine">
         <summary>Сияние и гнёзда</summary>
-        <p>Сияние ${profile.radiance}/${getTune().craft.radianceMax}. ${glowLine(profile)}. Следующий шаг — ${getTune().craft.radianceGold * (Math.min(9, profile.radiance) + 1)} зл.</p>
-        <div class="row"><button class="btn" id="glow" type="button">Поднять сияние</button></div>
+        <p>Сияние ${profile.radiance}/${getTune().craft.radianceMax}. ${glowLine(profile)}. Поднять шаг и посмотреть откат — вкладка «Навыки».</p>
         <p>Руна садится в оружие, две разные, одну и ту же второй раз нельзя. Шлифовка точит вещь у Петра и не ломает её.</p>
         <div class="row">${RUNES.map((r) => `<button type="button" class="btn" data-rune="${r.id}" title="${r.note}">${r.name} · ${profile.res[r.id] || 0}</button>`).join("")}</div>
       </details>
     </section>
   </div>`;
+  root.querySelectorAll<HTMLButtonElement>("[data-htab]").forEach((b) => b.onclick = () => { hubTab = b.dataset.htab === "skills" ? "skills" : "sheet"; renderHub(); });
   root.querySelectorAll<HTMLButtonElement>("[data-floor]").forEach((b) => b.onclick = () => { floorPick = Number(b.dataset.floor); renderHub(); });
   root.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((b) => b.onclick = () => {
     const id = (b.dataset.mode || "") as ModeId;
@@ -501,7 +532,8 @@ function renderHub() {
       renderHub();
     }
   };
-  $<HTMLButtonElement>("glow").onclick = async () => {
+  const glowBtn = document.getElementById("glow");
+  if (glowBtn) glowBtn.onclick = async () => {
     if (online) {
       const r = await act({ op: "radiance" });
       if (!r?.err) toast("Сияние " + profile.radiance);
@@ -716,13 +748,13 @@ async function connect(code: string, fromDrop = false) {
     }
     if (m.type === "who" && battle) battle.applyWho(m.id, m.x, m.y, m.aim);
     if (m.type === "elite" && battle) battle.applyElites(m.elites || []);
-    if (m.type === "boom" && battle) {
+    if (m.type === "boom" && battle) battle.noteBoom(m);
+    if (m.type === "blow" && battle) battle.noteBlow(m.who, m.name || "", Number(m.dmg) || 0, !!m.crit, Number(m.x) || 0, Number(m.y) || 0, 0);
+    if (m.type === "hand" && battle) {
+      battle.applyHand(m.cd || [], Number(m.musou) || 0, Number(m.haste) || 0, !!m.snap, !!m.spent, m.down | 0, m.final | 0);
       const me = battle.party.find((p) => p.id === youId);
-      if (me && inBoom(me.x, me.y, m) && me.iframe <= 0) {
-        me.hp = Math.max(0, me.hp - Math.round(14 * (Number(m.pow) || 1)));
-        me.hurt = 0.3;
-        me.iframe = 0.45;
-      }
+      if (me && m.heal > 0 && me.hp > 0) me.hp = Math.min(me.maxHp, me.hp + (m.heal | 0));
+      if (m.snap && m.final) downSent = true;
     }
     if (m.type === "loot") {
       if (m.profile) profile = normalize(m.profile);
@@ -806,6 +838,7 @@ function beginBattle(floor: number | FloorDef, members: { id: string; name: stri
   battle.remote = remote;
   battle.localId = youId || members[0].id;
   ended = false;
+  downSent = false;
   const me = members.find((m) => m.id === youId) || members[0];
   cam = { x: 1200, y: 780 };
   youId = me.id;
@@ -814,15 +847,18 @@ function beginBattle(floor: number | FloorDef, members: { id: string; name: stri
   requestAnimationFrame(() => { resize(); resize(); });
 }
 
+function skillButton(sk: { key: string; name: string; id?: string }, i: number, touch = false) {
+  const hero = battle ? heroById((battle.party.find((p) => p.id === youId) || battle.party[0]).hero) : null;
+  const def = hero?.skills[i];
+  return `<button type="button" class="${touch ? "skill-touch" : "skill"}" data-sk="${i + 1}" aria-label="${sk.name}" title="${sk.name}"><small>${sk.key}</small>${iconCell(def ? ((skillBook(profile).cards[i]?.icon) || "attack") : "attack", touch ? 36 : 32)}<b>${sk.name}</b><span class="sw"></span><span class="sec"></span></button>`;
+}
+
 function buildSkills(heroId: HeroId) {
   const hero = heroById(heroId);
-  $<HTMLElement>("skills").innerHTML = hero.skills.map((sk, i) => `<button type="button" class="skill" data-sk="${i + 1}"><small>${sk.key}</small><b>${sk.name}</b><i class="cd" hidden></i></button>`).join("");
-  document.querySelectorAll<HTMLButtonElement>(".skill").forEach((b) => {
+  $<HTMLElement>("skills").innerHTML = hero.skills.map((sk, i) => skillButton(sk, i)).join("");
+  $<HTMLElement>("skills-touch").innerHTML = hero.skills.map((sk, i) => skillButton(sk, i, true)).join("");
+  document.querySelectorAll<HTMLButtonElement>("#skills .skill").forEach((b) => {
     b.onclick = () => { holding = false; queueSkill(Number(b.dataset.sk)); };
-  });
-  hero.skills.forEach((sk, i) => {
-    const b = document.getElementById("m-sk" + (i + 1));
-    if (b) b.textContent = sk.key + " " + sk.name;
   });
 }
 
@@ -847,7 +883,16 @@ function inBoom(x: number, y: number, m: any) {
   }
   return Math.hypot(dx, dy) < r;
 }
-function queueSkill(n: number) { queued = n; }
+function queueSkill(n: number) {
+  if (!battle) return;
+  const me = battle.party.find((p) => p.id === youId) || battle.party[0];
+  const i = n - 1;
+  const sk = heroById(me.hero).skills[i];
+  if (!sk || (me.cd[i] || 0) > 0) return;
+  if (sk.musou && me.musou < 100) return;
+  if (me.hp <= 0) return;
+  queued = n;
+}
 
 function readBtn(): Partial<Btn> {
   const mx = (keys.has("a") || keys.has("arrowleft") ? -1 : 0) + (keys.has("d") || keys.has("arrowright") ? 1 : 0) + stick.x;
@@ -889,12 +934,21 @@ function hud() {
   const hero = heroById(me.hero);
   document.querySelectorAll<HTMLButtonElement>(".skill, .skill-touch").forEach((b) => {
     const i = Number(b.dataset.sk) - 1;
-    const cd = me.cd[i] || 0;
-    const musouLock = !!hero.skills[i]?.musou && me.musou < 100;
-    const veil = b.querySelector(".cd") as HTMLElement | null;
-    if (veil) veil.hidden = cd <= 0 && !musouLock;
-    b.disabled = cd > 0 || musouLock;
-    b.classList.toggle("cooling", cd > 0 || musouLock);
+    const sk = hero.skills[i];
+    const cd = Math.max(0, me.cd[i] || 0);
+    const total = sk ? skillSeconds(me.hero, i, me.sheet) : 1;
+    const musouLock = !!sk?.musou && me.musou < 100 && cd <= 0;
+    const sw = b.querySelector(".sw") as HTMLElement | null;
+    const sec = b.querySelector(".sec") as HTMLElement | null;
+    const fill = cd > 0 ? Math.round(Math.min(1, cd / Math.max(0.2, total)) * 100) : musouLock ? 100 : 0;
+    if (sw) sw.style.background = fill ? `conic-gradient(rgba(5,3,12,.78) ${fill}%, transparent 0)` : "none";
+    if (sec) sec.textContent = cd > 0 ? (cd >= 10 ? String(Math.ceil(cd)) : cd.toFixed(1)) : musouLock ? "пыл" : "";
+    b.disabled = cd > 0 || musouLock || me.hp <= 0;
+    b.classList.toggle("cooling", cd > 0);
+    b.classList.toggle("need", musouLock);
+    b.classList.toggle("ready", cd <= 0 && !musouLock && me.hp > 0);
+    b.dataset.cd = cd > 0 ? cd.toFixed(1) : "0";
+    b.dataset.ready = b.disabled ? "0" : "1";
   });
 }
 
@@ -987,12 +1041,21 @@ function frame(now: number, dt: number) {
     for (const id of battle.takeChests()) grantChest(id);
     cam.x += (me.x - cam.x) * 0.12;
     cam.y += (me.y - cam.y) * 0.12;
+    const acts = battle.takeActs();
     if (battle.remote && ws && ws.readyState === 1 && room) {
       snapAcc += dt;
       if (snapAcc > 0.1) {
         snapAcc = 0;
-        ws.send(JSON.stringify({ type: "pos", x: me.x, y: me.y, aim: me.aim }));
-        for (const h of battle.takeHits()) ws.send(JSON.stringify({ type: "hit", id: h.id, kind: h.kind }));
+        ws.send(JSON.stringify({ type: "pos", x: me.x, y: me.y, aim: me.aim, musou: Math.round(me.musou), guard: me.iframe > 0 ? 1 : 0 }));
+      }
+      for (const h of acts) ws.send(JSON.stringify({ type: "act", kind: h.kind, skill: h.skill, echo: h.echo, ids: h.ids, x: me.x, y: me.y, aim: me.aim, musou: Math.round(h.gauge) }));
+      const dead = me.hp <= 0;
+      if (dead && !downSent) {
+        downSent = true;
+        ws.send(JSON.stringify({ type: "down", final: me.revives <= 0 ? 1 : 0 }));
+      } else if (!dead && downSent) {
+        downSent = false;
+        ws.send(JSON.stringify({ type: "up" }));
       }
     }
     const c = $<HTMLCanvasElement>("field");
@@ -1151,7 +1214,14 @@ function bind() {
   holdBtn("m-heavy", () => { heavyQ = true; });
   holdBtn("m-dodge", () => { dodgeQ = true; });
   holdBtn("m-chest", () => { chestQ = true; });
-  for (let i = 1; i <= 4; i++) holdBtn("m-sk" + i, () => { holding = false; queueSkill(i); });
+  document.getElementById("skills-touch")?.addEventListener("pointerdown", (e) => {
+    const b = (e.target as HTMLElement).closest("button");
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    holding = false;
+    queueSkill(Number((b as HTMLButtonElement).dataset.sk));
+  });
 }
 
 async function boot() {

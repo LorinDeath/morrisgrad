@@ -4,17 +4,19 @@ import { identify } from "../strat/ident";
 import { admitMessage, originAllowed, isLocalRequest, MSG_BURST } from "../limits";
 import { ordaKey } from "./http";
 import { loadProfile, saveProfile } from "./db";
-import { beginRun, chainAt, clampStrike, diffLock, finishRun, FLOOR_N, floorByN, floorLock, floorNeed, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet } from "../../src/scripts/musou/rules";
-import { diffRow, eliteHp, eliteName, floorKit, getTune } from "../../src/scripts/musou/tune";
+import { beginRun, chainAt, diffLock, finishRun, FLOOR_N, floorByN, floorLock, floorNeed, makeScript, memberDiffLock, mulberry32, roomOutcome, sheet, type Sheet } from "../../src/scripts/musou/rules";
+import { diffRow, eliteDmg, eliteHp, eliteName, floorKit, getTune } from "../../src/scripts/musou/tune";
 import { castOf } from "../../src/scripts/musou/scripts";
 import { markAnchor, markColor, markMul, markSeed, markTitle, rollMark } from "../../src/scripts/musou/mark";
+import { ageHand, biteHeal, blowAmount, bossPhase, castTiming, eliteArmorK, freshHand, hitsPoint, nextUnit, noteMusou, rollCrit, trySwing, type Hand } from "../../src/scripts/musou/strike";
+import { mitigate, rateChance } from "../../src/scripts/musou/caps";
 
-type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[]; chain?: number[] };
-type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number; tier?: number; up?: number; cursed?: 0 | 1; pow?: number; tell?: string; move?: string };
+type Seat = { pkey: string; nick: string; hero: string; verified: boolean; dmg: number; lvl: number; passed?: boolean[]; chain?: number[]; sheet?: Sheet; hand?: Hand };
+type Elite = { id: string; kind: "general" | "boss"; name: string; x: number; y: number; hp: number; maxHp: number; facing: number; wind: number; alive: boolean; spawned: boolean; cd: number; pat: number; tint: string; sig: string; row: number; tier?: number; up?: number; cursed?: 0 | 1; pow?: number; tell?: string; move?: string; phase?: number };
 type Lob = {
   code: string; pub: boolean; phase: "lobby" | "fight" | "done"; seats: Seat[]; host: string; floor: number; diff: number; nonce: string; started: number;
-  seed: number; elites: Elite[]; pos: Record<string, { x: number; y: number; aim: number; at: number }>; paid: boolean; reports: Record<string, any>;
-  party?: any[];
+  seed: number; elites: Elite[]; pos: Record<string, { x: number; y: number; aim: number; at: number; guard?: number }>; paid: boolean; reports: Record<string, any>;
+  party?: any[]; claim?: "win";
 };
 type Att = { url: string; pkey?: string; tk: number; at: number; st: number };
 
@@ -22,6 +24,7 @@ export class MusouRoom extends DurableObject {
   env: any;
   L: Lob | null = null;
   live = new Map<string, WebSocket>();
+  savedAt = 0;
   constructor(ctx: any, env: any) { super(ctx, env); this.env = env; }
   async load() {
     if (!this.L) this.L = (await this.ctx.storage.get("L")) || null;
@@ -116,7 +119,8 @@ export class MusouRoom extends DurableObject {
       catch { this.send(ws, { type: "err", err: "Комната не собрала места" }); }
       if (L.phase === "fight" && L.party) {
         this.send(ws, { type: "go", floor: L.floor, diff: L.diff || 1, nonce: L.nonce, seed: L.seed, hostId: L.host, party: L.party });
-        this.send(ws, { type: "elite", elites: L.elites || [] });
+        this.send(ws, { type: "elite", elites: this.eliteView() });
+        this.sendHand(ws, seat, true);
       }
       if (L.paid) {
         const saved = await loadProfile(this.env.GAME_DB, key);
@@ -158,20 +162,39 @@ export class MusouRoom extends DurableObject {
     }
     if (m.type === "start" && L.host === seat.pkey && L.phase === "lobby") return this.startFight();
     if (m.type === "pos" && L.phase === "fight") {
-      const x = Number(m.x), y = Number(m.y);
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        L.pos[seat.pkey] = { x: Math.max(0, Math.min(2400, x)), y: Math.max(0, Math.min(1560, y)), aim: Number(m.aim) || 0, at: Date.now() };
-        this.broadcast({ type: "who", id: seat.pkey, x: L.pos[seat.pkey].x, y: L.pos[seat.pkey].y, aim: L.pos[seat.pkey].aim }, ws);
+      this.place(seat, m);
+      if (seat.hand) noteMusou(seat.hand, Number(m.musou), Date.now());
+      this.pump();
+      return;
+    }
+    if (m.type === "act" && L.phase === "fight") {
+      this.place(seat, m);
+      this.pump();
+      await this.act(ws, seat, m);
+      return;
+    }
+    if (m.type === "down" && L.phase === "fight" && seat.hand) {
+      seat.hand.down = 1;
+      seat.hand.final = m.final ? 1 : 0;
+      await this.save();
+      if (L.seats.every((s) => s.hand?.final)) return this.finish("dead");
+      return;
+    }
+    if (m.type === "up" && L.phase === "fight" && seat.hand && !seat.hand.final) {
+      seat.hand.down = 0;
+      seat.hand.final = 0;
+      return;
+    }
+    if (m.type === "end" && L.phase === "fight") {
+      if (m.reason === "surrender") return this.finish("surrender");
+      const outcome = roomOutcome(makeScript(L.floor, L.seed), Date.now() - L.started, L.elites || []);
+      if (outcome.boss) return this.finish("win");
+      if (m.reason === "win") {
+        L.claim = "win";
+        await this.save();
       }
-      this.pump();
       return;
     }
-    if (m.type === "hit" && L.phase === "fight") {
-      this.pump();
-      this.strikeElite(seat, String(m.id || ""), String(m.kind || "light"));
-      return;
-    }
-    if (m.type === "end" && L.phase === "fight") return this.finish(typeof m.reason === "string" ? m.reason : "");
     if (m.type === "leave" && L.phase === "lobby") {
       L.seats = L.seats.filter((s) => s.pkey !== seat.pkey);
       if (L.host === seat.pkey) L.host = L.seats[0]?.pkey || "";
@@ -208,6 +231,11 @@ export class MusouRoom extends DurableObject {
       const sh = sheet(p);
       await saveProfile(this.env.GAME_DB, s.pkey, p);
       s.dmg = sh.dmg;
+      s.sheet = sh;
+      s.hero = p.hero || s.hero;
+      let salt = 2166136261;
+      for (let i = 0; i < s.pkey.length; i++) salt = Math.imul(salt ^ s.pkey.charCodeAt(i), 16777619);
+      s.hand = freshHand(now, (L.seed ^ salt) >>> 0);
       party.push({ id: s.pkey, nick: s.nick, hero: p.hero, sheet: sh });
     }
     L.phase = "fight";
@@ -218,6 +246,7 @@ export class MusouRoom extends DurableObject {
     L.pos = {};
     L.paid = false;
     L.reports = {};
+    L.claim = undefined;
     L.party = party;
     await this.save();
     await this.report();
@@ -256,7 +285,7 @@ export class MusouRoom extends DurableObject {
         facing: 0, wind: 0, alive: true, spawned: true, cd: 0.8, pat: 0,
         tint: markColor(mark, sig === "curse" ? "#c9b6ff" : ink),
         sig, row: boss ? art.bRow : art.gRow,
-        tier: mark.tier, up: mark.up, cursed: mark.cursed, pow: mul.dmg,
+        tier: mark.tier, up: mark.up, cursed: mark.cursed, pow: mul.dmg, phase: 1,
       });
       changed = true;
     });
@@ -274,39 +303,139 @@ export class MusouRoom extends DurableObject {
       e.cd -= 0.1;
       if (e.wind > 0) {
         e.wind -= 0.1;
-        if (e.wind <= 0) {
-          e.wind = 0;
-          const reach = e.move === "pull" ? 78 : e.move === "bite" ? 112 : e.move === "slow" ? 150 : e.sig === "line" || e.sig === "cone" ? 168 : e.kind === "boss" ? 118 : 96;
-          e.pat++;
-          changed = true;
-          this.broadcast({ type: "boom", id: e.id, x: e.x, y: e.y, facing: e.facing, sig: e.sig, pow: e.pow || 1, r: reach, tell: e.tell || "" });
-        }
-      } else if (e.cd <= 0) {
+      if (e.wind <= 0) {
+        e.wind = 0;
+        const reach = e.move === "pull" ? 78 : e.move === "bite" ? 112 : e.move === "slow" ? 150 : e.sig === "line" || e.sig === "cone" ? 168 : e.kind === "boss" ? 118 : 96;
+        e.pat++;
+        changed = true;
+        this.slam(e, reach);
+      }
+    } else if (e.cd <= 0) {
         const cast = castOf(floorByN(L.floor).dungeon, e.kind, e.pat, e.tier || 0);
         e.move = cast.move;
         e.sig = cast.shape;
         e.tell = cast.tell;
-        e.wind = cast.move === "pull" ? 0.9 : 0.55;
-        e.cd = e.kind === "boss" ? 2.4 : 1.8;
+        const timing = castTiming(e.kind, cast.move, cast.shape, e.phase || 1);
+        e.wind = timing.wind;
+        e.cd = timing.cd;
         changed = true;
       }
     }
-    if (changed || L.elites.length) this.broadcast({ type: "elite", elites: L.elites.map((e) => ({ id: e.id, kind: e.kind, name: e.name, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, wind: e.wind, alive: e.alive, tint: e.tint, sig: e.sig, row: e.row, tier: e.tier, up: e.up, cursed: e.cursed, pow: e.pow, move: e.move, tell: e.tell })) });
+    if (L.claim === "win" && roomOutcome(script, elapsed, L.elites).boss) void this.finish("win");
+    if (changed || L.elites.length) this.broadcast({ type: "elite", elites: this.eliteView() });
   }
 
-  strikeElite(seat: Seat, id: string, kind: string) {
+  place(seat: Seat, m: any) {
     const L = this.L!;
-    const e = L.elites.find((x) => x.id === id && x.alive);
+    const x = Number(m.x), y = Number(m.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    L.pos[seat.pkey] = { x: Math.max(0, Math.min(2400, x)), y: Math.max(0, Math.min(1560, y)), aim: Number(m.aim) || 0, at: Date.now(), guard: m.guard ? 1 : 0 };
+    this.broadcast({ type: "who", id: seat.pkey, x: L.pos[seat.pkey].x, y: L.pos[seat.pkey].y, aim: L.pos[seat.pkey].aim }, this.live.get(seat.pkey));
+  }
+
+  eliteView() {
+    const L = this.L!;
+    return (L.elites || []).map((e) => ({ id: e.id, kind: e.kind, name: e.name, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, wind: e.wind, alive: e.alive, tint: e.tint, sig: e.sig, row: e.row, tier: e.tier, up: e.up, cursed: e.cursed, pow: e.pow, move: e.move, tell: e.tell, phase: e.phase || 1 }));
+  }
+
+  sendHand(ws: WebSocket, seat: Seat, snap: boolean) {
+    const hand = seat.hand;
+    if (!hand) return;
+    ageHand(hand, Date.now());
+    this.send(ws, { type: "hand", cd: hand.cd, musou: hand.musou, haste: hand.haste, down: hand.down, final: hand.final, snap: snap ? 1 : 0, spent: 0 });
+  }
+
+  async act(ws: WebSocket, seat: Seat, m: any) {
+    const L = this.L!;
+    const hand = seat.hand;
+    const sh = seat.sheet;
     const pos = L.pos[seat.pkey];
-    if (!e || !pos) return;
-    if (Math.hypot(e.x - pos.x, e.y - pos.y) > 320) return;
+    if (!hand || !sh || !pos) return;
+    if (typeof m.musou === "number") noteMusou(hand, Number(m.musou), Date.now());
+    const ask = { kind: String(m.kind || "light"), skill: m.skill | 0, echo: m.echo ? 1 : 0 };
+    const musouBefore = hand.musou;
+    const swing = trySwing(hand, seat.hero, sh, ask, Date.now());
+    if (!swing.ok) {
+      this.send(ws, { type: "hand", cd: hand.cd, musou: hand.musou, haste: hand.haste, down: hand.down, final: hand.final, snap: 0, spent: 0, reject: 1, why: swing.why || "" });
+      return;
+    }
+    const ids = Array.isArray(m.ids) ? m.ids.map((id: unknown) => String(id || "")).slice(0, 8) : [];
+    const soak = diffRow(L.diff || 1).soak;
+    let healed = 0;
+    const blows: { id: string; dmg: number; crit: boolean; name: string }[] = [];
+    const hitOne = (e: Elite, mul: number, skillHit: boolean, finisher: boolean, name: string) => {
+      if (!e.alive || !hitsPoint(pos.x, pos.y, pos.aim, e.x, e.y, swing.shape, swing.r, swing.ang, swing.dash)) return;
+      const crit = rollCrit(hand, sh.critRaw, musouBefore);
+      const dmg = blowAmount(sh, mul, skillHit, finisher, crit, eliteArmorK(e.kind, soak));
+      e.hp -= dmg;
+      if (swing.stun) e.tell = e.tell;
+      if (e.hp <= 0) { e.hp = 0; e.alive = false; }
+      else if (e.kind === "boss") e.phase = bossPhase(e.hp, e.maxHp);
+      healed += biteHeal(sh, dmg, swing.glow === "vamp");
+      blows.push({ id: e.id, dmg: Math.round(dmg), crit, name });
+    };
+    for (const id of ids) {
+      const e = L.elites.find((x) => x.id === id);
+      if (e) hitOne(e, swing.mul, swing.skillHit, swing.finisher, swing.name);
+    }
+    if (swing.glow === "nova" && !swing.echo) {
+      for (const e of L.elites) {
+        if (!e.alive) continue;
+        if ((e.x - pos.x) ** 2 + (e.y - pos.y) ** 2 > (96 + 48) ** 2) continue;
+        const crit = rollCrit(hand, sh.critRaw, musouBefore);
+        const dmg = blowAmount(sh, swing.mul * 0.45, true, false, crit, eliteArmorK(e.kind, soak));
+        e.hp -= dmg;
+        if (e.hp <= 0) { e.hp = 0; e.alive = false; }
+        else if (e.kind === "boss") e.phase = bossPhase(e.hp, e.maxHp);
+        healed += biteHeal(sh, dmg, false);
+        blows.push({ id: e.id, dmg: Math.round(dmg), crit, name: "вспышка" });
+      }
+    }
+    for (const b of blows) {
+      const e = L.elites.find((x) => x.id === b.id);
+      this.broadcast({ type: "blow", id: b.id, who: seat.pkey, dmg: b.dmg, crit: b.crit ? 1 : 0, name: b.name, x: e?.x || pos.x, y: e?.y || pos.y, heal: 0 });
+    }
+    this.send(ws, { type: "hand", cd: hand.cd, musou: hand.musou, haste: hand.haste, down: hand.down, final: hand.final, snap: 0, spent: swing.kind === "musou" ? 1 : 0, heal: Math.round(healed) });
+    if (blows.length || swing.kind === "skill" || swing.kind === "musou") this.broadcast({ type: "elite", elites: this.eliteView() });
     const now = Date.now();
-    const prev = (L.reports["hit:" + seat.pkey] as number) || 0;
-    if (now - prev < 220) return;
-    L.reports["hit:" + seat.pkey] = now;
-    e.hp -= clampStrike(seat.dmg || 8, kind);
-    if (e.hp <= 0) { e.hp = 0; e.alive = false; }
-    this.broadcast({ type: "elite", elites: L.elites.map((x) => ({ id: x.id, kind: x.kind, name: x.name, x: x.x, y: x.y, hp: x.hp, maxHp: x.maxHp, facing: x.facing, wind: x.wind, alive: x.alive, tint: x.tint, sig: x.sig, row: x.row, tier: x.tier, up: x.up, cursed: x.cursed, pow: x.pow, move: x.move, tell: x.tell })) });
+    if (swing.kind !== "light" || now - this.savedAt > 2000) {
+      this.savedAt = now;
+      await this.save();
+    }
+  }
+
+  slam(e: Elite, reach: number) {
+    const L = this.L!;
+    const hurts: { id: string; dmg: number; dodge: number; curse: number; slow: number }[] = [];
+    const phaseMul = (e.phase || 1) >= 3 ? 1.3 : 1;
+    const raw = eliteDmg(e.kind, L.floor, getTune(), L.diff || 1) * phaseMul * (e.pow || 1);
+    for (const s of L.seats) {
+      const pos = L.pos[s.pkey];
+      const hand = s.hand;
+      const sh = s.sheet;
+      if (!pos || !hand || !sh || hand.down || hand.final) continue;
+      if (pos.guard) continue;
+      const dx = pos.x - e.x, dy = pos.y - e.y;
+      const along = dx * Math.cos(e.facing) + dy * Math.sin(e.facing);
+      const side = Math.abs(-dx * Math.sin(e.facing) + dy * Math.cos(e.facing));
+      const line = e.sig === "line";
+      const cone = e.sig === "cone";
+      let turn = Math.atan2(dy, dx) - e.facing;
+      while (turn > Math.PI) turn -= Math.PI * 2;
+      while (turn < -Math.PI) turn += Math.PI * 2;
+      const inside = line ? along > 0 && along < reach && side < 42 : cone ? dx * dx + dy * dy <= reach * reach && Math.abs(turn) <= 1.05 : dx * dx + dy * dy <= reach * reach;
+      if (!inside) continue;
+      if (nextUnit(hand) < rateChance(sh.dodgeRaw, "dodge")) {
+        hurts.push({ id: s.pkey, dmg: 0, dodge: 1, curse: 0, slow: 0 });
+        continue;
+      }
+      const curse = e.move === "curse" || e.sig === "curse" || diffRow(L.diff || 1).act === "killer" ? 1 : 0;
+      const taken = Math.max(1, Math.round(mitigate(raw * (curse ? 1.25 : 1), sh.armor)));
+      const slow = e.move === "slow" ? 1 : 0;
+      if (e.move === "bite") e.hp = Math.min(e.maxHp, e.hp + taken * 0.12);
+      hurts.push({ id: s.pkey, dmg: taken, dodge: 0, curse, slow });
+    }
+    this.broadcast({ type: "boom", id: e.id, x: e.x, y: e.y, facing: e.facing, sig: e.sig, pow: e.pow || 1, r: reach, tell: e.tell || "", move: e.move || "", hurts });
   }
 
   async finish(asked = "") {
@@ -319,7 +448,7 @@ export class MusouRoom extends DurableObject {
       return;
     }
     L.paid = true;
-    this.broadcast({ type: "elite", elites: (L.elites || []).map((e) => ({ id: e.id, kind: e.kind, name: e.name, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, facing: e.facing, wind: e.wind, alive: e.alive, tint: e.tint, sig: e.sig, row: e.row, tier: e.tier, up: e.up, cursed: e.cursed, pow: e.pow, move: e.move, tell: e.tell })) });
+    this.broadcast({ type: "elite", elites: this.eliteView() });
     const script = makeScript(L.floor, L.seed);
     const outcome = roomOutcome(script, Date.now() - L.started, L.elites);
     const reason = outcome.boss ? "win" : asked === "surrender" ? "surrender" : "dead";
