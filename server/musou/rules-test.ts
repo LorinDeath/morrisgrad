@@ -927,6 +927,23 @@ const cdNow = coopBattle.party[0].cd[0];
 ok(cdNow > 1 && coopBattle.takeActs().some((a) => a.kind === "skill" && a.skill === 0), "клиент шлёт именно Жатву и ставит её откат");
 for (let i = 0; i < 8; i++) { coopBattle.press("a", { skill: 1, aim: 0 }); coopBattle.step(0.05); }
 ok(coopBattle.party[0].cd[0] < cdNow, "повтор клавиши во время отката не запускает Жатву снова");
+coopBattle.party[0].cd[0] = 0;
+coopBattle.linked = false;
+coopBattle.press("a", { skill: 1, aim: 0 });
+for (let i = 0; i < 8; i++) coopBattle.step(0.05);
+ok(coopBattle.party[0].cd[0] === 0 && !coopBattle.takeActs().some((a) => a.kind === "skill"), "без связи Жатва не ставит откат");
+coopBattle.linked = true;
+coopBattle.press("a", { skill: 1, aim: 0 });
+coopBattle.step(0.02);
+coopBattle.linked = false;
+for (let i = 0; i < 4; i++) coopBattle.step(0.05);
+ok(coopBattle.party[0].cd[0] === 0 && !coopBattle.party[0].atk, "обрыв в замахе не тратит Жатву");
+coopBattle.linked = true;
+coopBattle.press("a", { skill: 1, aim: 0 });
+coopBattle.step(0.02);
+coopBattle.applyHand([2.2, 0, 0, 0], 40, 0, true, false, 0, 0);
+for (let i = 0; i < 4; i++) coopBattle.step(0.05);
+ok(coopBattle.party[0].cd[0] < 2.05 && coopBattle.party[0].cd[0] > 1.85, "снимок комнаты оставляет серверный откат, а не полный заново");
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);

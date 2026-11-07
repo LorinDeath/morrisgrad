@@ -161,6 +161,8 @@ export class Battle {
   frame = 0;
   mirror = false;
   remote = false;
+  /** Сокет комнаты открыт. Пока связи нет, навык не стартует и не ставит откат. */
+  linked = true;
   paused = false;
   localId = "";
   acts: Act[] = [];
@@ -544,6 +546,10 @@ export class Battle {
     const me = this.party.find((p) => p.id === this.localId);
     if (!me || !Array.isArray(cd) || cd.length < 4) return;
     me.cd = [cd[0] || 0, cd[1] || 0, cd[2] || 0, cd[3] || 0];
+    if (me.atk?.kind === "skill" && me.atk.idx != null && !me.atk.hit && (me.cd[me.atk.idx] || 0) > 0.02) {
+      me.atk = null;
+      me.bufSkill = 0;
+    }
     if (snap) me.haste = haste || 0;
     else if (haste > me.haste) me.haste = haste;
     if (snap || spentMusou) me.musou = Math.max(0, Math.min(100, musou || 0));
@@ -802,6 +808,10 @@ export class Battle {
       }
       return;
     }
+    if (this.remote && !this.linked && a.atk?.kind === "skill" && !a.atk.hit) {
+      a.atk = null;
+      a.bufSkill = 0;
+    }
     if (a.dodgeCd > 0) a.dodgeCd -= dt;
     if (a.stepT > 0) a.stepT -= dt;
     else if (a.step !== 0 && !a.atk) a.step = 0;
@@ -828,9 +838,12 @@ export class Battle {
     if (a.echo) {
       a.echo.left -= dt;
       if (a.echo.left <= 0) {
-        const echo = a.echo;
-        a.echo = null;
-        this.echoStrike(a, echo.idx, echo.mul);
+        if (this.remote && !this.linked) a.echo.left = 0.05;
+        else {
+          const echo = a.echo;
+          a.echo = null;
+          this.echoStrike(a, echo.idx, echo.mul);
+        }
       }
     }
     const sp = Math.hypot(a.mx, a.my);
@@ -938,6 +951,7 @@ export class Battle {
     const hero = heroById(a.hero);
     const sk = hero.skills[idx];
     if (!sk) return;
+    if (this.remote && !this.linked) return;
     if (sk.musou) {
       if (a.musou < 100 || a.cd[idx] > 0) return;
     } else if (a.cd[idx] > 0) return;

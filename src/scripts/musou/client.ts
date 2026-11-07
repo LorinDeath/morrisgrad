@@ -697,23 +697,46 @@ function openFriends() {
 }
 
 let dropTry = 0;
+let linkGap = 0;
+let reconnecting = false;
+function queueReconnect() {
+  if (reconnecting || view !== "fight" || !room || dropTry >= 8) return;
+  reconnecting = true;
+  dropTry++;
+  const dead = ws;
+  const code = room.code;
+  if (dead) {
+    dead.onclose = null;
+    try { dead.close(); } catch { /* */ }
+  }
+  setTimeout(() => {
+    reconnecting = false;
+    if (view !== "fight" || !room) return;
+    connect(code, true);
+  }, 300);
+}
 async function connect(code: string, fromDrop = false) {
   if (!fromDrop) dropTry = 0;
-  if (ws) { try { ws.close(); } catch { /* */ } }
+  if (ws) {
+    ws.onclose = null;
+    try { ws.close(); } catch { /* */ }
+  }
   const sock = new WebSocket(WS + "/musou/m/" + code);
   ws = sock;
   sock.onopen = () => sock.send(JSON.stringify({ type: "hello", token, guest: token ? undefined : guest, nick }));
   sock.onclose = () => {
-    if (ws !== sock || view !== "fight" || !room) return;
-    if (dropTry >= 8) return;
-    dropTry++;
-    setTimeout(() => connect(code, true), 400);
+    if (ws !== sock) return;
+    queueReconnect();
   };
   ws.onmessage = (ev) => {
     let m: any;
     try { m = JSON.parse(ev.data); }
     catch { return; }
-    if (m.type === "you") { youId = m.id; room = { code, host: !!m.host, seats: [] }; }
+    if (m.type === "you") {
+      youId = m.id;
+      room = { code, host: !!m.host, seats: [] };
+      if (battle && view === "fight") battle.localId = youId;
+    }
     if (m.type === "lobby") {
       room = { code: m.code, host: m.hostId === youId, seats: m.seats };
       const box = $<HTMLElement>("room-box");
@@ -751,6 +774,7 @@ async function connect(code: string, fromDrop = false) {
     if (m.type === "boom" && battle) battle.noteBoom(m);
     if (m.type === "blow" && battle) battle.noteBlow(m.who, m.name || "", Number(m.dmg) || 0, !!m.crit, Number(m.x) || 0, Number(m.y) || 0, 0);
     if (m.type === "hand" && battle) {
+      if (youId) battle.localId = youId;
       battle.applyHand(m.cd || [], Number(m.musou) || 0, Number(m.haste) || 0, !!m.snap, !!m.spent, m.down | 0, m.final | 0);
       const me = battle.party.find((p) => p.id === youId);
       if (me && m.heal > 0 && me.hp > 0) me.hp = Math.min(me.maxHp, me.hp + (m.heal | 0));
@@ -1032,6 +1056,18 @@ function frame(now: number, dt: number) {
   }
   if (view === "fight" && battle) {
     const me = battle.party.find((p) => p.id === youId) || battle.party[0];
+    const rs = ws ? ws.readyState : 3;
+    battle.linked = !battle.remote || rs === 1;
+    if (battle.remote && room) {
+      if (rs === 1) linkGap = 0;
+      else {
+        linkGap += dt;
+        if (linkGap > (rs === 2 ? 0.7 : 1.1)) {
+          linkGap = 0;
+          queueReconnect();
+        }
+      }
+    }
     battle.press(youId, readBtn());
     const hpBefore = me.hp;
     const killsBefore = battle.kills;
