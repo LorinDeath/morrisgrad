@@ -16,7 +16,10 @@ import itemsUrl from "../../assets/mc/items_atlas.png?url";
 import iconsUrl from "../../assets/mc/skill_icons.png?url";
 import ICONS from "../../assets/mc/skill_icons.json";
 import { skillSeconds } from "./strike";
-import { clampMove, stickVector, travelAim } from "./input";
+import { stickVector, travelAim } from "./input";
+import { authKind, authText, planAuthRetry, tokenStale } from "./session";
+import { EXIT_MS, exitLeft } from "./exit";
+import { eventCode, moveAxes, skillOfCode, typingTarget } from "./keys";
 
 const GEAR_ICON: Record<string, number> = { weapon: 85, helm: 86, chest: 87, gloves: 89, boots: 88, amulet: 196, ring: 185, ring1: 185, ring2: 195 };
 document.documentElement.style.setProperty("--items", `url("${itemsUrl}")`);
@@ -69,6 +72,12 @@ if (guest.length < 16) {
   localStorage.setItem(GUEST, guest);
 }
 let token = "";
+let signedIn = false;
+let exitUntil = 0;
+let exitAsked = false;
+let exitLatch = false;
+let authPause = 0;
+let helloAuth = 0;
 let ws: WebSocket | null = null;
 let yardSock: WebSocket | null = null;
 let yardSnap: { shard?: string; cap: number; you: string; people: { tag: string; nick: string; lvl: number; say: string }[] } | null = null;
@@ -113,34 +122,77 @@ async function clerkToken() {
     };
     tick();
   });
-  try {
-    token = (await Promise.race([
-      Promise.resolve(C?.session?.getToken?.() || ""),
-      new Promise((r) => setTimeout(() => r(""), 2500)),
-    ])) || "";
-  } catch { token = ""; }
   const u = C?.user;
-  if (u) nick = u.username || u.fullName || u.firstName || nick;
+  if (u) {
+    nick = u.username || u.fullName || u.firstName || nick;
+    signedIn = true;
+  }
+  token = await pullToken(false);
+  if (token) signedIn = true;
   verified = !!token;
 }
 
-async function api(path: string, body: any) {
+async function pullToken(force: boolean): Promise<string> {
+  const C = (window as any).Clerk;
+  const stale = tokenStale(token, Date.now() / 1000);
   try {
-    const res = await fetch(HTTP + path, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(token ? { authorization: "Bearer " + token } : {}) },
-      body: JSON.stringify({ ...body, token, guest: token ? undefined : guest, nick }),
-    });
-    const data = await res.json().catch(() => null);
-    return data;
-  } catch { return null; }
+    const next = await Promise.race([
+      Promise.resolve(C?.session?.getToken?.(force || stale ? { skipCache: true } : undefined) || ""),
+      new Promise<string>((r) => setTimeout(() => r(""), 2500)),
+    ]);
+    return typeof next === "string" ? next : "";
+  } catch {
+    return "";
+  }
+}
+
+async function ensureToken(force: boolean) {
+  if (!force && token && !tokenStale(token, Date.now() / 1000)) return token;
+  const next = await pullToken(force);
+  if (next) {
+    token = next;
+    signedIn = true;
+    verified = true;
+    return token;
+  }
+  if (signedIn && (force || tokenStale(token, Date.now() / 1000))) token = "";
+  verified = !!token;
+  return token;
+}
+
+function authBody() {
+  if (token) return { token, nick };
+  if (signedIn) return { nick };
+  return { guest, nick };
+}
+
+async function api(path: string, body: any) {
+  let attempt = 0;
+  for (;;) {
+    try {
+      await ensureToken(attempt > 0);
+      if (signedIn && !token) return { err: "logged_out" };
+      const res = await fetch(HTTP + path, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(token ? { authorization: "Bearer " + token } : {}) },
+        body: JSON.stringify({ ...body, ...authBody() }),
+      });
+      const data = await res.json().catch(() => null);
+      const plan = planAuthRetry(data?.err, attempt, !!token);
+      if (plan === "retry") { attempt++; continue; }
+      if (plan === "logout") return { err: "logged_out" };
+      return data;
+    } catch {
+      return null;
+    }
+  }
 }
 
 async function act(body: any) {
   if (!online) return null;
   const data = await api("/musou/act", body);
   if (data?.profile) profile = normalize(data.profile);
-  if (data?.err) toast(String(data.err));
+  if (data?.err) toast(authText(String(data.err)));
   return data;
 }
 
@@ -256,14 +308,14 @@ async function ensureYard() {
   }
   const sock = new WebSocket(WS + "/musou/p/" + info.shard);
   yardSock = sock;
-  sock.onopen = () => sock.send(JSON.stringify({ type: "hello", token, guest: token ? undefined : guest, nick }));
+  sock.onopen = () => sock.send(JSON.stringify({ type: "hello", ...authBody() }));
   sock.onmessage = (ev) => {
     const m = JSON.parse(String(ev.data));
     if (m.type === "you" && yardSnap) yardSnap.you = m.tag;
     if (m.type === "yard") yardSnap = { ...m, shard: info.shard, you: m.you || yardSnap?.you || "" };
     if (m.type === "yard" || m.type === "you") paintYard();
     if (m.type === "err") {
-      toast(m.err || "Двор не пустил");
+      toast(authText(m.err || "Двор не пустил"));
       if (/полон/.test(String(m.err || ""))) { yardSock = null; try { sock.close(); } catch { /* */ } setTimeout(() => { void ensureYard(); }, 400); }
     }
   };
@@ -725,14 +777,20 @@ function queueReconnect() {
   }, 300);
 }
 async function connect(code: string, fromDrop = false) {
-  if (!fromDrop) dropTry = 0;
+  if (!fromDrop) { dropTry = 0; helloAuth = 0; }
   if (ws) {
     ws.onclose = null;
     try { ws.close(); } catch { /* */ }
   }
+  await ensureToken(helloAuth > 0);
+  if (signedIn && !token) {
+    toast(authText("logged_out"));
+    dropTry = 8;
+    return;
+  }
   const sock = new WebSocket(WS + "/musou/m/" + code);
   ws = sock;
-  sock.onopen = () => sock.send(JSON.stringify({ type: "hello", token, guest: token ? undefined : guest, nick }));
+  sock.onopen = () => sock.send(JSON.stringify({ type: "hello", ...authBody() }));
   sock.onclose = () => {
     if (ws !== sock) return;
     queueReconnect();
@@ -768,7 +826,20 @@ async function connect(code: string, fromDrop = false) {
       document.querySelectorAll<HTMLButtonElement>("[data-room-floor]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "floor", floor: Number(b.dataset.roomFloor) })));
       document.querySelectorAll<HTMLButtonElement>("[data-room-diff]").forEach((b) => b.onclick = () => ws?.send(JSON.stringify({ type: "diff", diff: Number(b.dataset.roomDiff) })));
     }
-    if (m.type === "err") toast(m.err || "Ошибка комнаты");
+    if (m.type === "err") {
+      if (authKind(m.err) && helloAuth < 1) {
+        helloAuth++;
+        sock.onclose = null;
+        void connect(room?.code || code, true);
+        return;
+      }
+      toast(authText(m.err || "Ошибка комнаты"));
+      if (m.err === "logged_out" || authKind(m.err)) dropTry = 8;
+    }
+    if (m.type === "exit") {
+      const until = Number(m.until) || 0;
+      if (until > 0) exitUntil = until;
+    }
     if (m.type === "go") {
       if (!(battle && nonce === m.nonce && view === "fight")) {
         closeModal();
@@ -882,6 +953,9 @@ function beginBattle(floor: number | FloorDef, members: { id: string; name: stri
   battle.localId = youId || members[0].id;
   ended = false;
   ending = false;
+  exitUntil = 0;
+  exitAsked = false;
+  exitLatch = false;
   waitDrops.length = 0;
   downSent = false;
   const me = members.find((m) => m.id === youId) || members[0];
@@ -902,9 +976,7 @@ function buildSkills(heroId: HeroId) {
   const hero = heroById(heroId);
   $<HTMLElement>("skills").innerHTML = hero.skills.map((sk, i) => skillButton(sk, i)).join("");
   $<HTMLElement>("skills-touch").innerHTML = hero.skills.map((sk, i) => skillButton(sk, i, true)).join("");
-  document.querySelectorAll<HTMLButtonElement>("#skills .skill").forEach((b) => {
-    b.onclick = () => queueSkill(Number(b.dataset.sk));
-  });
+  document.querySelectorAll<HTMLButtonElement>("#skills .skill, #skills-touch .skill-touch").forEach((b) => bindSkillButton(b));
 }
 
 let queued = 0;
@@ -934,6 +1006,23 @@ function inBoom(x: number, y: number, m: any) {
   }
   return Math.hypot(dx, dy) < r;
 }
+function bindSkillButton(b: HTMLButtonElement) {
+  let fromPointer = false;
+  const fire = () => queueSkill(Number(b.dataset.sk));
+  b.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    fromPointer = true;
+    fire();
+  });
+  b.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (fromPointer) { fromPointer = false; return; }
+    fire();
+  });
+}
+
 function queueSkill(n: number) {
   if (!battle) return;
   const me = battle.party.find((p) => p.id === youId) || battle.party[0];
@@ -946,22 +1035,20 @@ function queueSkill(n: number) {
 }
 
 function readBtn(): Partial<Btn> {
-  const rawX = (keys.has("a") || keys.has("arrowleft") ? -1 : 0) + (keys.has("d") || keys.has("arrowright") ? 1 : 0) + stick.x;
-  const rawY = (keys.has("w") || keys.has("arrowup") ? -1 : 0) + (keys.has("s") || keys.has("arrowdown") ? 1 : 0) + stick.y;
-  const moved = clampMove(rawX, rawY);
+  const moved = moveAxes(keys, stick.x, stick.y);
   const mx = moved.x;
   const my = moved.y;
   const look = mouseAim || aimHeld;
   pointerAim = travelAim(mx, my, pointerAim, look);
   const skill = queued;
-  const heavy = heavyQ || keys.has("k");
+  const heavy = heavyQ || keys.has("KeyK");
   queued = 0;
   heavyQ = false;
-  const dodge = dodgeQ || keys.has(" ");
+  const dodge = dodgeQ || keys.has("Space");
   dodgeQ = false;
-  const use = useQ || (keys.has("g") && !openChestId);
+  const use = useQ || (keys.has("KeyG") && !openChestId);
   useQ = false;
-  return { mx, my, aim: pointerAim, light: holding || keys.has("j"), heavy, skill, dodge, use };
+  return { mx, my, aim: pointerAim, light: holding || keys.has("KeyJ"), heavy, skill, dodge, use };
 }
 
 function resize() {
@@ -1065,7 +1152,7 @@ async function endFight() {
   }
   if (online) {
     const r = await act({ op: "finish", nonce, kills: b.kills, generals: b.genKills, boss: reason === "win", reason, party: b.party.length });
-    showResult(r?.report || null, b.phase, reason, r?.err);
+    showResult(r?.report || null, b.phase, reason, r?.err ? authText(String(r.err)) : undefined);
   } else {
     const r = finishRun(profile, { nonce, kills: b.kills, generals: b.genKills, boss: reason === "win", reason, party: 1 }, Date.now(), mulberry32((Date.now() ^ b.kills) >>> 0));
     if (!("err" in r)) saveLocal();
@@ -1161,12 +1248,49 @@ function frame(now: number, dt: number) {
     const ctx = c.getContext("2d");
     if (ctx) drawBattle(ctx, battle, c.width, c.height, cam, now);
     hud();
-    const lootWaiting = dropFlight > 0 || waitDrops.length > 0 || battle.chests.some((c) => !c.open);
-    if (battle.phase === "won" && lootWaiting) battle.phase = "fight";
-    if (!ended && !ending && (battle.phase === "won" || battle.phase === "lost") && !(dropFlight || waitDrops.length)) endFight();
+    paintExit();
+    const fallen = battle.bossDown || (battle.elites.some((e) => e.kind === "boss") && battle.elites.every((e) => e.kind !== "boss" || !e.alive));
+    if (battle.phase === "lost") {
+      exitUntil = 0;
+      paintExit();
+      if (!ended && !ending && !(dropFlight || waitDrops.length)) void endFight();
+    } else if (!ended && !ending && !exitLatch && (fallen || battle.phase === "won") && battle.reason !== "surrender") {
+      if (fallen && !battle.bossDown) battle.bossDown = true;
+      if (!exitUntil) exitUntil = Date.now() + EXIT_MS;
+      if (battle.remote && !exitAsked && ws && ws.readyState === 1) {
+        exitAsked = true;
+        ws.send(JSON.stringify({ type: "exit" }));
+      }
+      if (exitUntil && chestHold) {
+        battle.paused = false;
+        chestHold = false;
+      }
+      if (battle.phase === "won") battle.phase = "fight";
+      paintExit();
+      if (Date.now() >= exitUntil) {
+        exitLatch = true;
+        exitUntil = 0;
+        paintExit();
+        hideLoot();
+        battle.phase = "won";
+        battle.reason = "win";
+        battle.bossDown = true;
+        void endFight();
+      }
+    } else if (!ended && !ending && (battle.phase === "won" || battle.phase === "lost") && !(dropFlight || waitDrops.length)) {
+      void endFight();
+    }
   } else if (view === "hub" || view === "pick") {
     if ((now / 50 | 0) % 2 === 0) paintPicks();
   }
+}
+
+function paintExit() {
+  const el = $<HTMLElement>("exit-count");
+  if (!el) return;
+  if (view !== "fight" || !battle || !(exitUntil > 0)) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = `Выход через ${exitLeft(exitUntil, Date.now())}`;
 }
 
 function aimFrom(ev: { clientX: number; clientY: number; pointerId?: number }) {
@@ -1227,7 +1351,7 @@ function chestById(id: string) {
 
 function showLoot(id: string) {
   if (!chestById(id)) { toast("Сундук ещё считается"); return; }
-  if (battle && !battle.remote && !chestHold) {
+  if (battle && !battle.remote && !chestHold && !exitUntil) {
     battle.paused = true;
     chestHold = true;
   }
@@ -1237,6 +1361,8 @@ function showLoot(id: string) {
 
 function hideLoot() {
   const panel = $<HTMLElement>("loot-panel");
+  const focused = document.activeElement as HTMLElement | null;
+  if (panel && focused && panel.contains(focused)) focused.blur();
   if (panel) panel.hidden = true;
   openChestId = "";
   if (chestHold && battle) {
@@ -1314,7 +1440,7 @@ async function flushDrops(_now: number) {
   if (!battle || battle.remote) return;
   const live = battle;
   for (const s of live.takeFresh()) waitDrops.push(s);
-  if (!waitDrops.length || dropFlight) return;
+  if (!waitDrops.length || dropFlight || authPause > _now) return;
   dropFlight++;
   try {
     const batch = waitDrops.splice(0, waitDrops.length);
@@ -1333,7 +1459,17 @@ async function askDrop(s: { id: string; name: string; x: number; y: number }): P
     const data = await api("/musou/act", { op: "drop", source: s.id, name: s.name });
     if (data?.profile) profile = normalize(data.profile);
     if (!data) return true;
-    if (data.err) return String(data.err).includes("ещё не выходил");
+    if (data.err) {
+      const text = String(data.err);
+      if (text.includes("ещё не выходил")) return true;
+      if (authKind(text) || text === "logged_out") {
+        authPause = performance.now() + 1500;
+        toast(authText(text));
+        return true;
+      }
+      toast(authText(text));
+      return false;
+    }
     const chest = data.report?.chest as PersonalChest | undefined;
     if (chest) rememberChest(chest, s.x, s.y);
     return false;
@@ -1374,36 +1510,52 @@ function bind() {
   $<HTMLButtonElement>("pause-leave").onclick = () => { $<HTMLElement>("pause").hidden = true; $<HTMLButtonElement>("flee").click(); };
   $<HTMLButtonElement>("flee").onclick = () => {
     if (!battle) return;
-    if (battle.bossDown) {
+    if (battle.bossDown || exitUntil) {
+      if (battle.remote && exitUntil && Date.now() < exitUntil) {
+        toast(`Общий выход через ${exitLeft(exitUntil, Date.now())}`);
+        return;
+      }
+      exitUntil = 0;
+      paintExit();
+      hideLoot();
       battle.reason = "win";
       battle.phase = "won";
-      endFight();
+      battle.bossDown = true;
+      void endFight();
       return;
     }
     battle.reason = "surrender";
     battle.phase = "lost";
     endFight();
   };
+  const releaseKeys = () => { keys.clear(); holding = false; };
   window.addEventListener("keydown", (e) => {
-    const key = e.key.toLowerCase();
-    const fresh = !keys.has(key);
-    keys.add(key);
+    if (document.hidden || !document.hasFocus()) { keys.clear(); holding = false; return; }
+    if (typingTarget(e.target)) return;
+    const code = eventCode(e);
+    if (!code) return;
+    const fresh = !keys.has(code);
+    keys.add(code);
     if (view !== "fight") return;
-    if (key === " " || key === "spacebar") { e.preventDefault(); if (fresh) dodgeQ = true; }
-    if (fresh && key === "p" && !room && battle) togglePause();
-    if (key === "j") holding = true;
-    if (fresh && key === "k") heavyQ = true;
-    if (fresh && key === "g") {
+    if (code === "Space" || code.startsWith("Arrow")) e.preventDefault();
+    if (code === "Space" && fresh) dodgeQ = true;
+    if (fresh && code === "KeyP" && !room && battle) togglePause();
+    if (code === "KeyJ") holding = true;
+    if (fresh && code === "KeyK") heavyQ = true;
+    if (fresh && code === "KeyG") {
       if (openChestId) hideLoot();
       else useQ = true;
     }
-    const map: Record<string, number> = { q: 1, e: 2, r: 3, f: 4 };
-    if (fresh && map[key]) queueSkill(map[key]);
+    const skill = skillOfCode(code);
+    if (fresh && skill) queueSkill(skill);
   });
   window.addEventListener("keyup", (e) => {
-    keys.delete(e.key.toLowerCase());
-    if (e.key.toLowerCase() === "j") holding = false;
+    const code = eventCode(e);
+    if (code) keys.delete(code);
+    if (code === "KeyJ") holding = false;
   });
+  window.addEventListener("blur", releaseKeys);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) releaseKeys(); });
   const field = $<HTMLCanvasElement>("field");
   field.addEventListener("pointerdown", (e) => {
     if (e.pointerId === stickId) return;
@@ -1487,13 +1639,6 @@ function bind() {
   holdBtn("m-use", () => {
     if (openChestId) hideLoot();
     else useQ = true;
-  });
-  document.getElementById("skills-touch")?.addEventListener("pointerdown", (e) => {
-    const b = (e.target as HTMLElement).closest("button");
-    if (!b) return;
-    e.preventDefault();
-    e.stopPropagation();
-    queueSkill(Number((b as HTMLButtonElement).dataset.sk));
   });
 }
 

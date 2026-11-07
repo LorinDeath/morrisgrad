@@ -484,6 +484,8 @@ export type Profile = {
   chain: number[];
   kills: number;
   pending: Pending | null;
+  /** Квитанция последнего зачёта. Повтор finish с тем же nonce отдаёт её и не платит второй раз. */
+  paid: PaidRun | null;
   /** Клятва на следующий забег. В бою действует копия внутри pending. */
   oath: OathId;
   /** Материалы Петра. Общие на аккаунт, не на героя. */
@@ -548,7 +550,7 @@ export function newProfile(seed = 1): Profile {
     equip: emptyEquip(), bag: [], inbox: [], quests: {},
     clears: Array.from({ length: FLOOR_N }, () => 0),
     chain: Array.from({ length: FLOOR_N }, () => 0),
-    kills: 0, pending: null, oath: "none", roster: [], res: {}, book: emptyBook(), radiance: 0,
+    kills: 0, pending: null, paid: null, oath: "none", roster: [], res: {}, book: emptyBook(), radiance: 0,
   };
 }
 
@@ -808,6 +810,7 @@ export function normalize(raw: any): Profile {
       drops: readChests(raw.pending.drops),
     };
   }
+  p.paid = readPaid(raw.paid);
   p.oath = oathOf(raw.oath);
   p.book = readBook(raw.book);
   p.radiance = Math.max(0, Math.min(9, raw.radiance | 0));
@@ -942,6 +945,9 @@ export function setBonus(p: Profile) {
   return { got, dmg, heal, armor, aspd };
 }
 
+/** Базовый шаг, px/с, до ловкости и чар. Было 214. */
+export const BASE_SPEED = 300;
+
 export function sheet(p: Profile): Sheet {
   const h = heroById(p.hero);
   let str = h.base.str + p.alloc.str;
@@ -1011,7 +1017,7 @@ export function sheet(p: Profile): Sheet {
     critRaw,
     dodge: rateChance(dodgeRaw, "dodge"),
     dodgeRaw,
-    speed: Math.round((214 + dex * 0.4) * Math.max(0.45, speedMul)),
+    speed: Math.round((BASE_SPEED + dex * 0.4) * Math.max(0.45, speedMul)),
     skill,
     ls: rateChance(lsRaw, "ls"),
     lsRaw,
@@ -1613,6 +1619,15 @@ export type RunReport = {
   diff: number;
   diffName: string;
 };
+
+export type PaidRun = { nonce: string; report: RunReport };
+
+function readPaid(raw: any): PaidRun | null {
+  if (!raw || typeof raw.nonce !== "string" || !raw.report || typeof raw.report !== "object") return null;
+  const r = raw.report;
+  if (typeof r.gold !== "number" || typeof r.xp !== "number" || !Array.isArray(r.items)) return null;
+  return { nonce: String(raw.nonce).slice(0, 40), report: r as RunReport };
+}
 
 function dropKey(nonce: string, source: string, hero: string) {
   let h = 2166136261;
@@ -2246,8 +2261,16 @@ export function beginRun(p: Profile, floor: number, now: number, nonce = startNo
 
 export function finishRun(p: Profile, body: { nonce?: string; kills?: number; generals?: number; boss?: boolean; party?: number; reason?: RunReason }, now: number, rng: Rng, trusted?: { kills: number; generals: number; boss: boolean }): RunReport | { err: string } {
   const pend = p.pending;
-  if (!pend) return { err: "Забег не начат" };
-  if (!body.nonce || body.nonce !== pend.nonce) return { err: "Чужой забег" };
+  const nonce = typeof body.nonce === "string" ? body.nonce : "";
+  if (!pend) {
+    if (nonce && p.paid?.nonce === nonce) return p.paid.report;
+    return { err: "Забег не начат" };
+  }
+  if (!nonce || nonce !== pend.nonce) return { err: "Чужой забег" };
+  const keep = (report: RunReport) => {
+    p.paid = { nonce, report };
+    return report;
+  };
   if (pend.hero && pend.hero !== p.hero) { seal(p); mount(p, pend.hero); }
   const elapsed = Math.max(0, now - (pend.at || now));
   const vow = pend.oath;
@@ -2270,7 +2293,7 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
       report.gold += back;
     }
     seal(p);
-    return report;
+    return keep(report);
   }
   const counted = trusted || boundedSolo(pend.floor, elapsed, body.kills || 0, body.generals || 0, !!body.boss);
   const reason: RunReason = body.reason === "surrender" || body.reason === "dead" || body.reason === "win" ? body.reason : (counted.boss ? "win" : "dead");
@@ -2297,5 +2320,5 @@ export function finishRun(p: Profile, body: { nonce?: string; kills?: number; ge
     report.gold += back;
   }
   seal(p);
-  return report;
+  return keep(report);
 }

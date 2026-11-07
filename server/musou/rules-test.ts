@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, claimQuest, equipItem,
-  affixText, beginMode, buyRune, claimChest, compareGear, finishRun, chainAt, chestCompare, diffLock, dropQuality, dungeonBudget, dungeonIlvl, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, listDrops, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, noteDrop, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillBook, skillGlow, socketRune, spendStat, stagePay, statGlance, takeDrop, takeInbox, unequip, xpNeed,
+  BASE_SPEED, affixText, beginMode, buyRune, claimChest, compareGear, finishRun, chainAt, chestCompare, diffLock, dropQuality, dungeonBudget, dungeonIlvl, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, listDrops, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, noteDrop, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillBook, skillGlow, socketRune, spendStat, stagePay, statGlance, takeDrop, takeInbox, unequip, xpNeed,
 } from "../../src/scripts/musou/rules";
 import { markGold, markPay, markSeed, rollBook, rollMark } from "../../src/scripts/musou/mark";
 import { Battle } from "../../src/scripts/musou/sim";
@@ -103,8 +103,10 @@ const early = roomOutcome(script, 5000, [{ id: "g0", alive: false, spawned: fals
 ok(early.generals === 0 && !early.boss && early.kills < 99999, "сервер не считает нерождённых генералов и босса");
 const lied = boundedSolo(1, 5000, 99999, 3, true);
 ok(lied.kills < 200 && lied.generals === 0 && !lied.boss, "одиночный забег не принимает произвольные убийства");
+const goldBeforeAgain = runP.gold;
+const killsBeforeAgain = runP.kills;
 const again = finishRun(runP, { nonce: (started as any).nonce, kills: 999, generals: 3, boss: true }, 1_000 + 80_000, mulberry32(1));
-ok("err" in again, "повтор того же забега не выдаёт награду");
+ok(!("err" in again) && !("err" in report) && again.gold === report.gold && runP.gold === goldBeforeAgain && runP.kills === killsBeforeAgain, "повтор того же забега не выдаёт награду");
 
 const bagP = newProfile(2);
 setHero(bagP, "listaf");
@@ -799,8 +801,9 @@ const openA = beginRun(mateA, 1, 1, "room-nonce", false, 7);
 const openB = beginRun(mateB, 1, 1, "room-nonce", false, 7);
 ok(!("err" in openA) && !("err" in openB) && mateA.pending?.seed === mateB.pending?.seed && JSON.stringify(mateA.pending?.marks) === JSON.stringify(mateB.pending?.marks), "оба клиента комнаты получают одного генерала");
 const paid = finishRun(mateA, { nonce: "room-nonce", reason: "win", boss: true }, 50_000, mulberry32(3), { kills: 8, generals: 1, boss: true });
+const roomGold = mateA.gold;
 const paidAgain = finishRun(mateA, { nonce: "room-nonce", reason: "win", boss: true }, 50_000, mulberry32(3), { kills: 8, generals: 1, boss: true });
-ok(!("err" in paid) && "err" in paidAgain && paidAgain.err === "Забег не начат", "повторный end не выдаёт награду второй раз");
+ok(!("err" in paid) && !("err" in paidAgain) && paidAgain.gold === paid.gold && mateA.gold === roomGold, "повторный end не выдаёт награду второй раз");
 
 let budgetOk = true;
 const lengths = new Set<number>();
@@ -1095,8 +1098,9 @@ const retake = takeDrop(wet, first.chest.id);
 ok(!("err" in rest) && rest.moved.length === 1 && rest.left === 1 && !("err" in rest2) && rest2.moved.length === 1 && rest2.left === 0 && !("err" in retake) && retake.already && retake.moved.length === 0 && new Set([...rest.moved, ...rest2.moved].map((it) => it.id)).size === 2, "повторный забор добирает остаток и не двоит вещи");
 ok("err" in takeDrop(mate, first.chest.id) && mate.bag.length === 0, "чужой сундук не забирается");
 const dead = finishRun(wet, { nonce: wet.pending?.nonce, reason: "dead", boss: false }, 2000 + 10_000, mulberry32(9), { kills: 1, generals: 0, boss: false });
+const deadGold = wet.gold;
 const twice = finishRun(wet, { nonce: "wet", reason: "dead" }, 2000 + 20_000, mulberry32(10));
-ok(!("err" in dead) && dead.items.length === 0 && "err" in twice && listDrops(wet).length === 0, "смерть не выдаёт вторую вещь и не плодит сундук");
+ok(!("err" in dead) && dead.items.length === 0 && !("err" in twice) && twice.items.length === 0 && wet.gold === deadGold && listDrops(wet).length === 0, "смерть не выдаёт вторую вещь и не плодит сундук");
 const keeper = newProfile(504);
 setHero(keeper, "lorin");
 keeper.lvl = 30;
@@ -1105,8 +1109,9 @@ beginRun(keeper, 24, 3000, "kept");
 const keptDrop = noteDrop(keeper, "g0", "Генерал", 3000 + 36000);
 const keptId = !("err" in keptDrop) ? keptDrop.chest.id : "";
 const deadRun = finishRun(keeper, { nonce: "kept", reason: "dead", boss: false }, 3000 + 20_000, mulberry32(11), { kills: 2, generals: 1, boss: false });
+const keptGold = keeper.gold;
 const deadAgain = finishRun(keeper, { nonce: "kept", reason: "win", boss: true }, 3000 + 40_000, mulberry32(12));
-ok(!("err" in deadRun) && "err" in deadAgain && listDrops(keeper).length === 1 && listDrops(keeper)[0].id === keptId, "смерть оставляет заслуженный сундук на герое и повтор конца его не двоит");
+ok(!("err" in deadRun) && !("err" in deadAgain) && deadAgain.reason === "dead" && !deadAgain.boss && keeper.gold === keptGold && listDrops(keeper).length === 1 && listDrops(keeper)[0].id === keptId, "смерть оставляет заслуженный сундук на герое и повтор конца его не двоит");
 setHero(keeper, "veles");
 ok(listDrops(keeper).length === 0 && "err" in takeDrop(keeper, keptId), "сундук другого героя не виден в его сумке");
 setHero(keeper, "lorin");
@@ -1180,6 +1185,32 @@ if (twin) {
   hold.step(0.05);
   ok(hold.phase === "won" && hold.reason === "win", "после забранного сундука дуэль завершается победой");
 }
+
+const naked = sheet(setHero(newProfile(1), "lorin") || newProfile(1));
+ok(BASE_SPEED === 300 && naked.speed === Math.round(300 + 8 * 0.4), "базовый шаг 300 вместо 214, у Алзи с ловкостью 8 это 303");
+ok(Math.abs(sec60 - naked.speed) < 2, "секунда прямого шага равна скорости листа");
+const payWho = newProfile(3);
+setHero(payWho, "lorin");
+payWho.lvl = 80;
+payWho.clears[0] = 1;
+const pay = payWho;
+if (alwaysOk.ok) setTune(alwaysOk.tune);
+const payAt = 5_000_000;
+beginRun(pay, 2, payAt, "payonce");
+const payDrop = noteDrop(pay, "boss", "Страж", payAt + 36000);
+ok(!("err" in payDrop), "перед зачётом босс кладёт сундук");
+pay.bagSize = 0;
+const payId = !("err" in payDrop) ? payDrop.chest.id : "";
+const payTake = takeDrop(pay, payId);
+ok(!("err" in payTake) && payTake.moved.length === 0 && payTake.left > 0, "полная сумка во время отсчёта не съедает остаток сундука");
+const payReport = finishRun(pay, { nonce: "payonce", kills: 20, generals: 0, boss: true, reason: "win" }, payAt + 40000, mulberry32(4));
+const payGold = pay.gold;
+const payAgain = finishRun(pay, { nonce: "payonce", kills: 20, generals: 0, boss: true, reason: "win" }, payAt + 40000, mulberry32(9));
+const payLoaded = normalize(JSON.parse(JSON.stringify(pay)));
+const payThird = finishRun(payLoaded, { nonce: "payonce", kills: 99, generals: 9, boss: true, reason: "win" }, payAt + 80000, mulberry32(4));
+ok(!("err" in payReport) && !("err" in payAgain) && !("err" in payThird) && pay.gold === payGold && payLoaded.gold === payGold && payAgain.gold === payReport.gold, "повтор finish и загрузка сейва не платят награду второй раз");
+ok(listDrops(pay).some((c) => c.id === payId) && listDrops(payLoaded).some((c) => c.id === payId), "незабранный сундук остаётся после таймера и после загрузки");
+resetTune();
 
 console.log(fails ? `FAILED ${fails}/${n}` : `OK ${n}`);
 process.exit(fails ? 1 : 0);
