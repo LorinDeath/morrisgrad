@@ -1,0 +1,88 @@
+---
+// Ход чтения хранится в браузере. Пустые поля допустимы: это не туториал и не маршрут.
+import { READER_BOOKS } from '../../lib/loropedia/guard';
+import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
+---
+<details class="lp-reader">
+  <summary>Ход чтения</summary>
+  <form class="lp-reader-form" data-lp-reader autocomplete="off">
+    <p class="lp-muted">Читатель сам выбирает, куда идти. Маршрут не обязателен, правильного вывода нет, подсказки не навязываются. Номер части и номер главы — разные поля. Пустое поле можно оставить.</p>
+    <label class="check"><input type="checkbox" data-lp-protect /> Защищённый просмотр: не показывать непроверенный текст</label>
+    <label class="check"><input type="checkbox" data-lp-hide /> Скрывать «{HISTORIAN_GUESS_LABEL}»</label>
+    <div class="lp-reader-books">
+      {READER_BOOKS.map((b) => (
+        <fieldset data-book={b.id}>
+          <legend>{b.label}</legend>
+          <label>Глав дочитано <input type="number" min="0" step="1" inputmode="numeric" data-chapter placeholder="не указано" /></label>
+          <label>Частей дочитано <input type="number" min="0" step="1" inputmode="numeric" data-part placeholder="не указано" /></label>
+        </fieldset>
+      ))}
+    </div>
+    <div class="row">
+      <button type="submit" class="btn">Запомнить в этом браузере</button>
+    </div>
+    <p class="lp-muted" data-lp-reader-note aria-live="polite">На сервер уходит только признак защиты. Номера глав и личные заметки остаются здесь. Сохранённая глава не открывает нынешние статьи: у них нет проверенной пометки.</p>
+  </form>
+  <noscript><p class="lp-muted">Без JavaScript ход чтения не сохраняется. Защита, если она уже включена, всё равно скрывает непроверенный текст.</p></noscript>
+</details>
+<script>
+  import { STORAGE_KEY, loadState, serialize, setCursor } from "../../lib/loropedia/progress";
+  import { PROTECT_COOKIE } from "../../lib/loropedia/guard";
+
+  function cookieOn() {
+    return document.cookie.split(";").some((part) => part.trim() === PROTECT_COOKIE + "=1");
+  }
+  function writeCookie(on: boolean) {
+    document.cookie = on
+      ? `${PROTECT_COOKIE}=1; Path=/loropedia; SameSite=Lax; Max-Age=31536000`
+      : `${PROTECT_COOKIE}=; Path=/loropedia; SameSite=Lax; Max-Age=0`;
+  }
+  function num(input: HTMLInputElement): number | null {
+    if (input.value.trim() === "") return null;
+    const n = Number(input.value);
+    return Number.isInteger(n) && n >= 0 ? n : null;
+  }
+  function boot() {
+    const form = document.querySelector<HTMLFormElement>("[data-lp-reader]");
+    if (!form || form.dataset.ready) return;
+    form.dataset.ready = "1";
+    let state = loadState(localStorage.getItem(STORAGE_KEY));
+    state = { ...state, protection: cookieOn() };
+    const protect = form.querySelector<HTMLInputElement>("[data-lp-protect]")!;
+    const hide = form.querySelector<HTMLInputElement>("[data-lp-hide]")!;
+    const note = form.querySelector<HTMLElement>("[data-lp-reader-note]")!;
+    protect.checked = state.protection;
+    hide.checked = state.hideHistorianHypotheses;
+    form.querySelectorAll<HTMLFieldSetElement>("[data-book]").forEach((fs) => {
+      const cur = state.books[fs.dataset.book || ""];
+      const chapter = fs.querySelector<HTMLInputElement>("[data-chapter]")!;
+      const part = fs.querySelector<HTMLInputElement>("[data-part]")!;
+      if (cur?.chapterNumber != null) chapter.value = String(cur.chapterNumber);
+      if (cur?.partNumber != null) part.value = String(cur.partNumber);
+    });
+    const save = (next: ReturnType<typeof loadState>) => {
+      state = next;
+      localStorage.setItem(STORAGE_KEY, serialize(state));
+    };
+    hide.addEventListener("change", () => save({ ...state, hideHistorianHypotheses: hide.checked }));
+    protect.addEventListener("change", () => {
+      save({ ...state, protection: protect.checked });
+      writeCookie(protect.checked);
+      location.reload();
+    });
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      let next = state;
+      form.querySelectorAll<HTMLFieldSetElement>("[data-book]").forEach((fs) => {
+        next = setCursor(next, fs.dataset.book || "", {
+          chapterNumber: num(fs.querySelector<HTMLInputElement>("[data-chapter]")!),
+          partNumber: num(fs.querySelector<HTMLInputElement>("[data-part]")!),
+        });
+      });
+      save(next);
+      note.textContent = "Сохранено в этом браузере. На сервер номера не отправлялись. Нынешние статьи от этого не открываются.";
+    });
+  }
+  document.addEventListener("astro:page-load", boot);
+  boot();
+</script>

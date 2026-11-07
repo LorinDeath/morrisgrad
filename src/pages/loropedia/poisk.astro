@@ -1,9 +1,17 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
+import LpClosed from '../../components/loropedia/LpClosed.astro';
 import { LP } from '../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
 const q = (Astro.url.searchParams.get('q') || '').slice(0, 80);
 const tags = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(0, 24);
+const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="search" noindex>
+    <LpClosed />
+  </LpShell>
+) : (
 <LpShell title={q ? `«${q}» — поиск по Лоропедии МоррисГрада` : 'Поиск — Лоропедия МоррисГрада'} description="Поиск по Лоропедии МоррисГрада: персонажи, прозвища, локации, предметы и термины летописи."
   active="search" crumbs={[['Поиск', '/loropedia/poisk']]} noindex={!!q}>
   <header class="lp-page-head">
@@ -27,7 +35,6 @@ const tags = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(
     <h2 class="lp-h2 small"><span>Популярные теги</span></h2>
     <div class="lp-tagcloud">{tags.map((t) => <a class="lp-tag" href={`/loropedia/tag/${t.slug}`}>#{t.name} <small>{t.slugs.length}</small></a>)}</div>
   </section>
-</LpShell>
 <script>
   type Row = { s: string; t: string; a: string[]; g: string[]; c: string; st: string; e: string; i?: string; x?: string };
   let index: Row[] | null = null;
@@ -46,6 +53,7 @@ const tags = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(
     return { sc, via };
   }
   async function initLpSearch() {
+    if (document.querySelector<HTMLElement>('.lp')?.getAttribute('data-lp-protect') === '1') return;
     const form = document.querySelector<HTMLFormElement>('[data-lp-search]');
     if (!form || form.dataset.ready) return; form.dataset.ready = '1';
     const input = form.querySelector('input')!, list = document.querySelector<HTMLOListElement>('[data-lp-results]')!, count = document.querySelector<HTMLElement>('[data-lp-count]')!;
@@ -75,3 +83,5 @@ const tags = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(
   }
   document.addEventListener('astro:page-load', initLpSearch);
 </script>
+</LpShell>
+)}

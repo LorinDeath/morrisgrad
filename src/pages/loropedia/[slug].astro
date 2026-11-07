@@ -1,9 +1,11 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
+import LpClosed from '../../components/loropedia/LpClosed.astro';
 import StatusBadge from '../../components/loropedia/StatusBadge.astro';
 import EgoMap from '../../components/loropedia/EgoMap.astro';
 import { LP, article, category, CAT_COLORS } from '../../lib/loropedia';
 import { clip } from '../../lib/seo';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
 
 const a = article(Astro.params.slug || '');
 if (!a) return new Response(null, { status: 404, statusText: 'Not found' });
@@ -22,7 +24,13 @@ const ld = { '@context': 'https://schema.org', '@type': 'Article', headline: a.t
   url: `https://morrisgrad.com/loropedia/${a.slug}`, ...(a.image ? { image: `https://morrisgrad.com${a.image.jpg}` } : {}),
   isPartOf: { '@type': 'CollectionPage', name: 'Лоропедия МоррисГрада', url: 'https://morrisgrad.com/loropedia' }, keywords: [...a.tags, ...a.aliases].join(', ') };
 const showToc = a.toc.length >= 2 || isTimeline;
+const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} noindex>
+    <LpClosed />
+  </LpShell>
+) : (
 <LpShell title={`${a.title} — Лоропедия МоррисГрада`} description={desc} image={a.image?.jpg} type="article" crumbs={crumbs}
   active={isTimeline ? 'timeline' : undefined} jsonLd={[ld]}>
   <article class="lp-article" style={`--cat:${CAT_COLORS[a.cat] || '#c9a86c'}`} data-pagefind-body>
@@ -152,3 +160,4 @@ const showToc = a.toc.length >= 2 || isTimeline;
     </div>
   </article>
 </LpShell>
+)}

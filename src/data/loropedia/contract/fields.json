@@ -1,0 +1,35 @@
+{
+  "contractVersion": "1.0.0",
+  "schema": "src/data/loropedia/contract/loropedia-contract.schema.json",
+  "fixture": "src/data/loropedia/contract/fixtures/example-corpus.json",
+  "notice": "Пустой корпус допустим. Поле становится обязательным только у той записи, которую Историк уже решил опубликовать. Читателю до первого действия не нужно заполнять ничего.",
+  "readerFirstAction": {
+    "required": [],
+    "mayInclude": ["bookId", "chapterNumber", "partNumber"]
+  },
+  "records": [
+    { "record": "book", "id": "book:…", "required": ["id", "title"], "note": "Отдельная книга. Прогресс чтения не общий с другими книгами." },
+    { "record": "chapter", "id": "chapter:…", "required": ["id", "bookId", "chapterNumber", "partId"], "note": "chapterNumber — номер главы внутри этой книги, с 1. partId может быть null. Нельзя класть сюда номер части вместо номера главы." },
+    { "record": "part", "id": "part:…", "required": ["id", "bookId", "partNumber"], "note": "partNumber — номер части внутри книги. Это не chapterNumber и не старое поле «номер» Лоропедии." },
+    { "record": "fragment", "id": "frag:…", "required": ["id", "bookId", "chapterId", "partId", "quote", "locator", "spoilerFrom", "provenance"], "note": "quote — точная цитата. locator — где она в книге (издание, глава, абзац). Пустая цитата недопустима. partId может быть null." },
+    { "record": "entity", "id": "ent:…", "required": ["id", "name", "aliases", "tags", "infobox", "sourceIds", "spoilerFrom", "provenance", "status"], "note": "Имя, прозвища, теги и инфобокс видны только вместе с открытыми источниками." },
+    { "record": "fact", "id": "fact:…", "required": ["id", "text", "sourceIds", "spoilerFrom", "provenance", "status"], "note": "Утверждение. Минимум один frag в sourceIds." },
+    { "record": "event", "id": "event:…", "required": ["id", "text", "sourceIds", "spoilerFrom", "provenance", "status"], "note": "Событие для хронологии. Та же проверка источников." },
+    { "record": "relation", "id": "rel:…", "required": ["id", "kind", "fromId", "toId", "label", "sourceIds", "spoilerFrom", "provenance", "status"], "note": "kind: knows | artifact-path | scene-comparison | pair-scene | other. Экран этой связи не выпускается, пока нет размеченных данных." },
+    { "record": "evidence", "id": "ev:…", "required": ["id", "stance", "text", "sourceIds", "spoilerFrom", "provenance", "status"], "note": "stance: for | against | gap. Пробел — тоже запись, не молчаливый вывод." },
+    { "record": "hypothesis", "id": "hyp:…", "required": ["id", "kind", "label", "claim", "hideable", "readerResult", "sourceIds", "spoilerFrom", "provenance", "status"], "note": "kind только historian-guess. label ровно «Предположения Историка — не канон». hideable true. readerResult false. Метка «Идея Алекса» здесь запрещена." },
+    { "record": "derived", "id": "route:…", "required": ["id", "kind", "text", "optional", "sourceIds"], "note": "optional только true. Маршрут, сравнение, досье, прогулка, граф, сниппет и счётчик не открывают источники раньше их собственной пометки." },
+    { "record": "image", "id": "img:…", "required": ["id", "alt", "reconstruction", "generated", "sourceIds", "spoilerFrom", "provenance"], "note": "generated только false. Реконструкцию помечать reconstruction true. Новый арт не генерировать и не прикладывать, если файла нет." }
+  ],
+  "shared": [
+    { "field": "spoilerFrom.bookId", "requiredOn": "fragment, entity, fact, event, relation, evidence, hypothesis, image", "note": "Книга, после которой запись можно показать." },
+    { "field": "spoilerFrom.chapterNumber", "requiredOn": "те же", "note": "Сколько глав этой книги нужно дочитать. 0 — только если читатель явно поставил 0. Пустой курсор ничего не открывает." },
+    { "field": "spoilerFrom.partNumber", "requiredOn": "те же", "note": "null, если часть не ограничивает. Число — отдельно от chapterNumber." },
+    { "field": "provenance.mode", "requiredOn": "те же", "note": "direct | memory | retelling | unknown. unknown в защите всегда закрыто." },
+    { "field": "provenance.truthClaim", "requiredOn": "те же", "note": "Только false. Память и пересказ не становятся истиной. direct тоже не получает значок «установлено»." },
+    { "field": "status", "requiredOn": "entity, fact, event, relation, evidence, hypothesis", "note": "canon | disputed | ref. canon значит «так лежит в указанном источнике», не «читатель это доказал»." },
+    { "field": "sourceIds", "requiredOn": "все, кроме book, chapter, part", "note": "Минимум один существующий id. Производная запись закрыта, если закрыт любой источник." }
+  ],
+  "ids": "Стабильный id не переименовывать. Префиксы: book, chapter, part, frag, ent, fact, event, rel, ev, hyp, route, img. Форма prefix:слова.через.точку из латиницы и цифр.",
+  "doNotUse": ["номер как глава", "номер части в поле chapterNumber", "html сырой статьи", "invented", "Идея Алекса как метка гипотезы", "общий прогресс на все книги"]
+}

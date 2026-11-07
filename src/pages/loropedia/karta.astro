@@ -1,10 +1,18 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
+import LpClosed from '../../components/loropedia/LpClosed.astro';
 import { LP, CAT_COLORS } from '../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
 const g = LP.graph;
 const r = (deg: number) => Math.min(14, 3.5 + Math.sqrt(deg) * 1.6);
 const cats = LP.categories.filter((c) => g.nodes.some((n) => n.cat === c.slug));
+const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="map" noindex>
+    <LpClosed />
+  </LpShell>
+) : (
 <LpShell title="Карта связей — Лоропедия МоррисГрада" description="Карта связей Лоропедии МоррисГрада: как связаны герои, кланы, места и события летописи." active="map" crumbs={[['Карта связей', '/loropedia/karta']]}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">✶</span>
@@ -30,7 +38,6 @@ const cats = LP.categories.filter((c) => g.nodes.some((n) => n.cat === c.slug));
       </g>
     </svg>
   </div>
-</LpShell>
 <script>
   function initLpMap() {
     const svg = document.querySelector<SVGSVGElement>('[data-lp-map]');
@@ -66,3 +73,5 @@ const cats = LP.categories.filter((c) => g.nodes.some((n) => n.cat === c.slug));
   }
   document.addEventListener('astro:page-load', initLpMap);
 </script>
+</LpShell>
+)}

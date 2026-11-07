@@ -1,8 +1,10 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
 import LpCard from '../../components/loropedia/LpCard.astro';
+import LpClosed from '../../components/loropedia/LpClosed.astro';
 import StatusBadge from '../../components/loropedia/StatusBadge.astro';
 import { LP, article, CAT_COLORS } from '../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
 
 const heroes = LP.articles.filter((a) => a.cat === 'personazhi' && a.image).sort((a, b) => b.backlinks.length - a.backlinks.length);
 const chapters = LP.chapters.map(article).filter((a) => !!a);
@@ -11,7 +13,13 @@ const disputed = LP.articles.filter((a) => a.status === 'disputed');
 const popular = [...LP.articles].filter((a) => a.cat !== 'glavy').sort((a, b) => b.backlinks.length - a.backlinks.length).slice(0, 8);
 const art = LP.images.filter((i) => !/^cover/.test(i.id)).slice(0, 8);
 const desc = `Энциклопедия вселенной МоррисГрада: ${LP.stats.articles} статей о героях, кланах, локациях, магии и событиях летописи «Обитель смерти» — с хронологией, картой связей и артами.`;
+const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="home" noindex>
+    <LpClosed />
+  </LpShell>
+) : (
 <LpShell title="Лоропедия МоррисГрада — энциклопедия летописи «Обитель смерти»" description={desc} active="home"
   jsonLd={[{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Лоропедия МоррисГрада', description: desc, url: 'https://morrisgrad.com/loropedia', inLanguage: 'ru-RU' }]}>
   <header class="lp-hero">
@@ -132,3 +140,4 @@ const desc = `Энциклопедия вселенной МоррисГрада
     </div>
   </section>
 </LpShell>
+)}

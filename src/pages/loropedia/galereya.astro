@@ -1,10 +1,18 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
+import LpClosed from '../../components/loropedia/LpClosed.astro';
 import { LP } from '../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
 const arts = LP.images.filter((i) => !/^cover/.test(i.id));
 const covers = LP.images.filter((i) => /^cover/.test(i.id));
 const groups = [{ name: 'Персонажи и места', items: arts }, { name: 'Обложки глав', items: covers }].filter((g) => g.items.length);
+const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="gallery" noindex>
+    <LpClosed />
+  </LpShell>
+) : (
 <LpShell title="Галерея — Лоропедия МоррисГрада" description="Галерея Лоропедии МоррисГрада: арты персонажей, локаций и обложки глав летописи." active="gallery" crumbs={[['Галерея', '/loropedia/galereya']]}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">🖼</span>
@@ -26,3 +34,4 @@ const groups = [{ name: 'Персонажи и места', items: arts }, { nam
     </section>
   ))}
 </LpShell>
+)}

@@ -1,14 +1,22 @@
 ---
 import LpShell from '../../../components/loropedia/LpShell.astro';
 import LpCard from '../../../components/loropedia/LpCard.astro';
+import LpClosed from '../../../components/loropedia/LpClosed.astro';
 import StatusFilter from '../../../components/loropedia/StatusFilter.astro';
 import { LP, tagBySlug, article } from '../../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../../lib/loropedia/guard';
 
 const t = tagBySlug(Astro.params.tag || '');
 if (!t) return new Response(null, { status: 404, statusText: 'Not found' });
 const items = t.slugs.map(article).filter((x) => !!x).sort((a, b) => a!.title.localeCompare(b!.title, 'ru'));
 const others = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(0, 40);
+const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} noindex>
+    <LpClosed />
+  </LpShell>
+) : (
 <LpShell title={`#${t.name} — Лоропедия МоррисГрада`} description={`Статьи Лоропедии МоррисГрада с тегом «${t.name}»: ${items.length} шт.`} crumbs={[[`#${t.name}`, `/loropedia/tag/${t.slug}`]]}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">#</span>
@@ -21,3 +29,4 @@ const others = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slic
     <div class="lp-tagcloud">{others.map((x) => <a class:list={['lp-tag', { active: x.slug === t.slug }]} href={`/loropedia/tag/${x.slug}`}>#{x.name} <small>{x.slugs.length}</small></a>)}</div>
   </section>
 </LpShell>
+)}
