@@ -8,6 +8,7 @@ import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
   <form class="lp-reader-form" data-lp-reader autocomplete="off">
     <p class="lp-muted">Читатель сам выбирает, куда идти. Маршрут не обязателен, правильного вывода нет, подсказки не навязываются. Номер части и номер главы — разные поля. Пустое поле можно оставить.</p>
     <label class="check"><input type="checkbox" data-lp-protect /> Защищённый просмотр: не показывать непроверенный текст</label>
+    <label class="check"><input type="checkbox" data-lp-spoil /> Всё прочитано — спойлеры разрешены. Полный редакторский текст, не разметка фактов</label>
     <label class="check"><input type="checkbox" data-lp-hide /> Скрывать «{HISTORIAN_GUESS_LABEL}»</label>
     <div class="lp-reader-books">
       {READER_BOOKS.map((b) => (
@@ -21,21 +22,21 @@ import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
     <div class="row">
       <button type="submit" class="btn">Запомнить в этом браузере</button>
     </div>
-    <p class="lp-muted" data-lp-reader-note aria-live="polite">На сервер уходит только признак защиты. Номера глав и личные заметки остаются здесь. Сохранённая глава не открывает нынешние статьи: у них нет проверенной пометки.</p>
+    <p class="lp-muted" data-lp-reader-note aria-live="polite">На сервер уходят только два признака: защита и явное разрешение спойлеров. Номера глав и личные заметки остаются здесь. Защита важнее разрешения: при ней длинный текст не показывается. Сохранённая глава не открывает статьи. Проверенный корпус фактов в этот выпуск не выведен.</p>
   </form>
   <noscript><p class="lp-muted">Без JavaScript ход чтения не сохраняется. Защита, если она уже включена, всё равно скрывает непроверенный текст.</p></noscript>
 </details>
 <script>
   import { STORAGE_KEY, loadState, serialize, setCursor } from "../../lib/loropedia/progress";
-  import { PROTECT_COOKIE } from "../../lib/loropedia/guard";
+  import { PROTECT_COOKIE, SPOIL_COOKIE } from "../../lib/loropedia/guard";
 
-  function cookieOn() {
-    return document.cookie.split(";").some((part) => part.trim() === PROTECT_COOKIE + "=1");
+  function cookieOn(name: string) {
+    return document.cookie.split(";").some((part) => part.trim() === name + "=1");
   }
-  function writeCookie(on: boolean) {
+  function writeCookie(name: string, on: boolean) {
     document.cookie = on
-      ? `${PROTECT_COOKIE}=1; Path=/loropedia; SameSite=Lax; Max-Age=31536000`
-      : `${PROTECT_COOKIE}=; Path=/loropedia; SameSite=Lax; Max-Age=0`;
+      ? `${name}=1; Path=/loropedia; SameSite=Lax; Max-Age=31536000`
+      : `${name}=; Path=/loropedia; SameSite=Lax; Max-Age=0`;
   }
   function num(input: HTMLInputElement): number | null {
     if (input.value.trim() === "") return null;
@@ -47,12 +48,15 @@ import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
     if (!form || form.dataset.ready) return;
     form.dataset.ready = "1";
     let state = loadState(localStorage.getItem(STORAGE_KEY));
-    state = { ...state, protection: cookieOn() };
+    state = { ...state, protection: cookieOn(PROTECT_COOKIE) };
     const protect = form.querySelector<HTMLInputElement>("[data-lp-protect]")!;
+    const spoil = form.querySelector<HTMLInputElement>("[data-lp-spoil]")!;
     const hide = form.querySelector<HTMLInputElement>("[data-lp-hide]")!;
     const note = form.querySelector<HTMLElement>("[data-lp-reader-note]")!;
     protect.checked = state.protection;
+    spoil.checked = cookieOn(SPOIL_COOKIE);
     hide.checked = state.hideHistorianHypotheses;
+    document.querySelector(".lp")?.classList.toggle("lp-hide-guess", hide.checked);
     form.querySelectorAll<HTMLFieldSetElement>("[data-book]").forEach((fs) => {
       const cur = state.books[fs.dataset.book || ""];
       const chapter = fs.querySelector<HTMLInputElement>("[data-chapter]")!;
@@ -64,10 +68,17 @@ import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
       state = next;
       localStorage.setItem(STORAGE_KEY, serialize(state));
     };
-    hide.addEventListener("change", () => save({ ...state, hideHistorianHypotheses: hide.checked }));
+    hide.addEventListener("change", () => {
+      save({ ...state, hideHistorianHypotheses: hide.checked });
+      document.querySelector(".lp")?.classList.toggle("lp-hide-guess", hide.checked);
+    });
     protect.addEventListener("change", () => {
       save({ ...state, protection: protect.checked });
-      writeCookie(protect.checked);
+      writeCookie(PROTECT_COOKIE, protect.checked);
+      location.reload();
+    });
+    spoil.addEventListener("change", () => {
+      writeCookie(SPOIL_COOKIE, spoil.checked);
       location.reload();
     });
     form.addEventListener("submit", (e) => {

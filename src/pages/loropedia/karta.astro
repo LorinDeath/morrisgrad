@@ -1,19 +1,23 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
 import LpClosed from '../../components/loropedia/LpClosed.astro';
-import { LP, CAT_COLORS } from '../../lib/loropedia';
-import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
+import { CAT_COLORS } from '../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
+import { corpus, pageMode } from '../../lib/loropedia/select';
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+const LP = corpus(mode);
 const g = LP.graph;
 const r = (deg: number) => Math.min(14, 3.5 + Math.sqrt(deg) * 1.6);
 const cats = LP.categories.filter((c) => g.nodes.some((n) => n.cat === c.slug));
-const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
 {protect ? (
   <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="map" noindex>
     <LpClosed />
   </LpShell>
 ) : (
-<LpShell title="Карта связей — Лоропедия МоррисГрада" description="Карта связей Лоропедии МоррисГрада: как связаны герои, кланы, места и события летописи." active="map" crumbs={[['Карта связей', '/loropedia/karta']]}>
+<LpShell title="Карта связей — Лоропедия МоррисГрада" description="Карта связей Лоропедии МоррисГрада: как связаны герои, кланы, места и события летописи." active="map" crumbs={[['Карта связей', '/loropedia/karta']]} noindex={spoil}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">✶</span>
     <div><h1 class="lp-page-title">Карта связей</h1><p class="lp-page-sub">{g.nodes.length} статей и {g.edges.length} связей. Наведите на точку — подсветятся соседи; нажмите — откроется статья.</p></div>

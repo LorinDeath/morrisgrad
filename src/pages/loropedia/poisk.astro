@@ -1,11 +1,15 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
 import LpClosed from '../../components/loropedia/LpClosed.astro';
-import { LP } from '../../lib/loropedia';
-import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
+import { EXPANDED, corpus, pageMode } from '../../lib/loropedia/select';
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+const LP = corpus(mode);
 const q = (Astro.url.searchParams.get('q') || '').slice(0, 80);
 const tags = [...LP.tags].sort((a, b) => b.slugs.length - a.slugs.length).slice(0, 24);
-const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
+const inlineSearch = spoil ? JSON.stringify(EXPANDED.search).replace(/</g, '\\u003c') : '';
 ---
 {protect ? (
   <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="search" noindex>
@@ -13,11 +17,13 @@ const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
   </LpShell>
 ) : (
 <LpShell title={q ? `«${q}» — поиск по Лоропедии МоррисГрада` : 'Поиск — Лоропедия МоррисГрада'} description="Поиск по Лоропедии МоррисГрада: персонажи, прозвища, локации, предметы и термины летописи."
-  active="search" crumbs={[['Поиск', '/loropedia/poisk']]} noindex={!!q}>
+  active="search" crumbs={[['Поиск', '/loropedia/poisk']]} noindex={!!q || spoil}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">⌕</span>
     <div><h1 class="lp-page-title">Поиск по летописи</h1><p class="lp-page-sub">Ищет по названиям, прозвищам и другим именам, тегам и тексту статей.</p></div>
   </header>
+  {spoil && <p class="lp-spoil-banner" role="note">Ищется полный редакторский текст. Предположения Историка в выдержки поиска не входят.</p>}
+  {spoil && <script type="application/json" id="lp-search-inline" set:html={inlineSearch} />}
   <form class="lp-hero-search lp-search-page" action="/loropedia/poisk" method="get" role="search" data-lp-search>
     <input type="search" name="q" value={q} placeholder="Например: Лорин, Фрактал, некромант…" aria-label="Что найти" autocomplete="off" autofocus />
     <button type="submit">Искать</button>
@@ -59,7 +65,9 @@ const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
     const input = form.querySelector('input')!, list = document.querySelector<HTMLOListElement>('[data-lp-results]')!, count = document.querySelector<HTMLElement>('[data-lp-count]')!;
     const fbar = document.querySelector<HTMLElement>('[data-lp-sfilter]')!;
     let filter = 'all';
-    if (!index) { try { index = await (await fetch('/loropedia/search.json')).json(); } catch { count.textContent = 'Не удалось загрузить индекс поиска.'; return; } }
+    const inline = document.getElementById('lp-search-inline');
+    if (inline?.textContent) index = JSON.parse(inline.textContent) as Row[];
+    else if (!index) { try { index = await (await fetch('/loropedia/search.json')).json(); } catch { count.textContent = 'Не удалось загрузить индекс поиска.'; return; } }
     const run = () => {
       const q = norm(input.value);
       const url = new URL(location.href); if (q) url.searchParams.set('q', input.value); else url.searchParams.delete('q'); history.replaceState(history.state, '', url);

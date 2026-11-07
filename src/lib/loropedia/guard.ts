@@ -1,7 +1,13 @@
 // Признак защиты — cookie без текста заметок и без номеров глав.
 export const PROTECT_COOKIE = "lp_protect";
+export const SPOIL_COOKIE = "lp_spoil";
 
 export function protectionOn(value: string | undefined | null): boolean {
+  return value === "1";
+}
+
+/** Явное «всё прочитано». Само по себе не открывает текст, если включена защита. */
+export function spoilOn(value: string | undefined | null): boolean {
   return value === "1";
 }
 

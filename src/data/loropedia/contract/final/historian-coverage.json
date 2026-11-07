@@ -1,0 +1,83 @@
+{
+ "contractVersion": "1.0.0",
+ "source": "/workspace/loropedia_interactive_sources_20261107/export + review",
+ "inputFacts": 89,
+ "includedFactsAndEvents": 87,
+ "facts": 43,
+ "events": 44,
+ "excluded": [
+  {
+   "item": "pk.08",
+   "reason": "Текст аннотации: в контракте у фрагмента обязателен chapterId, а глав-аннотаций нет. Порог 0 разрешён только при явном выборе читателя. Безопасно выразить нельзя."
+  },
+  {
+   "item": "kill.05",
+   "reason": "То же: аннотация KILL."
+  }
+ ],
+ "rewrittenFromSemanticReview": [
+  "noford.kyut.04",
+  "noford.kyut.08",
+  "stasis.11",
+  "veles.msg.07",
+  "blade.07",
+  "girl.03",
+  "girl.12"
+ ],
+ "thresholdRaised": {
+  "blade.03": "chapter:obitel.c12 (Гл.4)"
+ },
+ "fragments": 89,
+ "byBook": {
+  "book:obitel": 76,
+  "book:pravednye": 7,
+  "book:kill": 4
+ },
+ "provenanceModes": {
+  "direct": 81,
+  "retelling": 3,
+  "memory": 3
+ },
+ "hypotheses": {
+  "input": 7,
+  "included": 6,
+  "excluded": [
+   {
+    "item": "hyp.sister.identity",
+    "reason": "доводы из нескольких книг; spoilerFrom контракта выражает только одну книгу — исключено, чтобы не открыть раньше требований другой книги"
+   }
+  ]
+ },
+ "evidence": 38,
+ "relations": {
+  "knows": 16,
+  "artifact-path": 1,
+  "other": 2
+ },
+ "entities": 11,
+ "workingSeeds": [
+  {
+   "id": "route:seed.itempath",
+   "kind": "route",
+   "sources": 21
+  },
+  {
+   "id": "route:seed.marielgirl",
+   "kind": "dossier",
+   "sources": 25
+  },
+  {
+   "id": "route:seed.kavegaestasis",
+   "kind": "dossier",
+   "sources": 46
+  }
+ ],
+ "surfacesNotUsed": [
+  "images",
+  "parts",
+  "infobox",
+  "aliases",
+  "tags"
+ ],
+ "status": "ready-for-review"
+}

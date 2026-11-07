@@ -107,7 +107,7 @@ const pages = [
 ];
 for (const p of pages) {
   const src = readFileSync(new URL("../../" + p, import.meta.url), "utf8");
-  ok(src.includes("protectionOn") && src.includes("LpClosed") && src.includes("noindex"), p + " закрывает сырой текст");
+  ok((src.includes("protectionOn") || src.includes("pageMode")) && src.includes("LpClosed") && src.includes("noindex"), p + " закрывает сырой текст");
 }
 const search = readFileSync(new URL("../../src/pages/loropedia/poisk.astro", import.meta.url), "utf8");
 ok(search.indexOf("search.json") > search.indexOf("LpClosed") && search.includes("data-lp-protect"), "поиск сырого индекса не в защищённой ветке и проверяет признак");

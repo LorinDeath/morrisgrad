@@ -3,25 +3,34 @@ import LpShell from '../../components/loropedia/LpShell.astro';
 import LpCard from '../../components/loropedia/LpCard.astro';
 import LpClosed from '../../components/loropedia/LpClosed.astro';
 import StatusBadge from '../../components/loropedia/StatusBadge.astro';
-import { LP, article, CAT_COLORS } from '../../lib/loropedia';
-import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
+import { CAT_COLORS } from '../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
+import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
+import { bind, corpus, pageMode } from '../../lib/loropedia/select';
 
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+const view = bind(corpus(mode));
+const LP = view.data;
+const article = view.article;
 const heroes = LP.articles.filter((a) => a.cat === 'personazhi' && a.image).sort((a, b) => b.backlinks.length - a.backlinks.length);
 const chapters = LP.chapters.map(article).filter((a) => !!a);
-const nonCanon = LP.articles.filter((a) => a.status === 'idea' || a.invented);
+const guesses = LP.articles.filter((a) => a.historianGuess);
+const nonCanon = LP.articles.filter((a) => (a.status === 'idea' || a.invented) && !a.historianGuess);
 const disputed = LP.articles.filter((a) => a.status === 'disputed');
 const popular = [...LP.articles].filter((a) => a.cat !== 'glavy').sort((a, b) => b.backlinks.length - a.backlinks.length).slice(0, 8);
 const art = LP.images.filter((i) => !/^cover/.test(i.id)).slice(0, 8);
 const desc = `Энциклопедия вселенной МоррисГрада: ${LP.stats.articles} статей о героях, кланах, локациях, магии и событиях летописи «Обитель смерти» — с хронологией, картой связей и артами.`;
-const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
 {protect ? (
   <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="home" noindex>
     <LpClosed />
   </LpShell>
 ) : (
-<LpShell title="Лоропедия МоррисГрада — энциклопедия летописи «Обитель смерти»" description={desc} active="home"
+<LpShell title="Лоропедия МоррисГрада — энциклопедия летописи «Обитель смерти»" description={desc} active="home" noindex={spoil}
   jsonLd={[{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Лоропедия МоррисГрада', description: desc, url: 'https://morrisgrad.com/loropedia', inLanguage: 'ru-RU' }]}>
+  {spoil && <p class="lp-spoil-banner" role="note">Полный редакторский текст. Разметки фактов ещё нет: номер главы его не открывает. Предположения Историка стоят отдельно и не попадают в выдержки.</p>}
   <header class="lp-hero">
     <div class="lp-hero-sun" aria-hidden="true"></div>
     <div class="lp-filigree" aria-hidden="true"><span></span><b>❖ ⚜ ❖</b><span></span></div>
@@ -112,6 +121,13 @@ const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
   </section>
 
   <div class="lp-two">
+    {guesses.length > 0 && (
+      <section class="lp-section lp-panel lp-guess-panel">
+        <h2 class="lp-h2 small"><span>{HISTORIAN_GUESS_LABEL}</span></h2>
+        <p class="lp-muted">Это не канон, не замысел автора и не вывод читателя.</p>
+        <ul class="lp-list">{guesses.map((a) => <li><a class="lp-link" href={`/loropedia/${a.slug}`}>{a.title}</a></li>)}</ul>
+      </section>
+    )}
     <section class="lp-section lp-panel lp-panel-idea">
       <h2 class="lp-h2 small"><span>Не канон: замыслы автора</span></h2>
       <p class="lp-muted">Этого нет в тексте книги — идеи и додумки Алекса. Читать как «возможно, когда-нибудь».</p>

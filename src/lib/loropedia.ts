@@ -9,6 +9,7 @@ export interface LpArticle {
   fields: { label: string; html: string }[]; image: LpImage | null; gallery: LpImage[]; html: string;
   toc: { id: string; text: string; level: number }[]; excerpt: string; links: string[]; backlinks: string[];
   clan: string; role: string; when: string; order: number | null; redacted: boolean;
+  historianGuess?: boolean;
 }
 export interface LpCategory { folder: string; slug: string; icon: string; desc: string; name: string; count: number }
 interface LpData {

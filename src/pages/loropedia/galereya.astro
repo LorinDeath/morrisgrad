@@ -1,19 +1,22 @@
 ---
 import LpShell from '../../components/loropedia/LpShell.astro';
 import LpClosed from '../../components/loropedia/LpClosed.astro';
-import { LP } from '../../lib/loropedia';
-import { CLOSED_DESCRIPTION, CLOSED_TITLE, PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
+import { corpus, pageMode } from '../../lib/loropedia/select';
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+const LP = corpus(mode);
 const arts = LP.images.filter((i) => !/^cover/.test(i.id));
 const covers = LP.images.filter((i) => /^cover/.test(i.id));
 const groups = [{ name: 'Персонажи и места', items: arts }, { name: 'Обложки глав', items: covers }].filter((g) => g.items.length);
-const protect = protectionOn(Astro.cookies.get(PROTECT_COOKIE)?.value);
 ---
 {protect ? (
   <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="gallery" noindex>
     <LpClosed />
   </LpShell>
 ) : (
-<LpShell title="Галерея — Лоропедия МоррисГрада" description="Галерея Лоропедии МоррисГрада: арты персонажей, локаций и обложки глав летописи." active="gallery" crumbs={[['Галерея', '/loropedia/galereya']]}>
+<LpShell title="Галерея — Лоропедия МоррисГрада" description="Галерея Лоропедии МоррисГрада: арты персонажей, локаций и обложки глав летописи." active="gallery" crumbs={[['Галерея', '/loropedia/galereya']]} noindex={spoil}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">🖼</span>
     <div><h1 class="lp-page-title">Галерея</h1><p class="lp-page-sub">{LP.images.length} изображений из летописи. Нажмите на арт — откроется статья.</p></div>

@@ -448,5 +448,12 @@
 .lp-reader label { display: flex; justify-content: space-between; gap: .6rem; align-items: center; }
 .lp-reader input[type="number"] { width: 8rem; background: #120c10; color: var(--text); border: 1px solid var(--gold-border-soft); padding: .35rem .5rem; }
 .lp-reader button[type="submit"] { justify-self: start; border: 0; background: linear-gradient(135deg, #e3c88f, var(--accent-gold)); color: #120d0a; font-weight: 800; letter-spacing: .04em; padding: .55rem 1rem; cursor: pointer; }
+.lp-spoil-banner { margin: 0 0 1rem; padding: .75rem 1rem; border: 1px solid #8a6a32; background: rgba(201,168,108,.08); color: var(--text); }
+.lp-guess { margin: 1.2rem 0; padding: 1rem 1.1rem; border: 1px dashed #c4a46a; background: rgba(90, 70, 30, .18); }
+.lp-guess-label { margin: 0 0 .7rem; font-family: Cinzel, serif; letter-spacing: .03em; color: #e6c98a; }
+.lp-guess-banner { border-color: #c4a46a; }
+.lp-hide-guess .lp-guess, .lp-hide-guess .lp-guess-banner, .lp-hide-guess .lp-guess-panel { display: none; }
+.lp-mentions { margin: 1rem 0; border-top: 1px solid var(--gold-border-soft); padding-top: .6rem; }
+.lp-mentions summary { cursor: pointer; color: var(--muted, #a89a92); }
 .lp-closed { margin-bottom: 1.2rem; }
 .lp-closed .lp-page-title { margin: 0 0 .6rem; }

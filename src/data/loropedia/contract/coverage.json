@@ -4,12 +4,24 @@
   "annotatedFacts": 0,
   "annotatedFragments": 0,
   "status": "blocked-no-provenance",
-  "reason": "У опубликованных статей нет book/chapter/fragment/quote/spoilerFrom. Разметка не выдумывалась. Импорт хранилища не запускался.",
+  "reason": "Финальный корпус v1 лежит в final/corpus.json и проходит схему, но на сайте не включён. Чтобы открывать факты по главе, номер пришлось бы отправить на сервер либо отдать все цитаты в браузер. Ни того, ни другого этот выпуск не делает. Курсор по-прежнему не открывает статьи и факты.",
+  "finalCorpus": {
+    "file": "final/corpus.json",
+    "active": false,
+    "facts": 43,
+    "events": 44,
+    "fragments": 89,
+    "hypotheses": 6,
+    "relations": 19,
+    "seeds": 3,
+    "whyInactive": "Нет безопасного способа показать проекцию: номера глав остаются в браузере, а полный корпус в клиенте открыл бы поздние цитаты."
+  },
   "surfaces": [
     "title", "aliases", "body", "infobox", "excerpts", "links", "images", "alt",
     "search", "snippets", "tags", "counts", "chronology", "graph", "previews",
     "sourceTitles", "metadata"
   ],
-  "protectedBehavior": "При cookie lp_protect=1 эти поверхности не попадают в HTML. Курсор чтения их не открывает.",
-  "openBehavior": "Без cookie страницы, URL, ар-деко, data.json и картинки прежние."
+  "protectedBehavior": "При cookie lp_protect=1 эти поверхности не попадают в HTML. Ни прежние, ни расширенные статьи не подставляются. Курсор чтения их не открывает.",
+  "openBehavior": "Без cookie страницы, URL, ар-деко, data.json, search.json и картинки прежние.",
+  "expandedBehavior": "Полный текст второго прохода только при cookie lp_spoil=1 и выключенной защите. Поздние выдержки не записаны в публичный search.json."
 }
