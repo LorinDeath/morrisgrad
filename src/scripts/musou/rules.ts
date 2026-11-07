@@ -2,7 +2,7 @@
 // Тот же модуль считает награды на сервере (D1) и рисует их в клиенте.
 // Числа экономики и лута — в tune.ts. Меняет их только проверенный набор админки.
 import { HARD_CAP, capLabel, rateChance } from "./caps";
-import { DIFF_NAME, diffRow, dropChance, dropCount, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
+import { DIFF_NAME, chestTotal, diffRow, dropChance, dropCount, eliteDmg, eliteHp, getTune, mobHp, partyHpMult } from "./tune";
 import { UPG, upgCost, upgStats } from "../../../server/meta/upgrade.ts";
 import { MAT_NAME } from "./mats";
 import { FLOOR_N, SW_DUNGEONS, SW_FLOORS, SW_QUESTS, fightScale, floorsOf } from "./sw-catalog";
@@ -1795,6 +1795,47 @@ export function chestCompare(p: Profile, it: Item) {
   const worn = p.equip[slot];
   const line = (row: Item) => `${row.name} · ${RARITY_NAME[row.rarity]} · ур. ${row.ilvl} · урон ${row.dmg} · броня ${row.armor}`;
   return { slot: PAPER_NAME[slot] || it.slot, worn: worn ? line(worn) : "пусто", next: line(it) };
+}
+
+function chestGate(p: Profile, index: number): string | null {
+  if (!p.pending) return "Сундук открывается только в забеге";
+  const n = chestTotal(p.pending.diff || 1);
+  const i = index | 0;
+  if (i < 0 || i >= n) return "Такого сундука нет";
+  if ((p.pending.chests || 0) & (1 << i)) return "Сундук уже открыт";
+  return null;
+}
+
+function chestBase(p: Profile, rng: Rng): Item {
+  const diff = p.pending?.diff || 1;
+  const row = diffRow(diff);
+  const q = dropQuality(p.lvl, p.pending?.floor || 1, diff);
+  return rollItem(rng, {
+    ilvl: q.ilvl, floor: p.pending?.floor || 1, bare: true, budget: q.budget,
+    rarity: clearRarity(rng, p.pending?.floor || 1, diff, false),
+    extraAffix: row.affix, curseMul: row.curse, enchMul: 0,
+    act: row.act, tier: rollDropTier(rng, diff),
+  });
+}
+
+/** Старый клиент на сайте выбирает чары у сундука этажа. Новый клиент этот запрос не шлёт. */
+export function parseChestPick(raw: unknown): ChestPick | null {
+  if (raw === "plain" || raw === "curse") return raw;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5 || n === 6) return n;
+  return null;
+}
+
+export function claimChest(p: Profile, index: number, rng: Rng, pick: ChestPick = "plain"): LootNote | { err: string } {
+  const err = chestGate(p, index);
+  if (err) return { err };
+  const chosen = parseChestPick(pick);
+  if (!chosen) return { err: "Выбери, что забрать из сундука" };
+  const it = chestBase(p, rng);
+  if (chosen === "curse") curseItem(it);
+  else if (chosen !== "plain") enchantItem(it, chosen);
+  p.pending!.chests = (p.pending!.chests || 0) | (1 << (index | 0));
+  return giveItem(p, it);
 }
 
 function giveItem(p: Profile, it: Item): LootNote {

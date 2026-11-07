@@ -1,7 +1,7 @@
 // bun server/musou/rules-test.ts
 import {
   BAG_MAX, BAG_START, FLOORS, applyRun, bagPrice, beginRun, boundedSolo, buyBag, buyOffer, claimQuest, equipItem,
-  affixText, beginMode, buyRune, compareGear, finishRun, chainAt, chestCompare, diffLock, dropQuality, dungeonBudget, dungeonIlvl, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, listDrops, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, noteDrop, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillBook, skillGlow, socketRune, spendStat, stagePay, statGlance, takeDrop, takeInbox, unequip, xpNeed,
+  affixText, beginMode, buyRune, claimChest, compareGear, finishRun, chainAt, chestCompare, diffLock, dropQuality, dungeonBudget, dungeonIlvl, floorByN, floorLock, floorNeed, floorOpen, forgeItem, killNeed, listDrops, makeScript, marksOn, memberDiffLock, modeFloor, modeLock, mulberry32, newProfile, normalize, noteDrop, raiseRadiance, relevance, rollDropTier, rollItem, roomOutcome, runOffer, seal, setHero, setOath, sheet, shopOffers, skillBook, skillGlow, socketRune, spendStat, stagePay, statGlance, takeDrop, takeInbox, unequip, xpNeed,
 } from "../../src/scripts/musou/rules";
 import { markGold, markPay, markSeed, rollBook, rollMark } from "../../src/scripts/musou/mark";
 import { Battle } from "../../src/scripts/musou/sim";
@@ -1151,6 +1151,13 @@ setHero(arenaWho, "lorin");
 arenaWho.lvl = 5;
 beginMode(arenaWho, "arena", 2000);
 ok("err" in noteDrop(arenaWho, "boss", "Волна", 2000 + 9000) && "err" in noteDrop(arenaWho, "g0", "Подкрепление", 2000 + 1000) && !("err" in noteDrop(arenaWho, "g0", "Подкрепление", 2000 + 8000)), "арена даёт сундук подкреплению, не волне и не раньше явки");
+const legacyWho = newProfile(508);
+setHero(legacyWho, "lorin");
+const legacyGo = beginRun(legacyWho, 1, 5000);
+const legacyBag = legacyWho.bag.length;
+const legacyClaim = "err" in legacyGo ? legacyGo : claimChest(legacyWho, 0, mulberry32((legacyWho.nextId * 997) >>> 0), "plain");
+const legacyAgain = claimChest(legacyWho, 0, mulberry32(1), "plain");
+ok(!("err" in legacyClaim) && legacyWho.bag.length === legacyBag + 1 && "err" in legacyAgain && String(("err" in legacyAgain && legacyAgain.err) || "").includes("уже открыт"), "старый выбор сундука этажа всё ещё кладёт одну вещь и второй раз молчит");
 const hold = new Battle(modeFloor(duelist, "duel"), [{ id: "you", name: "Лорин", hero: "lorin", sheet: sheet(duelist) }], 9);
 hold.introT = 0;
 hold.phase = "fight";
