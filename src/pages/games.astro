@@ -47,6 +47,20 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
+            <div class="game-card night-card"
+                 data-title="Ночный атлас"
+                 data-desc="Собери двенадцать чудес этой ночью."
+                 data-game-url="/games/night-atlas">
+                <span class="cherta-badge">новое</span>
+                <img src="/games/night-atlas/cover.png" width="480" height="288" loading="lazy" decoding="async" alt="Ночный атлас" class="game-icon" style="object-fit: cover; object-position: center 62%; image-rendering: pixelated; background:#140e2a;" />
+                <span class="game-title" style="color: #f0d78c;">Ночный атлас</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(90, 70, 160, 0.25); color: #d7c4ff; border: 1px solid rgba(180,150,255,0.4);">🌙 Ночной луг</span>
+                    <span class="platform-tag" title="PC">🖥️ PC</span>
+                    <span class="platform-tag" title="Mobile">📱 Mobile</span>
+                </div>
+            </div>
+
             <div class="game-card strat-card"
                  data-title="Партия Чёрных королей"
                  data-desc="Шахматная пошаговая стратегия: 6 рас, Вожди со своими умениями, борьба за землю и три пути к победе. Играйте с ботом или онлайн с живым соперником — в рейтинге, с другом по ссылке или коду."
@@ -500,6 +514,24 @@ import geometriaImg from '../assets/geometria.png';
         color: #ffd700;
     }
 
+    .night-card {
+        border-color: #8d7ad4;
+        box-shadow: 0 0 18px rgba(125, 108, 196, 0.28);
+        background: linear-gradient(180deg, rgba(22, 16, 42, 0.96) 0%, rgba(8, 6, 16, 0.98) 100%);
+    }
+    .night-card:hover { border-color: #f0d78c; box-shadow: 0 0 26px rgba(201, 168, 108, 0.4); }
+    .night-card .game-title { color: #f0d78c; }
+    .night-card .game-icon { image-rendering: pixelated; }
+    .modal-content.night-theme {
+        border-color: #c9a86c;
+        background: linear-gradient(180deg, rgba(24, 18, 42, 0.97) 0%, rgba(8, 6, 16, 0.99) 100%);
+        box-shadow: 0 0 40px rgba(125, 108, 196, 0.35);
+    }
+    .modal-content.night-theme #modal-title { color: #f0d78c; }
+    .modal-content.night-theme .start-btn { border-color: #c9a86c; color: #f0d78c; }
+    .modal-content.night-theme .start-btn:hover { background: #c9a86c; color: #1a1208; }
+    .modal-content.night-theme .modal-icon { border-color: #c9a86c; object-fit: cover; image-rendering: pixelated; }
+
     .orda-card {
         border-color: #e24b3b;
         box-shadow: 0 0 18px rgba(226, 75, 59, 0.28);
@@ -887,10 +919,11 @@ import geometriaImg from '../assets/geometria.png';
                 }
 
                 // Apply Theme based on card class
-                const themes = ['crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme', 'dungeon-theme', 'orda-theme'];
+                const themes = ['crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme', 'dungeon-theme', 'orda-theme', 'night-theme'];
                 if (modalContent) modalContent.classList.remove(...themes);
                 const themeOf = (name: string) => card.classList.contains(name);
-                const theme = themeOf('orda-card') ? 'orda-theme'
+                const theme = themeOf('night-card') ? 'night-theme'
+                  : themeOf('orda-card') ? 'orda-theme'
                   : themeOf('dungeon-card') ? 'dungeon-theme'
                   : themeOf('sanctuary-card') ? 'sanctuary-theme'
                   : themeOf('ascetic-card') ? 'ascetic-theme'

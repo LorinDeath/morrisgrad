@@ -1,0 +1,327 @@
+---
+// «Ночной атлас» — спокойная мини-игра в браузере. Только клиент: без входа, без API.
+import SeoHead from '../../components/seo/SeoHead.astro';
+const title = 'Ночный атлас | Моррис Град';
+const description = 'Собери двенадцать чудес этой ночью. «Ночный атлас» — тихая мини-игра МоррисГрада.';
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>{title}</title>
+  <SeoHead title={title} description={description} image="/games/night-atlas/cover.png" imageAlt="Ночный атлас — ночной луг" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#0c0a0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="preload" href="/fonts/Shket-Regular.otf" as="font" type="font/otf" crossorigin />
+  <style>
+    @font-face {
+      font-family: "Shket";
+      src: url("/fonts/Shket-Regular.otf") format("opentype");
+      font-display: swap;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0c0a0d;
+      color: #f3e8e0;
+      font-family: "Exo 2", system-ui, sans-serif;
+    }
+    body {
+      min-height: 100dvh;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding:
+        env(safe-area-inset-top)
+        env(safe-area-inset-right)
+        env(safe-area-inset-bottom)
+        env(safe-area-inset-left);
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+    .top {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px 0;
+    }
+    .top a {
+      color: #d4b483;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.92rem;
+      justify-self: start;
+    }
+    .top a:hover { color: #f0e2c4; }
+    .top h1 {
+      margin: 0;
+      font-family: Shket, Cinzel, Georgia, serif;
+      font-size: clamp(1.25rem, 3vw, 1.7rem);
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      color: #e7d7a8;
+      text-align: center;
+    }
+    .blurb {
+      margin: 2px 12px 8px;
+      text-align: center;
+      color: #cbbba8;
+      font-size: 0.95rem;
+    }
+    .na-frame {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      width: min(1040px, calc(100% - 16px));
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      background: linear-gradient(180deg, rgba(26, 20, 42, 0.96), rgba(10, 8, 16, 0.98));
+      border: 1px solid rgba(201, 168, 108, 0.55);
+      box-shadow:
+        0 0 0 4px #0c0a0d,
+        0 0 0 5px rgba(201, 168, 108, 0.28),
+        inset 0 0 0 1px rgba(201, 168, 108, 0.18),
+        0 18px 40px rgba(0, 0, 0, 0.45);
+    }
+    .corner {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #c9a86c;
+      pointer-events: none;
+    }
+    .corner.tl { top: 6px; left: 6px; border-right: 0; border-bottom: 0; }
+    .corner.tr { top: 6px; right: 6px; border-left: 0; border-bottom: 0; }
+    .corner.bl { bottom: 6px; left: 6px; border-right: 0; border-top: 0; }
+    .corner.br { bottom: 6px; right: 6px; border-left: 0; border-top: 0; }
+    .hud { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 2px 8px 8px; }
+    .count {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #f0e2c4;
+      font-family: Shket, Cinzel, Georgia, serif;
+      letter-spacing: 0.04em;
+      font-size: 1.15rem;
+    }
+    .count img, .orn img, .slot img, .fly {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    .count img { width: 32px; height: 32px; }
+    .tray {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 4px;
+      max-width: 100%;
+    }
+    .slot {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      background: rgba(8, 6, 16, 0.55);
+      box-shadow: inset 0 0 0 1px rgba(201, 168, 108, 0.22);
+    }
+    .slot img {
+      width: 32px;
+      height: 32px;
+      opacity: 0.38;
+      filter: grayscale(1) brightness(0.55);
+    }
+    .slot.on {
+      box-shadow: inset 0 0 0 1px rgba(240, 214, 140, 0.85), 0 0 8px rgba(201, 168, 108, 0.35);
+    }
+    .slot.on img { opacity: 1; filter: none; }
+    .top, .blurb, .pad, .hint { flex-shrink: 0; }
+    .stage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      background: #100c18;
+      touch-action: none;
+    }
+    canvas {
+      position: absolute;
+      display: block;
+      background: #141236;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      touch-action: none;
+    }
+    .veil {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+      text-align: center;
+      background: rgba(8, 6, 16, 0.62);
+    }
+    .veil[hidden] { display: none !important; }
+    .veil h2 {
+      margin: 0;
+      font-family: Shket, Cinzel, Georgia, serif;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 400;
+      color: #f3e6bf;
+      letter-spacing: 0.03em;
+    }
+    .veil p { margin: 0; color: #e6d7c4; font-size: 1.02rem; }
+    .orn { display: flex; gap: 8px; align-items: center; }
+    .orn img { width: 32px; height: 32px; }
+    button.gold {
+      margin-top: 6px;
+      appearance: none;
+      border: 1px solid #c9a86c;
+      background: transparent;
+      color: #f0e2c4;
+      font: 700 1.05rem/1 system-ui, sans-serif;
+      letter-spacing: 0.06em;
+      padding: 12px 28px;
+      border-radius: 999px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    button.gold:hover, button.gold:focus-visible {
+      background: #c9a86c;
+      color: #1a1208;
+      outline: none;
+    }
+    .toast {
+      position: absolute;
+      left: 50%;
+      top: 12px;
+      transform: translateX(-50%);
+      margin: 0;
+      padding: 6px 12px;
+      background: rgba(12, 10, 16, 0.88);
+      border: 1px solid rgba(201, 168, 108, 0.55);
+      color: #f6e7c3;
+      font-family: Shket, Georgia, serif;
+      z-index: 3;
+      pointer-events: none;
+    }
+    .toast[hidden] { display: none !important; }
+    .fly {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .pad {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 12px 4px;
+      touch-action: none;
+    }
+    .pad button {
+      width: 80px;
+      height: 80px;
+      padding: 0;
+      border: 0;
+      background: url("/games/night-atlas/sprites/16/ui_button.png") center / 80px 80px no-repeat;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      color: #f8e7a8;
+      font: 700 1.5rem/1 system-ui, sans-serif;
+      text-shadow: 0 1px 0 #1a1228;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pad button:active { filter: brightness(1.2); transform: translateY(1px); }
+    .pad .jump { margin-left: 18px; }
+    .hint {
+      margin: 0;
+      padding: 4px 12px 8px;
+      text-align: center;
+      color: #b7a898;
+      font-size: 0.82rem;
+    }
+    @media (max-height: 640px) {
+      .blurb { display: none; }
+      .count img, .orn img { width: 24px; height: 24px; }
+      .slot, .slot img { width: 24px; height: 24px; }
+      .pad button { width: 64px; height: 64px; background-size: 64px 64px; font-size: 1.2rem; }
+      .top { padding-top: 4px; }
+    }
+    @media (max-width: 420px) {
+      .top { grid-template-columns: auto 1fr; }
+      .top h1 { font-size: 1.15rem; text-align: right; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a href="/games">← Мини-игры</a>
+    <h1>Ночный атлас</h1>
+    <span></span>
+  </header>
+  <p class="blurb">Собери двенадцать чудес этой ночью</p>
+  <div class="na-frame" id="na-frame">
+    <span class="corner tl" aria-hidden="true"></span>
+    <span class="corner tr" aria-hidden="true"></span>
+    <span class="corner bl" aria-hidden="true"></span>
+    <span class="corner br" aria-hidden="true"></span>
+    <div class="hud">
+      <div class="count">
+        <img src="/games/night-atlas/sprites/32/ui_star.png" width="32" height="32" alt="" />
+        <span id="na-count" aria-live="polite">Атлас 0/12</span>
+      </div>
+      <div class="tray" id="na-tray" aria-label="Чудеса ночи"></div>
+    </div>
+    <div class="stage" id="na-stage">
+      <canvas id="na-canvas" width="320" height="160" aria-label="Ночной луг"></canvas>
+      <div class="veil" id="na-title">
+        <div class="orn" aria-hidden="true">
+          <img src="/games/night-atlas/sprites/32/ui_heart.png" alt="" />
+          <img src="/games/night-atlas/sprites/32/ui_star.png" alt="" />
+          <img src="/games/night-atlas/sprites/32/ui_heart.png" alt="" />
+        </div>
+        <h2>Ночный атлас</h2>
+        <p>Собери двенадцать чудес ночи</p>
+        <button class="gold" id="na-start" type="button">Начать</button>
+      </div>
+      <div class="veil" id="na-win" hidden>
+        <div class="orn" aria-hidden="true">
+          <img src="/games/night-atlas/sprites/32/ui_heart.png" alt="" />
+          <img src="/games/night-atlas/sprites/32/ui_star.png" alt="" />
+          <img src="/games/night-atlas/sprites/32/ui_heart.png" alt="" />
+        </div>
+        <h2>Атлас собран</h2>
+        <p>Все двенадцать чудес нашлись этой ночью</p>
+        <button class="gold" id="na-again" type="button">Ещё раз</button>
+      </div>
+      <p class="toast" id="na-toast" hidden></p>
+    </div>
+  </div>
+  <div class="pad" id="na-pad">
+    <button type="button" id="na-left" tabindex="-1" aria-label="Влево">←</button>
+    <button type="button" id="na-right" tabindex="-1" aria-label="Вправо">→</button>
+    <button type="button" id="na-jump" class="jump" tabindex="-1" aria-label="Прыжок">↑</button>
+  </div>
+  <p class="hint">Влево, вправо и прыжок — клавишами или кнопками внизу</p>
+  <noscript><p class="hint">Для игры нужен JavaScript. Вход не требуется.</p></noscript>
+  <script>
+    import '../../scripts/night-atlas/client';
+  </script>
+</body>
+</html>
