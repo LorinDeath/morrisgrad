@@ -157,7 +157,7 @@ const page = readFileSync(join(root, "src/pages/games/night-atlas.astro"), "utf8
 const hub = readFileSync(join(root, "src/pages/games.astro"), "utf8");
 const seo = readFileSync(join(root, "src/lib/seo.ts"), "utf8");
 for (const piece of [
-  "Ночный атлас",
+  "Ночной атлас",
   "Собери двенадцать чудес этой ночью",
   "Собери двенадцать чудес ночи",
   "Атлас собран",
