@@ -195,7 +195,7 @@ function mount(): () => void {
     defeatEl.hidden = screen !== "defeat" || shopOpen;
     dawnEl.hidden = screen !== "dawn" || shopOpen;
     shopEl.hidden = !shopOpen;
-    dockEl.hidden = screen !== "play" || shopOpen;
+    dockEl.hidden = false;
     if (screen !== "play") {
       cardEl.hidden = true;
       selectedId = 0;
@@ -310,18 +310,17 @@ function mount(): () => void {
   };
 
   const paintDock = () => {
-    if (!run) return;
-    const sig = `${run.gold}|${meta.chain}|${meta.well}|${meta.discount}|${run.discountUsed}|${run.beaconFree}|${selectedKind}`;
-    if (sig === dockSig) return;
+    const sig = `${run ? run.gold : "no"}|${meta.chain}|${meta.well}|${meta.discount}|${run?.discountUsed ?? false}|${run?.beaconFree ?? false}|${selectedKind}|${screen}`;
+    if (sig === dockSig && dockEl.childElementCount > 0) return;
     dockSig = sig;
     dockEl.replaceChildren();
     for (const spec of TOWERS) {
       const locked = (spec.kind === "chain" && !meta.chain) || (spec.kind === "well" && !meta.well);
-      const cost = placeCost(run, spec.kind);
+      const cost = run ? placeCost(run, spec.kind) : spec.cost;
       const btn = document.createElement("button");
       btn.type = "button";
       if (locked) btn.classList.add("locked");
-      if (selectedKind === spec.kind) btn.classList.add("on");
+      if (screen === "play" && selectedKind === spec.kind) btn.classList.add("on");
       const img = document.createElement("img");
       img.src = `${ROOT}/32/tower_${spec.kind}.png`;
       img.alt = "";
@@ -335,6 +334,10 @@ function mount(): () => void {
       btn.dataset.tip = towerTip(spec.kind, cost, locked);
       btn.addEventListener("click", () => {
         if (tipLock) return;
+        if (screen !== "play" || !run) {
+          toast("Сначала начните ночь — тогда башню можно поставить на площадку.");
+          return;
+        }
         if (locked) {
           toast(spec.kind === "chain" ? "Цепь открывается в лавке за 40 искр." : "Колодец открывается в лавке за 55 искр.");
           return;
@@ -565,8 +568,10 @@ function mount(): () => void {
 
   const resize = () => {
     const rect = stage.getBoundingClientRect();
+    const frame = document.getElementById("ew-frame")?.getBoundingClientRect();
+    const width = rect.width >= 8 ? rect.width : Math.max(8, (frame?.width ?? window.innerWidth) - 24);
     const dpr = window.devicePixelRatio || 1;
-    S = fitCanvas(rect.width, rect.height, dpr).S;
+    S = fitCanvas(width, rect.height, dpr).S;
     canvas.width = MAP_W * S;
     canvas.height = MAP_H * S;
     canvas.style.width = `${(MAP_W * S) / dpr}px`;
@@ -765,10 +770,8 @@ function mount(): () => void {
     }
     paint();
     hud();
-    if (screen === "play") {
-      paintDock();
-      paintCard();
-    }
+    paintDock();
+    if (screen === "play") paintCard();
     if (screen === "play") save(false);
     dawnHud.hidden = !(run && screen === "play" && canDawn(run));
     raf = requestAnimationFrame(loop);
@@ -856,8 +859,16 @@ function mount(): () => void {
 
   const ro = new ResizeObserver(() => resize());
   ro.observe(stage);
+  const frameEl = document.getElementById("ew-frame");
+  if (frameEl) ro.observe(frameEl);
+  const onResize = () => resize();
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", onResize);
+  window.visualViewport?.addEventListener("resize", onResize);
   resize();
+  requestAnimationFrame(resize);
   syncScreen();
+  paintDock();
   if (screen === "defeat") paintDefeat();
 
   const names = [
@@ -904,6 +915,9 @@ function mount(): () => void {
     cancelAnimationFrame(raf);
     ro.disconnect();
     window.removeEventListener("keydown", onKey);
+    window.removeEventListener("resize", onResize);
+    window.removeEventListener("orientationchange", onResize);
+    window.visualViewport?.removeEventListener("resize", onResize);
     save(true);
   };
 }

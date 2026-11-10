@@ -2112,9 +2112,14 @@ export function resonanceText(towers: readonly Tower[], id: number): string {
 
 export interface Fit { S: number }
 
-/** Целый масштаб: один логический пиксель = S аппаратных. */
-export function fitCanvas(availW: number, availH: number, dpr: number): Fit {
+/**
+ * Целый масштаб от ширины поля. Высота контейнера (0 до раскладки, карточка,
+ * клавиатура) масштаб не уменьшает: иначе на телефоне с дробным DPR канвас
+ * схлопывается в полоску. Минимум ×1.
+ */
+export function fitCanvas(availW: number, _availH: number, dpr: number): Fit {
   const d = dpr > 0 && Number.isFinite(dpr) ? dpr : 1;
-  const S = Math.floor(Math.min((availW * d) / MAP_W, (availH * d) / MAP_H));
-  return { S: Math.max(1, S) };
+  const w = Number.isFinite(availW) ? Math.max(0, availW) : 0;
+  const byW = Math.floor((w * d) / MAP_W);
+  return { S: Math.max(1, byW) };
 }

@@ -137,6 +137,9 @@ const fit = fitCanvas(960, 540, 1);
 ok(Number.isInteger(fit.S) && fit.S >= 1, "масштаб целый");
 const phone = fitCanvas(390, 420, 2);
 ok(Number.isInteger(phone.S) && phone.S >= 1 && 256 * phone.S <= 390 * 2 + 0.01, "телефон: целые аппаратные пиксели");
+ok(fitCanvas(412, 0, 2.625).S === Math.max(1, Math.floor((412 * 2.625) / 256)), "нулевая высота не схлопывает масштаб");
+ok(fitCanvas(360, 1, 3).S === Math.max(1, Math.floor((360 * 3) / 256)), "крошечная высота не режет масштаб");
+ok(fitCanvas(8, 0, 3).S === 1, "минимум ×1");
 
 function night(): { meta: Meta; run: Run } {
   const meta = freshMeta();
