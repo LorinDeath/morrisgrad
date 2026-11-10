@@ -5,7 +5,7 @@ import {
   placeTower, placeWall, previewStats, refreshMode, sellTower, serializeMeta, spriteUrl, statsOf, stepRun, syncOffers, todayKey, towerFrame, unlockedIndex, upgradeTower,
   xpBar, briefLines, dockOf, globalTip, nodeTip, summaryLines, towerCard,
 } from "./logic.ts";
-import { fitCam, paintBattle, paintMapPreview, paintTree, paintWorld, toWorld, treeHit, worldHit, warmSprites, type Cam, type Ghost } from "./draw.ts";
+import { fitBattle, fitCam, paintBattle, paintMapPreview, paintTree, paintWorld, toWorld, treeHit, worldHit, warmSprites, type Cam, type Ghost } from "./draw.ts";
 import type { EnemyKind, GlobalId, Meta, ModeId, ModKind, Run, TowerKind } from "./logic.ts";
 
 type Screen = "world" | "battle" | "tree" | "summary" | "modes";
@@ -37,13 +37,28 @@ let selected = 0;
 let kind: TowerKind | null = "spark";
 let walling = false;
 warmSprites();
+
+function iconify(id: string, sprite: string): void {
+  const el = document.getElementById(id);
+  if (!el || el.querySelector("img")) return;
+  const img = document.createElement("img");
+  img.alt = "";
+  img.src = spriteUrl(sprite);
+  el.replaceChildren(img);
+}
+iconify("ew-pause", "icon_pause");
+{
+  const call = document.getElementById("ew-call");
+  if (call && !call.querySelector("img")) call.textContent = "▶";
+}
 let aim: GlobalId | null = null;
 let nodeId: string | null = RESEARCH_FIRST();
 let brief = -1;
 let worldCam: Cam = { x: 520, y: 320, z: 1 };
 let treeCam: Cam = { x: 160, y: -80, z: 1.05 };
-let battleCam: Cam = { x: 8, y: 5, z: 32 };
-let battleFit = 32;
+let battleCam: Cam = { x: 8, y: 5, z: 36 };
+let battleMin = 12;
+let battleMax = 96;
 let hover: Ghost | null = null;
 let fitted = "";
 let footSig = "";
@@ -143,8 +158,10 @@ function resize(): void {
     if ((screen === "battle" || screen === "summary") && run) {
       const map = mapById(run.mapId);
       if (map) {
-        battleCam = fitCam(w, h, map.cols, map.rows, 0.35);
-        battleFit = battleCam.z;
+        const fit = fitBattle(w, h, map.cols, map.rows);
+        battleCam = fit.cam;
+        battleMin = fit.minZ;
+        battleMax = fit.maxZ;
       }
     }
   }
@@ -197,20 +214,26 @@ function paintHud(): void {
     chip("icon_fire", "Пепел", String(Math.floor(meta.ash))),
     chip("tile_ore", "Руда", String(Math.floor(meta.vein))),
   ].join("");
+  const banner = document.getElementById("ew-banner");
   if (run && screen === "battle") {
     const map = mapById(run.mapId);
     const goal = map ? (run.endless ? 0 : map.waves) : 0;
     const wait = Math.max(0, run.nextWaveAt - run.time);
-    const waveLabel = run.queue.length ? "волна идёт" : (!run.endless && run.scheduled >= goal) ? "последняя" : `след. ${wait.toFixed(1)} с`;
-    const muts = (run.mutators ?? []).map((id) => mutatorById(id)?.name ?? id).join(" · ");
+    const waveLabel = run.queue.length ? "волна идёт" : (!run.endless && run.scheduled >= goal) ? "последняя волна" : `следующая через ${wait.toFixed(1)} с`;
+    const waveNo = String(Math.max(run.scheduled, run.wavesCleared, 1));
     fightEl.innerHTML = [
       chip("icon_heart", "Врата", `${Math.max(0, Math.floor(run.hearts))}/${Math.floor(run.maxHearts)}`),
       chip("icon_gold", "Золото", String(Math.floor(run.gold))),
-      chip("icon_skull", modeLabel(run), String(Math.max(run.scheduled, run.wavesCleared, 1))),
-      chip("icon_clock", "Темп", waveLabel),
-      muts ? chip("icon_lightning", "Сейчас", muts) : "",
+      chip("icon_skull", modeLabel(run), waveNo),
     ].join("");
+    const call = document.getElementById("ew-call");
+    if (call) call.dataset.tip = `Вызвать следующую волну сразу, не дожидаясь таймера. ${modeLabel(run)}, волна ${waveNo}. ${waveLabel}. Пока волна ещё выходит из портала, вызов ждёт.`;
   } else fightEl.innerHTML = "";
+  if (banner) {
+    const show = !!(run && screen === "battle" && run.banner && run.time < run.bannerUntil);
+    banner.hidden = !show;
+    banner.textContent = show && run ? run.banner : "";
+  }
   for (const [id, sp] of [["ew-pause", 0], ["ew-x1", 1], ["ew-x2", 2], ["ew-x4", 4]] as const) {
     document.getElementById(id)?.classList.toggle("on", speed === sp);
   }
@@ -236,8 +259,9 @@ function paintGlobals(): void {
     globalsEl.replaceChildren();
     for (const [id, name, , open] of defs) {
       const button = btn(name, globalTip(meta, id, 0, run), () => {
-        if (!open) { toast("Умение ещё в древе."); return; }
         if (!run) return;
+        if (!open) { toast("Умение ещё в древе."); return; }
+        if (run.abilityCd[id] > 0.05) return;
         if (id === "bliz") {
           const res = castAbility(run, meta, "bliz", 0, 0);
           if (!res.ok) toast(res.reason);
@@ -251,13 +275,13 @@ function paintGlobals(): void {
       }, aim === id);
       button.classList.add("ability");
       button.dataset.ability = id;
+      button.setAttribute("aria-label", name);
       const icon = document.createElement("img");
       icon.alt = "";
       icon.src = spriteUrl(ABILITY_ICON[id]);
-      button.prepend(icon);
       const ring = document.createElement("span");
       ring.className = "ring";
-      button.prepend(ring);
+      button.replaceChildren(ring, icon);
       globalsEl.append(button);
     }
   }
@@ -268,11 +292,10 @@ function paintGlobals(): void {
     const cd = run.abilityCd[id];
     const p = open ? Math.max(0, Math.min(1, cd / max)) : 1;
     button.style.setProperty("--p", `${Math.round((1 - p) * 360)}deg`);
-    button.disabled = !open || cd > 0.05;
-    const label = button.childNodes[button.childNodes.length - 1];
-    if (label) label.textContent = cd > 0.05 ? `${name} ${Math.ceil(cd)}` : name;
-    button.classList.toggle("on", aim === id);
+    button.classList.toggle("cooling", !open || cd > 0.05);
+    button.classList.toggle("on", aim === id && open && cd <= 0.05);
     button.dataset.tip = globalTip(meta, id, cd, run);
+    button.setAttribute("aria-label", cd > 0.05 ? `${name}, ещё ${Math.ceil(cd)} с` : name);
   });
 }
 
@@ -367,11 +390,13 @@ function paintWorldFoot(): void {
 function paintDock(): void {
   hideTip();
   dockEl.replaceChildren();
-  const toggle = btn(shell.classList.contains("dock-collapsed") ? "Показать башни" : "Спрятать башни", "Свернуть или показать ряд башен, чтобы поле на телефоне осталось крупным.", () => {
+  const collapsed = shell.classList.contains("dock-collapsed");
+  const toggle = btn(collapsed ? "▴" : "▾", collapsed ? "Показать ряд башен." : "Спрятать ряд башен, чтобы поле стало крупнее.", () => {
     shell.classList.toggle("dock-collapsed");
     footSig = "";
   });
-  toggle.classList.add("dock-toggle");
+  toggle.classList.add("dock-handle");
+  toggle.setAttribute("aria-label", collapsed ? "Показать башни" : "Спрятать башни");
   dockEl.append(toggle);
   const dock = document.createElement("div");
   dock.className = "dock";
@@ -731,7 +756,7 @@ canvas.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 function clampZoom(z: number): number {
-  if (screen === "battle" || screen === "summary") return Math.max(battleFit * 0.92, Math.min(battleFit * 2.6, z));
+  if (screen === "battle" || screen === "summary") return Math.max(battleMin, Math.min(battleMax, z));
   if (screen === "tree") return Math.max(0.35, Math.min(2.2, z));
   return Math.max(0.22, Math.min(1.8, z));
 }

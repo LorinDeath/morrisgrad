@@ -11,7 +11,7 @@ import {
   type EnemyKind, type Meta, type Run, type TowerKind,
 } from "./types.ts";
 
-export interface Cam { x: number; y: number; z: number }
+export interface Cam { x: number; y: number; z: number; turn?: boolean; span?: number }
 
 const glows = new Map<string, HTMLCanvasElement>();
 
@@ -37,12 +37,34 @@ function glow(color: string, radius: number): HTMLCanvasElement {
   return c;
 }
 
+function visualOf(cam: Cam, x: number, y: number): { x: number; y: number } {
+  if (!cam.turn) return { x, y };
+  return { x: (cam.span ?? 0) - y, y: x };
+}
+
 export function toScreen(cam: Cam, w: number, h: number, x: number, y: number): { x: number; y: number } {
-  return { x: (x - cam.x) * cam.z + w / 2, y: (y - cam.y) * cam.z + h / 2 };
+  const v = visualOf(cam, x, y);
+  return { x: (v.x - cam.x) * cam.z + w / 2, y: (v.y - cam.y) * cam.z + h / 2 };
 }
 
 export function toWorld(cam: Cam, w: number, h: number, sx: number, sy: number): { x: number; y: number } {
-  return { x: (sx - w / 2) / cam.z + cam.x, y: (sy - h / 2) / cam.z + cam.y };
+  const vx = (sx - w / 2) / cam.z + cam.x;
+  const vy = (sy - h / 2) / cam.z + cam.y;
+  if (!cam.turn) return { x: vx, y: vy };
+  return { x: vy, y: (cam.span ?? 0) - vx };
+}
+
+function screenAngle(cam: Cam, ang: number): number {
+  if (!cam.turn) return ang;
+  const dx = Math.cos(ang);
+  const dy = Math.sin(ang);
+  return Math.atan2(dx, -dy);
+}
+
+function fillCell(ctx: CanvasRenderingContext2D, cam: Cam, w: number, h: number, x: number, y: number, z: number): void {
+  const a = toScreen(cam, w, h, x, y);
+  const b = toScreen(cam, w, h, x + 1, y + 1);
+  ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x) + 0.5, Math.abs(b.y - a.y) + 0.5);
 }
 
 function blob(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string): void {
@@ -206,6 +228,23 @@ export function fitCam(w: number, h: number, worldW: number, worldH: number, pad
   return { x: worldW / 2, y: worldH / 2, z: Math.max(0.35, z) };
 }
 
+export function fitBattle(w: number, h: number, cols: number, rows: number): { cam: Cam; minZ: number; maxZ: number } {
+  const portrait = h > w * 1.12 && w < 820;
+  const turn = portrait && cols > rows + 0.5;
+  const ww = turn ? rows : cols;
+  const hh = turn ? cols : rows;
+  const pad = 0.35;
+  const contain = Math.min(w / (ww + pad), h / (hh + pad));
+  const cover = Math.max(w / (ww + pad), h / (hh + pad));
+  const phone = Math.min(w, h) < 820;
+  const z = phone ? Math.max(36, cover) : Math.max(8, contain);
+  return {
+    cam: { x: ww / 2, y: hh / 2, z, turn, span: rows },
+    minZ: Math.max(8, Math.min(contain, z) * 0.92),
+    maxZ: Math.max(z, 36) * 2.4,
+  };
+}
+
 export interface Ghost { x: number; y: number; kind: TowerKind | "wall"; range: number; ok: boolean }
 
 function paintProps(
@@ -242,7 +281,6 @@ export function paintBattle(
   const z = cam.z;
   for (let y = 0; y < map.rows; y++) {
     for (let x = 0; x < map.cols; x++) {
-      const p = toScreen(cam, w, h, x, y);
       const ch = cellChar(map, x, y);
       const mod = run.mods[x + "," + y];
       let fill = "#0c1424";
@@ -256,7 +294,7 @@ export function paintBattle(
       else if (ch === "^" || mod === "xp") fill = "#14240c";
       else if (ch === "$" || mod === "bounty") fill = "#2a2208";
       ctx.fillStyle = fill;
-      ctx.fillRect(p.x, p.y, z + 0.5, z + 0.5);
+      fillCell(ctx, cam, w, h, x, y, z);
     }
   }
   ctx.strokeStyle = "rgba(90, 150, 255, 0.14)";
@@ -294,7 +332,7 @@ export function paintBattle(
       const a = route.pts[i];
       const b = route.pts[i + 1];
       const p = toScreen(cam, w, h, a.x + (b.x - a.x) * flow, a.y + (b.y - a.y) * flow);
-      const ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const ang = screenAngle(cam, Math.atan2(b.y - a.y, b.x - a.x));
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(ang);
@@ -314,8 +352,7 @@ export function paintBattle(
     ctx.fillStyle = "rgba(2, 4, 12, 0.72)";
     for (let y = 0; y < map.rows; y++) for (let x = 0; x < map.cols; x++) {
       if (revealed(run, map, x + 0.5, y + 0.5)) continue;
-      const p = toScreen(cam, w, h, x, y);
-      ctx.fillRect(p.x, p.y, z + 0.6, z + 0.6);
+      fillCell(ctx, cam, w, h, x, y, z);
     }
   }
   for (const s of map.spawns) {
@@ -420,9 +457,10 @@ export function paintBattle(
     const nextAng = prev.ang + delta * 0.22;
     const nextKick = prev.kick + (kickTarget - prev.kick) * 0.35;
     aimVis.set(t.id, { ang: nextAng, kick: nextKick });
+    const aim = screenAngle(cam, nextAng);
     const lean = t.kind === "miner" || t.kind === "halo" ? 0 : nextKick;
-    const ox = -Math.cos(nextAng) * lean * Math.min(8, z * 0.12);
-    const oy = -Math.sin(nextAng) * lean * Math.min(8, z * 0.12);
+    const ox = -Math.cos(aim) * lean * Math.min(8, z * 0.12);
+    const oy = -Math.sin(aim) * lean * Math.min(8, z * 0.12);
     blob(ctx, p.x, p.y, Math.max(10, z * 0.5), color);
     shadowUnder(ctx, p.x + ox, p.y + oy, z * 0.7);
     const upgraded = levelOf(t.xp) >= 4 || t.abilities.length > 0 || t.ranks.dmg + t.ranks.rate + t.ranks.range >= 2;
@@ -442,7 +480,7 @@ export function paintBattle(
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(p.x + ox, p.y + oy);
-      ctx.lineTo(p.x + ox + Math.cos(nextAng) * muzzle, p.y + oy + Math.sin(nextAng) * muzzle);
+      ctx.lineTo(p.x + ox + Math.cos(aim) * muzzle, p.y + oy + Math.sin(aim) * muzzle);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
@@ -502,7 +540,7 @@ export function paintBattle(
     ctx.globalAlpha = 1;
     const p = toScreen(cam, w, h, proj.x, proj.y);
     const prev = hist.length > 1 ? hist[hist.length - 2] : hist[0];
-    const ang = Math.atan2(proj.y - prev.y, proj.x - prev.x);
+    const ang = screenAngle(cam, Math.atan2(proj.y - prev.y, proj.x - prev.x));
     blob(ctx, p.x, p.y, 7, proj.color);
     ctx.save();
     ctx.translate(Math.round(p.x), Math.round(p.y));
@@ -577,25 +615,6 @@ export function paintBattle(
         blob(ctx, p.x, p.y, 18 * (0.4 + fx.ttl), fx.color);
       }
     }
-  }
-  if (run.banner && run.time < run.bannerUntil) {
-    const alpha = Math.min(1, run.bannerUntil - run.time);
-    ctx.globalAlpha = alpha;
-    const bw = Math.min(w - 24, 420);
-    const bh = 54;
-    const bx = (w - bw) / 2;
-    const by = 58;
-    ctx.fillStyle = "rgba(6,10,20,0.92)";
-    ctx.strokeStyle = "#ffb020";
-    ctx.lineWidth = 2;
-    ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeRect(bx, by, bw, bh);
-    blit(ctx, "icon_skull", bx + 28, by + bh / 2, 32);
-    ctx.fillStyle = "#fff4d2";
-    ctx.font = "700 18px Shket, Georgia, serif";
-    ctx.textAlign = "left";
-    ctx.fillText(run.banner, bx + 52, by + 34);
-    ctx.globalAlpha = 1;
   }
   if (run.outcome !== "play") {
     const title = run.mode === "sandbox" ? "Опыт закончен" : run.outcome === "win" ? "Ночь удержана" : "Врата пали";
