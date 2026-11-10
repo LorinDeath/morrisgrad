@@ -1,7 +1,8 @@
 // Тексты карточек и подсказок. Без DOM.
-import { fmt, previewStats, rankCost } from "./combat.ts";
+import { fmt, previewStats, rankCost, statsOf } from "./combat.ts";
 import { goalsOf, mapById, type MapDef } from "./maps.ts";
-import { canBuy, compile, nodeById } from "./research.ts";
+import { bonusesFor, modeInfo, modeLabel, mutatorById } from "./modes.ts";
+import { canBuy, nodeById } from "./research.ts";
 import { modAt } from "./sim.ts";
 import {
   ABILITY_BY_ID, DMG_NAME, TARGET_NAME, TOWER_NAME, TOWERS,
@@ -14,8 +15,8 @@ const MOD_NAME: Record<ModKind, string> = {
   dmg: "урон", range: "радиус", rate: "темп", xp: "опыт", bounty: "дань",
 };
 
-export function towerTip(meta: Meta, kind: TowerKind, cost?: number): string {
-  const b = compile(meta);
+export function towerTip(meta: Meta, kind: TowerKind, cost?: number, run: Run | null = null): string {
+  const b = bonusesFor(meta, run);
   const spec = TOWERS[kind];
   const st = previewStats(kind, b);
   const price = cost ?? spec.cost;
@@ -49,7 +50,7 @@ export function towerCard(run: Run, meta: Meta, id: number): { title: string; li
   const map = mapById(run.mapId);
   const tower = run.towers.find((t) => t.id === id);
   if (!map || !tower) return null;
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
   const mod = modAt(map, run, tower.x, tower.y);
   const spec = TOWERS[tower.kind];
   const lines: string[] = [];
@@ -99,11 +100,14 @@ export function towerCard(run: Run, meta: Meta, id: number): { title: string; li
   return { title: TOWER_NAME[tower.kind], lines, buttons };
 }
 
-export function dockOf(meta: Meta): { kind: TowerKind; label: string; tip: string; locked: boolean }[] {
+export function dockOf(meta: Meta, run: Run | null = null): { kind: TowerKind; label: string; tip: string; locked: boolean; cost: number }[] {
+  const b = bonusesFor(meta, run);
   return (Object.keys(TOWERS) as TowerKind[]).map((kind) => {
-    const b = compile(meta);
     const locked = !b.unlocked[kind];
-    return { kind, label: TOWER_NAME[kind], tip: towerTip(meta, kind), locked };
+    let cost = TOWERS[kind].cost;
+    if (run && kind !== "miner" && !run.placedCombat) cost = Math.max(1, Math.ceil(cost * (1 - b.discount)));
+    if (run?.mode === "sandbox") cost = 0;
+    return { kind, label: TOWER_NAME[kind], tip: towerTip(meta, kind, cost, run), locked, cost };
   });
 }
 
@@ -125,8 +129,8 @@ export function nodeTip(meta: Meta, id: string): string {
   return lines.join("\n");
 }
 
-export function globalTip(meta: Meta, id: "fire" | "bliz" | "dawn", cd: number): string {
-  const b = compile(meta);
+export function globalTip(meta: Meta, id: "fire" | "bliz" | "dawn", cd: number, run: Run | null = null): string {
+  const b = bonusesFor(meta, run);
   if (id === "fire") {
     return [
       "Пожар. Тап по клетке: 36 урона огнём в радиусе 2.2, больше от древа.",
@@ -155,16 +159,36 @@ export function summaryLines(run: Run): string[] {
   const map = mapById(run.mapId);
   const reward = run.reward;
   const stars = reward?.stars ?? 0;
-  return [
-    run.outcome === "win" ? "Ночь удержана." : "Врата пали.",
-    `${map?.name ?? "Ночь"}${run.endless ? ", бесконечная" : ""}.`,
+  const info = modeInfo(run.mode);
+  const lines = [
+    run.mode === "sandbox" ? "Опыт закончен." : run.outcome === "win" ? "Ночь удержана." : "Врата пали.",
+    `${info?.name ?? map?.name ?? "Ночь"}${run.mode === "endless" ? "" : map && info ? " · " + map.name : ""}.`,
     `Разобрано волн: ${run.wavesCleared}. Убийств: ${run.kills}. Прорывов: ${run.leaks}.`,
     `Сила Врат: ${Math.max(0, Math.floor(run.hearts))}/${Math.floor(run.maxHearts)}.`,
     `Золото за ночь: ${Math.floor(run.goldEarned)}.`,
-    reward ? `Награда: ${reward.sparks} искр, ${reward.ash} пепла, ${fmt(reward.vein)} руды.` : "Награда ещё не записана.",
-    run.endless ? `Рекорд волн на этой карте растёт, звёзды не ставятся.` : `Звёзды этой попытки: ${stars}.`,
   ];
+  if (run.mutators?.length) {
+    lines.push("Модификаторы: " + run.mutators.map((id) => mutatorById(id)?.name ?? id).join(", ") + ".");
+  }
+  if (run.mode === "sandbox") lines.push("Песочница не приносит искр и не пишет рекорд.");
+  else if (reward) lines.push(`Награда: ${reward.sparks} искр, ${reward.ash} пепла, ${fmt(reward.vein)} руды.`);
+  else lines.push("Награда ещё не записана.");
+  if (run.mode === "endless") lines.push("Рекорд волн на этой карте растёт, звёзды не ставятся.");
+  else if (run.mode === "campaign") lines.push(`Звёзды этой попытки: ${stars}.`);
+  else if (run.mode === "daily") lines.push(`Рекорд этой даты считается по разобранным волнам.`);
+  else if (info) lines.push(info.score);
+  return lines;
 }
+
+export function towerStatsLine(run: Run, meta: Meta, id: number): { dmg: number; rate: number; range: number } | null {
+  const map = mapById(run.mapId);
+  const tower = run.towers.find((t) => t.id === id);
+  if (!map || !tower || tower.kind === "miner") return null;
+  const st = statsOf(tower, modAt(map, run, tower.x, tower.y), bonusesFor(meta, run), 0);
+  return { dmg: st.dmg, rate: st.rate, range: st.range };
+}
+
+void modeLabel;
 
 export function briefLines(map: MapDef, stars: number, best: number): string[] {
   const goals = goalsOf(map);

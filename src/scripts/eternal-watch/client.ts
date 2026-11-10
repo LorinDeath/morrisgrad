@@ -1,14 +1,14 @@
 // Клиент «Вечной стражи». Симуляция живёт в logic.ts.
 import {
-  ABILITY_BY_ID, MAPS, SAVE_KEY, SAVE_KEY_V1, TARGET_NAME, TOWER_COLOR, TOWERS, abilityCd, buyNode, callWave, castAbility,
-  chooseAbility, compile, cycleTarget, PATH_GAP, beginRun, debugSpawn, endRun, fmt, loadMeta, mapById, modAt, nodeById, placeStamp,
-  placeTower, previewStats, sellTower, serializeMeta, statsOf, stepRun, syncOffers, unlockedIndex, upgradeTower,
+  ABILITY_BY_ID, ABILITY_ICON, MAPS, PLAY_MODES, SAVE_KEY, SAVE_KEY_V1, TARGET_NAME, TOWER_COLOR, TOWERS, WALL_COST, abilityCd, bonusesFor, buyNode, callWave, castAbility,
+  chooseAbility, cycleTarget, PATH_GAP, beginRun, dailyMutators, debugSpawn, endRun, fmt, loadMeta, mapById, modAt, modeInfo, modeLabel, mutatorById, nodeById, openMode, placeStamp,
+  placeTower, placeWall, previewStats, refreshMode, sellTower, serializeMeta, spriteUrl, statsOf, stepRun, syncOffers, todayKey, towerFrame, unlockedIndex, upgradeTower,
   xpBar, briefLines, dockOf, globalTip, nodeTip, summaryLines, towerCard,
 } from "./logic.ts";
-import { fitCam, paintBattle, paintMapPreview, paintTree, paintWorld, toWorld, treeHit, worldHit, type Cam, type Ghost } from "./draw.ts";
-import type { EnemyKind, GlobalId, Meta, ModKind, Run, TowerKind } from "./logic.ts";
+import { fitBattle, fitCam, paintBattle, paintMapPreview, paintTree, paintWorld, toWorld, treeHit, worldHit, warmSprites, type Cam, type Ghost } from "./draw.ts";
+import type { EnemyKind, GlobalId, Meta, ModeId, ModKind, Run, TowerKind } from "./logic.ts";
 
-type Screen = "world" | "battle" | "tree" | "summary";
+type Screen = "world" | "battle" | "tree" | "summary" | "modes";
 
 const app = document.getElementById("ew-app");
 const stage = document.getElementById("ew-stage") as HTMLElement;
@@ -29,18 +29,36 @@ const loaded = loadMeta(localStorage.getItem(SAVE_KEY), localStorage.getItem(SAV
 let meta: Meta = loaded.meta;
 let persist = loaded.persist;
 let run: Run | null = meta.run && meta.run.outcome === "play" ? meta.run : null;
+if (run) refreshMode(run);
 let screen: Screen = run ? "battle" : "world";
 let endless = false;
 let speed: 0 | 1 | 2 | 4 = 1;
 let selected = 0;
 let kind: TowerKind | null = "spark";
+let walling = false;
+warmSprites();
+
+function iconify(id: string, sprite: string): void {
+  const el = document.getElementById(id);
+  if (!el || el.querySelector("img")) return;
+  const img = document.createElement("img");
+  img.alt = "";
+  img.src = spriteUrl(sprite);
+  el.replaceChildren(img);
+}
+iconify("ew-pause", "icon_pause");
+{
+  const call = document.getElementById("ew-call");
+  if (call && !call.querySelector("img")) call.textContent = "▶";
+}
 let aim: GlobalId | null = null;
 let nodeId: string | null = RESEARCH_FIRST();
 let brief = -1;
 let worldCam: Cam = { x: 520, y: 320, z: 1 };
 let treeCam: Cam = { x: 160, y: -80, z: 1.05 };
-let battleCam: Cam = { x: 8, y: 5, z: 32 };
-let battleFit = 32;
+let battleCam: Cam = { x: 8, y: 5, z: 36 };
+let battleMin = 12;
+let battleMax = 96;
 let hover: Ghost | null = null;
 let fitted = "";
 let footSig = "";
@@ -140,8 +158,10 @@ function resize(): void {
     if ((screen === "battle" || screen === "summary") && run) {
       const map = mapById(run.mapId);
       if (map) {
-        battleCam = fitCam(w, h, map.cols, map.rows, 0.35);
-        battleFit = battleCam.z;
+        const fit = fitBattle(w, h, map.cols, map.rows);
+        battleCam = fit.cam;
+        battleMin = fit.minZ;
+        battleMax = fit.maxZ;
       }
     }
   }
@@ -153,34 +173,72 @@ function draw(): void {
   if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr) || key !== fitted) resize();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  if (screen === "tree") paintTree(ctx, w, h, meta, treeCam, nodeId);
+  if (screen === "modes") {
+    ctx.fillStyle = "#070b16";
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "rgba(80, 140, 255, 0.08)";
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += 48) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+    for (let y = 0; y <= h; y += 48) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+    ctx.stroke();
+  } else if (screen === "tree") paintTree(ctx, w, h, meta, treeCam, nodeId);
   else if ((screen === "battle" || screen === "summary") && run) {
     const map = mapById(run.mapId);
     if (map) paintBattle(ctx, w, h, map, run, meta, battleCam, selected, meta.damageNumbers, hover);
   } else paintWorld(ctx, w, h, meta, worldCam, endless);
   paintHud();
   const sig = footSignature();
-  if (sig !== footSig) { footSig = sig; paintFoot(); }
+  if (sig !== footSig) {
+    footSig = sig;
+    paintFoot();
+    if (screen === "modes") paintModes();
+  }
+}
+
+const overlay = document.getElementById("ew-overlay");
+
+function chip(icon: string, label: string, value: string): string {
+  return `<span class="chip"><img alt="" src="${spriteUrl(icon)}"><span>${label}</span> <b>${value}</b></span>`;
 }
 
 function paintHud(): void {
   shell.classList.toggle("in-battle", screen === "battle");
+  shell.classList.toggle("in-modes", screen === "modes");
   const panelOn = (screen === "world" && brief >= 0) || (screen === "tree" && !!nodeId) || (screen === "summary" && !!run) || (screen === "battle" && selected > 0);
   shell.classList.toggle("panel-open", panelOn);
   panel.hidden = !panelOn;
   dockEl.hidden = screen !== "battle";
-  resEl.innerHTML = `<span>Искры <b>${Math.floor(meta.sparks)}</b></span><span>Пепел <b>${Math.floor(meta.ash)}</b></span><span>Руда <b>${Math.floor(meta.vein)}</b></span>`;
+  if (overlay) overlay.hidden = screen !== "modes";
+  resEl.innerHTML = [
+    chip("icon_gem", "Искры", String(Math.floor(meta.sparks))),
+    chip("icon_fire", "Пепел", String(Math.floor(meta.ash))),
+    chip("tile_ore", "Руда", String(Math.floor(meta.vein))),
+  ].join("");
+  const banner = document.getElementById("ew-banner");
   if (run && screen === "battle") {
     const map = mapById(run.mapId);
     const goal = map ? (run.endless ? 0 : map.waves) : 0;
     const wait = Math.max(0, run.nextWaveAt - run.time);
-    const waveLabel = run.queue.length ? "волна идёт" : (!run.endless && run.scheduled >= goal) ? "последняя волна" : `след. ${wait.toFixed(1)} с`;
-    fightEl.innerHTML = `<span>Врата <b>${Math.max(0, Math.floor(run.hearts))}/${Math.floor(run.maxHearts)}</b></span><span>Золото <b>${Math.floor(run.gold)}</b></span><span>Волна <b>${Math.max(run.scheduled, 1)}</b></span><span>${waveLabel}</span>`;
+    const waveLabel = run.queue.length ? "волна идёт" : (!run.endless && run.scheduled >= goal) ? "последняя волна" : `следующая через ${wait.toFixed(1)} с`;
+    const waveNo = String(Math.max(run.scheduled, run.wavesCleared, 1));
+    fightEl.innerHTML = [
+      chip("icon_heart", "Врата", `${Math.max(0, Math.floor(run.hearts))}/${Math.floor(run.maxHearts)}`),
+      chip("icon_gold", "Золото", String(Math.floor(run.gold))),
+      chip("icon_skull", modeLabel(run), waveNo),
+    ].join("");
+    const call = document.getElementById("ew-call");
+    if (call) call.dataset.tip = `Вызвать следующую волну сразу, не дожидаясь таймера. ${modeLabel(run)}, волна ${waveNo}. ${waveLabel}. Пока волна ещё выходит из портала, вызов ждёт.`;
   } else fightEl.innerHTML = "";
+  if (banner) {
+    const show = !!(run && screen === "battle" && run.banner && run.time < run.bannerUntil);
+    banner.hidden = !show;
+    banner.textContent = show && run ? run.banner : "";
+  }
   for (const [id, sp] of [["ew-pause", 0], ["ew-x1", 1], ["ew-x2", 2], ["ew-x4", 4]] as const) {
     document.getElementById(id)?.classList.toggle("on", speed === sp);
   }
   document.getElementById("ew-nums")?.classList.toggle("on", meta.damageNumbers);
+  document.getElementById("ew-modes")?.classList.toggle("on", screen === "modes");
   paintGlobals();
 }
 
@@ -189,7 +247,7 @@ function paintGlobals(): void {
     if (globalsEl.childElementCount) globalsEl.replaceChildren();
     return;
   }
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
   const defs: [GlobalId, string, number, boolean][] = [
     ["fire", "Пожар", 42, b.abFire],
     ["bliz", "Буран", 46, b.abBliz],
@@ -200,9 +258,10 @@ function paintGlobals(): void {
     globalsEl.dataset.sig = sig;
     globalsEl.replaceChildren();
     for (const [id, name, , open] of defs) {
-      const button = btn(name, globalTip(meta, id, 0), () => {
-        if (!open) { toast("Умение ещё в древе."); return; }
+      const button = btn(name, globalTip(meta, id, 0, run), () => {
         if (!run) return;
+        if (!open) { toast("Умение ещё в древе."); return; }
+        if (run.abilityCd[id] > 0.05) return;
         if (id === "bliz") {
           const res = castAbility(run, meta, "bliz", 0, 0);
           if (!res.ok) toast(res.reason);
@@ -216,9 +275,13 @@ function paintGlobals(): void {
       }, aim === id);
       button.classList.add("ability");
       button.dataset.ability = id;
+      button.setAttribute("aria-label", name);
+      const icon = document.createElement("img");
+      icon.alt = "";
+      icon.src = spriteUrl(ABILITY_ICON[id]);
       const ring = document.createElement("span");
       ring.className = "ring";
-      button.prepend(ring);
+      button.replaceChildren(ring, icon);
       globalsEl.append(button);
     }
   }
@@ -229,21 +292,21 @@ function paintGlobals(): void {
     const cd = run.abilityCd[id];
     const p = open ? Math.max(0, Math.min(1, cd / max)) : 1;
     button.style.setProperty("--p", `${Math.round((1 - p) * 360)}deg`);
-    button.disabled = !open || cd > 0.05;
-    const label = button.childNodes[button.childNodes.length - 1];
-    if (label) label.textContent = cd > 0.05 ? `${name} ${Math.ceil(cd)}` : name;
-    button.classList.toggle("on", aim === id);
-    button.dataset.tip = globalTip(meta, id, cd);
+    button.classList.toggle("cooling", !open || cd > 0.05);
+    button.classList.toggle("on", aim === id && open && cd <= 0.05);
+    button.dataset.tip = globalTip(meta, id, cd, run);
+    button.setAttribute("aria-label", cd > 0.05 ? `${name}, ещё ${Math.ceil(cd)} с` : name);
   });
 }
 
 function footSignature(): string {
+  if (screen === "modes") return "modes:" + todayKey() + ":" + JSON.stringify(meta.modeBest) + ":" + JSON.stringify(meta.dailyBest);
   if (screen === "tree") return "tree:" + nodeId + ":" + meta.sparks + ":" + meta.ash + ":" + meta.vein + ":" + JSON.stringify(meta.nodes);
   if (screen === "summary" && run) return "sum:" + run.outcome + ":" + run.wavesCleared + ":" + (run.reward?.sparks ?? 0);
   if (screen === "world") return "world:" + endless + ":" + brief + ":" + JSON.stringify(meta.stars);
   if (!run) return "empty";
   const t = run.towers.find((x) => x.id === selected);
-  return ["battle", run.gold, run.hearts, selected, kind, aim, t?.xp, t?.offer?.join(), t?.ranks.dmg, t?.abilities.join(), run.abilityCd.fire, run.abilityCd.bliz, run.abilityCd.dawn].join(":");
+  return ["battle", run.mode, selected, kind, walling, aim, t?.xp, t?.offer?.join(), t?.ranks.dmg, t?.ranks.rate, t?.ranks.range, t?.abilities.join(), (run.mutators ?? []).join(), shell.classList.contains("dock-collapsed")].join(":");
 }
 
 function paintFoot(): void {
@@ -325,25 +388,66 @@ function paintWorldFoot(): void {
 }
 
 function paintDock(): void {
+  hideTip();
   dockEl.replaceChildren();
+  const collapsed = shell.classList.contains("dock-collapsed");
+  const toggle = btn(collapsed ? "▴" : "▾", collapsed ? "Показать ряд башен." : "Спрятать ряд башен, чтобы поле стало крупнее.", () => {
+    shell.classList.toggle("dock-collapsed");
+    footSig = "";
+  });
+  toggle.classList.add("dock-handle");
+  toggle.setAttribute("aria-label", collapsed ? "Показать башни" : "Спрятать башни");
+  dockEl.append(toggle);
   const dock = document.createElement("div");
   dock.className = "dock";
-  for (const entry of dockOf(meta)) {
+  if (run?.mode === "maze") {
+    const wallBtn = btn("Стена", `Стена за ${WALL_COST} золота. Враги обходят её, но путь от портала до Врат должен остаться. Долгое нажатие повторяет эту подсказку.`, () => {
+      walling = !walling;
+      if (walling) { kind = null; aim = null; }
+      hover = null;
+      footSig = "";
+    }, walling);
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = spriteUrl("decor_fence");
+    wallBtn.prepend(img);
+    const small = document.createElement("small");
+    small.textContent = `${WALL_COST} золота`;
+    wallBtn.append(small);
+    dock.append(wallBtn);
+  }
+  if (run?.mode === "sandbox") {
+    dock.append(btn("Закончить", "Закрыть песочницу. Искры, пепел и руда не начисляются, рекорд не пишется.", () => {
+      if (!run) return;
+      endRun(run, meta);
+      screen = "summary";
+      save();
+      footSig = "";
+    }));
+  }
+  for (const entry of dockOf(meta, run)) {
     const b = btn(entry.label, entry.tip, () => {
       if (entry.locked) { toast("Сначала откройте башню в древе."); return; }
+      walling = false;
       kind = kind === entry.kind ? null : entry.kind;
       aim = null;
       hover = null;
       footSig = "";
     }, kind === entry.kind);
     if (entry.locked) b.classList.add("locked");
-    const sw = document.createElement("span");
-    sw.className = "swatch";
-    sw.style.background = TOWER_COLOR[entry.kind];
-    sw.style.color = TOWER_COLOR[entry.kind];
-    b.prepend(sw);
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = spriteUrl(towerFrame(entry.kind, false));
+    b.prepend(img);
+    if (entry.locked) {
+      const lock = document.createElement("img");
+      lock.alt = "";
+      lock.className = "lock";
+      lock.src = spriteUrl("icon_lock");
+      b.append(lock);
+    }
     const small = document.createElement("small");
-    small.textContent = entry.locked ? "в древе" : `${TOWERS[entry.kind].cost} золота`;
+    small.textContent = entry.locked ? "в древе" : entry.cost === 0 ? "свободно" : `${entry.cost} золота`;
     b.append(small);
     dock.append(b);
   }
@@ -352,9 +456,19 @@ function paintDock(): void {
 
 function paintCard(card: { title: string; lines: string[]; buttons: { id: string; label: string; tip: string }[] }): void {
   const tower = run?.towers.find((t) => t.id === selected);
+  const head = document.createElement("div");
+  head.className = "tower-head";
+  if (tower) {
+    const img = document.createElement("img");
+    img.alt = "";
+    const upgraded = tower.abilities.length > 0 || tower.ranks.dmg + tower.ranks.rate + tower.ranks.range >= 2;
+    img.src = spriteUrl(towerFrame(tower.kind, upgraded));
+    head.append(img);
+  }
   const h = document.createElement("h2");
   h.textContent = card.title;
-  panel.append(h);
+  head.append(h);
+  panel.append(head);
   if (tower && run) {
     const map = mapById(run.mapId);
     const bar = xpBar(tower.xp);
@@ -364,7 +478,7 @@ function paintCard(card: { title: string; lines: string[]; buttons: { id: string
     fill.style.width = `${Math.max(4, Math.min(100, (bar.into / Math.max(1, bar.need)) * 100))}%`;
     xp.append(fill);
     panel.append(xp);
-    const st = map ? statsOf(tower, modAt(map, run, tower.x, tower.y), compile(meta), 0) : null;
+    const st = map ? statsOf(tower, modAt(map, run, tower.x, tower.y), bonusesFor(meta, run), 0) : null;
     const grid = document.createElement("div");
     grid.className = "statgrid";
     const cells: [string, string][] = [
@@ -437,7 +551,7 @@ function paintCard(card: { title: string; lines: string[]; buttons: { id: string
   stamps.className = "acts";
   const mods: [ModKind, string][] = [["dmg", "Клеймо урона"], ["range", "Клеймо радиуса"], ["rate", "Клеймо темпа"], ["xp", "Клеймо опыта"], ["bounty", "Клеймо дани"]];
   for (const [mod, label] of mods) {
-    stamps.append(btn(label, `${label}. 42 золота. Кладётся на пустырь и усиливает башню на этой клетке. Слотов за ночь: ${compile(meta).stamps}.`, () => {
+    stamps.append(btn(label, `${label}. 42 золота. Кладётся на пустырь и усиливает башню на этой клетке. Слотов за ночь: ${bonusesFor(meta, run).stamps}.`, () => {
       toast("Коснитесь пустыря, чтобы положить клеймо.");
       kind = null;
       aim = null;
@@ -475,7 +589,11 @@ function paintSummary(): void {
   const acts = document.createElement("div");
   acts.className = "acts";
   acts.append(btn("К карте", "Вернуться к карте ночей. Награда уже записана.", () => { run = null; endless = false; screen = "world"; brief = -1; footSig = ""; }));
-  acts.append(btn("Ещё раз", "Начать эту же ночь заново. Мета не сбрасывается.", () => start(run!.mapId, run!.endless)));
+  acts.append(btn("Ещё раз", "Начать эту же ночь заново. Мета не сбрасывается.", () => {
+    if (!run) return;
+    if (run.mode === "campaign" || run.mode === "endless") start(run.mapId, run.mode === "endless");
+    else startMode(run.mode, run.dailyKey);
+  }));
   acts.append(btn("В древо", "Открыть древо и потратить добычу этой ночи.", () => { screen = "tree"; footSig = ""; }));
   panel.append(acts);
   for (const line of summaryLines(run)) {
@@ -483,6 +601,74 @@ function paintSummary(): void {
     p.textContent = line;
     panel.append(p);
   }
+}
+
+function paintModes(): void {
+  if (!overlay) return;
+  hideTip();
+  overlay.replaceChildren();
+  const wrap = document.createElement("div");
+  wrap.className = "mode-grid";
+  const intro = document.createElement("div");
+  intro.className = "mode-intro";
+  const h = document.createElement("h2");
+  h.textContent = "Режимы";
+  const p = document.createElement("p");
+  p.textContent = "Десять отдельных ночей. Рекорды пишутся на этом устройстве. Кампания и древо остаются на карте.";
+  intro.append(h, p);
+  const back = btn("К карте ночей", "Закрыть режимы и вернуться к кампании. Текущая ночь, если она идёт, не сбрасывается.", () => {
+    screen = run && run.outcome === "play" ? "battle" : "world";
+    fitted = "";
+    footSig = "";
+  });
+  intro.append(back);
+  wrap.append(intro);
+  const today = todayKey();
+  for (const mode of PLAY_MODES) {
+    const best = mode.id === "daily" ? (meta.dailyBest[today] ?? 0) : (meta.modeBest[mode.id] ?? 0);
+    const dailyNote = mode.id === "daily"
+      ? " Сегодня: " + dailyMutators(today).map((id) => mutatorById(id)?.name ?? id).join(" и ") + "."
+      : "";
+    const tip = `${mode.name}. ${mode.summary}\n${mode.rules}\n${mode.research}\n${mode.score}${dailyNote}\nРекорд: ${best}.`;
+    const card = btn(mode.name, tip, () => startMode(mode.id, today));
+    card.className = "mode-card";
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = spriteUrl(mode.icon);
+    const name = document.createElement("b");
+    name.textContent = mode.name;
+    const sum = document.createElement("span");
+    sum.textContent = mode.summary + dailyNote;
+    const rec = document.createElement("small");
+    rec.textContent = mode.id === "sandbox" ? "Без рекорда" : mode.id === "daily" ? `Рекорд ${today}: ${best}` : `Рекорд: ${best}`;
+    card.replaceChildren(img, name, sum, rec);
+    card.dataset.tip = tip;
+    wrap.append(card);
+  }
+  overlay.append(wrap);
+}
+
+function startMode(id: ModeId, dailyKey = ""): void {
+  if (id === "campaign" || id === "endless") return;
+  if (run && run.outcome === "play") endRun(run, meta);
+  const next = openMode(meta, id, (Date.now() % 100000) + 1, dailyKey || todayKey());
+  if (!next) { toast("Режим не собрался."); return; }
+  run = next;
+  endless = false;
+  screen = "battle";
+  selected = 0;
+  aim = null;
+  walling = id === "maze";
+  kind = walling ? null : (bonusesFor(meta, next).unlocked.spark ? "spark" : null);
+  fitted = "";
+  speed = 1;
+  shell.classList.add("in-battle");
+  dockEl.hidden = false;
+  resize();
+  save();
+  footSig = "";
+  const info = modeInfo(id);
+  if (info) toast(info.name);
 }
 
 function start(id: string, end: boolean): void {
@@ -497,7 +683,8 @@ function start(id: string, end: boolean): void {
   screen = "battle";
   selected = 0;
   aim = null;
-  kind = compile(meta).unlocked.spark ? "spark" : null;
+  walling = false;
+  kind = bonusesFor(meta, next).unlocked.spark ? "spark" : null;
   fitted = "";
   speed = 1;
   shell.classList.add("in-battle");
@@ -569,13 +756,13 @@ canvas.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 function clampZoom(z: number): number {
-  if (screen === "battle" || screen === "summary") return Math.max(battleFit * 0.92, Math.min(battleFit * 2.6, z));
+  if (screen === "battle" || screen === "summary") return Math.max(battleMin, Math.min(battleMax, z));
   if (screen === "tree") return Math.max(0.35, Math.min(2.2, z));
   return Math.max(0.22, Math.min(1.8, z));
 }
 
 function updateHover(clientX: number, clientY: number): void {
-  if (screen !== "battle" || !run || !kind) { hover = null; return; }
+  if (screen !== "battle" || !run || (!kind && !walling)) { hover = null; return; }
   const map = mapById(run.mapId);
   if (!map) { hover = null; return; }
   const rect = canvas.getBoundingClientRect();
@@ -584,9 +771,14 @@ function updateHover(clientX: number, clientY: number): void {
   const x = Math.floor(world.x);
   const y = Math.floor(world.y);
   const ch = y >= 0 && x >= 0 && y < map.rows && x < map.cols ? map.grid[y][x] : "#";
-  const free = !run.towers.some((t) => t.x === x && t.y === y);
+  const free = !run.towers.some((t) => t.x === x && t.y === y) && !run.walls.includes(x + "," + y);
+  if (walling) {
+    hover = { x, y, kind: "wall", range: 0, ok: ".+*~^$".includes(ch) && free };
+    return;
+  }
+  if (!kind) { hover = null; return; }
   const okTile = kind === "miner" ? ch === "v" && free : ".+*~^$".includes(ch) && free;
-  const range = previewStats(kind, compile(meta)).range;
+  const range = previewStats(kind, bonusesFor(meta, run)).range;
   hover = { x, y, kind, range, ok: okTile };
 }
 
@@ -637,7 +829,13 @@ function tap(sx: number, sy: number): void {
     return;
   }
   const hit = run.towers.find((t) => t.x === x && t.y === y);
-  if (hit) { selected = hit.id; kind = null; footSig = ""; return; }
+  if (hit && !walling) { selected = hit.id; kind = null; footSig = ""; return; }
+  if (walling) {
+    const res = placeWall(run, meta, x, y);
+    if (!res.ok) toast(res.reason);
+    else { save(); footSig = ""; }
+    return;
+  }
   if (kind) {
     const res = placeTower(run, meta, x, y, kind);
     if (!res.ok) toast(res.reason);
@@ -680,6 +878,12 @@ document.getElementById("ew-world")?.addEventListener("click", () => {
   shell.classList.remove("nav-open");
   endless = false; screen = "world"; brief = -1; fitted = ""; footSig = "";
 });
+document.getElementById("ew-modes")?.addEventListener("click", () => {
+  shell.classList.remove("nav-open");
+  screen = "modes";
+  fitted = "";
+  footSig = "";
+});
 
 window.addEventListener("resize", () => { fitted = ""; resize(); });
 resize();
@@ -714,6 +918,7 @@ if (new URLSearchParams(location.search).has("shot")) {
     screen: () => screen,
     start: (id: string, end = false) => start(id, end),
     place: (x: number, y: number, k: TowerKind) => run ? placeTower(run, meta, x, y, k) : { ok: false, reason: "" },
+    wall: (x: number, y: number) => run ? placeWall(run, meta, x, y) : { ok: false, reason: "" },
     select: (id: number) => { selected = id; screen = "battle"; if (run) syncOffers(run); footSig = ""; },
     fast: (seconds: number) => {
       if (!run) return;
@@ -728,6 +933,8 @@ if (new URLSearchParams(location.search).has("shot")) {
     tree: () => { screen = "tree"; fitted = ""; footSig = ""; },
     endless: () => { endless = true; screen = "world"; brief = -1; fitted = ""; footSig = ""; },
     world: () => { endless = false; screen = "world"; brief = -1; fitted = ""; footSig = ""; },
+    modes: () => { screen = "modes"; fitted = ""; footSig = ""; },
+    mode: (id: ModeId) => startMode(id),
     summary: () => { if (run) { endRun(run, meta); screen = "summary"; footSig = ""; } },
     stageHeight: () => stage.getBoundingClientRect().height,
     zoom: () => battleCam.z,
