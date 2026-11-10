@@ -102,8 +102,17 @@ export function rankCost(baseCost: number, rank: number): number {
 
 export interface WaveGroup { kind: EnemyKind; count: number }
 
+/** Минимальный зазор между тварями одной тропы, в клетках. */
+export const PATH_GAP = 1.15;
+
 export function spawnInterval(wave: number): number {
   return 0.58 * 0.985 ** Math.min(wave - 1, 25);
+}
+
+/** Пауза до следующей твари: не короче такта волны и не теснее PATH_GAP по её скорости. */
+export function releaseGap(kind: EnemyKind, wave: number): number {
+  const speed = Math.max(0.45, ENEMY_BASE[kind].speed);
+  return Math.max(spawnInterval(wave), PATH_GAP / speed);
 }
 
 export function wavePlan(difficulty: number, wave: number, endless: boolean, waves: number): WaveGroup[] {

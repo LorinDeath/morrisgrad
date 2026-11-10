@@ -1,8 +1,8 @@
 // Клиент «Вечной стражи». Симуляция живёт в logic.ts.
 import {
-  ABILITY_BY_ID, MAPS, SAVE_KEY, SAVE_KEY_V1, TOWER_COLOR, TOWERS, abilityCd, buyNode, callWave, castAbility,
-  chooseAbility, compile, cycleTarget, beginRun, debugSpawn, endRun, loadMeta, mapById, nodeById, placeStamp,
-  placeTower, previewStats, sellTower, serializeMeta, stepRun, syncOffers, unlockedIndex, upgradeTower,
+  ABILITY_BY_ID, MAPS, SAVE_KEY, SAVE_KEY_V1, TARGET_NAME, TOWER_COLOR, TOWERS, abilityCd, buyNode, callWave, castAbility,
+  chooseAbility, compile, cycleTarget, PATH_GAP, beginRun, debugSpawn, endRun, fmt, loadMeta, mapById, modAt, nodeById, placeStamp,
+  placeTower, previewStats, sellTower, serializeMeta, statsOf, stepRun, syncOffers, unlockedIndex, upgradeTower,
   xpBar, briefLines, dockOf, globalTip, nodeTip, summaryLines, towerCard,
 } from "./logic.ts";
 import { fitCam, paintBattle, paintMapPreview, paintTree, paintWorld, toWorld, treeHit, worldHit, type Cam, type Ghost } from "./draw.ts";
@@ -120,12 +120,8 @@ function btn(label: string, tip: string, fn: () => void, on = false): HTMLButton
 
 function cssSize(): { w: number; h: number; dpr: number } {
   const rect = stage.getBoundingClientRect();
-  let h = rect.height;
-  if (h < 120) {
-    h = Math.max(160, window.innerHeight * 0.42);
-    stage.style.minHeight = h + "px";
-  }
   const w = Math.max(1, rect.width);
+  const h = Math.max(1, rect.height);
   const dpr = Math.min(3, window.devicePixelRatio || 1);
   return { w, h, dpr };
 }
@@ -134,8 +130,8 @@ function resize(): void {
   const { w, h, dpr } = cssSize();
   canvas.width = Math.max(1, Math.floor(w * dpr));
   canvas.height = Math.max(1, Math.floor(h * dpr));
-  canvas.style.width = w + "px";
-  canvas.style.height = h + "px";
+  canvas.style.width = "";
+  canvas.style.height = "";
   const key = screen + ":" + (run?.mapId ?? "") + ":" + Math.round(w) + "x" + Math.round(h);
   if (key !== fitted) {
     fitted = key;
@@ -254,13 +250,25 @@ function paintFoot(): void {
   panel.replaceChildren();
   if (screen === "battle") paintDock();
   else dockEl.replaceChildren();
-  if (screen === "tree") return paintTreeFoot();
-  if (screen === "summary" && run) return paintSummary();
-  if (screen === "world") return paintWorldFoot();
-  if (run && selected) {
+  if (screen === "tree") paintTreeFoot();
+  else if (screen === "summary" && run) paintSummary();
+  else if (screen === "world") paintWorldFoot();
+  else if (run && selected) {
     const card = towerCard(run, meta, selected);
     if (card) paintCard(card);
   }
+  if (panel.childElementCount) panel.prepend(sheetToggle());
+}
+
+function sheetToggle(): HTMLButtonElement {
+  const collapsed = shell.classList.contains("sheet-collapsed");
+  const b = btn(collapsed ? "Развернуть" : "Свернуть", "Свернуть карточку вниз, чтобы поле осталось на виду. Повторное нажатие открывает её снова.", () => {
+    shell.classList.toggle("sheet-collapsed");
+    fitted = "";
+    footSig = "";
+  });
+  b.classList.add("sheet-toggle");
+  return b;
 }
 
 function paintWorldFoot(): void {
@@ -347,7 +355,8 @@ function paintCard(card: { title: string; lines: string[]; buttons: { id: string
   const h = document.createElement("h2");
   h.textContent = card.title;
   panel.append(h);
-  if (tower) {
+  if (tower && run) {
+    const map = mapById(run.mapId);
     const bar = xpBar(tower.xp);
     const xp = document.createElement("div");
     xp.className = "xp";
@@ -355,9 +364,31 @@ function paintCard(card: { title: string; lines: string[]; buttons: { id: string
     fill.style.width = `${Math.max(4, Math.min(100, (bar.into / Math.max(1, bar.need)) * 100))}%`;
     xp.append(fill);
     panel.append(xp);
-    const lv = document.createElement("p");
-    lv.textContent = `Уровень опыта ${bar.level}. До следующего ${Math.floor(bar.into)}/${bar.need}. Убийств ${tower.kills}.`;
-    panel.append(lv);
+    const st = map ? statsOf(tower, modAt(map, run, tower.x, tower.y), compile(meta), 0) : null;
+    const grid = document.createElement("div");
+    grid.className = "statgrid";
+    const cells: [string, string][] = [
+      ["Уровень", String(bar.level)],
+      ["До след.", `${Math.floor(bar.into)}/${bar.need}`],
+      ["Убийства", String(tower.kills)],
+      ["Нанесено", fmt(tower.dealt)],
+    ];
+    if (tower.kind === "miner") {
+      cells.push(["Стрельба", "нет"], ["Добыча", "руда"]);
+    } else if (st) {
+      cells.push(["Урон", fmt(st.dmg)], ["Темп", `${fmt(st.rate)}/с`], ["Радиус", fmt(st.range)]);
+    }
+    cells.push(["Прицел", TARGET_NAME[tower.target]]);
+    for (const [k, v] of cells) {
+      const cell = document.createElement("div");
+      const name = document.createElement("b");
+      name.textContent = k;
+      const val = document.createElement("span");
+      val.textContent = v;
+      cell.append(name, val);
+      grid.append(cell);
+    }
+    panel.append(grid);
   }
   for (const line of card.lines) {
     const p = document.createElement("p");
@@ -642,9 +673,11 @@ document.getElementById("ew-x1")?.addEventListener("click", () => { speed = 1; }
 document.getElementById("ew-x2")?.addEventListener("click", () => { speed = 2; });
 document.getElementById("ew-x4")?.addEventListener("click", () => { speed = 4; });
 document.getElementById("ew-nums")?.addEventListener("click", () => { meta.damageNumbers = !meta.damageNumbers; save(); });
-document.getElementById("ew-tree")?.addEventListener("click", () => { screen = "tree"; fitted = ""; footSig = ""; });
-document.getElementById("ew-endless")?.addEventListener("click", () => { endless = true; screen = "world"; brief = -1; fitted = ""; footSig = ""; });
+document.getElementById("ew-menu")?.addEventListener("click", () => { shell.classList.toggle("nav-open"); });
+document.getElementById("ew-tree")?.addEventListener("click", () => { shell.classList.remove("nav-open"); screen = "tree"; fitted = ""; footSig = ""; });
+document.getElementById("ew-endless")?.addEventListener("click", () => { shell.classList.remove("nav-open"); endless = true; screen = "world"; brief = -1; fitted = ""; footSig = ""; });
 document.getElementById("ew-world")?.addEventListener("click", () => {
+  shell.classList.remove("nav-open");
   endless = false; screen = "world"; brief = -1; fitted = ""; footSig = "";
 });
 
@@ -702,7 +735,18 @@ if (new URLSearchParams(location.search).has("shot")) {
     pick: (index: number) => { brief = index; endless = false; screen = "world"; selected = 0; footSig = ""; },
     spawn: (ek: EnemyKind, n: number, progress: number) => {
       if (!run) return 0;
-      for (let i = 0; i < n; i++) debugSpawn(run, meta, ek, progress + (i % 7) * 0.45);
+      const map = mapById(run.mapId);
+      const air = ek === "flyer";
+      const route = map ? (air ? map.air : map.ground)[0] : null;
+      const limit = Math.max(0.4, (route?.length ?? 8) - 0.7);
+      let p = Math.max(0, progress);
+      for (let i = 0; i < n; i++) {
+        let guard = 0;
+        while (guard++ < 80 && run.enemies.some((e) => e.alive && e.air === air && Math.abs(e.progress - p) < PATH_GAP)) p += PATH_GAP;
+        if (p > limit) break;
+        debugSpawn(run, meta, ek, p);
+        p += PATH_GAP;
+      }
       footSig = "";
       return run.enemies.length;
     },

@@ -6,7 +6,7 @@ import { statsOf } from "./combat.ts";
 import { modAt } from "./sim.ts";
 import {
   ENEMY_COLOR, TOWER_COLOR, TOWER_KINDS, TOWER_NAME,
-  type Meta, type Run, type TowerKind,
+  type EnemyKind, type Meta, type Run, type TowerKind,
 } from "./types.ts";
 
 export interface Cam { x: number; y: number; z: number }
@@ -46,6 +46,66 @@ export function toWorld(cam: Cam, w: number, h: number, sx: number, sy: number):
 function blob(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string): void {
   const sprite = glow(color, radius);
   ctx.drawImage(sprite, x - sprite.width / 2, y - sprite.height / 2);
+}
+
+function enemyShape(ctx: CanvasRenderingContext2D, kind: EnemyKind, x: number, y: number, r: number): void {
+  ctx.beginPath();
+  const poly = (n: number, spin: number, rad: (i: number) => number) => {
+    for (let i = 0; i < n; i++) {
+      const a = spin + (Math.PI * 2 * i) / n;
+      const d = rad(i);
+      const px = x + Math.cos(a) * d;
+      const py = y + Math.sin(a) * d;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+  };
+  if (kind === "walker") {
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r * 0.78, y);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r * 0.78, y);
+  } else if (kind === "runner") {
+    ctx.moveTo(x - r * 0.15, y - r);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x - r * 0.15, y + r);
+    ctx.lineTo(x - r * 0.72, y);
+  } else if (kind === "knight") poly(6, Math.PI / 6, () => r);
+  else if (kind === "healer") ctx.arc(x, y, r * 0.8, 0, Math.PI * 2);
+  else if (kind === "splitter") {
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - r, y - r * 0.72);
+    ctx.lineTo(x - r, y + r * 0.72);
+    ctx.closePath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r, y - r * 0.72);
+    ctx.lineTo(x + r, y + r * 0.72);
+  } else if (kind === "shield") {
+    ctx.moveTo(x - r, y - r * 0.62);
+    ctx.lineTo(x + r, y - r * 0.62);
+    ctx.lineTo(x + r * 0.78, y + r * 0.15);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r * 0.78, y + r * 0.15);
+  } else if (kind === "flyer") {
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - r * 1.15, y - r * 0.45);
+    ctx.lineTo(x - r * 0.15, y);
+    ctx.lineTo(x - r * 1.15, y + r * 0.45);
+    ctx.closePath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r * 1.15, y - r * 0.45);
+    ctx.lineTo(x + r * 0.15, y);
+    ctx.lineTo(x + r * 1.15, y + r * 0.45);
+  } else if (kind === "shade") {
+    ctx.moveTo(x, y - r * 1.2);
+    ctx.lineTo(x + r * 0.38, y);
+    ctx.lineTo(x, y + r * 1.2);
+    ctx.lineTo(x - r * 0.38, y);
+  } else if (kind === "caller") poly(10, -Math.PI / 2, (i) => (i % 2 === 0 ? r : r * 0.42));
+  else if (kind === "boss") poly(8, -Math.PI / 8, (i) => (i % 2 === 0 ? r * 1.05 : r * 0.62));
+  else if (kind === "mite") ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
+  else ctx.rect(x - r * 0.68, y - r * 0.68, r * 1.36, r * 1.36);
+  ctx.closePath();
 }
 
 function shape(ctx: CanvasRenderingContext2D, kind: TowerKind, x: number, y: number, s: number): void {
@@ -235,37 +295,44 @@ export function paintBattle(
     }
   }
   for (const e of run.enemies) {
+    if (!e.alive) continue;
     const q = enemyPos(map, e);
     const p = toScreen(cam, w, h, q.x, q.y);
-    const color = e.kind === "shade" && e.revealedUntil <= run.time ? "rgba(138,124,255,0.35)" : ENEMY_COLOR[e.kind];
-    const body = Math.max(8, z * (e.kind === "boss" ? 0.42 : 0.3));
-    blob(ctx, p.x, p.y, body * 1.7, ENEMY_COLOR[e.kind]);
+    const hidden = e.kind === "shade" && e.revealedUntil <= run.time;
+    const color = hidden ? "rgba(138,124,255,0.55)" : ENEMY_COLOR[e.kind];
+    const body = Math.max(6.5, z * (e.kind === "boss" ? 0.4 : e.kind === "mite" ? 0.18 : 0.26));
+    blob(ctx, p.x, p.y, body * 0.7, color);
     ctx.fillStyle = color;
-    ctx.strokeStyle = "#f7fbff";
-    ctx.lineWidth = 1.25;
-    ctx.beginPath();
-    if (e.air) ctx.arc(p.x, p.y, body, 0, Math.PI * 2);
-    else {
-      ctx.moveTo(p.x, p.y - body);
-      ctx.lineTo(p.x + body * 0.86, p.y);
-      ctx.lineTo(p.x, p.y + body);
-      ctx.lineTo(p.x - body * 0.86, p.y);
-    }
-    ctx.closePath();
+    ctx.strokeStyle = hidden ? "rgba(220,210,255,0.7)" : "#f7fbff";
+    ctx.lineWidth = e.kind === "boss" ? 2 : 1.35;
+    enemyShape(ctx, e.kind, p.x, p.y, body);
     ctx.fill();
     ctx.stroke();
-    const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
-    const bw = Math.max(16, z * 0.72);
-    const bh = Math.max(4, z * 0.09);
+    if (e.kind === "healer") {
+      ctx.strokeStyle = "#07301c";
+      ctx.lineWidth = Math.max(1.4, body * 0.18);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - body * 0.42);
+      ctx.lineTo(p.x, p.y + body * 0.42);
+      ctx.moveTo(p.x - body * 0.42, p.y);
+      ctx.lineTo(p.x + body * 0.42, p.y);
+      ctx.stroke();
+    } else if (e.kind === "shield") {
+      ctx.fillStyle = "rgba(6, 16, 32, 0.8)";
+      ctx.fillRect(p.x - body * 0.55, p.y - body * 0.12, body * 1.1, body * 0.22);
+    }
+    const ratio = Math.max(0, Math.min(1, e.hp / Math.max(1, e.maxHp)));
+    const bw = Math.max(14, body * 2.15);
+    const bh = Math.max(3, Math.min(5, z * 0.08));
     const bx = p.x - bw / 2;
     const by = p.y - body - bh - 3;
-    ctx.fillStyle = "rgba(0,0,0,0.72)";
-    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = "rgba(0,0,0,0.82)";
+    ctx.fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
     ctx.fillStyle = ratio > 0.45 ? "#8dffc0" : "#ff5d7a";
-    ctx.fillRect(bx, by, bw * ratio, bh);
+    ctx.fillRect(bx, by, Math.max(0, bw * ratio), bh);
     if (e.shield > 0) {
       ctx.fillStyle = "#9ad7ff";
-      ctx.fillRect(bx, by - 2, bw * Math.min(1, e.shield / (e.maxHp * 0.5)), 2);
+      ctx.fillRect(bx, by - 2.5, bw * Math.min(1, e.shield / (e.maxHp * 0.5)), 2);
     }
   }
   for (const proj of run.projs) {

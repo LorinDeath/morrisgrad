@@ -1,5 +1,5 @@
 // Тексты карточек и подсказок. Без DOM.
-import { fmt, previewStats, rankCost, statsOf, xpBar } from "./combat.ts";
+import { fmt, previewStats, rankCost } from "./combat.ts";
 import { goalsOf, mapById, type MapDef } from "./maps.ts";
 import { canBuy, compile, nodeById } from "./research.ts";
 import { modAt } from "./sim.ts";
@@ -51,16 +51,8 @@ export function towerCard(run: Run, meta: Meta, id: number): { title: string; li
   if (!map || !tower) return null;
   const b = compile(meta);
   const mod = modAt(map, run, tower.x, tower.y);
-  const st = statsOf(tower, mod, b, 0);
-  const bar = xpBar(tower.xp);
   const spec = TOWERS[tower.kind];
-  const lines = [
-    `${TOWER_NAME[tower.kind]}, опыт ${bar.level}.`,
-    kindLine(tower.kind, st),
-    `Опыт до следующего: ${Math.floor(bar.into)}/${bar.need}.`,
-    `Убийства: ${tower.kills}. Нанесённый урон: ${fmt(tower.dealt)}.`,
-    `Прицел: ${TARGET_NAME[tower.target]}.`,
-  ];
+  const lines: string[] = [];
   if (mod) lines.push(`Плитка: ${MOD_NAME[mod]}.`);
   if (tower.abilities.length) {
     lines.push("Умения: " + tower.abilities.map((a) => ABILITY_BY_ID[a]?.name ?? a).join(", ") + (tower.upgraded ? `. Усилено: ${ABILITY_BY_ID[tower.upgraded]?.name ?? ""}.` : "."));
@@ -105,11 +97,6 @@ export function towerCard(run: Run, meta: Meta, id: number): { title: string; li
     tip: `Снять башню и вернуть ${refund} золота. Это ${Math.round(Math.min(0.9, 0.7 + b.sell) * 100)}% от ${tower.spent} золота, вложенного в неё.`,
   });
   return { title: TOWER_NAME[tower.kind], lines, buttons };
-}
-
-function kindLine(kind: TowerKind, st: { dmg: number; rate: number; range: number }): string {
-  if (kind === "miner") return "Не стреляет. Добывает руду из жилы.";
-  return `Урон: ${fmt(st.dmg)}. Темп: ${fmt(st.rate)}/с. Радиус: ${fmt(st.range)}.`;
 }
 
 export function dockOf(meta: Meta): { kind: TowerKind; label: string; tip: string; locked: boolean }[] {

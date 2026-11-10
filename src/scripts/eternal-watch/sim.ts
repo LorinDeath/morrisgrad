@@ -1,7 +1,7 @@
 // Шаг ночи. Чистая симуляция, без DOM и localStorage.
 import {
   ENEMY_BASE, RESIST, abilityCd, enemyArmor, enemyHp, extraFrom, hitsAir,
-  interestGold, killGold, levelOf, mitigate, profileOf, rewardAmounts, seesShade, spawnInterval, starCount,
+  interestGold, killGold, levelOf, mitigate, PATH_GAP, profileOf, releaseGap, rewardAmounts, seesShade, starCount,
   statsOf, tileBonus, waveGold, wavePlan,
 } from "./combat.ts";
 import { along, cellChar, mapById, tileBuildable, type MapDef } from "./maps.ts";
@@ -128,9 +128,9 @@ function killEnemy(run: Run, b: Bonuses, map: MapDef, enemy: Enemy, tower: Tower
     run.gold += gold;
     run.goldEarned += gold;
   }
-  if (enemy.kind === "splitter") {
-    const a = spawnKind(run, b, map, "mite", enemy.route, enemy.wave, enemy.progress - 0.35, false);
-    const c = spawnKind(run, b, map, "mite", enemy.route, enemy.wave, enemy.progress - 0.15, false);
+    if (enemy.kind === "splitter") {
+    const a = spawnKind(run, b, map, "mite", enemy.route, enemy.wave, enemy.progress - PATH_GAP, false);
+    const c = spawnKind(run, b, map, "mite", enemy.route, enemy.wave, enemy.progress - PATH_GAP * 2, false);
     a.fromSplit = true;
     c.fromSplit = true;
   }
@@ -163,12 +163,12 @@ function phases(run: Run, b: Bonuses, map: MapDef, enemy: Enemy): void {
   if (!enemy.phased2 && enemy.hp <= enemy.maxHp * 0.66) {
     enemy.phased2 = true;
     enemy.armor += 4;
-    for (let i = 0; i < 3; i++) spawnKind(run, b, map, "walker", enemy.route, enemy.wave, enemy.progress - 0.8 - i * 0.25, false);
+    for (let i = 0; i < 3; i++) spawnKind(run, b, map, "walker", enemy.route, enemy.wave, enemy.progress - PATH_GAP * (i + 1), false);
   }
   if (!enemy.phased3 && enemy.hp <= enemy.maxHp * 0.33) {
     enemy.phased3 = true;
     enemy.shield += Math.floor(enemy.maxHp * 0.25);
-    for (let i = 0; i < 2; i++) spawnKind(run, b, map, "knight", enemy.route, enemy.wave, enemy.progress - 0.7 - i * 0.3, false);
+    for (let i = 0; i < 2; i++) spawnKind(run, b, map, "knight", enemy.route, enemy.wave, enemy.progress - PATH_GAP * (i + 1), false);
   }
 }
 
@@ -659,26 +659,37 @@ function enqueue(run: Run, map: MapDef): void {
   if (run.scheduled >= goal || run.time < run.nextWaveAt || run.queue.length) return;
   const wave = run.scheduled + 1;
   const plan = wavePlan(map.difficulty, wave, run.endless, map.waves);
-  const interval = spawnInterval(wave);
-  let count = 0;
+  let at = run.time;
   let i = 0;
   for (const g of plan) {
     for (let n = 0; n < g.count; n++) {
-      run.queue.push({ kind: g.kind, spawn: map.spawns.length ? i % map.spawns.length : 0, at: run.time + count * interval, wave });
+      run.queue.push({ kind: g.kind, spawn: map.spawns.length ? i % map.spawns.length : 0, at, wave });
+      at += releaseGap(g.kind, wave);
       i++;
-      count++;
     }
   }
   run.scheduled = wave;
-  run.nextWaveAt = run.time + count * interval + 3.2;
+  run.nextWaveAt = at + 3.2;
+}
+
+function routeCrowded(run: Run, route: number, air: boolean): boolean {
+  return run.enemies.some((e) => e.alive && e.route === route && e.air === air && e.progress < PATH_GAP);
 }
 
 function drainQueue(run: Run, b: Bonuses, map: MapDef): void {
-  while (run.queue.length && run.queue[0].at <= run.time) {
-    const q = run.queue.shift()!;
+  const keep: Run["queue"] = [];
+  for (const q of run.queue) {
+    if (q.at > run.time) { keep.push(q); continue; }
     const air = q.kind === "flyer";
+    if (routeCrowded(run, q.spawn, air)) {
+      q.at = run.time + 0.12;
+      keep.push(q);
+      continue;
+    }
     spawnKind(run, b, map, q.kind, q.spawn, q.wave, 0, air);
   }
+  keep.sort((a, c) => a.at - c.at);
+  run.queue = keep;
 }
 
 function bank(run: Run, meta: Meta, b: Bonuses, map: MapDef): void {
@@ -948,5 +959,5 @@ export function debugSpawn(run: Run, meta: Meta, kind: EnemyKind, progress = 0):
   const map = mapById(run.mapId);
   if (!map) return null;
   const b = compile(meta);
-  return spawnKind(run, b, map, kind, 0, Math.max(1, run.scheduled || 1), progress, kind === "flyer");
+  return spawnKind(run, b, map, kind, 0, Math.max(1, run.scheduled || 1), Math.max(0, progress), kind === "flyer");
 }

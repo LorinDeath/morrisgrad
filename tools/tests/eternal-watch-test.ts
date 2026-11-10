@@ -2,7 +2,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import {
-  MAPS, RESEARCH, SAVE_KEY, TOWERS, buyNode, canBuy, chooseAbility, compile, debugSpawn,
+  MAPS, PATH_GAP, RESEARCH, SAVE_KEY, TOWERS, buyNode, canBuy, chooseAbility, compile, debugSpawn,
   enemyHp, formatNumber, freshMeta, beginRun, callWave, levelOf, loadMeta, mapById, mitigate,
   nodeById, placeStamp, placeTower, researchCount, serializeMeta, simulate, towerTip,
   upgradeTower, wavePlan,
@@ -221,6 +221,14 @@ ok(scripted.outcome === "win" && (scripted.reward?.stars ?? 0) >= 1, "перва
 const caller = beginRun(freshMeta(), "spark-path", false, 9)!;
 caller.nextWaveAt = caller.time + 30;
 ok(callWave(caller).ok && caller.nextWaveAt === caller.time, "вызов волны");
+
+const spaced = beginRun(freshMeta(), "spark-path", false, 4)!;
+simulate(spaced, freshMeta(), 5, 0.05);
+const walkers = spaced.enemies.filter((e) => e.alive && e.kind === "walker").sort((a, b) => a.progress - b.progress);
+ok(walkers.length >= 2, `пехота на тропе ${walkers.length}`);
+for (let i = 1; i < walkers.length; i++) {
+  ok(walkers[i].progress - walkers[i - 1].progress >= PATH_GAP * 0.9, `зазор ${walkers[i].progress - walkers[i - 1].progress}`);
+}
 
 console.log(fails ? `FAIL ${fails}` : `ok ${passes}`);
 process.exit(fails ? 1 : 0);
