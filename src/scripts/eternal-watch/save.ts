@@ -1,7 +1,8 @@
 // Сохранение меты. Ключ v1 не перезаписывается. Битый JSON не роняет игру.
 import { MAPS, mapById } from "./maps.ts";
 import { nodeById } from "./research.ts";
-import { ABILITY_BY_ID, TOWER_KINDS, freshMeta, type EnemyKind, type Meta, type ModKind, type Run, type TargetMode, type TowerKind } from "./types.ts";
+import { ABILITY_BY_ID, MODE_IDS, TOWER_KINDS, freshMeta, type EnemyKind, type Meta, type ModeId, type ModKind, type Run, type TargetMode, type TowerKind } from "./types.ts";
+import { MUTATORS } from "./modes.ts";
 
 const MODS = new Set<ModKind>(["dmg", "range", "rate", "xp", "bounty"]);
 const TARGETS = new Set<TargetMode>(["first", "last", "strong", "near"]);
@@ -43,6 +44,14 @@ function sanitizeRun(value: unknown): Run | null {
   const run = r as Run;
   run.mapId = map.id;
   run.endless = !!r.endless;
+  const asked = typeof r.mode === "string" && (MODE_IDS as readonly string[]).includes(r.mode) ? r.mode as ModeId : (run.endless ? "endless" : "campaign");
+  run.mode = asked;
+  const knownMut = new Set(MUTATORS.map((m) => m.id));
+  run.mutators = Array.isArray(r.mutators) ? r.mutators.filter((id) => typeof id === "string" && knownMut.has(id)) : [];
+  run.banner = typeof r.banner === "string" ? r.banner.slice(0, 160) : "";
+  run.bannerUntil = Math.max(0, num(r.bannerUntil));
+  run.walls = Array.isArray(r.walls) ? r.walls.filter((w) => typeof w === "string" && /^\d+,\d+$/.test(w)).slice(0, 400) : [];
+  run.dailyKey = typeof r.dailyKey === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.dailyKey) ? r.dailyKey : "";
   run.seed = Math.max(1, Math.floor(num(r.seed, 1)));
   run.rng = Math.max(1, Math.floor(num(r.rng, run.seed)));
   run.time = Math.max(0, num(r.time));
@@ -184,6 +193,19 @@ function sanitize(data: unknown, v1raw: string | null): Meta {
     for (const [id, lv] of Object.entries(d.endlessBest)) {
       if (!ids.has(id)) continue;
       meta.endlessBest[id] = Math.max(0, Math.floor(num(lv)));
+    }
+  }
+  const playIds = new Set(["blitz", "boss", "five", "maze", "fog", "dual", "life", "daily", "chaos", "sandbox"]);
+  if (d.modeBest && typeof d.modeBest === "object") {
+    for (const [id, lv] of Object.entries(d.modeBest)) {
+      if (!playIds.has(id)) continue;
+      meta.modeBest[id] = Math.max(0, Math.floor(num(lv)));
+    }
+  }
+  if (d.dailyBest && typeof d.dailyBest === "object") {
+    for (const [id, lv] of Object.entries(d.dailyBest)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(id)) continue;
+      meta.dailyBest[id] = Math.max(0, Math.floor(num(lv)));
     }
   }
   applyV1(meta, v1raw);

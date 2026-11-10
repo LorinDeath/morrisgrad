@@ -587,8 +587,37 @@ function build(seed: Seed): MapDef {
 export const MAPS: MapDef[] = SEEDS.map(build);
 export const MAP_BY_ID: Record<string, MapDef> = Object.fromEntries(MAPS.map((m) => [m.id, m]));
 
+const LIVE = new Map<string, MapDef>();
+const EXTRA = new Map<string, MapDef>();
+
+export function registerMap(map: MapDef): void {
+  EXTRA.set(map.id, map);
+}
+
+export function mountMap(map: MapDef): void {
+  LIVE.set(map.id, map);
+}
+
+export function cloneMap(map: MapDef): MapDef {
+  return {
+    ...map,
+    grid: map.grid.slice(),
+    spawns: map.spawns.map((c) => ({ ...c })),
+    gates: map.gates.map((c) => ({ ...c })),
+    ground: map.ground.map((r) => ({ ...r, pts: r.pts.map((p) => ({ ...p })), gate: { ...r.gate } })),
+    air: map.air.map((r) => ({ ...r, pts: r.pts.map((p) => ({ ...p })), gate: { ...r.gate } })),
+  };
+}
+
 export function mapById(id: string): MapDef | null {
-  return MAP_BY_ID[id] ?? null;
+  return LIVE.get(id) ?? EXTRA.get(id) ?? MAP_BY_ID[id] ?? null;
+}
+
+export function buildMap(seed: {
+  id: string; name: string; blurb: string; waves: number; difficulty: number;
+  goldBonus: number; heartBonus: number; star3: string; grid: string;
+}): MapDef {
+  return build(seed);
 }
 
 export function campaignAnchor(index: number): Cell {

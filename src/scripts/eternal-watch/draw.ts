@@ -1,11 +1,13 @@
-// Неон на тёмной сетке. Свечение берётся из маленьких холстов, без shadowBlur в кадре.
+// Неон на тёмной сетке и целые пиксельные спрайты. Свечение берётся из маленьких холстов, без shadowBlur в кадре.
 import { MAPS, campaignAnchor, cellChar, type MapDef } from "./maps.ts";
 import { canBuy, compile, RESEARCH } from "./research.ts";
+import { bonusesFor, revealed } from "./modes.ts";
 import { enemyPos } from "./sim.ts";
-import { statsOf } from "./combat.ts";
+import { levelOf, statsOf } from "./combat.ts";
 import { modAt } from "./sim.ts";
+import { enemyFrame, spriteUrl, towerFrame, PROJ_SPRITE, TOWER_SPRITE } from "./sprites.ts";
 import {
-  ENEMY_COLOR, TOWER_COLOR, TOWER_KINDS, TOWER_NAME,
+  ENEMY_COLOR, ENEMY_KINDS, TOWER_COLOR, TOWER_KINDS, TOWER_NAME,
   type EnemyKind, type Meta, type Run, type TowerKind,
 } from "./types.ts";
 
@@ -46,6 +48,70 @@ export function toWorld(cam: Cam, w: number, h: number, sx: number, sy: number):
 function blob(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string): void {
   const sprite = glow(color, radius);
   ctx.drawImage(sprite, x - sprite.width / 2, y - sprite.height / 2);
+}
+
+const frames = new Map<string, HTMLImageElement>();
+
+export function warmSprites(): void {
+  const names = new Set<string>();
+  for (const k of TOWER_KINDS) {
+    names.add(TOWER_SPRITE[k] + "_a");
+    names.add(TOWER_SPRITE[k] + "_b");
+    names.add(PROJ_SPRITE[k]);
+  }
+  for (const k of ENEMY_KINDS) names.add(enemyFrame(k, 1, 0, 0));
+  for (const n of [
+    "boss_lich", "boss_demon", "boss_skeleton_king", "boss_minotaur", "boss_dragon", "boss_warlord",
+    "enemy_walker_a", "enemy_walker_b", "enemy_runner_a", "enemy_runner_b", "enemy_tank_a", "enemy_tank_b",
+    "enemy_swarm_a", "enemy_swarm_b", "enemy_healer_a", "enemy_healer_b", "enemy_flyer_a", "enemy_flyer_b",
+    "enemy_shield_a", "enemy_shield_b", "enemy_splitter_a", "enemy_splitter_b", "enemy_ghost_a", "enemy_ghost_b",
+    "enemy_regen_a", "enemy_regen_b",
+    "fx_explode", "fx_hit", "fx_shockwave", "fx_spark",
+    "proj_arrow", "proj_cannonball", "proj_fireball", "proj_ice_shard", "proj_bolt", "proj_poison", "proj_beam",
+    "tile_rock", "tile_ore", "tile_crystal", "tile_portal", "tile_gate", "tile_castle", "tile_tree", "tile_tree_pine",
+    "tile_tree_dead", "tile_stump", "tile_ruin", "tile_rubble", "tile_wall", "tile_wall_moss", "decor_lantern", "decor_lamp", "decor_fence", "decor_bridge",
+    "ability_fire", "ability_blizzard", "ability_dawn",
+    "icon_gold", "icon_heart", "icon_star", "icon_gem", "icon_skull", "icon_clock", "icon_lock", "icon_sword", "icon_shield", "icon_trophy", "icon_map", "icon_chest",
+    "mode_blitz", "mode_boss_parade", "mode_five_towers", "mode_labyrinth", "mode_fog", "mode_two_streams", "mode_one_life", "mode_daily", "mode_chaos", "mode_sandbox",
+  ]) names.add(n);
+  for (const name of names) {
+    if (frames.has(name)) continue;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = spriteUrl(name);
+    frames.set(name, img);
+  }
+}
+
+function frameOf(name: string): HTMLImageElement | null {
+  const img = frames.get(name);
+  if (!img || !img.complete || img.naturalWidth <= 0) return null;
+  return img;
+}
+
+function blit(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, size: number): boolean {
+  const img = frameOf(name);
+  if (!img) return false;
+  const s = Math.max(4, Math.round(size));
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, Math.round(x - s / 2), Math.round(y - s / 2), s, s);
+  return true;
+}
+
+const aimVis = new Map<number, { ang: number; kick: number }>();
+const projTrail = new Map<number, { x: number; y: number }[]>();
+
+function cellHash(x: number, y: number): number {
+  let n = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) >>> 0;
+  n = (n ^ (n >>> 13)) >>> 0;
+  return n;
+}
+
+function shadowUnder(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(Math.round(x), Math.round(y + size * 0.34), Math.max(3, size * 0.28), Math.max(2, size * 0.1), 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function enemyShape(ctx: CanvasRenderingContext2D, kind: EnemyKind, x: number, y: number, r: number): void {
@@ -140,12 +206,37 @@ export function fitCam(w: number, h: number, worldW: number, worldH: number, pad
   return { x: worldW / 2, y: worldH / 2, z: Math.max(0.35, z) };
 }
 
-export interface Ghost { x: number; y: number; kind: TowerKind; range: number; ok: boolean }
+export interface Ghost { x: number; y: number; kind: TowerKind | "wall"; range: number; ok: boolean }
+
+function paintProps(
+  ctx: CanvasRenderingContext2D, map: MapDef, run: Run, cam: Cam, w: number, h: number, z: number,
+): void {
+  const size = Math.max(10, z * 0.86);
+  for (let y = 0; y < map.rows; y++) for (let x = 0; x < map.cols; x++) {
+    const ch = cellChar(map, x, y);
+    const p = toScreen(cam, w, h, x + 0.5, y + 0.5);
+    const n = cellHash(x, y);
+    if (ch === "#") {
+      const pick = ["tile_rock", "tile_ruin", "tile_rubble", "tile_tree_dead", "tile_stump", "tile_wall", "tile_wall_moss", "tile_tree"][n % 8];
+      if (n % 3 !== 0) blit(ctx, pick, p.x, p.y, size * (n % 5 === 0 ? 1.05 : 0.82));
+    } else if (ch === "v") blit(ctx, "tile_ore", p.x, p.y, size);
+    else if (ch === "+" || run.mods[x + "," + y] === "dmg") blit(ctx, "tile_crystal", p.x, p.y - z * 0.05, size * 0.72);
+    else if ("*~^$".includes(ch) || run.mods[x + "," + y]) blit(ctx, "fx_spark", p.x, p.y, size * 0.55);
+    else if (ch === "." && n % 11 === 0) blit(ctx, n % 2 ? "tile_tree_pine" : "decor_lamp", p.x, p.y, size * 0.7);
+  }
+  for (const wall of run.walls) {
+    const [xs, ys] = wall.split(",").map(Number);
+    const p = toScreen(cam, w, h, xs + 0.5, ys + 0.5);
+    blit(ctx, "decor_fence", p.x, p.y, size);
+  }
+}
 
 export function paintBattle(
   ctx: CanvasRenderingContext2D, w: number, h: number, map: MapDef, run: Run, meta: Meta,
   cam: Cam, selected: number, showNumbers: boolean, ghost: Ghost | null = null,
 ): void {
+  warmSprites();
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = "#070b16";
   ctx.fillRect(0, 0, w, h);
   const z = cam.z;
@@ -184,6 +275,7 @@ export function paintBattle(
     ctx.lineTo(b.x, b.y);
   }
   ctx.stroke();
+  paintProps(ctx, map, run, cam, w, h, z);
   for (const route of map.ground) {
     ctx.beginPath();
     route.pts.forEach((pt, i) => {
@@ -197,10 +289,11 @@ export function paintBattle(
     ctx.strokeStyle = "rgba(150, 210, 255, 0.85)";
     ctx.lineWidth = Math.max(2, z * 0.08);
     ctx.stroke();
+    const flow = (run.time * 0.65) % 1;
     for (let i = 0; i < route.pts.length - 1; i += 2) {
       const a = route.pts[i];
       const b = route.pts[i + 1];
-      const p = toScreen(cam, w, h, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      const p = toScreen(cam, w, h, a.x + (b.x - a.x) * flow, a.y + (b.y - a.y) * flow);
       const ang = Math.atan2(b.y - a.y, b.x - a.x);
       ctx.save();
       ctx.translate(p.x, p.y);
@@ -215,32 +308,47 @@ export function paintBattle(
       ctx.restore();
     }
   }
-  const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 260);
+  const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 280);
+  const tick = Math.floor(run.time * 4);
+  if (run.mode === "fog") {
+    ctx.fillStyle = "rgba(2, 4, 12, 0.72)";
+    for (let y = 0; y < map.rows; y++) for (let x = 0; x < map.cols; x++) {
+      if (revealed(run, map, x + 0.5, y + 0.5)) continue;
+      const p = toScreen(cam, w, h, x, y);
+      ctx.fillRect(p.x, p.y, z + 0.6, z + 0.6);
+    }
+  }
   for (const s of map.spawns) {
     const p = toScreen(cam, w, h, s.x + 0.5, s.y + 0.5);
-    blob(ctx, p.x, p.y, z * (0.55 + pulse * 0.15), "#c9a6ff");
-    ctx.strokeStyle = "#e7d6ff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, z * 0.34, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = "#f4e9ff";
-    ctx.font = `700 ${Math.max(10, z * 0.22)}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText("Портал", p.x, p.y - z * 0.42);
+    blob(ctx, p.x, p.y, z * (0.48 + pulse * 0.12), "#c9a6ff");
+    if (!blit(ctx, "tile_portal", p.x, p.y, z * 0.92)) {
+      ctx.strokeStyle = "#e7d6ff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, z * 0.34, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (z > 18) {
+      ctx.fillStyle = "#f4e9ff";
+      ctx.font = `700 ${Math.max(10, Math.round(z * 0.2))}px "Exo 2", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText("Портал", Math.round(p.x), Math.round(p.y - z * 0.52));
+    }
   }
   for (const g of map.gates) {
     const p = toScreen(cam, w, h, g.x + 0.5, g.y + 0.5);
-    blob(ctx, p.x, p.y, z * (0.62 + pulse * 0.2), "#ffb020");
-    ctx.strokeStyle = "#ffe1a0";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(p.x - z * 0.28, p.y - z * 0.28, z * 0.56, z * 0.56);
-    ctx.fillStyle = "#fff4d2";
-    ctx.font = `700 ${Math.max(10, z * 0.22)}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText("Врата", p.x, p.y - z * 0.42);
+    blob(ctx, p.x, p.y, z * (0.55 + pulse * 0.16), "#ffb020");
+    blit(ctx, "tile_castle", p.x, p.y - z * 0.08, z * 0.95);
+    blit(ctx, "tile_gate", p.x, p.y + z * 0.02, z * 0.78);
+    if (z > 18) {
+      ctx.fillStyle = "#fff4d2";
+      ctx.font = `700 ${Math.max(10, Math.round(z * 0.2))}px "Exo 2", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText("Врата", Math.round(p.x), Math.round(p.y - z * 0.56));
+    }
   }
   for (const route of map.air) {
+    if (run.mode === "fog" && !route.pts.some((pt) => revealed(run, map, pt.x, pt.y))) continue;
     ctx.beginPath();
     route.pts.forEach((pt, i) => {
       const p = toScreen(cam, w, h, pt.x, pt.y);
@@ -253,118 +361,194 @@ export function paintBattle(
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  if (ghost) {
+  if (ghost && ghost.kind !== "wall") {
     const p = toScreen(cam, w, h, ghost.x + 0.5, ghost.y + 0.5);
-    ctx.globalAlpha = ghost.ok ? 0.85 : 0.35;
+    ctx.globalAlpha = ghost.ok ? 0.9 : 0.35;
     ctx.beginPath();
     ctx.arc(p.x, p.y, ghost.range * z, 0, Math.PI * 2);
     ctx.strokeStyle = TOWER_COLOR[ghost.kind];
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    blob(ctx, p.x, p.y, Math.max(12, z * 0.5), TOWER_COLOR[ghost.kind]);
-    ctx.fillStyle = TOWER_COLOR[ghost.kind];
-    shape(ctx, ghost.kind, p.x, p.y, z);
-    ctx.fill();
+    blob(ctx, p.x, p.y, Math.max(12, z * 0.46), TOWER_COLOR[ghost.kind]);
+    const spr = towerFrame(ghost.kind, false);
+    if (!blit(ctx, spr, p.x, p.y, z * 0.86)) {
+      ctx.fillStyle = TOWER_COLOR[ghost.kind];
+      shape(ctx, ghost.kind, p.x, p.y, z);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  } else if (ghost && ghost.kind === "wall") {
+    const p = toScreen(cam, w, h, ghost.x + 0.5, ghost.y + 0.5);
+    ctx.globalAlpha = ghost.ok ? 0.9 : 0.35;
+    blit(ctx, "decor_fence", p.x, p.y, z * 0.86);
     ctx.globalAlpha = 1;
   }
   const sel = run.towers.find((t) => t.id === selected);
   if (sel && sel.kind !== "miner") {
-    const st = statsOf(sel, modAt(map, run, sel.x, sel.y), compile(meta), 0);
+    const st = statsOf(sel, modAt(map, run, sel.x, sel.y), bonusesFor(meta, run), 0);
     const p = toScreen(cam, w, h, sel.x + 0.5, sel.y + 0.5);
     ctx.beginPath();
     ctx.arc(p.x, p.y, st.range * z, 0, Math.PI * 2);
     ctx.strokeStyle = TOWER_COLOR[sel.kind];
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.55;
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+  const bLive = bonusesFor(meta, run);
   for (const t of run.towers) {
     const p = toScreen(cam, w, h, t.x + 0.5, t.y + 0.5);
     const color = TOWER_COLOR[t.kind];
-    blob(ctx, p.x, p.y, Math.max(10, z * 0.55), color);
-    ctx.fillStyle = color;
-    ctx.strokeStyle = "#f4fbff";
-    ctx.lineWidth = 1.4;
-    shape(ctx, t.kind, p.x, p.y, z);
-    ctx.fill();
-    ctx.stroke();
+    let ang = aimVis.get(t.id)?.ang ?? -Math.PI / 2;
+    let nearest = 1e9;
+    if (t.kind !== "miner") {
+      for (const e of run.enemies) {
+        if (!e.alive) continue;
+        const q = enemyPos(map, e);
+        const dx = q.x - (t.x + 0.5);
+        const dy = q.y - (t.y + 0.5);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < nearest) { nearest = d2; ang = Math.atan2(dy, dx); }
+      }
+    }
+    const rate = Math.max(0.2, statsOf(t, modAt(map, run, t.x, t.y), bLive, 0).rate || 0.2);
+    const kickTarget = t.kind === "miner" ? 0 : Math.max(0, Math.min(1, t.cd * rate));
+    const prev = aimVis.get(t.id) ?? { ang, kick: 0 };
+    let delta = ang - prev.ang;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    const nextAng = prev.ang + delta * 0.22;
+    const nextKick = prev.kick + (kickTarget - prev.kick) * 0.35;
+    aimVis.set(t.id, { ang: nextAng, kick: nextKick });
+    const lean = t.kind === "miner" || t.kind === "halo" ? 0 : nextKick;
+    const ox = -Math.cos(nextAng) * lean * Math.min(8, z * 0.12);
+    const oy = -Math.sin(nextAng) * lean * Math.min(8, z * 0.12);
+    blob(ctx, p.x, p.y, Math.max(10, z * 0.5), color);
+    shadowUnder(ctx, p.x + ox, p.y + oy, z * 0.7);
+    const upgraded = levelOf(t.xp) >= 4 || t.abilities.length > 0 || t.ranks.dmg + t.ranks.rate + t.ranks.range >= 2;
+    const drew = blit(ctx, towerFrame(t.kind, upgraded), p.x + ox, p.y + oy, z * 0.9);
+    if (!drew) {
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#f4fbff";
+      ctx.lineWidth = 1.4;
+      shape(ctx, t.kind, p.x, p.y, z);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (t.kind !== "miner" && nearest < 80) {
+      const muzzle = Math.min(z * 0.42, 18);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.35 + lean * 0.45;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p.x + ox, p.y + oy);
+      ctx.lineTo(p.x + ox + Math.cos(nextAng) * muzzle, p.y + oy + Math.sin(nextAng) * muzzle);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
     if (t.offer) {
-      ctx.fillStyle = "#ffe9a8";
-      ctx.fillRect(p.x + z * 0.22, p.y - z * 0.42, 6, 6);
+      blit(ctx, "fx_spark", p.x + z * 0.28, p.y - z * 0.32, Math.max(10, z * 0.28));
     }
   }
   for (const e of run.enemies) {
     if (!e.alive) continue;
     const q = enemyPos(map, e);
+    if (run.mode === "fog" && !revealed(run, map, q.x, q.y)) continue;
     const p = toScreen(cam, w, h, q.x, q.y);
     const hidden = e.kind === "shade" && e.revealedUntil <= run.time;
+    const body = e.kind === "boss" ? z * 0.92 : e.kind === "mite" ? z * 0.48 : z * 0.72;
     const color = hidden ? "rgba(138,124,255,0.55)" : ENEMY_COLOR[e.kind];
-    const body = Math.max(6.5, z * (e.kind === "boss" ? 0.4 : e.kind === "mite" ? 0.18 : 0.26));
-    blob(ctx, p.x, p.y, body * 0.7, color);
-    ctx.fillStyle = color;
-    ctx.strokeStyle = hidden ? "rgba(220,210,255,0.7)" : "#f7fbff";
-    ctx.lineWidth = e.kind === "boss" ? 2 : 1.35;
-    enemyShape(ctx, e.kind, p.x, p.y, body);
-    ctx.fill();
-    ctx.stroke();
-    if (e.kind === "healer") {
-      ctx.strokeStyle = "#07301c";
-      ctx.lineWidth = Math.max(1.4, body * 0.18);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y - body * 0.42);
-      ctx.lineTo(p.x, p.y + body * 0.42);
-      ctx.moveTo(p.x - body * 0.42, p.y);
-      ctx.lineTo(p.x + body * 0.42, p.y);
+    blob(ctx, p.x, p.y, Math.max(8, body * 0.55), color);
+    shadowUnder(ctx, p.x, p.y, body);
+    ctx.globalAlpha = hidden ? 0.55 : 1;
+    const spr = enemyFrame(e.kind, e.wave, e.id, tick);
+    if (!blit(ctx, spr, p.x, p.y - body * 0.08, body)) {
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#f7fbff";
+      ctx.lineWidth = 1.2;
+      enemyShape(ctx, e.kind, p.x, p.y, Math.max(6, body * 0.36));
+      ctx.fill();
       ctx.stroke();
-    } else if (e.kind === "shield") {
-      ctx.fillStyle = "rgba(6, 16, 32, 0.8)";
-      ctx.fillRect(p.x - body * 0.55, p.y - body * 0.12, body * 1.1, body * 0.22);
     }
+    ctx.globalAlpha = 1;
+    if (e.freezeUntil > run.time) blit(ctx, "fx_shockwave", p.x, p.y, body * 0.8);
+    else if (e.hp < e.maxHp) blit(ctx, "fx_hit", p.x, p.y, body * 0.45);
     const ratio = Math.max(0, Math.min(1, e.hp / Math.max(1, e.maxHp)));
-    const bw = Math.max(14, body * 2.15);
-    const bh = Math.max(3, Math.min(5, z * 0.08));
-    const bx = p.x - bw / 2;
-    const by = p.y - body - bh - 3;
+    const bw = Math.max(16, Math.round(body * 0.9));
+    const bh = Math.max(3, Math.min(5, Math.round(z * 0.08)));
+    const bx = Math.round(p.x - bw / 2);
+    const by = Math.round(p.y - body * 0.62);
     ctx.fillStyle = "rgba(0,0,0,0.82)";
-    ctx.fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
     ctx.fillStyle = ratio > 0.45 ? "#8dffc0" : "#ff5d7a";
-    ctx.fillRect(bx, by, Math.max(0, bw * ratio), bh);
+    ctx.fillRect(bx, by, Math.max(0, Math.round(bw * ratio)), bh);
     if (e.shield > 0) {
       ctx.fillStyle = "#9ad7ff";
-      ctx.fillRect(bx, by - 2.5, bw * Math.min(1, e.shield / (e.maxHp * 0.5)), 2);
+      ctx.fillRect(bx, by - 3, Math.round(bw * Math.min(1, e.shield / (e.maxHp * 0.5))), 2);
     }
   }
+  const seenProj = new Set<number>();
   for (const proj of run.projs) {
+    seenProj.add(proj.id);
+    const hist = projTrail.get(proj.id) ?? [];
+    hist.push({ x: proj.x, y: proj.y });
+    while (hist.length > 5) hist.shift();
+    projTrail.set(proj.id, hist);
+    for (let i = 0; i < hist.length - 1; i++) {
+      const hp = toScreen(cam, w, h, hist[i].x, hist[i].y);
+      ctx.globalAlpha = (i + 1) / hist.length * 0.45;
+      blit(ctx, PROJ_SPRITE[proj.kind], hp.x, hp.y, Math.max(6, z * 0.18));
+    }
+    ctx.globalAlpha = 1;
     const p = toScreen(cam, w, h, proj.x, proj.y);
-    blob(ctx, p.x, p.y, 8, proj.color);
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
-    ctx.fill();
+    const prev = hist.length > 1 ? hist[hist.length - 2] : hist[0];
+    const ang = Math.atan2(proj.y - prev.y, proj.x - prev.x);
+    blob(ctx, p.x, p.y, 7, proj.color);
+    ctx.save();
+    ctx.translate(Math.round(p.x), Math.round(p.y));
+    ctx.rotate(ang);
+    ctx.imageSmoothingEnabled = false;
+    const spr = frameOf(PROJ_SPRITE[proj.kind]);
+    const s = Math.max(8, Math.round(z * 0.28));
+    if (spr) ctx.drawImage(spr, Math.round(-s / 2), Math.round(-s / 2), s, s);
+    else {
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
+  for (const id of [...projTrail.keys()]) if (!seenProj.has(id)) projTrail.delete(id);
   if (showNumbers) {
     const bags = new Map<string, { x: number; y: number; sum: number; ttl: number; color: string }>();
     for (const fx of run.fx) {
-      if (fx.kind !== "num") continue;
+      if (fx.kind !== "num" || !fx.text) continue;
       const n = Number(String(fx.text).replace(/[^\d.-]/g, ""));
       if (!Number.isFinite(n)) continue;
-      const key = Math.round(fx.x) + ":" + Math.round(fx.y);
+      const key = Math.round(fx.x * 2) + ":" + Math.round(fx.y * 2);
       const bag = bags.get(key);
       if (!bag) bags.set(key, { x: fx.x, y: fx.y, sum: n, ttl: fx.ttl, color: fx.color });
       else { bag.sum += n; bag.ttl = Math.max(bag.ttl, fx.ttl); }
     }
-    ctx.font = "700 11px sans-serif";
+    ctx.font = "700 12px \"Exo 2\", sans-serif";
     ctx.textAlign = "center";
-    let i = 0;
+    const placed: { x: number; y: number }[] = [];
     for (const bag of bags.values()) {
       const p = toScreen(cam, w, h, bag.x, bag.y);
-      const rise = (0.75 - Math.min(0.75, bag.ttl)) * 28;
-      const shift = (i % 3 - 1) * 10;
-      ctx.globalAlpha = Math.max(0.15, Math.min(1, bag.ttl / 0.35));
+      const rise = (0.7 - Math.min(0.7, bag.ttl)) * 26;
+      let x = p.x;
+      let y = p.y - 22 - rise;
+      for (const prev of placed) {
+        if (Math.abs(prev.x - x) < 26 && Math.abs(prev.y - y) < 14) y = prev.y - 14;
+      }
+      placed.push({ x, y });
+      ctx.globalAlpha = Math.max(0.2, Math.min(1, bag.ttl / 0.35));
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(4,8,16,0.9)";
+      ctx.strokeText(String(Math.round(bag.sum)), x, y);
       ctx.fillStyle = bag.color;
-      ctx.fillText(String(Math.round(bag.sum)), p.x + shift, p.y - 10 - rise);
-      i++;
+      ctx.fillText(String(Math.round(bag.sum)), x, y);
     }
     ctx.globalAlpha = 1;
     ctx.textAlign = "left";
@@ -375,21 +559,70 @@ export function paintBattle(
       const a = toScreen(cam, w, h, fx.x, fx.y);
       const b = toScreen(cam, w, h, fx.x2, fx.y2);
       ctx.strokeStyle = fx.color;
-      ctx.globalAlpha = 0.85;
-      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = Math.max(2, z * 0.06);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
       ctx.globalAlpha = 1;
+      blit(ctx, "fx_spark", b.x, b.y, Math.max(10, z * 0.28));
+    } else if (fx.kind === "boom") {
+      const p = toScreen(cam, w, h, fx.x, fx.y);
+      const size = (0.55 + fx.ttl) * Math.max(18, z * 0.7);
+      if (!blit(ctx, "fx_explode", p.x, p.y, size)) blob(ctx, p.x, p.y, 18 * (0.4 + fx.ttl), fx.color);
     } else {
       const p = toScreen(cam, w, h, fx.x, fx.y);
-      blob(ctx, p.x, p.y, 18 * (0.4 + fx.ttl), fx.color);
+      if (!blit(ctx, fx.kind === "ring" ? "fx_hit" : "fx_shockwave", p.x, p.y, 16 + fx.ttl * 28)) {
+        blob(ctx, p.x, p.y, 18 * (0.4 + fx.ttl), fx.color);
+      }
     }
   }
+  if (run.banner && run.time < run.bannerUntil) {
+    const alpha = Math.min(1, run.bannerUntil - run.time);
+    ctx.globalAlpha = alpha;
+    const bw = Math.min(w - 24, 420);
+    const bh = 54;
+    const bx = (w - bw) / 2;
+    const by = 58;
+    ctx.fillStyle = "rgba(6,10,20,0.92)";
+    ctx.strokeStyle = "#ffb020";
+    ctx.lineWidth = 2;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeRect(bx, by, bw, bh);
+    blit(ctx, "icon_skull", bx + 28, by + bh / 2, 32);
+    ctx.fillStyle = "#fff4d2";
+    ctx.font = "700 18px Shket, Georgia, serif";
+    ctx.textAlign = "left";
+    ctx.fillText(run.banner, bx + 52, by + 34);
+    ctx.globalAlpha = 1;
+  }
+  if (run.outcome !== "play") {
+    const title = run.mode === "sandbox" ? "Опыт закончен" : run.outcome === "win" ? "Ночь удержана" : "Врата пали";
+    const bw = Math.min(w - 28, 460);
+    const bh = 92;
+    const bx = (w - bw) / 2;
+    const by = Math.max(18, h * 0.18);
+    ctx.fillStyle = "rgba(6,10,20,0.9)";
+    ctx.strokeStyle = run.outcome === "win" ? "#8dffc0" : "#ff8aa8";
+    ctx.lineWidth = 2;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeRect(bx, by, bw, bh);
+    blit(ctx, run.outcome === "win" ? "icon_trophy" : "icon_skull", bx + 36, by + 32, 36);
+    ctx.fillStyle = "#f4fbff";
+    ctx.font = "400 26px Shket, Georgia, serif";
+    ctx.textAlign = "left";
+    ctx.fillText(title, bx + 64, by + 40);
+    ctx.font = "700 14px \"Exo 2\", sans-serif";
+    ctx.fillStyle = "#c5d7ee";
+    const stars = run.reward?.stars ?? 0;
+    const tail = run.mode === "campaign" ? "  " + "★".repeat(stars) + "☆".repeat(Math.max(0, 3 - stars)) : "";
+    ctx.fillText(`Волн ${run.wavesCleared}   прорывов ${run.leaks}${tail}`, bx + 64, by + 68);
+  }
 }
-
 export function paintWorld(ctx: CanvasRenderingContext2D, w: number, h: number, meta: Meta, cam: Cam, endless: boolean): void {
+  warmSprites();
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = "#070b16";
   ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = "rgba(80, 140, 255, 0.08)";
@@ -450,6 +683,7 @@ export function paintWorld(ctx: CanvasRenderingContext2D, w: number, h: number, 
     ctx.fill();
     ctx.fillStyle = "#071018";
     ctx.fillText(String(i + 1), p.x, p.y + 4);
+    if (open) blit(ctx, stars > 0 ? "icon_star" : "tile_gate", p.x, p.y - 22, 18);
     const best = meta.endlessBest[map.id] ?? 0;
     ctx.fillStyle = "#9eb6d4";
     if (cam.z >= 0.62) {
@@ -501,6 +735,8 @@ function slotById(id: string): Slot | undefined {
 }
 
 export function paintTree(ctx: CanvasRenderingContext2D, w: number, h: number, meta: Meta, cam: Cam, selected: string | null): void {
+  warmSprites();
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = "#070b16";
   ctx.fillRect(0, 0, w, h);
   const origin = toWorld(cam, w, h, 0, 0);
@@ -587,9 +823,11 @@ export function paintTree(ctx: CanvasRenderingContext2D, w: number, h: number, m
     ctx.fill();
     ctx.stroke();
     if (s.kind) {
-      ctx.fillStyle = s.color;
-      shape(ctx, s.kind, p.x - 58, p.y, 28);
-      ctx.fill();
+      if (!blit(ctx, towerFrame(s.kind, owned), p.x - 58, p.y, 28)) {
+        ctx.fillStyle = s.color;
+        shape(ctx, s.kind, p.x - 58, p.y, 28);
+        ctx.fill();
+      }
     } else {
       ctx.fillStyle = color;
       ctx.beginPath();

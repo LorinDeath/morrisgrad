@@ -3,6 +3,12 @@
 export const SAVE_KEY = "mg-eternal-watch-v2";
 export const SAVE_KEY_V1 = "mg-eternal-watch-v1";
 
+export const MODE_IDS = [
+  "campaign", "endless",
+  "blitz", "boss", "five", "maze", "fog", "dual", "life", "daily", "chaos", "sandbox",
+] as const;
+export type ModeId = (typeof MODE_IDS)[number];
+
 export const TOWER_KINDS = [
   "spark", "needle", "muzzle", "chill", "venom", "arc",
   "beam", "bolt", "blaze", "halo", "awl", "swarm", "miner",
@@ -375,6 +381,12 @@ export interface Fx {
 export interface Run {
   mapId: string;
   endless: boolean;
+  mode: ModeId;
+  mutators: string[];
+  banner: string;
+  bannerUntil: number;
+  walls: string[];
+  dailyKey: string;
   seed: number;
   rng: number;
   time: number;
@@ -414,6 +426,8 @@ export interface Meta {
   nodes: Record<string, number>;
   stars: Record<string, number>;
   endlessBest: Record<string, number>;
+  modeBest: Record<string, number>;
+  dailyBest: Record<string, number>;
   damageNumbers: boolean;
   v1Bonus: boolean;
   run: Run | null;
@@ -422,6 +436,7 @@ export interface Meta {
 export function freshMeta(): Meta {
   return {
     v: 2, sparks: 0, ash: 0, vein: 0, nodes: {}, stars: {}, endlessBest: {},
+    modeBest: {}, dailyBest: {},
     damageNumbers: true, v1Bonus: false, run: null,
   };
 }

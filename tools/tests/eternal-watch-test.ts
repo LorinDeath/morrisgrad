@@ -2,9 +2,9 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import {
-  MAPS, PATH_GAP, RESEARCH, SAVE_KEY, TOWERS, buyNode, canBuy, chooseAbility, compile, debugSpawn,
-  enemyHp, formatNumber, freshMeta, beginRun, callWave, levelOf, loadMeta, mapById, mitigate,
-  nodeById, placeStamp, placeTower, researchCount, serializeMeta, simulate, towerTip,
+  MAPS, PATH_GAP, PLAY_MODES, RESEARCH, SAVE_KEY, TOWER_KINDS, TOWER_SPRITE, TOWERS, bonusesFor, buyNode, canBuy, chooseAbility, compile, debugSpawn,
+  enemyHp, formatNumber, freshMeta, beginRun, callWave, dailyMutators, endRun, levelOf, loadMeta, makeDailyMap, mapById, mitigate,
+  nodeById, openMode, placeStamp, placeTower, placeWall, researchCount, serializeMeta, simulate, stepRun, towerTip,
   upgradeTower, wavePlan,
 } from "../../src/scripts/eternal-watch/logic.ts";
 
@@ -228,6 +228,151 @@ const walkers = spaced.enemies.filter((e) => e.alive && e.kind === "walker").sor
 ok(walkers.length >= 2, `пехота на тропе ${walkers.length}`);
 for (let i = 1; i < walkers.length; i++) {
   ok(walkers[i].progress - walkers[i - 1].progress >= PATH_GAP * 0.9, `зазор ${walkers[i].progress - walkers[i - 1].progress}`);
+}
+
+ok(PLAY_MODES.length === 10, "10 режимов");
+const modeIds = new Set(PLAY_MODES.map((m) => m.id));
+ok(modeIds.size === 10, "id режимов уникальны");
+for (const mode of PLAY_MODES) {
+  ok(mode.name.length > 1 && mode.icon.startsWith("mode_"), mode.id + " имя и иконка");
+  ok(mode.rules.includes("Древо") && mode.research.includes("Древо"), mode.id + " сказано про древо");
+  ok(mode.summary.length > 8 && mode.score.length > 4, mode.id + " описание");
+}
+for (const kind of TOWER_KINDS) ok(TOWER_SPRITE[kind].startsWith("tower_"), "спрайт " + kind);
+
+const oldSave = JSON.stringify({
+  v: 2, sparks: 11, ash: 2, vein: 3, nodes: { "spark.root": 1 }, stars: { "spark-path": 2 },
+  endlessBest: { "spark-path": 4 }, damageNumbers: false, v1Bonus: true, run: null,
+});
+const migrated = loadMeta(oldSave, null);
+ok(migrated.persist && migrated.meta.sparks === 11 && migrated.meta.nodes["spark.root"] === 1, "старый сейв читается");
+ok(migrated.meta.stars["spark-path"] === 2 && migrated.meta.endlessBest["spark-path"] === 4, "звёзды и рекорд на месте");
+ok(migrated.meta.damageNumbers === false && migrated.meta.modeBest && migrated.meta.dailyBest, "новые поля пустые");
+const packed = JSON.parse(serializeMeta(migrated.meta)) as { v: number; sparks: number };
+ok(packed.v === 2 && packed.sparks === 11, "запись остаётся v2");
+
+const blitz = openMode(freshMeta(), "blitz", 4)!;
+ok(blitz.mode === "blitz" && mapById(blitz.mapId)!.spawns.length === 1, "блиц");
+blitz.queue = [];
+blitz.nextWaveAt = blitz.time;
+stepRun(blitz, freshMeta(), 0.05);
+ok(blitz.queue.length >= 2, "блиц выпустил очередь");
+ok(blitz.queue[1].at - blitz.queue[0].at < 0.95, "блиц чаще обычного такта");
+
+const parade = openMode(freshMeta(), "boss", 2)!;
+parade.queue = [];
+parade.nextWaveAt = parade.time;
+stepRun(parade, freshMeta(), 0.05);
+const paradeKinds = parade.queue.map((q) => q.kind).concat(parade.enemies.filter((e) => e.alive).map((e) => e.kind));
+ok(paradeKinds.length >= 1 && paradeKinds.every((k) => k === "boss"), "парад только боссы: " + paradeKinds.join(","));
+
+const five = openMode(freshMeta(), "five", 1)!;
+const fiveMap = mapById(five.mapId)!;
+let built = 0;
+for (let y = 0; y < fiveMap.rows && built < 6; y++) for (let x = 0; x < fiveMap.cols && built < 6; x++) {
+  if (placeTower(five, freshMeta(), x, y, "spark").ok) built++;
+}
+ok(built === 5, "пять башен, шестая не встала " + built);
+ok(!placeTower(five, freshMeta(), 2, 2, "spark").ok, "лимит пяти");
+
+const maze = openMode(freshMeta(), "maze", 3)!;
+const mazeMap = mapById(maze.mapId)!;
+const beforeLen = mazeMap.ground[0].length;
+ok(placeWall(maze, freshMeta(), 8, 5).ok, "стена на прямой");
+ok(mapById(maze.mapId)!.ground[0].length > beforeLen, "тропа обошла стену");
+let sealed = false;
+for (let y = 1; y < mazeMap.rows - 1; y++) {
+  const res = placeWall(maze, freshMeta(), 4, y);
+  if (!res.ok) sealed = true;
+}
+ok(sealed, "полный заслон запрещён");
+const walker = debugSpawn(maze, freshMeta(), "walker", 0.2)!;
+const progress0 = walker.progress;
+simulate(maze, freshMeta(), 1.2, 0.1);
+ok(walker.alive && walker.progress > progress0, "лабиринт ведёт тварь");
+
+const fogMeta = freshMeta();
+ok(bonusesFor(fogMeta, null).unlocked.halo === false, "ореол закрыт в кампании");
+const fog = openMode(fogMeta, "fog", 1)!;
+ok(bonusesFor(fogMeta, fog).unlocked.halo, "ореол открыт в тумане");
+const fogMap = mapById(fog.mapId)!;
+const spawn = fogMap.spawns[0];
+let sparkCell: { x: number; y: number } | null = null;
+let haloCell: { x: number; y: number } | null = null;
+for (let y = 0; y < fogMap.rows; y++) for (let x = 0; x < fogMap.cols; x++) {
+  const dx = x - spawn.x;
+  const dy = y - spawn.y;
+  if (!sparkCell && dx * dx + dy * dy <= 2 && placeTower(fog, fogMeta, x, y, "spark").ok) sparkCell = { x, y };
+}
+ok(!!sparkCell, "искра у портала");
+const hidden = debugSpawn(fog, fogMeta, "walker", 0.4)!;
+const hiddenHp = hidden.hp;
+simulate(fog, fogMeta, 1.4, 0.05);
+ok(hidden.alive && hidden.hp === hiddenHp, "туман прячет цель");
+for (let y = 0; y < fogMap.rows && !haloCell; y++) for (let x = 0; x < fogMap.cols; x++) {
+  if (Math.abs(x - spawn.x) + Math.abs(y - spawn.y) <= 2 && placeTower(fog, fogMeta, x, y, "halo").ok) { haloCell = { x, y }; break; }
+}
+ok(!!haloCell, "ореол встал");
+simulate(fog, fogMeta, 1.2, 0.05);
+ok(!hidden.alive || hidden.hp < hiddenHp, "ореол открывает туман");
+
+const dual = openMode(freshMeta(), "dual", 1)!;
+ok(mapById(dual.mapId)!.spawns.length === 2, "два портала");
+
+const life = openMode(freshMeta(), "life", 1)!;
+ok(life.hearts === 1 && life.maxHearts === 1, "одна жизнь");
+const lifeLen = mapById(life.mapId)!.ground[0].length;
+debugSpawn(life, freshMeta(), "walker", lifeLen - 0.05);
+simulate(life, freshMeta(), 0.4, 0.05);
+ok(life.outcome === "lose" && life.leaks >= 1, "один прорыв кончает ночь");
+
+const day = "2026-11-10";
+const dailyA = openMode(freshMeta(), "daily", 1, day)!;
+const gridA = mapById(dailyA.mapId)!.grid.join("|");
+const mutA = dailyA.mutators.join(",");
+const dailyB = openMode(freshMeta(), "daily", 9, day)!;
+ok(mapById(dailyB.mapId)!.grid.join("|") === gridA, "двор дня стабилен");
+ok(dailyB.mutators.join(",") === mutA && dailyMutators(day).join(",") === mutA, "модификаторы дня стабильны");
+ok(makeDailyMap(day).grid.join("|") !== makeDailyMap("2026-11-11").grid.join("|"), "другой день другой двор");
+const rich = freshMeta();
+rich.nodes["spark.root"] = 1;
+rich.nodes["spark.dmg1"] = 5;
+ok(bonusesFor(rich, dailyA).dmg.spark === 0 && bonusesFor(rich, dailyA).unlocked.needle, "в дне дня древо молчит, башни открыты");
+ok(bonusesFor(rich, null).dmg.spark > 0, "в кампании древо живо");
+
+const chaos = openMode(freshMeta(), "chaos", 5)!;
+for (let i = 0; i < 40 && chaos.scheduled < 5 && chaos.outcome === "play"; i++) {
+  chaos.queue = [];
+  for (const e of chaos.enemies) e.alive = false;
+  chaos.nextWaveAt = chaos.time;
+  stepRun(chaos, freshMeta(), 0.05);
+}
+ok(chaos.mutators.length >= 1 && chaos.banner.length > 2, "хаос назвал модификатор " + chaos.banner);
+
+const sandMeta = freshMeta();
+sandMeta.sparks = 4;
+const sand = openMode(sandMeta, "sandbox", 1)!;
+ok(sand.gold >= 50000 && bonusesFor(sandMeta, sand).unlocked.beam && bonusesFor(sandMeta, sand).abFire, "песочница щедрая");
+placeTower(sand, sandMeta, 3, 3, "spark");
+stepRun(sand, sandMeta, 0.05);
+ok(sand.gold >= 50000, "золото вернулось");
+endRun(sand, sandMeta);
+ok(sandMeta.sparks === 4 && (sandMeta.modeBest.sandbox ?? 0) === 0, "песочница без награды и рекорда");
+
+const camp = beginRun(freshMeta(), "spark-path", false, 1)!;
+ok(camp.mode === "campaign" && !placeWall(camp, freshMeta(), 3, 3).ok, "в кампании стен нет");
+
+const files2 = [
+  "src/pages/games/eternal-watch.astro",
+  "src/scripts/eternal-watch/client.ts",
+  "src/scripts/eternal-watch/logic.ts",
+  "src/scripts/eternal-watch/modes.ts",
+  "src/scripts/eternal-watch/draw.ts",
+  "docs/eternal-watch-v2-DESIGN.md",
+];
+for (const file of files2) {
+  const text = readFileSync(join(root, file), "utf8").toLowerCase();
+  for (const word of banned) ok(!text.includes(word), `${file} без «${word}»`);
 }
 
 console.log(fails ? `FAIL ${fails}` : `ok ${passes}`);

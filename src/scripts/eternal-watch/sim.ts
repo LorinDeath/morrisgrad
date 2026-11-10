@@ -4,12 +4,16 @@ import {
   interestGold, killGold, levelOf, mitigate, PATH_GAP, profileOf, releaseGap, rewardAmounts, seesShade, starCount,
   statsOf, tileBonus, waveGold, wavePlan,
 } from "./combat.ts";
-import { along, cellChar, mapById, tileBuildable, type MapDef } from "./maps.ts";
-import { compile } from "./research.ts";
+import { along, cellChar, mapById, mountMap, tileBuildable, type MapDef } from "./maps.ts";
+import {
+  WALL_COST, bindTrail, bonusesFor, dailyMutators, hasMut, isPlayMode, mutatorById, noteModeScore,
+  prepareModeMap, projectProgress, revealed, routeBetween, todayKey, trailOf,
+} from "./modes.ts";
+import { bossVisual } from "./sprites.ts";
 import {
   ABILITIES, TOWER_COLOR, TOWER_NAME, TOWERS, fail, ok,
   type Act, type Bonuses, type DmgType, type Enemy, type EnemyKind, type Extra, type Fx,
-  type GlobalId, type Meta, type ModKind, type Proj, type Run, type Tower, type TowerKind,
+  type GlobalId, type Meta, type ModeId, type ModKind, type Proj, type Run, type Tower, type TowerKind,
 } from "./types.ts";
 
 const RANK_MAX = 6;
@@ -43,10 +47,19 @@ export function modAt(map: MapDef, run: Run, x: number, y: number): ModKind | nu
 }
 
 export function enemyPos(map: MapDef, enemy: Enemy): { x: number; y: number } {
+  const trail = !enemy.air ? trailOf(enemy) : null;
+  if (trail) return along(trail, enemy.progress);
   const routes = enemy.air ? map.air : map.ground;
   const route = routes[Math.min(routes.length - 1, Math.max(0, enemy.route))];
   if (!route) return { x: 0.5, y: 0.5 };
   return along(route, enemy.progress);
+}
+
+function groundRoute(map: MapDef, enemy: Enemy): { length: number } | null {
+  const trail = !enemy.air ? trailOf(enemy) : null;
+  if (trail) return trail;
+  const routes = enemy.air ? map.air : map.ground;
+  return routes[Math.min(routes.length - 1, Math.max(0, enemy.route))] ?? null;
 }
 
 function blankEnemy(run: Run, kind: EnemyKind, hp: number, armor: number, wave: number, route: number, air: boolean, progress: number): Enemy {
@@ -107,10 +120,21 @@ function auraArmor(run: Run, map: MapDef, enemy: Enemy): number {
 }
 
 function spawnKind(run: Run, b: Bonuses, map: MapDef, kind: EnemyKind, route: number, wave: number, progress: number, air: boolean, parent = 0): Enemy {
-  const hp = enemyHp(kind, wave, map.difficulty, run.endless, b.knowHp[kind]);
+  let hp = enemyHp(kind, wave, map.difficulty, run.endless || run.mode === "sandbox", b.knowHp[kind]);
+  if (hasMut(run, "glass")) hp = Math.max(1, Math.floor(hp * 0.85));
   const enemy = blankEnemy(run, kind, hp, enemyArmor(kind, wave, run.endless), wave, route, air, progress);
   enemy.parent = parent;
   run.enemies.push(enemy);
+  if (run.mode === "maze" && !air) {
+    const parentEnemy = parent ? run.enemies.find((e) => e.id === parent) : null;
+    const trail = (parentEnemy && trailOf(parentEnemy)) || map.ground[Math.min(map.ground.length - 1, Math.max(0, route))];
+    if (trail) bindTrail(enemy, trail);
+  }
+  if (kind === "boss") {
+    const look = bossVisual(wave, enemy.id);
+    run.banner = look.name;
+    run.bannerUntil = run.time + 3.6;
+  }
   return enemy;
 }
 
@@ -124,10 +148,13 @@ function killEnemy(run: Run, b: Bonuses, map: MapDef, enemy: Enemy, tower: Tower
     grantXp(tower, 6 * xpMul);
     tower.kills++;
     const bounty = modAt(map, run, tower.x, tower.y) === "bounty" ? tileBonus("bounty", b).bounty : 0;
-    const gold = killGold(enemy.maxHp, b.gold, bounty);
+    let gold = killGold(enemy.maxHp, b.gold, bounty);
+    if (hasMut(run, "gold")) gold = Math.max(1, Math.floor(gold * 1.4));
     run.gold += gold;
     run.goldEarned += gold;
   }
+  const p = enemyPos(map, enemy);
+  pushFx(run, { x: p.x, y: p.y, x2: p.x, y2: p.y, text: "", ttl: enemy.kind === "boss" ? 0.7 : 0.38, color: enemy.kind === "boss" ? "#ff4d6a" : "#ffe9a8", kind: "boom" });
     if (enemy.kind === "splitter") {
     const a = spawnKind(run, b, map, "mite", enemy.route, enemy.wave, enemy.progress - PATH_GAP, false);
     const c = spawnKind(run, b, map, "mite", enemy.route, enemy.wave, enemy.progress - PATH_GAP * 2, false);
@@ -245,7 +272,9 @@ function hurt(
   }
   if (enemy.markUntil > run.time) amount *= 1 + enemy.markAmp;
   if (enemy.freezeUntil > run.time && enemy.brittleUntil > run.time) amount *= 1.2;
-  const armor = Math.max(0, enemy.armor + auraArmor(run, map, enemy) - (enemy.shredUntil > run.time ? enemy.shred : 0));
+  if (hasMut(run, "fury")) amount *= 1.18;
+  let armor = Math.max(0, enemy.armor + auraArmor(run, map, enemy) - (enemy.shredUntil > run.time ? enemy.shred : 0));
+  if (hasMut(run, "hide")) armor += 3;
   const dealt = mitigate(amount, (RESIST[enemy.kind][type] ?? 0) * resistMul, armor, pen, ignoreArmor);
   let left = dealt;
   if (enemy.shield > 0 && left > 0) {
@@ -260,9 +289,12 @@ function hurt(
     tower.dealt += dealt;
     grantXp(tower, dealt * 0.1 * xpMul);
   }
-  if (status || raw >= 1.2) {
+  if (dealt > 0) {
     const p = enemyPos(map, enemy);
-    pushFx(run, { x: p.x, y: p.y - 0.2, x2: p.x, y2: p.y, text: String(Math.max(1, Math.round(dealt))), ttl: 0.65, color: "#ffe9a8", kind: "num" });
+    pushFx(run, { x: p.x, y: p.y, x2: p.x, y2: p.y, text: "", ttl: 0.12, color: "#fff6d8", kind: "ring" });
+    if (status || raw >= 1.2) {
+      pushFx(run, { x: p.x, y: p.y - 0.2, x2: p.x, y2: p.y, text: String(Math.max(1, Math.round(dealt))), ttl: 0.7, color: "#ffe9a8", kind: "num" });
+    }
   }
   if (status && enemy.alive) applyStatus(run, enemy, status, tower);
   if (status && enemy.alive && enemy.hp > 0 && status.execute > 0) {
@@ -287,6 +319,10 @@ function listTargets(run: Run, map: MapDef, tower: Tower, b: Bonuses, range: num
     if (!e.alive || e.hp <= 0) continue;
     if (e.air && !airOk) continue;
     if (!seesShade(tower, e, b, run.time)) continue;
+    if (run.mode === "fog") {
+      const p = enemyPos(map, e);
+      if (!revealed(run, map, p.x, p.y)) continue;
+    }
     if (inRange(map, tower, e, range)) out.push(e);
   }
   return out;
@@ -325,6 +361,7 @@ function splashHurt(run: Run, b: Bonuses, map: MapDef, tower: Tower, x: number, 
     if (!e.alive) continue;
     if (e.air && !air) continue;
     const p = enemyPos(map, e);
+    if (run.mode === "fog" && !revealed(run, map, p.x, p.y)) continue;
     const d = Math.hypot(p.x - x, p.y - y);
     if (d > radius) continue;
     const fall = 1 - (1 - edge) * (radius > 0 ? d / radius : 0);
@@ -342,6 +379,10 @@ function chain(run: Run, b: Bonuses, map: MapDef, tower: Tower, from: Enemy, dmg
   for (const e of run.enemies) {
     if (!e.alive || seen.has(e.id)) continue;
     if (e.air && !hitsAir(tower.kind, b)) continue;
+    if (run.mode === "fog") {
+      const q0 = enemyPos(map, e);
+      if (!revealed(run, map, q0.x, q0.y)) continue;
+    }
     const q = enemyPos(map, e);
     const d = Math.hypot(q.x - p.x, q.y - p.y);
     if (d <= bestD) { best = e; bestD = d; }
@@ -368,6 +409,7 @@ function lineTargets(map: MapDef, run: Run, tower: Tower, aim: Enemy, range: num
     if (e.air && !airOk) continue;
     if (!seesShade(tower, e, b, run.time) && e.id !== aim.id) continue;
     const p = enemyPos(map, e);
+    if (run.mode === "fog" && !revealed(run, map, p.x, p.y)) continue;
     const vx = p.x - ox;
     const vy = p.y - oy;
     const t = vx * ux + vy * uy;
@@ -385,6 +427,7 @@ function fireTower(run: Run, b: Bonuses, map: MapDef, tower: Tower, sanct: numbe
   const mod = modAt(map, run, tower.x, tower.y);
   const prof = profileOf(tower, b);
   const st = statsOf(tower, mod, b, sanct);
+  if (hasMut(run, "reach")) st.range *= 1.12;
   const airOk = hitsAir(tower.kind, b);
   const list = listTargets(run, map, tower, b, st.range, airOk);
   if (!list.length && tower.kind !== "halo") return false;
@@ -393,8 +436,13 @@ function fireTower(run: Run, b: Bonuses, map: MapDef, tower: Tower, sanct: numbe
   const status = extraFrom(prof, b, aim?.kind ?? "walker");
   const type = st.type;
 
-  if (tower.kind === "halo") {
-    const victims = run.enemies.filter((e) => e.alive && inRange(map, tower, e, st.range) && (!e.air || airOk));
+    if (tower.kind === "halo") {
+    const victims = run.enemies.filter((e) => {
+      if (!e.alive || !inRange(map, tower, e, st.range) || (e.air && !airOk)) return false;
+      if (run.mode !== "fog") return true;
+      const p = enemyPos(map, e);
+      return revealed(run, map, p.x, p.y);
+    });
     if (!victims.length) return false;
     for (const e of victims) {
       const stt = extraFrom(prof, b, e.kind);
@@ -576,14 +624,15 @@ function moveEnemies(run: Run, b: Bonuses, map: MapDef, dt: number): void {
     }
     let speed = ENEMY_BASE[e.kind].speed;
     if (e.kind === "boss" && e.phased2) speed *= 1.22;
+    if (hasMut(run, "haste")) speed *= 1.2;
     if (run.time < e.stunUntil || run.time < e.freezeUntil) speed = 0;
     else if (run.time < e.slowUntil) speed *= 1 - Math.min(0.85, e.slowPct);
     e.progress += speed * dt;
-    const route = (e.air ? map.air : map.ground)[e.route];
+    const route = groundRoute(map, e);
     if (route && e.progress >= route.length) {
       e.alive = false;
       run.leaks++;
-      run.hearts -= ENEMY_BASE[e.kind].leak;
+      if (run.mode !== "sandbox") run.hearts -= ENEMY_BASE[e.kind].leak;
       const p = enemyPos(map, e);
       pushFx(run, { x: p.x, y: p.y, x2: p.x, y2: p.y, text: `−${ENEMY_BASE[e.kind].leak}`, ttl: 0.8, color: "#ff6a8a", kind: "num" });
     }
@@ -658,18 +707,34 @@ function enqueue(run: Run, map: MapDef): void {
   const goal = run.endless ? 1_000_000 : map.waves;
   if (run.scheduled >= goal || run.time < run.nextWaveAt || run.queue.length) return;
   const wave = run.scheduled + 1;
-  const plan = wavePlan(map.difficulty, wave, run.endless, map.waves);
+  const plan = run.mode === "boss"
+    ? [{ kind: "boss" as const, count: 1 + (wave >= 7 ? 1 : 0) }]
+    : wavePlan(map.difficulty, wave, run.endless, map.waves);
+  let scale = 1;
+  if (run.mode === "blitz") scale *= 0.62;
+  if (hasMut(run, "rush")) scale *= 0.75;
+  const gap = run.mode === "blitz" ? 0.3 : run.mode === "boss" ? 4.8 : 3.2;
   let at = run.time;
   let i = 0;
   for (const g of plan) {
     for (let n = 0; n < g.count; n++) {
       run.queue.push({ kind: g.kind, spawn: map.spawns.length ? i % map.spawns.length : 0, at, wave });
-      at += releaseGap(g.kind, wave);
+      at += releaseGap(g.kind, wave) * scale;
       i++;
     }
   }
   run.scheduled = wave;
-  run.nextWaveAt = at + 3.2;
+  run.nextWaveAt = at + gap;
+  if (run.mode === "chaos" && wave % 5 === 0) {
+    const left = ["haste", "hide", "fury", "gold", "rush", "glass", "reach", "tempo"].filter((id) => !run.mutators.includes(id));
+    if (left.length) {
+      const id = left[Math.floor(rand(run) * left.length)];
+      run.mutators.push(id);
+      const m = mutatorById(id);
+      run.banner = m ? `${m.name}. ${m.text}` : id;
+      run.bannerUntil = run.time + 6.5;
+    }
+  }
 }
 
 function routeCrowded(run: Run, route: number, air: boolean): boolean {
@@ -694,6 +759,11 @@ function drainQueue(run: Run, b: Bonuses, map: MapDef): void {
 
 function bank(run: Run, meta: Meta, b: Bonuses, map: MapDef): void {
   if (run.rewarded) return;
+  if (run.mode === "sandbox") {
+    run.reward = { sparks: 0, ash: 0, vein: 0, stars: 0 };
+    run.rewarded = true;
+    return;
+  }
   const stars = starCount(run.outcome, run.endless, Math.max(0, run.hearts), run.maxHearts, run.leaks);
   const reward = rewardAmounts(run.outcome, run.endless, map.difficulty, stars, run.wavesCleared, run.bossKilled, run.mined, b);
   reward.sparks += run.pendingSparks;
@@ -702,8 +772,9 @@ function bank(run: Run, meta: Meta, b: Bonuses, map: MapDef): void {
   meta.sparks += reward.sparks;
   meta.ash += reward.ash;
   meta.vein += reward.vein;
-  if (!run.endless && run.outcome === "win") meta.stars[map.id] = Math.max(meta.stars[map.id] ?? 0, stars);
-  if (run.endless) meta.endlessBest[map.id] = Math.max(meta.endlessBest[map.id] ?? 0, run.wavesCleared);
+  if (run.mode === "campaign" && run.outcome === "win") meta.stars[map.id] = Math.max(meta.stars[map.id] ?? 0, stars);
+  if (run.mode === "endless") meta.endlessBest[map.id] = Math.max(meta.endlessBest[map.id] ?? 0, run.wavesCleared);
+  noteModeScore(run, meta);
 }
 
 function noteClears(run: Run, meta: Meta, b: Bonuses): void {
@@ -718,42 +789,102 @@ function noteClears(run: Run, meta: Meta, b: Bonuses): void {
     const g = waveGold(run.wavesCleared, b.gold) + interestGold(run.gold, b.interest);
     run.gold += g;
     run.goldEarned += g;
+    if (hasMut(run, "gold")) {
+      const extra = Math.floor(g * 0.4);
+      run.gold += extra;
+      run.goldEarned += extra;
+    }
   }
-  if (run.endless) meta.endlessBest[run.mapId] = Math.max(meta.endlessBest[run.mapId] ?? 0, run.wavesCleared);
+  if (run.mode === "endless") meta.endlessBest[run.mapId] = Math.max(meta.endlessBest[run.mapId] ?? 0, run.wavesCleared);
+  noteModeScore(run, meta);
 }
 
-export function beginRun(meta: Meta, mapId: string, endless: boolean, seed = 1): Run | null {
+export function beginRun(meta: Meta, mapId: string, endless: boolean, seed = 1, mode: ModeId = "campaign"): Run | null {
   const map = mapById(mapId);
   if (!map) return null;
-  const b = compile(meta);
+  const resolved: ModeId = mode === "campaign" && endless ? "endless" : mode;
+  const b = bonusesFor(meta, { mode: resolved } as Run);
   const rng = (seed >>> 0) || 1;
+  const hearts = resolved === "life" ? 1 : resolved === "sandbox" ? 99 : 20 + b.hearts + map.heartBonus;
   const run: Run = {
-    mapId, endless, seed: rng, rng, time: 0,
-    gold: 90 + b.startGold + map.goldBonus,
+    mapId, endless: resolved === "sandbox" ? true : endless, mode: resolved, seed: rng, rng, time: 0,
+    gold: resolved === "sandbox" ? 50000 : 90 + b.startGold + map.goldBonus,
     goldEarned: 0,
-    hearts: 20 + b.hearts + map.heartBonus,
-    maxHearts: 20 + b.hearts + map.heartBonus,
+    hearts, maxHearts: hearts,
     towers: [], enemies: [], projs: [], mods: {}, stamps: 0, nextId: 1,
-    scheduled: 0, nextWaveAt: 0.35, queue: [], mined: 0, pendingSparks: 0,
+    scheduled: 0, nextWaveAt: resolved === "maze" ? 14 : 0.35, queue: [], mined: 0, pendingSparks: 0,
     leaks: 0, kills: 0, bossKilled: false, outcome: "play", wavesCleared: 0,
     rewarded: false, reward: null, fx: [], placedCombat: false,
     abilityCd: { fire: 0, bliz: 0, dawn: 0 }, aim: null,
+    mutators: resolved === "daily" ? dailyMutators(map.id.replace(/^daily-/, "") || todayKey()) : [],
+    banner: "", bannerUntil: 0, walls: [], dailyKey: resolved === "daily" ? map.id.replace(/^daily-/, "") : "",
   };
-  run.goldEarned = 0;
   return run;
+}
+
+export function openMode(meta: Meta, id: ModeId, seed = 1, dailyKey = ""): Run | null {
+  if (id === "campaign" || id === "endless") return null;
+  const key = id === "daily" ? (dailyKey || todayKey()) : "";
+  const map = prepareModeMap(id, key);
+  mountMap(map);
+  const run = beginRun(meta, map.id, id === "sandbox", seed, id);
+  if (!run) return null;
+  if (id === "daily") {
+    run.dailyKey = key;
+    run.mutators = dailyMutators(key);
+  }
+  if (id === "maze") syncMaze(run, map);
+  return run;
+}
+
+function syncMaze(run: Run, map: MapDef): void {
+  if (run.mode !== "maze") return;
+  const snaps = run.enemies.map((e) => ({ e, p: enemyPos(map, e) }));
+  for (let i = 0; i < map.spawns.length; i++) {
+    const s = map.spawns[i];
+    const route = routeBetween(map, run, s.x, s.y);
+    if (route) map.ground[i] = route;
+  }
+  for (const snap of snaps) {
+    if (!snap.e.alive || snap.e.air) continue;
+    const x = Math.max(0, Math.min(map.cols - 1, Math.floor(snap.p.x)));
+    const y = Math.max(0, Math.min(map.rows - 1, Math.floor(snap.p.y)));
+    const route = routeBetween(map, run, x, y) ?? map.ground[Math.min(map.ground.length - 1, snap.e.route)];
+    if (!route) continue;
+    snap.e.progress = projectProgress(route, snap.p.x, snap.p.y);
+    bindTrail(snap.e, route);
+  }
+}
+
+function mazeAllows(run: Run, map: MapDef, x: number, y: number): boolean {
+  for (const s of map.spawns) {
+    if (!routeBetween(map, run, s.x, s.y, { x, y })) return false;
+  }
+  for (const e of run.enemies) {
+    if (!e.alive || e.air) continue;
+    const p = enemyPos(map, e);
+    const cx = Math.floor(p.x);
+    const cy = Math.floor(p.y);
+    if (cx === x && cy === y) return false;
+    if (!routeBetween(map, run, cx, cy, { x, y })) return false;
+  }
+  return true;
 }
 
 export function placeTower(run: Run, meta: Meta, x: number, y: number, kind: TowerKind): Act {
   if (run.outcome !== "play") return fail("Ночь уже кончилась.");
   const map = mapById(run.mapId);
   if (!map) return fail("Нет такой ночи.");
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
   if (!b.unlocked[kind]) return fail(`${TOWER_NAME[kind]} ещё не открыта в древе.`);
+  if (run.mode === "five" && run.towers.length >= 5) return fail("В этом режиме на поле не больше пяти башен.");
   const ch = cellChar(map, x, y);
+  if (run.mode === "maze" && run.walls.includes(x + "," + y)) return fail("Клетку занимает стена.");
   if (kind === "miner") {
     if (ch !== "v") return fail("Жильник ставится только на жилу.");
   } else if (!tileBuildable(ch, "tower")) return fail("Здесь нельзя строить.");
   if (run.towers.some((t) => t.x === x && t.y === y)) return fail("Клетка занята.");
+  if (run.mode === "maze" && !mazeAllows(run, map, x, y)) return fail("Так Врата будут отрезаны. Оставьте проход.");
   let cost = TOWERS[kind].cost;
   if (kind !== "miner" && !run.placedCombat) cost = Math.max(1, Math.ceil(cost * (1 - b.discount)));
   if (run.gold < cost) return fail("Не хватает золота.");
@@ -765,6 +896,25 @@ export function placeTower(run: Run, meta: Meta, x: number, y: number, kind: Tow
     id: run.nextId++, kind, x, y, xp: 0, spent: cost, ranks: { dmg: 0, rate: 0, range: 0 },
     abilities: [], offer: null, upgraded: null, cd: every, target: "first", sparkLock: 0, kills: 0, dealt: 0,
   });
+  if (run.mode === "maze") syncMaze(run, map);
+  if (run.mode === "sandbox") run.gold = Math.max(run.gold, 50000);
+  return ok();
+}
+
+export function placeWall(run: Run, meta: Meta, x: number, y: number): Act {
+  if (run.mode !== "maze") return fail("Стены ставятся только в лабиринте.");
+  if (run.outcome !== "play") return fail("Ночь уже кончилась.");
+  const map = mapById(run.mapId);
+  if (!map) return fail("Нет такой ночи.");
+  const ch = cellChar(map, x, y);
+  if (!tileBuildable(ch, "tower")) return fail("Здесь нельзя ставить стену.");
+  if (run.walls.includes(x + "," + y) || run.towers.some((t) => t.x === x && t.y === y)) return fail("Клетка занята.");
+  if (!mazeAllows(run, map, x, y)) return fail("Так Врата будут отрезаны. Оставьте проход.");
+  if (run.gold < WALL_COST) return fail("Не хватает золота.");
+  run.gold -= WALL_COST;
+  run.walls.push(x + "," + y);
+  syncMaze(run, map);
+  void meta;
   return ok();
 }
 
@@ -779,6 +929,7 @@ export function upgradeTower(run: Run, meta: Meta, id: number, stat: "dmg" | "ra
   run.gold -= cost;
   tower.spent += cost;
   tower.ranks[stat]++;
+  if (run.mode === "sandbox") run.gold = Math.max(run.gold, 50000);
   void meta;
   return ok();
 }
@@ -787,11 +938,14 @@ export function sellTower(run: Run, meta: Meta, id: number): Act {
   if (run.outcome !== "play") return fail("Ночь уже кончилась.");
   const i = run.towers.findIndex((t) => t.id === id);
   if (i < 0) return fail("Башня не найдена.");
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
   const tower = run.towers[i];
   const refund = Math.min(tower.spent, Math.floor(tower.spent * Math.min(0.9, 0.7 + b.sell)));
   run.gold += refund;
   run.towers.splice(i, 1);
+  const map = mapById(run.mapId);
+  if (map && run.mode === "maze") syncMaze(run, map);
+  if (run.mode === "sandbox") run.gold = Math.max(run.gold, 50000);
   return ok();
 }
 
@@ -824,7 +978,7 @@ export function placeStamp(run: Run, meta: Meta, x: number, y: number, mod: ModK
   if (run.outcome !== "play") return fail("Ночь уже кончилась.");
   const map = mapById(run.mapId);
   if (!map) return fail("Нет такой ночи.");
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
   if (run.stamps >= b.stamps) return fail("Клейма на эту ночь кончились. Их открывает древо.");
   if (cellChar(map, x, y) !== ".") return fail("Клеймо ложится только на пустырь.");
   if (run.mods[keyOf(x, y)] || modAt(map, run, x, y)) return fail("На клетке уже есть плитка.");
@@ -839,7 +993,7 @@ export function castAbility(run: Run, meta: Meta, id: GlobalId, x: number, y: nu
   if (run.outcome !== "play") return fail("Ночь уже кончилась.");
   const map = mapById(run.mapId);
   if (!map) return fail("Нет такой ночи.");
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
   if (id === "fire" && !b.abFire) return fail("Пожар ещё не открыт в древе.");
   if (id === "bliz" && !b.abBliz) return fail("Буран ещё не открыт в древе.");
   if (id === "dawn" && !b.abDawn) return fail("Удар зари ещё не открыт в древе.");
@@ -864,6 +1018,7 @@ export function castAbility(run: Run, meta: Meta, id: GlobalId, x: number, y: nu
     if (!e.alive) continue;
     const p = enemyPos(map, e);
     if (Math.hypot(p.x - x, p.y - y) > radius) continue;
+    if ((id === "fire" || id === "dawn") && run.mode === "fog" && !revealed(run, map, p.x, p.y)) continue;
     e.revealedUntil = Math.max(e.revealedUntil, run.time + 1.5);
     hurt(run, b, map, e, dmg, type, b.knowPen[e.kind], false, null, resistMul, null, 1);
     hit++;
@@ -879,14 +1034,16 @@ export function endRun(run: Run, meta: Meta): void {
   const map = mapById(run.mapId);
   if (!map) return;
   run.outcome = "lose";
-  bank(run, meta, compile(meta), map);
+  bank(run, meta, bonusesFor(meta, run), map);
 }
 
 export function stepRun(run: Run, meta: Meta, dt: number): void {
   if (run.outcome !== "play" || !(dt > 0)) return;
   const map = mapById(run.mapId);
   if (!map) return;
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
+  if (run.mode === "sandbox") run.gold = Math.max(run.gold, 50000);
+  if (run.mode === "maze" && run.enemies.some((e) => e.alive && !e.air && !trailOf(e))) syncMaze(run, map);
   run.time += dt;
   run.abilityCd.fire = Math.max(0, run.abilityCd.fire - dt);
   run.abilityCd.bliz = Math.max(0, run.abilityCd.bliz - dt);
@@ -922,7 +1079,8 @@ export function stepRun(run: Run, meta: Meta, dt: number): void {
   for (const tower of run.towers) {
     if (tower.kind === "miner") continue;
     const mod = modAt(map, run, tower.x, tower.y);
-    const rate = statsOf(tower, mod, b, sanct.get(tower.id) ?? 0).rate;
+    let rate = statsOf(tower, mod, b, sanct.get(tower.id) ?? 0).rate;
+    if (hasMut(run, "tempo")) rate *= 1.15;
     tower.cd -= dt;
     let guard = 0;
     while (tower.cd <= 0 && guard++ < 6) {
@@ -955,9 +1113,16 @@ export function simulate(run: Run, meta: Meta, seconds: number, dt = 0.1): void 
   }
 }
 
+export function refreshMode(run: Run): void {
+  if (!isPlayMode(run.mode)) return;
+  const map = prepareModeMap(run.mode, run.dailyKey);
+  mountMap(map);
+  if (run.mode === "maze") syncMaze(run, map);
+}
+
 export function debugSpawn(run: Run, meta: Meta, kind: EnemyKind, progress = 0): Enemy | null {
   const map = mapById(run.mapId);
   if (!map) return null;
-  const b = compile(meta);
+  const b = bonusesFor(meta, run);
   return spawnKind(run, b, map, kind, 0, Math.max(1, run.scheduled || 1), Math.max(0, progress), kind === "flyer");
 }
