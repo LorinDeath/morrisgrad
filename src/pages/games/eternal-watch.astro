@@ -103,6 +103,7 @@ const description = 'Ночь за ночью держите Врата искр
     .corner.tr { top: 5px; right: 5px; border-left: 0; border-bottom: 0; }
     .corner.bl { bottom: 5px; left: 5px; border-right: 0; border-top: 0; }
     .corner.br { bottom: 5px; right: 5px; border-left: 0; border-top: 0; }
+    .hud, .dock, .hint, .top { flex-shrink: 0; }
     .hud {
       display: flex;
       flex-wrap: wrap;
@@ -110,7 +111,6 @@ const description = 'Ночь за ночью держите Врата искр
       align-items: center;
       gap: 6px 10px;
       padding: 2px 4px 6px;
-      flex-shrink: 0;
     }
     .stat {
       display: flex;
@@ -145,14 +145,14 @@ const description = 'Ночь за ночью держите Врата искр
     .board {
       position: relative;
       flex: 1 1 auto;
-      min-height: 0;
+      min-height: 128px;
       display: flex;
     }
     .stage {
       position: relative;
       flex: 1 1 auto;
       min-width: 0;
-      min-height: 0;
+      min-height: 128px;
       overflow: hidden;
       background: #1a1612;
       touch-action: none;
@@ -169,6 +169,15 @@ const description = 'Ночь за ночью держите Врата искр
     .veil {
       position: absolute;
       inset: 0;
+      z-index: 2;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      background: rgba(16, 12, 10, 0.72);
+    }
+    .veil-in {
+      min-height: 100%;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -176,8 +185,6 @@ const description = 'Ночь за ночью держите Врата искр
       gap: 8px;
       padding: 16px;
       text-align: center;
-      background: rgba(16, 12, 10, 0.72);
-      overflow: auto;
     }
     .veil[hidden] { display: none !important; }
     .veil h2 {
@@ -340,8 +347,8 @@ const description = 'Ночь за ночью держите Врата искр
       .top { grid-template-columns: auto 1fr; }
       .top h1 { font-size: 1.15rem; text-align: right; }
       .blurb { display: none; }
-      .board { flex: 0 1 auto; flex-direction: column; }
-      .stage { flex: 0 0 auto; place-items: center; padding-top: 2px; }
+      .board { flex: 1 1 auto; flex-direction: column; min-height: 128px; }
+      .stage { flex: 1 1 auto; min-height: 128px; place-items: center; }
       .card {
         position: static;
         width: auto;
@@ -381,38 +388,46 @@ const description = 'Ночь за ночью держите Врата искр
     <div class="stage" id="ew-stage">
       <canvas id="ew-canvas" width="256" height="160" aria-label="Крепость и каменный серпантин"></canvas>
       <div class="veil" id="ew-title">
+        <div class="veil-in">
         <h2>Вечная стража</h2>
         <p>Твари идут по серпантину к Вратам искры. Ставьте башни на площадки. На третьем уровне башня выбирает глиф. Соседи одного типа входят в резонанс, разные типы складываются в сочетания. После длинной ночи можно встретить Рассвет.</p>
         <div class="row">
           <button class="gold" id="ew-start" type="button" data-tip="Начать ночь: золото и башни этой ночи, искры и законы уже ваши.">Начать ночь</button>
           <button class="gold" id="ew-title-shop" type="button" data-tip="Открыть лавку искр до начала ночи.">Лавка искр</button>
         </div>
+        </div>
       </div>
       <div class="veil" id="ew-defeat" hidden>
+        <div class="veil-in">
         <h2>Ночь кончилась</h2>
         <p id="ew-defeat-text"></p>
         <div class="row">
           <button class="gold" id="ew-again" type="button" data-tip="Новая ночь. Искры и законы сохраняются, золото и башни начинаются заново.">Новая ночь</button>
           <button class="gold" id="ew-defeat-dawn" type="button" data-tip="Встретить Рассвет: обменять золото на искры и выбрать закон.">Рассвет</button>
         </div>
+        </div>
       </div>
       <div class="veil" id="ew-dawn" hidden>
+        <div class="veil-in">
         <h2>Рассвет</h2>
         <p id="ew-dawn-text"></p>
         <div class="laws" id="ew-laws"></div>
         <button class="gold" id="ew-dawn-back" type="button" data-tip="Вернуться к ночи, не встречая Рассвет.">Ещё постоять</button>
+        </div>
       </div>
       <div class="veil" id="ew-shop" hidden>
+        <div class="veil-in">
         <h2>Лавка искр</h2>
         <p>Искры не сгорают. Здесь открываются башни, слоты рун и сила следующих ночей.</p>
         <div class="shop-list" id="ew-shop-list"></div>
         <button class="gold" id="ew-shop-close" type="button" data-tip="Закрыть лавку.">Закрыть</button>
+        </div>
       </div>
       <p class="toast" id="ew-toast" hidden></p>
     </div>
     <section class="card" id="ew-card" hidden></section>
     </div>
-    <div class="dock" id="ew-dock" hidden></div>
+    <div class="dock" id="ew-dock"></div>
     <p class="hint">Площадка ставит выбранную башню. Карточка не прячет карту. Подсказка: наведите курсор или удерживайте кнопку.</p>
   </div>
   <p class="tip" id="ew-tip" hidden></p>
