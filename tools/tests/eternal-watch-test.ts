@@ -1,310 +1,234 @@
-// «Вечная стража»: площадки, формулы, луч, иней, шип, маяк, резонанс, волны, сохранения.
-// Запуск: node --experimental-strip-types tools/tests/eternal-watch-test.ts
-import { existsSync, readFileSync } from "fs";
+// «Вечная стража», вторая ночь. node --experimental-strip-types tools/tests/eternal-watch-test.ts
+import { readFileSync } from "fs";
 import { join } from "path";
 import {
-  FROST_STACK_LIFE,
-  LAW_PADS,
-  LAWS,
-  META_PADS,
-  PADS,
-  PATH,
-  PATH_LEN,
-  RUNES,
-  SHOP,
-  SPRITE_NAMES,
-  TOWERS,
-  auraFor,
-  bagMax,
-  beamTargets,
-  beginNight,
-  buyShop,
-  combosOf,
-  dawnConversion,
-  enemyArmor,
-  enemyMaxHp,
-  executeThreshold,
-  fitCanvas,
-  formatNumber,
-  freshMeta,
-  killGoldBase,
-  parseSave,
-  placeTower,
-  progressAtCell,
-  resonanceOf,
-  serializeSave,
-  shotDamage,
-  sparkBoss,
-  sparkMilestone,
-  spawnEnemy,
-  spawnInterval,
-  startingGold,
-  stepRun,
-  towerSpec,
-  upgradeCost,
-  waveClearGold,
-  wavePlan,
-  type Meta,
-  type Run,
-  type TowerKind,
+  MAPS, PATH_GAP, RESEARCH, SAVE_KEY, TOWERS, buyNode, canBuy, chooseAbility, compile, debugSpawn,
+  enemyHp, formatNumber, freshMeta, beginRun, callWave, levelOf, loadMeta, mapById, mitigate,
+  nodeById, placeStamp, placeTower, researchCount, serializeMeta, simulate, towerTip,
+  upgradeTower, wavePlan,
 } from "../../src/scripts/eternal-watch/logic.ts";
 
 let fails = 0;
 let passes = 0;
 const ok = (c: unknown, m: string) => {
   if (c) passes++;
-  else {
-    fails++;
-    console.log("FAIL " + m);
-  }
+  else { fails++; console.log("FAIL " + m); }
 };
 const close = (a: number, b: number, m: string) => ok(Math.abs(a - b) < 1e-6, `${m}: ${a} vs ${b}`);
 
+ok(MAPS.length === 24, "24 ночи");
+ok(researchCount() >= 100, `узлов ${researchCount()}`);
+ok(SAVE_KEY === "mg-eternal-watch-v2", "ключ сохранения");
+const seen = new Set<string>();
+for (const map of MAPS) {
+  ok(!seen.has(map.id), "id " + map.id);
+  seen.add(map.id);
+  ok(map.spawns.length >= 1 && map.gates.length >= 1, map.id + " порталы");
+  ok(map.ground.length === map.spawns.length, map.id + " тропы");
+  let build = 0;
+  const gates = new Set(map.gates.map((g) => g.x + "," + g.y));
+  for (const route of map.ground) {
+    const end = route.gate;
+    ok(gates.has(end.x + "," + end.y), `${map.id} тропа до Врат`);
+    ok(route.length >= 8, `${map.id} длина ${route.length}`);
+  }
+  for (let y = 0; y < map.rows; y++) for (let x = 0; x < map.cols; x++) {
+    const ch = map.grid[y][x];
+    if (".+*~^$".includes(ch)) build++;
+    if ("=STUGH".includes(ch)) ok(true, "walk");
+  }
+  ok(build >= 8, `${map.id} площадок ${build}`);
+}
+for (const node of RESEARCH) {
+  for (const r of node.requires) ok(!!nodeById(r.id), `${node.id} требует ${r.id}`);
+  if (node.max > 1) {
+    const a = node.cost(1);
+    const b = node.cost(2);
+    const grow = b.sparks > a.sparks || b.ash > a.ash || b.vein > a.vein;
+    ok(grow, `${node.id} цена растёт`);
+  }
+}
+const abyss = nodeById("night.abyss")!;
+ok(abyss.max >= 40, "ночь без края длинная");
+const c1 = abyss.cost(1);
+const c8 = abyss.cost(8);
+ok(c8.sparks > c1.sparks * 5 && c8.ash > c1.ash && c8.vein > c1.vein, "поздняя цена");
+
+const meta = freshMeta();
+ok(!canBuy(meta, "spark.dmg1").ok, "урон искры без закалки");
+ok(buyNode(meta, "spark.dmg1").ok === false, "покупка закрыта");
+meta.sparks = 100;
+ok(buyNode(meta, "spark.root").ok, "закалка");
+ok(meta.sparks === 94, "6 искр");
+ok(buyNode(meta, "spark.dmg1").ok, "урон I");
+ok((compile(meta).dmg.spark) === 0.06 + 0.08, "бонус урона");
+ok(compile(meta).unlocked.muzzle === false, "жерло закрыто");
+ok(buyNode(meta, "muzzle.root").ok, "открыть жерло");
+ok(compile(meta).unlocked.muzzle, "жерло открыто");
+
+close(mitigate(10, 0, 0, 0, false), 10, "без брони");
+ok(mitigate(10, 0.3, 0, 0, false) < 10, "сопротивление режет");
+ok(mitigate(10, -0.18, 0, 0, false) > 10, "уязвимость");
+ok(mitigate(10, 0, 8, 0, false) < mitigate(10, 0, 8, 0.5, false), "пробитие");
+close(mitigate(10, 0.2, 8, 0, true), 8, "яд мимо брони");
+ok(mitigate(10, 0, 100, 0, false) >= 0.25, "крошка урона");
+
+const fresh = freshMeta();
+const night = beginRun(fresh, "spark-path", false, 2)!;
+ok(placeTower(night, fresh, 6, 3, "spark").ok, "искра на плитке");
+const flyer = debugSpawn(night, fresh, "flyer", 6)!;
+const flyerHp = flyer.hp;
+simulate(night, fresh, 1.2, 0.05);
+ok(flyer.alive && flyer.hp === flyerHp, "искра не бьёт ночницу");
+const air = beginRun(freshMeta(), "spark-path", false, 2)!;
+const airMeta = freshMeta();
+airMeta.nodes["bolt.root"] = 1;
+ok(placeTower(air, airMeta, 6, 3, "bolt").ok, "стрела");
+const flyer2 = debugSpawn(air, airMeta, "flyer", 6)!;
+const flyer2Hp = flyer2.hp;
+simulate(air, airMeta, 1.4, 0.05);
+ok(!flyer2.alive || flyer2.hp < flyer2Hp, "стрела бьёт ночницу");
+
+const sh = beginRun(freshMeta(), "spark-path", false, 3)!;
+const sm = freshMeta();
+sm.sparks = 200;
+sm.nodes["halo.root"] = 1;
+placeTower(sh, sm, 6, 3, "spark");
+const shade = debugSpawn(sh, sm, "shade", 6)!;
+const shadeHp = shade.hp;
+simulate(sh, sm, 1.6, 0.05);
+ok(shade.hp === shadeHp, "тень не в прицеле");
+ok(placeTower(sh, sm, 7, 3, "halo").ok, "ореол");
+simulate(sh, sm, 1.8, 0.05);
+ok(shade.hp < shadeHp || !shade.alive, "ореол раскрывает тень");
+
+const sp = beginRun(freshMeta(), "spark-path", false, 4)!;
+const sm2 = freshMeta();
+placeTower(sp, sm2, 6, 3, "spark");
+const splitter = debugSpawn(sp, sm2, "splitter", 6)!;
+splitter.hp = 8;
+simulate(sp, sm2, 2, 0.05);
+ok(!splitter.alive, "дробильщик пал");
+ok(sp.kills >= 1, "убийство засчитано");
+const mites = sp.enemies.filter((e) => e.kind === "mite").length + (splitter.fromSplit ? 0 : 0);
+ok(sp.enemies.some((e) => e.kind === "mite") || sp.kills >= 3, "осколки или они уже добиты, убийств " + sp.kills);
+
+const bossRun = beginRun(freshMeta(), "spark-path", false, 5)!;
+const bm = freshMeta();
+bm.nodes["needle.root"] = 1;
+placeTower(bossRun, bm, 6, 3, "needle");
+const boss = debugSpawn(bossRun, bm, "boss", 6)!;
+simulate(bossRun, bm, 25, 0.1);
+ok(boss.phased2, "фаза 2");
+ok(bossRun.enemies.some((e) => e.kind === "walker") || boss.phased3 || !boss.alive, "призыв или добивание");
+
+const vein = beginRun(freshMeta(), "veins", false, 1)!;
+const vm = freshMeta();
+vm.nodes["miner.root"] = 1;
+ok(placeTower(vein, vm, 4, 3, "miner").ok, "жильник");
+ok(!placeTower(vein, vm, 6, 4, "miner").ok, "жильник не на пустыре");
+simulate(vein, vm, 7, 0.1);
+ok(vein.mined >= 1, "руда " + vein.mined);
+
+const xpRun = beginRun(freshMeta(), "spark-path", false, 8)!;
+const xm = freshMeta();
+xpRun.nextWaveAt = 1e9;
+xpRun.queue = [];
+placeTower(xpRun, xm, 6, 3, "spark");
+for (let i = 0; i < 40; i++) {
+  const e = debugSpawn(xpRun, xm, "walker", 6)!;
+  e.hp = 4;
+  e.maxHp = 4;
+  e.freezeUntil = 1e9;
+}
+simulate(xpRun, xm, 40, 0.1);
+const tower = xpRun.towers[0];
+ok(levelOf(tower.xp) >= 4, "уровень " + levelOf(tower.xp));
+ok(!!tower.offer && tower.offer.length >= 2 && tower.offer.length <= 3, "выбор " + tower.offer?.join(","));
+if (tower.offer) ok(chooseAbility(xpRun, tower.id, tower.offer[0]).ok, "взять умение");
+ok(tower.abilities.length === 1, "умение записано");
+
+ok(placeStamp(xpRun, freshMeta(), 3, 3, "dmg").ok === false, "клеймо без древа");
+xm.nodes["mod.stamp"] = 1;
+ok(placeStamp(xpRun, xm, 3, 3, "dmg").ok, "клеймо");
+ok(!placeStamp(xpRun, xm, 3, 3, "rate").ok, "плитка занята");
+
+ok(upgradeTower(xpRun, xm, tower.id, "dmg").ok, "ранг");
+ok(tower.ranks.dmg === 1, "ранг 1");
+
+const plan = wavePlan(1, 1, false, 5);
+ok(plan[0].kind === "walker" && plan.length === 1, "волна 1 только пехота");
+const plan10 = wavePlan(10, 10, false, 12);
+ok(plan10.some((g) => g.kind === "flyer") && plan10.some((g) => g.kind === "shield"), "волна 10 сложная");
+ok(!wavePlan(3, 3, false, 8).some((g) => g.kind === "boss"), "босс не в середине");
+ok(wavePlan(6, 8, false, 8).some((g) => g.kind === "boss"), "босс в конце");
+
+const hps = [1, 5, 10, 15, 20, 25, 30].map((n) => enemyHp("walker", n, 1, true, 0));
+for (let i = 1; i < hps.length; i++) {
+  const ratio = hps[i] / hps[i - 1];
+  ok(ratio > 1.4 && ratio < 2.2, `гладкий рост ${ratio}`);
+}
+ok(enemyHp("knight", 5, 4, false, 0.2) < enemyHp("knight", 5, 4, false, 0), "знание режет здоровье");
+
+ok(formatNumber(12) === "12", "12");
+ok(formatNumber(1200).startsWith("1.2") && formatNumber(1200).endsWith("K"), formatNumber(1200));
+ok(formatNumber(1.35e6).includes("M"), formatNumber(1.35e6));
+
+const round = serializeMeta(meta);
+const back = loadMeta(round, null).meta;
+ok(back.sparks === meta.sparks && back.nodes["muzzle.root"] === 1, "круг сохранения");
+ok(loadMeta("{{{", null).meta.sparks === 0, "битый json");
+ok(loadMeta("null", null).persist, "null не роняет");
+const weird = loadMeta(JSON.stringify({ v: 9, sparks: 50 }), null);
+ok(!weird.persist && weird.meta.sparks === 0, "чужая версия не затирается и не читается");
+const v1 = loadMeta(null, JSON.stringify({ v: 1, sparks: 40 }));
+ok(v1.meta.sparks === 20 && v1.meta.v1Bonus, "бонус v1");
+const again = loadMeta(serializeMeta(v1.meta), JSON.stringify({ v: 1, sparks: 40 }));
+ok(again.meta.sparks === 20, "бонус один раз");
+ok(loadMeta(null, "nope").meta.v1Bonus, "битый v1 не роняет");
+
+const tip = towerTip(freshMeta(), "spark");
+ok(tip.includes("Урон") && tip.includes("Радиус") && tip.includes("Темп") && tip.includes("35"), "подсказка башни");
+const locked = towerTip(freshMeta(), "needle");
+ok(locked.includes("закрыта") && locked.includes("Урон"), "подсказка закрытой");
+
 const root = join(import.meta.dirname, "../..");
-for (const size of [16, 32, 64]) {
-  for (const name of SPRITE_NAMES) {
-    ok(existsSync(join(root, `public/games/eternal-watch/sprites/${size}/${name}.png`)), `png ${size}/${name}`);
-  }
-}
-ok(SPRITE_NAMES.length === 42, "42 спрайта");
-ok(existsSync(join(root, "public/games/eternal-watch/cover.png")), "обложка");
-
-const pathSet = new Set(PATH.map((c) => c.x + "," + c.y));
-ok(PADS.length >= 16, `площадок ${PADS.length}`);
-ok(PATH[0]?.x === 15 && PATH[0]?.y === 2 && PATH[PATH.length - 1]?.x === 1 && PATH[PATH.length - 1]?.y === 2, "концы тропы");
-ok(PATH_LEN === PATH.length - 1 && PATH_LEN === 24, "длина тропы 24");
-for (const p of PADS) ok(!pathSet.has(p.x + "," + p.y), `площадка не на тропе ${p.x},${p.y}`);
-const padSet = new Set(PADS.map((c) => c.x + "," + c.y));
-ok(META_PADS.length === 2 && LAW_PADS.length === 4, "доп. площадки 2 и 4");
-for (const p of [...META_PADS, ...LAW_PADS]) {
-  ok(!pathSet.has(p.x + "," + p.y) && !padSet.has(p.x + "," + p.y), `доп. площадка свободна ${p.x},${p.y}`);
-}
-for (const p of LAW_PADS) ok(!META_PADS.some((m) => m.x === p.x && m.y === p.y), "закон не повторяет лавку");
-
-close(enemyMaxHp("walker", 1, []), 20, "пехота 1");
-close(enemyMaxHp("walker", 10, []), 20 * 1.13 ** 9, "пехота 10");
-close(enemyMaxHp("runner", 3, []), 12 * 1.13 ** 2, "бегун 3");
-close(enemyMaxHp("tank", 5, []), 55 * 1.13 ** 4, "танк 5");
-close(enemyMaxHp("swarm", 8, []), 7 * 1.13 ** 7, "рой 8");
-close(enemyMaxHp("healer", 15, []), 18 * 1.13 ** 14, "лекарь 15");
-close(enemyMaxHp("boss", 10, []), 400 * 1.18 ** 1, "босс 10");
-close(enemyMaxHp("boss", 30, []), 400 * 1.18 ** 3, "босс 30");
-close(enemyMaxHp("tank", 5, ["goldThirst"]), 55 * 1.13 ** 4 * 1.2, "жажда золота");
-close(enemyMaxHp("swarm", 8, ["swarmFlame"]), 7 * 1.13 ** 7 * 0.7, "рой и пламя");
-close(enemyMaxHp("boss", 20, ["quietBoss"]), 400 * 1.18 ** 2 * 1.5, "тихий босс");
-ok(enemyArmor("tank", 1, []) === 8 && enemyArmor("boss", 1, []) === 12, "броня");
-ok(enemyArmor("walker", 120, ["worldArmor"]) === 16, "броня мира и волна 120");
-ok(killGoldBase(20) === 1 && killGoldBase(25) === 2 && killGoldBase(694) === 1 + Math.floor(694 / 25), "золото за убийство");
-ok(waveClearGold(1) === 6 && waveClearGold(10) === 15, "золото за волну");
-ok(sparkMilestone(4) === 0 && sparkMilestone(5) === 1 && sparkMilestone(30) === 4, "искры за пятую");
-ok(sparkBoss(10) === 4 && sparkBoss(30) === 6 && sparkBoss(9) === 0, "искры за босса");
-ok(dawnConversion(100, 30, []) === 4 + 12, "рассвет 100 золота волна 30");
-ok(dawnConversion(100, 30, ["endless"]) === (4 + 12) * 3, "ночь без конца умножает обмен");
-ok(dawnConversion(100, 30, ["doubleSparks"]) === Math.round(16 * 1.8), "двойные искры на рассвете");
-ok(startingGold(freshMeta()) === 100, "старт 100");
-{
-  const m = freshMeta();
-  m.startGoldRanks = 2;
-  m.laws = ["generous", "doubleSparks"];
-  m.carryGold = 10;
-  ok(startingGold(m) === 100 + 50 + 25 - 20 + 10, "стартовое золото с метой");
-  m.carryGold = 0;
-  m.startGoldRanks = 0;
-  m.laws = ["doubleSparks"];
-  ok(startingGold(m) === 80, "двойные искры снимают 20 и не опускают старт ниже 20");
-  const poor = freshMeta();
-  poor.laws = ["doubleSparks"];
-  ok(startingGold(poor) >= 20, "минимум 20");
-}
-close(spawnInterval(1), 0.55, "интервал 1");
-close(spawnInterval(41), 0.55 * 0.98 ** 40, "интервал с потолком");
-
-const w1 = wavePlan(1);
-ok(w1.length === 1 && w1[0]!.kind === "walker" && w1[0]!.count === 8, "волна 1: 8 пехоты");
-const w10 = wavePlan(10);
-const count = (n: number, k: string) => wavePlan(n).find((g) => g.kind === k)?.count ?? 0;
-ok(count(10, "walker") === 14 && count(10, "runner") === 4 && count(10, "tank") === 1 && count(10, "swarm") === 4 && count(10, "healer") === 0 && count(10, "boss") === 1, "волна 10");
-ok(count(15, "walker") === 17 && count(15, "runner") === 5 && count(15, "tank") === 2 && count(15, "swarm") === 4 && count(15, "healer") === 1 && count(15, "boss") === 0, "волна 15");
-ok(count(8, "swarm") === 4 && count(16, "swarm") === 8, "пачки роя");
-
-ok(formatNumber(999) === "999" && formatNumber(1000) === "1K", "порог тысячи");
-ok(formatNumber(1200) === "1.2K" && formatNumber(12400) === "12.4K", "тысячи");
-ok(formatNumber(1_350_000) === "1.35M", "миллионы");
-ok(formatNumber(2_100_000_000) === "2.10B", "миллиарды");
-ok(formatNumber(1e15) === "1.00e15", "научная запись");
-
-const fit = fitCanvas(960, 540, 1);
-ok(Number.isInteger(fit.S) && fit.S >= 1, "масштаб целый");
-const phone = fitCanvas(390, 420, 2);
-ok(Number.isInteger(phone.S) && phone.S >= 1 && 256 * phone.S <= 390 * 2 + 0.01, "телефон: целые аппаратные пиксели");
-ok(fitCanvas(412, 0, 2.625).S === Math.max(1, Math.floor((412 * 2.625) / 256)), "нулевая высота не схлопывает масштаб");
-ok(fitCanvas(360, 1, 3).S === Math.max(1, Math.floor((360 * 3) / 256)), "крошечная высота не режет масштаб");
-ok(fitCanvas(8, 0, 3).S === 1, "минимум ×1");
-
-function night(): { meta: Meta; run: Run } {
-  const meta = freshMeta();
-  const run = beginNight(meta, 7);
-  run.phase = "fight";
-  run.queue = ["walker"];
-  run.spawnCd = 99;
-  return { meta, run };
-}
-
-{
-  const { meta, run } = night();
-  ok(placeTower(run, meta, 10, 1, "beam").ok, "луч ставится");
-  const tower = run.towers[0]!;
-  const spots = [5.15, 5.7, 6.3, 6.9];
-  const enemies = spots.map((p) => {
-    const e = spawnEnemy(run, "walker", p);
-    e.maxHp = 1000;
-    e.hp = 1000;
-    return e;
-  });
-  const hits = beamTargets(run, tower, enemies[3]!);
-  ok(hits.length === 3, `луч пробивает 3, не 4: ${hits.length}`);
-  stepRun(run, meta, 1 / 60);
-  const hurt = enemies.filter((e) => e.hp < 1000);
-  ok(hurt.length === 3, `после выстрела ранены 3: ${hurt.length}`);
-  tower.glyphs = ["focus"];
-  for (const e of enemies) e.hp = 1000;
-  tower.cooldown = 0;
-  const only = beamTargets(run, tower, enemies[3]!);
-  ok(only.length === 1 && only[0] === enemies[3], "фокус не пробивает");
-  stepRun(run, meta, 1 / 60);
-  const hurtF = enemies.filter((e) => e.hp < 999);
-  ok(hurtF.length === 1 && enemies[3]!.hp < 990 && enemies[3]!.hp > 980, `фокус бьёт одну цель ×2.1 (${enemies.map((e) => e.hp.toFixed(1)).join(",")})`);
-}
-
-{
-  const { meta, run } = night();
-  ok(placeTower(run, meta, 10, 1, "frost").ok, "иней ставится");
-  const e = spawnEnemy(run, "walker", progressAtCell(10, 2));
-  e.maxHp = 500;
-  e.hp = 500;
-  let frozen = false;
-  for (let i = 0; i < 80 && !frozen; i++) {
-    stepRun(run, meta, 0.05);
-    if (e.freezeUntil > run.time) frozen = true;
-  }
-  ok(frozen, `3 стака инея замораживают (жизнь стака ${FROST_STACK_LIFE} с)`);
-  ok(e.stackLockUntil > e.freezeUntil, "после заморозки есть пауза");
-}
-
-{
-  const { meta, run } = night();
-  ok(placeTower(run, meta, 9, 2, "spike").ok, "шип ставится");
-  const low = spawnEnemy(run, "walker", progressAtCell(10, 2));
-  low.maxHp = 200;
-  low.hp = 20;
-  const tower = run.towers[0]!;
-  ok(executeThreshold(run, tower) === 0.15, "порог шипа 15%");
-  stepRun(run, meta, 1 / 60);
-  ok(!low.alive, "шип казнит ниже порога, хотя удара не хватает на остаток");
-  const high = spawnEnemy(run, "walker", progressAtCell(10, 2));
-  high.maxHp = 200;
-  high.hp = 40;
-  tower.cooldown = 0;
-  stepRun(run, meta, 1 / 60);
-  ok(high.alive && high.hp < 40 && high.hp > 20, `выше порога шип только ранит (${high.hp})`);
-}
-
-{
-  const { meta, run } = night();
-  run.gold = 400;
-  ok(placeTower(run, meta, 13, 1, "beam").ok && placeTower(run, meta, 12, 1, "beacon").ok && placeTower(run, meta, 14, 1, "beacon").ok, "маяки и луч стоят");
-  const beam = run.towers.find((t) => t.kind === "beam")!;
-  const a = run.towers.find((t) => t.x === 12)!;
-  const b = run.towers.find((t) => t.x === 14)!;
-  a.glyphs = ["haste"];
-  const aura = auraFor(run.towers, beam);
-  ok(aura && Math.abs(aura.rate - 0.32) < 1e-9, "два маяка не складываются, берётся лучший темп");
-  ok(auraFor(run.towers, a) === null && auraFor(run.towers, b) === null, "маяк не бафает маяки");
-  b.glyphs = ["bounty"];
-  const aura2 = auraFor(run.towers, beam);
-  ok(aura2 && aura2.gold && Math.abs(aura2.rate - 0.32) < 1e-9, "золото маяка не удваивает темп");
-}
-
-{
-  const { meta, run } = night();
-  for (const x of [10, 11, 12, 13, 14, 15]) {
-    run.gold += 100;
-    ok(placeTower(run, meta, x, 1, "beam").ok, `резонанс-площадка ${x}`);
-  }
-  const ids = run.towers.map((t) => t.id);
-  const bonus = resonanceOf(run.towers, ids[0]!).bonus;
-  ok(Math.abs(bonus - 0.4) < 1e-9, `потолок резонанса +40% (${bonus})`);
-  ok(resonanceOf(run.towers, ids[1]!).bonus === 0.4, "каждая башня связки получает потолок");
-  run.gold += 100;
-  placeTower(run, meta, 4, 1, "beam");
-  const lone = run.towers.find((t) => t.x === 4)!;
-  ok(resonanceOf(run.towers, lone.id).bonus === 0, "одинокая башня без резонанса");
-  const pair = resonanceOf(run.towers.filter((t) => t.x === 10 || t.x === 11), run.towers.find((t) => t.x === 10)!.id);
-  ok(Math.abs(pair.bonus - 0.08) < 1e-9, "двое дают +8%");
-}
-
-{
-  const { meta, run } = night();
-  run.gold = 500;
-  placeTower(run, meta, 10, 1, "frost");
-  placeTower(run, meta, 11, 1, "mortar");
-  const mortar = run.towers.find((t) => t.kind === "mortar")!;
-  const frost = run.towers.find((t) => t.kind === "frost")!;
-  ok(combosOf(run.towers, mortar.id).includes("glassice"), "иней рядом с осколком включает стеклолёд");
-  ok(!combosOf(run.towers, frost.id).includes("glassice"), "эффект стеклолёда на осколке");
-  mortar.x = 13;
-  ok(!combosOf(run.towers, mortar.id).includes("glassice"), "через клетку сочетания нет");
-  mortar.x = 11;
-  mortar.y = 3;
-  ok(!combosOf(run.towers, mortar.id).includes("glassice"), "диагональ не считается");
-}
-
-{
-  const fresh = parseSave(null);
-  ok(fresh.allowWrite && fresh.meta.sparks === 0 && fresh.meta.night === 1 && fresh.meta.run === null, "пустое сохранение");
-  const bad = parseSave("{{");
-  ok(!bad.allowWrite && bad.meta.v === 1 && bad.meta.sparks === 0, "битый json не роняет и не разрешает затирать ключ");
-  const old = parseSave(JSON.stringify({ v: 0, sparks: 9 }));
-  ok(!old.allowWrite && old.meta.sparks === 0, "чужая версия не портит прогресс в памяти");
-  const meta = freshMeta();
-  meta.sparks = 40;
-  const run = beginNight(meta, 3);
-  placeTower(run, meta, 10, 1, "beam");
-  const again = parseSave(serializeSave(meta));
-  ok(again.allowWrite && again.meta.sparks === 40 && again.meta.run?.towers.length === 1, "круг save/load");
-  ok(bagMax(freshMeta()) === 12, "сумка 12");
-  buyShop(meta, "discount", null);
-  ok(meta.discount && meta.sparks === 25 && bagMax(meta) === 13, "покупка скидки и рост сумки");
-}
-
-ok(upgradeCost({ ...towerBlank("beam"), level: 1 } as never) === Math.round(40 * 1.55), "цена 2 уровня");
-ok(LAWS.length === 15 && RUNES.length === 20 && SHOP.length === 9 && TOWERS.length === 7, "полнота списков");
-ok(towerSpec("chain").shop === 40 && towerSpec("well").shop === 55, "цены открытия");
-
-function towerBlank(kind: TowerKind) {
-  return { id: 1, kind, x: 0, y: 0, level: 1, glyphs: [], awakened: false, runes: [], target: "first" as const, spent: 0, cooldown: 0, shots: 0 };
-}
-ok(shotDamage({ towers: [towerBlank("beam")], laws: [] } as never, towerBlank("beam")) === 6, "базовый урон луча");
-
-const page = readFileSync(join(root, "src/pages/games/eternal-watch.astro"), "utf8");
-const hub = readFileSync(join(root, "src/pages/games.astro"), "utf8");
-const seo = readFileSync(join(root, "src/lib/seo.ts"), "utf8");
-for (const piece of ["Вечная стража", "Начать ночь", "Лавка искр", "Ночь кончилась", "Новая ночь", "Рассвет"]) {
-  ok(page.includes(piece), "текст страницы: " + piece);
-}
-ok(page.includes('href="/games"') && hub.includes('data-game-url="/games/eternal-watch"') && hub.includes("Вечная стража"), "хаб ведёт на игру");
-ok(seo.includes('"/games/eternal-watch"'), "адрес в карте сайта");
-const banned = ["Pixel Art Atlas", "Hugging Face", "Krea", "сюрприз"];
-for (const file of [
+const files = [
   "src/pages/games/eternal-watch.astro",
   "src/scripts/eternal-watch/client.ts",
   "src/scripts/eternal-watch/logic.ts",
-  "src/pages/games.astro",
-  "src/lib/seo.ts",
-]) {
-  const text = readFileSync(join(root, file), "utf8");
+  "docs/eternal-watch-v2-DESIGN.md",
+];
+const banned = ["pixel art atlas", "hugging face", "krea", "сюрприз"];
+for (const file of files) {
+  const text = readFileSync(join(root, file), "utf8").toLowerCase();
   for (const word of banned) ok(!text.includes(word), `${file} без «${word}»`);
 }
+const astro = readFileSync(join(root, "src/pages/games/eternal-watch.astro"), "utf8");
+ok(astro.includes("minmax(42dvh, 1fr)"), "поле не схлопывается");
+ok(astro.includes("100dvh"), "высота экрана");
+ok(!astro.includes("flex: 0 0 auto"), "нет нулевой колонки v1");
+const buttons = astro.match(/<button\b[^>]*>/g) ?? [];
+ok(buttons.length > 0 && buttons.every((b) => b.includes("data-tip")), "кнопки страницы с подсказкой");
+ok(mapById("finale")!.gates.length === 2, "финал с двумя вратами");
+ok(MAPS.filter((m) => m.gates.length === 2).every((m) => m.ground.length >= 2), "двое врат — два портала");
 
-console.log(`\neternal-watch-test: ${passes} PASS, ${fails} FAIL`);
+const scripted = beginRun(freshMeta(), "spark-path", false, 1)!;
+const smeta = freshMeta();
+for (const [x, y] of [[9, 3], [7, 3], [6, 1], [5, 3]] as const) placeTower(scripted, smeta, x, y, "spark");
+simulate(scripted, smeta, 100, 0.1);
+ok(scripted.outcome === "win" && (scripted.reward?.stars ?? 0) >= 1, "первая ночь берётся");
+const caller = beginRun(freshMeta(), "spark-path", false, 9)!;
+caller.nextWaveAt = caller.time + 30;
+ok(callWave(caller).ok && caller.nextWaveAt === caller.time, "вызов волны");
+
+const spaced = beginRun(freshMeta(), "spark-path", false, 4)!;
+simulate(spaced, freshMeta(), 5, 0.05);
+const walkers = spaced.enemies.filter((e) => e.alive && e.kind === "walker").sort((a, b) => a.progress - b.progress);
+ok(walkers.length >= 2, `пехота на тропе ${walkers.length}`);
+for (let i = 1; i < walkers.length; i++) {
+  ok(walkers[i].progress - walkers[i - 1].progress >= PATH_GAP * 0.9, `зазор ${walkers[i].progress - walkers[i - 1].progress}`);
+}
+
+console.log(fails ? `FAIL ${fails}` : `ok ${passes}`);
 process.exit(fails ? 1 : 0);
