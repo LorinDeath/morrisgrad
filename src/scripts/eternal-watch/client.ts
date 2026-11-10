@@ -463,11 +463,17 @@ function mount(): () => void {
         const rs = runeSpec(rune);
         b.textContent = rs.name;
         b.classList.add("on");
-        b.dataset.tip = `${rs.name}. ${rs.text} Нажатие снимет руну в сумку.`;
+        const tip = `Руна «${rs.name}». ${rs.text} Нажатие снимает руну обратно в сумку.`;
+        b.dataset.tip = tip;
+        b.title = tip;
+        b.setAttribute("aria-label", tip);
         b.addEventListener("click", () => { if (tipLock || !run) return; act(unsocketRune(run, tower.id, i)); });
       } else {
-        b.textContent = "Пустой слот";
-        b.dataset.tip = "Слот руны пуст. Нажмите руну в сумке ниже, чтобы вставить.";
+        b.textContent = `Слот ${i + 1}`;
+        const tip = "Пустой слот руны. Руна меняет выстрел этой башни: урон, темп, золото, казнь, прыжок или другой приём. Вставьте её кнопкой из сумки ниже.";
+        b.dataset.tip = tip;
+        b.title = tip;
+        b.setAttribute("aria-label", tip);
       }
       rr.append(b);
     }
@@ -490,7 +496,10 @@ function mount(): () => void {
         const b = document.createElement("button");
         b.type = "button";
         b.textContent = rs.name;
-        b.dataset.tip = `${rs.name}. ${rs.text} Нажатие вставит руну в свободный слот этой башни.`;
+        const tip = `Руна «${rs.name}». ${rs.text} Нажатие вставит её в свободный слот этой башни.`;
+        b.dataset.tip = tip;
+        b.title = tip;
+        b.setAttribute("aria-label", tip);
         b.addEventListener("click", () => { if (tipLock || !run) return; act(socketRune(run, tower.id, index)); });
         bag.append(b);
       });

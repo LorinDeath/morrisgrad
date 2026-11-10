@@ -79,8 +79,8 @@ const description = 'Ночь за ночью держите Врата искр
       position: relative;
       flex: 1;
       min-height: 0;
-      width: min(1100px, calc(100% - 12px));
-      margin: 0 auto 8px;
+      width: min(1560px, calc(100% - 8px));
+      margin: 0 auto 6px;
       display: flex;
       flex-direction: column;
       padding: 10px;
@@ -142,10 +142,17 @@ const description = 'Ночь за ночью держите Врата искр
       background: #e0a15a;
       color: #1a120c;
     }
+    .board {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+    }
     .stage {
       position: relative;
       flex: 1 1 auto;
-      min-height: 168px;
+      min-width: 0;
+      min-height: 0;
       overflow: hidden;
       background: #1a1612;
       touch-action: none;
@@ -240,15 +247,20 @@ const description = 'Ночь за ночью держите Врата искр
     }
     .toast[hidden] { display: none !important; }
     .card {
-      flex: 0 1 auto;
-      max-height: 38vh;
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      bottom: 8px;
+      width: min(320px, 34%);
+      z-index: 5;
       overflow: auto;
-      margin-top: 6px;
+      margin: 0;
       padding: 8px 10px;
-      background: rgba(22, 16, 12, 0.96);
-      border: 1px solid rgba(224, 161, 90, 0.45);
+      background: rgba(22, 16, 12, 0.94);
+      border: 1px solid rgba(224, 161, 90, 0.55);
       color: #f6e7c8;
       touch-action: pan-y;
+      box-shadow: -10px 0 28px rgba(0, 0, 0, 0.4);
     }
     .card[hidden] { display: none !important; }
     .card h3 {
@@ -324,12 +336,20 @@ const description = 'Ночь за ночью держите Врата искр
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     }
     #ew-tip[hidden] { display: none !important; }
-    @media (max-width: 720px) {
+    @media (max-width: 800px) {
       .top { grid-template-columns: auto 1fr; }
       .top h1 { font-size: 1.15rem; text-align: right; }
       .blurb { display: none; }
-      .card { max-height: 34vh; }
-      .dock button { width: 76px; min-height: 76px; background-size: 76px 76px; }
+      .board { flex: 0 1 auto; flex-direction: column; }
+      .stage { flex: 0 0 auto; place-items: center; padding-top: 2px; }
+      .card {
+        position: static;
+        width: auto;
+        max-height: 34vh;
+        margin-top: 6px;
+        box-shadow: none;
+      }
+      .dock button { width: 72px; min-height: 72px; background-size: 72px 72px; }
     }
   </style>
 </head>
@@ -357,6 +377,7 @@ const description = 'Ночь за ночью держите Врата искр
       </div>
       <button type="button" class="shop" id="ew-shop-btn" data-tip="Лавка искр. Покупки остаются навсегда.">Лавка</button>
     </div>
+    <div class="board" id="ew-board">
     <div class="stage" id="ew-stage">
       <canvas id="ew-canvas" width="256" height="160" aria-label="Крепость и каменный серпантин"></canvas>
       <div class="veil" id="ew-title">
@@ -390,6 +411,7 @@ const description = 'Ночь за ночью держите Врата искр
       <p class="toast" id="ew-toast" hidden></p>
     </div>
     <section class="card" id="ew-card" hidden></section>
+    </div>
     <div class="dock" id="ew-dock" hidden></div>
     <p class="hint">Площадка ставит выбранную башню. Карточка не прячет карту. Подсказка: наведите курсор или удерживайте кнопку.</p>
   </div>
