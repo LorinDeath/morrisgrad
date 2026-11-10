@@ -38,13 +38,15 @@ const description = 'Ночь у Врат искры: свободная сет�
       height: 100dvh;
       min-height: 100dvh;
       display: grid;
-      grid-template-rows: auto auto minmax(42dvh, 1fr) 148px;
+      grid-template-rows: auto auto minmax(42dvh, 1fr) auto;
       padding:
         env(safe-area-inset-top)
         env(safe-area-inset-right)
         env(safe-area-inset-bottom)
         env(safe-area-inset-left);
     }
+    #ew-app:not(.in-battle) .battle-hud { display: none; }
+    #ew-app:not(.in-battle) #ew-dock { display: none; }
     .top {
       display: flex;
       align-items: center;
@@ -63,24 +65,24 @@ const description = 'Ночь у Врат искры: свободная сет�
       letter-spacing: 0.04em;
       color: #e7f6ff;
     }
-    .hud {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 4px 8px;
-      min-height: 40px;
+    .hud { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 6px; }
+    .battle-hud, .meta-hud, .speeds, .hud-acts, #ew-globals {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
     }
-    #ew-res {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 12px;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
+    .meta-hud { justify-content: space-between; }
+    #ew-fight, #ew-res {
+      display: flex; flex-wrap: wrap; gap: 8px 12px;
+      font-weight: 700; font-variant-numeric: tabular-nums;
     }
+    #ew-fight b { color: #ffe1a3; }
     #ew-res b { color: #9ad7ff; font-weight: 700; }
-    .speeds, .hud-acts { display: flex; gap: 4px; flex-wrap: wrap; }
+    .ability {
+      position: relative; min-width: 74px; overflow: hidden;
+    }
+    .ability .ring {
+      position: absolute; inset: 2px auto auto 2px; width: 16px; height: 16px; border-radius: 50%;
+      background: conic-gradient(#7ee0ff var(--p), rgba(126, 224, 255, 0.15) 0);
+    }
     button {
       appearance: none;
       border: 1px solid rgba(120, 190, 255, 0.45);
@@ -93,6 +95,14 @@ const description = 'Ночь у Врат искры: свободная сет�
     }
     button.on, button:hover { background: #7ee0ff; color: #071018; }
     button:disabled { opacity: 0.45; cursor: default; }
+    .main {
+      min-height: 42dvh;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      position: relative;
+    }
+    #ew-app.panel-open .main { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
     .stage {
       position: relative;
       min-height: 42dvh;
@@ -100,6 +110,24 @@ const description = 'Ночь у Врат искры: свободная сет�
       overflow: hidden;
       background: #070b16;
     }
+    .panel {
+      overflow: auto;
+      background: #0b1426;
+      border-left: 1px solid rgba(120, 190, 255, 0.28);
+      padding: 10px 12px 16px;
+      min-height: 0;
+    }
+    .panel[hidden] { display: none !important; }
+    .xp {
+      height: 8px; border-radius: 99px; background: #172033; overflow: hidden; margin: 6px 0 8px;
+    }
+    .xp span { display: block; height: 100%; background: linear-gradient(90deg, #3ee0ff, #ffe08a); }
+    .ability-card {
+      display: block; width: 100%; text-align: left; margin: 0 0 6px; min-height: 64px;
+    }
+    .ability-card b { display: block; font-family: Shket, Georgia, serif; font-weight: 400; font-size: 1.05rem; }
+    .ability-card span { display: block; font-weight: 500; color: #c5d7ee; }
+    #ew-preview { width: 100%; height: 150px; display: block; background: #070b16; margin: 6px 0 8px; border: 1px solid rgba(120, 190, 255, 0.25); }
     canvas {
       position: absolute;
       inset: 0;
@@ -109,34 +137,32 @@ const description = 'Ночь у Врат искры: свободная сет�
       touch-action: none;
       background: #070b16;
     }
-    .foot {
-      min-height: 132px;
-      overflow: auto;
+    #ew-dock {
       padding: 6px 8px 8px;
       background: #0a1222;
       border-top: 1px solid rgba(120, 190, 255, 0.28);
-      -webkit-overflow-scrolling: touch;
     }
-    .dock, .row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+    .dock { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
     .dock button {
-      flex: 0 0 84px;
-      width: 84px;
-      min-height: 64px;
+      flex: 0 0 96px;
+      width: 96px;
+      min-height: 74px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       justify-content: center;
       gap: 2px;
     }
+    .swatch { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
     .dock button small { font-weight: 600; color: #9ad7ff; }
     .dock button.locked { opacity: 0.55; }
-    .card h3, .foot h2 {
+    .panel h2, .panel h3 {
       margin: 0 0 4px;
       font-family: Shket, Georgia, serif;
       font-weight: 400;
       color: #e7f6ff;
     }
-    .card p, .foot p { margin: 0 0 4px; color: #c5d7ee; font-size: 0.92rem; }
+    .panel p { margin: 0 0 4px; color: #c5d7ee; font-size: 0.92rem; }
     .acts { display: flex; flex-wrap: wrap; gap: 6px; }
     #ew-tip {
       position: fixed;
@@ -166,9 +192,18 @@ const description = 'Ночь у Врат искры: свободная сет�
     }
     .toast[hidden] { display: none !important; }
     @media (max-width: 800px) {
-      #ew-app { grid-template-rows: auto auto minmax(42dvh, 1fr) 136px; }
+      #ew-app.panel-open .main { grid-template-columns: minmax(0, 1fr); }
+      #ew-app.panel-open .stage { height: 58%; min-height: 200px; }
+      #ew-app.panel-open .panel {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        max-height: 46%;
+        z-index: 6;
+        border-left: 0;
+        border-top: 1px solid rgba(120, 190, 255, 0.35);
+      }
       .top h1 { font-size: 1.15rem; }
-      .dock button { width: 76px; }
+      .dock button { width: 88px; flex-basis: 88px; }
     }
   </style>
 </head>
@@ -179,25 +214,35 @@ const description = 'Ночь у Врат искры: свободная сет�
       <h1>Вечная стража</h1>
     </header>
     <div class="hud" id="ew-hud">
-      <div id="ew-res"></div>
-      <div class="speeds">
-        <button type="button" id="ew-pause" data-tip="Пауза. Ночь стоит на месте, башни можно ставить и улучшать. Перезарядка умений не идёт.">Пауза</button>
-        <button type="button" id="ew-x1" data-tip="Обычная скорость ночи, 1×.">1×</button>
-        <button type="button" id="ew-x2" data-tip="Ускорить ночь вдвое, 2×.">2×</button>
-        <button type="button" id="ew-x4" data-tip="Ускорить ночь вчетверо, 4×.">4×</button>
+      <div class="battle-hud">
+        <div id="ew-fight"></div>
+        <button type="button" id="ew-call" data-tip="Вызвать следующую волну сразу, не дожидаясь таймера. Пока волна ещё выходит из портала, вызов ждёт.">Волна</button>
+        <div class="speeds">
+          <button type="button" id="ew-pause" data-tip="Пауза. Ночь стоит на месте, башни можно ставить и улучшать. Перезарядка умений не идёт.">Пауза</button>
+          <button type="button" id="ew-x1" data-tip="Обычная скорость ночи, 1×.">1×</button>
+          <button type="button" id="ew-x2" data-tip="Ускорить ночь вдвое, 2×.">2×</button>
+          <button type="button" id="ew-x4" data-tip="Ускорить ночь вчетверо, 4×.">4×</button>
+        </div>
+        <div id="ew-globals"></div>
       </div>
-      <div class="hud-acts">
-        <button type="button" id="ew-nums" data-tip="Показывать или прятать цифры урона над тварями.">Цифры</button>
-        <button type="button" id="ew-tree" data-tip="Открыть древо. Искры, пепел и руда тратятся здесь и не сгорают между ночами.">Древо</button>
-        <button type="button" id="ew-endless" data-tip="Бесконечная ночь на уже открытых картах. Рекорд волны хранится на этом устройстве, без таблицы лидеров.">Бесконечная</button>
-        <button type="button" id="ew-world" data-tip="Карта ночей кампании. Следующая ночь открывается после хотя бы одной звезды.">Карта</button>
+      <div class="meta-hud">
+        <div id="ew-res"></div>
+        <div class="hud-acts">
+          <button type="button" id="ew-nums" data-tip="Показывать или прятать цифры урона над тварями.">Цифры</button>
+          <button type="button" id="ew-tree" data-tip="Открыть древо. Искры, пепел и руда тратятся здесь и не сгорают между ночами.">Древо</button>
+          <button type="button" id="ew-endless" data-tip="Бесконечная ночь на уже открытых картах. Рекорд волны хранится на этом устройстве, без таблицы лидеров.">Бесконечная</button>
+          <button type="button" id="ew-world" data-tip="Карта ночей кампании. Следующая ночь открывается после хотя бы одной звезды.">Карта</button>
+        </div>
       </div>
     </div>
-    <div class="stage" id="ew-stage">
-      <canvas id="ew-canvas" aria-label="Тёмная сетка у Врат искры"></canvas>
-      <p class="toast" id="ew-toast" hidden></p>
+    <div class="main" id="ew-main">
+      <div class="stage" id="ew-stage">
+        <canvas id="ew-canvas" aria-label="Тёмная сетка у Врат искры"></canvas>
+        <p class="toast" id="ew-toast" hidden></p>
+      </div>
+      <aside class="panel" id="ew-panel" hidden></aside>
     </div>
-    <div class="foot" id="ew-foot"></div>
+    <div id="ew-dock" hidden></div>
   </div>
   <p id="ew-tip" hidden></p>
   <noscript><p>Для игры нужен JavaScript. Вход не требуется.</p></noscript>

@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import {
   MAPS, RESEARCH, SAVE_KEY, TOWERS, buyNode, canBuy, chooseAbility, compile, debugSpawn,
-  enemyHp, formatNumber, freshMeta, beginRun, levelOf, loadMeta, mapById, mitigate,
+  enemyHp, formatNumber, freshMeta, beginRun, callWave, levelOf, loadMeta, mapById, mitigate,
   nodeById, placeStamp, placeTower, researchCount, serializeMeta, simulate, towerTip,
   upgradeTower, wavePlan,
 } from "../../src/scripts/eternal-watch/logic.ts";
@@ -218,6 +218,9 @@ const smeta = freshMeta();
 for (const [x, y] of [[9, 3], [7, 3], [6, 1], [5, 3]] as const) placeTower(scripted, smeta, x, y, "spark");
 simulate(scripted, smeta, 100, 0.1);
 ok(scripted.outcome === "win" && (scripted.reward?.stars ?? 0) >= 1, "первая ночь берётся");
+const caller = beginRun(freshMeta(), "spark-path", false, 9)!;
+caller.nextWaveAt = caller.time + 30;
+ok(callWave(caller).ok && caller.nextWaveAt === caller.time, "вызов волны");
 
 console.log(fails ? `FAIL ${fails}` : `ok ${passes}`);
 process.exit(fails ? 1 : 0);

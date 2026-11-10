@@ -1,12 +1,12 @@
 // Клиент «Вечной стражи». Симуляция живёт в logic.ts.
 import {
-  MAPS, SAVE_KEY, SAVE_KEY_V1, TOWER_COLOR, TOWERS, buyNode, castAbility, chooseAbility,
-  compile, cycleTarget, beginRun, endRun, loadMeta, mapById, nodeById, placeStamp, placeTower, sellTower,
-  serializeMeta, stepRun, syncOffers, unlockedIndex, upgradeTower, briefLines, dockOf, globalTip,
-  nodeTip, summaryLines, towerCard,
+  ABILITY_BY_ID, MAPS, SAVE_KEY, SAVE_KEY_V1, TOWER_COLOR, TOWERS, abilityCd, buyNode, callWave, castAbility,
+  chooseAbility, compile, cycleTarget, beginRun, debugSpawn, endRun, loadMeta, mapById, nodeById, placeStamp,
+  placeTower, previewStats, sellTower, serializeMeta, stepRun, syncOffers, unlockedIndex, upgradeTower,
+  xpBar, briefLines, dockOf, globalTip, nodeTip, summaryLines, towerCard,
 } from "./logic.ts";
-import { fitCam, paintBattle, paintTree, paintWorld, toWorld, treeHit, worldHit, type Cam } from "./draw.ts";
-import type { GlobalId, Meta, ModKind, Run, TowerKind } from "./logic.ts";
+import { fitCam, paintBattle, paintMapPreview, paintTree, paintWorld, toWorld, treeHit, worldHit, type Cam, type Ghost } from "./draw.ts";
+import type { EnemyKind, GlobalId, Meta, ModKind, Run, TowerKind } from "./logic.ts";
 
 type Screen = "world" | "battle" | "tree" | "summary";
 
@@ -14,11 +14,15 @@ const app = document.getElementById("ew-app");
 const stage = document.getElementById("ew-stage") as HTMLElement;
 const canvas = document.getElementById("ew-canvas") as HTMLCanvasElement;
 const context = canvas.getContext("2d");
-const foot = document.getElementById("ew-foot") as HTMLElement;
+const panel = document.getElementById("ew-panel") as HTMLElement;
+const dockEl = document.getElementById("ew-dock") as HTMLElement;
 const resEl = document.getElementById("ew-res") as HTMLElement;
+const fightEl = document.getElementById("ew-fight") as HTMLElement;
+const globalsEl = document.getElementById("ew-globals") as HTMLElement;
 const toastEl = document.getElementById("ew-toast") as HTMLElement;
 const tipEl = document.getElementById("ew-tip") as HTMLElement;
-if (!app || !stage || !canvas || !context || !foot || !resEl || !tipEl) throw new Error("нет оболочки");
+if (!app || !stage || !canvas || !context || !panel || !dockEl || !resEl || !fightEl || !globalsEl || !tipEl) throw new Error("нет оболочки");
+const shell: HTMLElement = app;
 const ctx: CanvasRenderingContext2D = context;
 
 const loaded = loadMeta(localStorage.getItem(SAVE_KEY), localStorage.getItem(SAVE_KEY_V1));
@@ -34,8 +38,10 @@ let aim: GlobalId | null = null;
 let nodeId: string | null = RESEARCH_FIRST();
 let brief = -1;
 let worldCam: Cam = { x: 520, y: 320, z: 1 };
-let treeCam: Cam = { x: 400, y: 280, z: 1 };
+let treeCam: Cam = { x: 160, y: -80, z: 1.05 };
 let battleCam: Cam = { x: 8, y: 5, z: 32 };
+let battleFit = 32;
+let hover: Ghost | null = null;
 let fitted = "";
 let footSig = "";
 let acc = 0;
@@ -134,26 +140,27 @@ function resize(): void {
   if (key !== fitted) {
     fitted = key;
     if (screen === "world" || screen === "summary" && !run) worldCam = fitCam(w, h, 1040, 640, 40);
-    if (screen === "tree") {
-      const z = Math.max(0.7, Math.min(1.15, w / 700));
-      treeCam = { x: 70 + (w / z) * 0.42, y: 80 + (h / z) * 0.36, z };
-    }
+    if (screen === "tree") treeCam = { x: 200, y: -120, z: Math.max(0.85, Math.min(1.2, w / 640)) };
     if ((screen === "battle" || screen === "summary") && run) {
       const map = mapById(run.mapId);
-      if (map) battleCam = fitCam(w, h, map.cols, map.rows, 1.2);
+      if (map) {
+        battleCam = fitCam(w, h, map.cols, map.rows, 0.35);
+        battleFit = battleCam.z;
+      }
     }
   }
 }
 
 function draw(): void {
   const { w, h, dpr } = cssSize();
-  if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) resize();
+  const key = screen + ":" + (run?.mapId ?? "") + ":" + Math.round(w) + "x" + Math.round(h);
+  if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr) || key !== fitted) resize();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   if (screen === "tree") paintTree(ctx, w, h, meta, treeCam, nodeId);
   else if ((screen === "battle" || screen === "summary") && run) {
     const map = mapById(run.mapId);
-    if (map) paintBattle(ctx, w, h, map, run, meta, battleCam, selected, meta.damageNumbers);
+    if (map) paintBattle(ctx, w, h, map, run, meta, battleCam, selected, meta.damageNumbers, hover);
   } else paintWorld(ctx, w, h, meta, worldCam, endless);
   paintHud();
   const sig = footSignature();
@@ -161,17 +168,77 @@ function draw(): void {
 }
 
 function paintHud(): void {
-  const bits = [`<span>Искры <b>${Math.floor(meta.sparks)}</b></span>`, `<span>Пепел <b>${Math.floor(meta.ash)}</b></span>`, `<span>Руда <b>${Math.floor(meta.vein)}</b></span>`];
-  if (run) {
-    bits.unshift(`<span>Золото <b>${Math.floor(run.gold)}</b></span>`);
-    bits.unshift(`<span>Врата <b>${Math.max(0, Math.floor(run.hearts))}/${Math.floor(run.maxHearts)}</b></span>`);
-    bits.push(`<span>Волна <b>${Math.max(1, run.scheduled || 1)}</b></span>`);
-  }
-  resEl.innerHTML = bits.join("");
+  shell.classList.toggle("in-battle", screen === "battle");
+  const panelOn = (screen === "world" && brief >= 0) || (screen === "tree" && !!nodeId) || (screen === "summary" && !!run) || (screen === "battle" && selected > 0);
+  shell.classList.toggle("panel-open", panelOn);
+  panel.hidden = !panelOn;
+  dockEl.hidden = screen !== "battle";
+  resEl.innerHTML = `<span>Искры <b>${Math.floor(meta.sparks)}</b></span><span>Пепел <b>${Math.floor(meta.ash)}</b></span><span>Руда <b>${Math.floor(meta.vein)}</b></span>`;
+  if (run && screen === "battle") {
+    const map = mapById(run.mapId);
+    const goal = map ? (run.endless ? 0 : map.waves) : 0;
+    const wait = Math.max(0, run.nextWaveAt - run.time);
+    const waveLabel = run.queue.length ? "волна идёт" : (!run.endless && run.scheduled >= goal) ? "последняя волна" : `след. ${wait.toFixed(1)} с`;
+    fightEl.innerHTML = `<span>Врата <b>${Math.max(0, Math.floor(run.hearts))}/${Math.floor(run.maxHearts)}</b></span><span>Золото <b>${Math.floor(run.gold)}</b></span><span>Волна <b>${Math.max(run.scheduled, 1)}</b></span><span>${waveLabel}</span>`;
+  } else fightEl.innerHTML = "";
   for (const [id, sp] of [["ew-pause", 0], ["ew-x1", 1], ["ew-x2", 2], ["ew-x4", 4]] as const) {
-    document.getElementById(id)?.classList.toggle("on", speed === sp && !!run);
+    document.getElementById(id)?.classList.toggle("on", speed === sp);
   }
   document.getElementById("ew-nums")?.classList.toggle("on", meta.damageNumbers);
+  paintGlobals();
+}
+
+function paintGlobals(): void {
+  if (!run || screen !== "battle") {
+    if (globalsEl.childElementCount) globalsEl.replaceChildren();
+    return;
+  }
+  const b = compile(meta);
+  const defs: [GlobalId, string, number, boolean][] = [
+    ["fire", "Пожар", 42, b.abFire],
+    ["bliz", "Буран", 46, b.abBliz],
+    ["dawn", "Удар зари", 78, b.abDawn],
+  ];
+  const sig = defs.map((d) => d[3]).join("") + (aim ?? "");
+  if (globalsEl.dataset.sig !== sig) {
+    globalsEl.dataset.sig = sig;
+    globalsEl.replaceChildren();
+    for (const [id, name, , open] of defs) {
+      const button = btn(name, globalTip(meta, id, 0), () => {
+        if (!open) { toast("Умение ещё в древе."); return; }
+        if (!run) return;
+        if (id === "bliz") {
+          const res = castAbility(run, meta, "bliz", 0, 0);
+          if (!res.ok) toast(res.reason);
+          save();
+          footSig = "";
+          return;
+        }
+        aim = aim === id ? null : id;
+        kind = null;
+        footSig = "";
+      }, aim === id);
+      button.classList.add("ability");
+      button.dataset.ability = id;
+      const ring = document.createElement("span");
+      ring.className = "ring";
+      button.prepend(ring);
+      globalsEl.append(button);
+    }
+  }
+  defs.forEach(([id, name, base, open], i) => {
+    const button = globalsEl.children[i] as HTMLButtonElement | undefined;
+    if (!button || !run) return;
+    const max = Math.max(0.01, abilityCd(base, b.cdSteps));
+    const cd = run.abilityCd[id];
+    const p = open ? Math.max(0, Math.min(1, cd / max)) : 1;
+    button.style.setProperty("--p", `${Math.round((1 - p) * 360)}deg`);
+    button.disabled = !open || cd > 0.05;
+    const label = button.childNodes[button.childNodes.length - 1];
+    if (label) label.textContent = cd > 0.05 ? `${name} ${Math.ceil(cd)}` : name;
+    button.classList.toggle("on", aim === id);
+    button.dataset.tip = globalTip(meta, id, cd);
+  });
 }
 
 function footSignature(): string {
@@ -184,30 +251,34 @@ function footSignature(): string {
 }
 
 function paintFoot(): void {
-  foot.replaceChildren();
+  panel.replaceChildren();
+  if (screen === "battle") paintDock();
+  else dockEl.replaceChildren();
   if (screen === "tree") return paintTreeFoot();
   if (screen === "summary" && run) return paintSummary();
   if (screen === "world") return paintWorldFoot();
   if (run && selected) {
     const card = towerCard(run, meta, selected);
-    if (card) return paintCard(card);
+    if (card) paintCard(card);
   }
-  paintDock();
 }
 
 function paintWorldFoot(): void {
   const h = document.createElement("h2");
   h.textContent = endless ? "Бесконечная ночь" : "Карта ночей";
-  foot.append(h);
+  panel.append(h);
   const p = document.createElement("p");
   if (brief >= 0 && MAPS[brief]) {
     const map = MAPS[brief];
+    h.textContent = map.name;
     const open = brief <= unlockedIndex(meta.stars);
-    for (const line of briefLines(map, meta.stars[map.id] ?? 0, meta.endlessBest[map.id] ?? 0)) {
-      const row = document.createElement("p");
-      row.textContent = line;
-      foot.append(row);
-    }
+    const preview = document.createElement("canvas");
+    preview.id = "ew-preview";
+    preview.width = 320;
+    preview.height = 140;
+    panel.append(preview);
+    const pctx = preview.getContext("2d");
+    if (pctx) paintMapPreview(pctx, map, preview.width, preview.height);
     const row = document.createElement("div");
     row.className = "acts";
     row.append(btn(endless ? "Начать бесконечную ночь" : "Начать ночь", endless
@@ -215,100 +286,84 @@ function paintWorldFoot(): void {
       : `Начать кампанию «${map.name}». Золото этой ночи сгорит, искры останутся.`, () => start(map.id, endless), false));
     if (!open) row.append(btn("Закрыто", "Сначала возьмите хотя бы одну звезду на предыдущей ночи.", () => toast("Эта ночь ещё закрыта.")));
     if (run && run.outcome === "play") row.append(btn("Вернуться в ночь", "Снова открыть текущую ночь. Она не сбрасывается.", () => { screen = "battle"; fitted = ""; footSig = ""; }));
-    foot.append(row);
+    panel.append(row);
+    const best = document.createElement("p");
+    best.textContent = endless
+      ? `Лучшая волна: ${meta.endlessBest[map.id] ?? 0}.`
+      : `Звёзды: ${"★".repeat(meta.stars[map.id] ?? 0)}${"☆".repeat(3 - (meta.stars[map.id] ?? 0))}.`;
+    panel.append(best);
+    for (const line of briefLines(map, meta.stars[map.id] ?? 0, meta.endlessBest[map.id] ?? 0)) {
+      const rowLine = document.createElement("p");
+      rowLine.textContent = line;
+      panel.append(rowLine);
+    }
   } else {
     p.textContent = endless
       ? "Выберите открытую ночь. Под узлом — лучшая волна на этом устройстве."
       : "Выберите ночь. Три звезды: дойти до конца, сохранить половину Врат, не пустить никого и удержать 80%.";
-    foot.append(p);
-    if (run && run.outcome === "play") foot.append(btn("Вернуться в ночь", "Снова открыть текущую ночь. Она не сбрасывается.", () => { screen = "battle"; fitted = ""; footSig = ""; }));
+    panel.append(p);
+    if (endless) {
+      const list = document.createElement("div");
+      for (const map of MAPS) {
+        const line = document.createElement("p");
+        const open = MAPS.indexOf(map) <= unlockedIndex(meta.stars);
+        line.textContent = open ? `${map.name}: волна ${meta.endlessBest[map.id] ?? 0}` : `${map.name}: закрыто`;
+        list.append(line);
+      }
+      panel.append(list);
+    }
+    if (run && run.outcome === "play") panel.append(btn("Вернуться в ночь", "Снова открыть текущую ночь. Она не сбрасывается.", () => { screen = "battle"; fitted = ""; footSig = ""; }));
   }
 }
 
 function paintDock(): void {
-  const h = document.createElement("h2");
-  h.textContent = run ? (mapById(run.mapId)?.name ?? "Ночь") : "Башни";
-  foot.append(h);
-  if (run && aim) {
-    const p = document.createElement("p");
-    p.textContent = aim === "bliz" ? "Буран накрывает всю ночь." : "Коснитесь сетки — умение ударит в эту клетку.";
-    foot.append(p);
-  }
+  dockEl.replaceChildren();
   const dock = document.createElement("div");
   dock.className = "dock";
   for (const entry of dockOf(meta)) {
     const b = btn(entry.label, entry.tip, () => {
       if (entry.locked) { toast("Сначала откройте башню в древе."); return; }
       kind = kind === entry.kind ? null : entry.kind;
-      selected = 0;
       aim = null;
+      hover = null;
       footSig = "";
     }, kind === entry.kind);
     if (entry.locked) b.classList.add("locked");
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.background = TOWER_COLOR[entry.kind];
+    sw.style.color = TOWER_COLOR[entry.kind];
+    b.prepend(sw);
     const small = document.createElement("small");
-    small.textContent = entry.locked ? "древо" : String(TOWERS[entry.kind].cost);
+    small.textContent = entry.locked ? "в древе" : `${TOWERS[entry.kind].cost} золота`;
     b.append(small);
-    b.style.boxShadow = kind === entry.kind ? `inset 0 0 0 2px ${TOWER_COLOR[entry.kind]}` : "";
     dock.append(b);
   }
-  foot.append(dock);
-  if (run) {
-    const acts = document.createElement("div");
-    acts.className = "acts";
-    const b = compile(meta);
-    const globals: GlobalId[] = ["fire", "bliz", "dawn"];
-    for (const id of globals) {
-      const open = id === "fire" ? b.abFire : id === "bliz" ? b.abBliz : b.abDawn;
-      const name = id === "fire" ? "Пожар" : id === "bliz" ? "Буран" : "Удар зари";
-      acts.append(btn(name, globalTip(meta, id, run.abilityCd[id]), () => {
-        if (!open) { toast("Умение ещё в древе."); return; }
-        if (id === "bliz") {
-          const res = castAbility(run!, meta, "bliz", 0, 0);
-          if (!res.ok) toast(res.reason);
-          save();
-          footSig = "";
-          return;
-        }
-        aim = aim === id ? null : id;
-        kind = null;
-        selected = 0;
-        footSig = "";
-      }, aim === id));
-    }
-    if (endless || screen === "battle") {
-      acts.append(btn("Закончить ночь", "Сдаться. Ночь считается поражением, награда за разобранные волны остаётся.", () => {
-        if (!run) return;
-        endRun(run, meta);
-        screen = "summary";
-        save();
-        footSig = "";
-      }));
-    }
-    foot.append(acts);
-  }
+  dockEl.append(dock);
 }
 
 function paintCard(card: { title: string; lines: string[]; buttons: { id: string; label: string; tip: string }[] }): void {
-  const box = document.createElement("div");
-  box.className = "card";
+  const tower = run?.towers.find((t) => t.id === selected);
   const h = document.createElement("h2");
   h.textContent = card.title;
-  box.append(h);
-  const offers = card.buttons.filter((b) => b.id.startsWith("ab:"));
-  const rest = card.buttons.filter((b) => !b.id.startsWith("ab:"));
-  if (offers.length) {
-    const pick = document.createElement("div");
-    pick.className = "acts";
-    for (const button of offers) pick.append(btn(button.label, button.tip, () => actCard(button.id)));
-    box.append(pick);
+  panel.append(h);
+  if (tower) {
+    const bar = xpBar(tower.xp);
+    const xp = document.createElement("div");
+    xp.className = "xp";
+    const fill = document.createElement("span");
+    fill.style.width = `${Math.max(4, Math.min(100, (bar.into / Math.max(1, bar.need)) * 100))}%`;
+    xp.append(fill);
+    panel.append(xp);
+    const lv = document.createElement("p");
+    lv.textContent = `Уровень опыта ${bar.level}. До следующего ${Math.floor(bar.into)}/${bar.need}. Убийств ${tower.kills}.`;
+    panel.append(lv);
   }
   for (const line of card.lines) {
     const p = document.createElement("p");
     p.textContent = line;
-    box.append(p);
+    panel.append(p);
   }
-  const acts = document.createElement("div");
-  acts.className = "acts";
   const actCard = (id: string) => {
     if (!run) return;
     let res = { ok: true, reason: "" };
@@ -320,11 +375,33 @@ function paintCard(card: { title: string; lines: string[]; buttons: { id: string
     save();
     footSig = "";
   };
-  for (const button of rest) {
+  const offers = card.buttons.filter((b) => b.id.startsWith("ab:"));
+  if (offers.length) {
+    const title = document.createElement("h3");
+    title.textContent = "Выбор умения";
+    panel.append(title);
+    for (const button of offers) {
+      const raw = button.id.slice(3).replace(/^up:/, "");
+      const def = ABILITY_BY_ID[raw];
+      const cardBtn = btn(def?.name ?? button.label, button.tip, () => actCard(button.id));
+      cardBtn.className = "ability-card";
+      const name = document.createElement("b");
+      name.textContent = button.id.includes("up:") ? `Усилить: ${def?.name ?? raw}` : (def?.name ?? button.label);
+      const desc = document.createElement("span");
+      desc.textContent = def?.text ?? button.tip;
+      cardBtn.replaceChildren(name, desc);
+      cardBtn.dataset.tip = button.tip;
+      panel.append(cardBtn);
+    }
+  }
+  const acts = document.createElement("div");
+  acts.className = "acts";
+  for (const button of card.buttons) {
+    if (button.id.startsWith("ab:")) continue;
     acts.append(btn(button.label, button.tip, () => actCard(button.id)));
   }
-  acts.append(btn("К башням", "Закрыть карточку и вернуться к списку башен. Карта остаётся на месте.", () => { selected = 0; footSig = ""; }));
-  box.append(acts);
+  acts.append(btn("Закрыть", "Закрыть карточку. Карта и док башен остаются на месте.", () => { selected = 0; footSig = ""; }));
+  panel.append(acts);
   const stamps = document.createElement("div");
   stamps.className = "acts";
   const mods: [ModKind, string][] = [["dmg", "Клеймо урона"], ["range", "Клеймо радиуса"], ["rate", "Клеймо темпа"], ["xp", "Клеймо опыта"], ["bounty", "Клеймо дани"]];
@@ -337,21 +414,20 @@ function paintCard(card: { title: string; lines: string[]; buttons: { id: string
       footSig = "";
     }));
   }
-  box.append(stamps);
-  foot.append(box);
+  panel.append(stamps);
 }
 
 function paintTreeFoot(): void {
   const h = document.createElement("h2");
   h.textContent = "Древо ночи";
-  foot.append(h);
+  panel.append(h);
   const p = document.createElement("p");
-  p.textContent = nodeId ? nodeTip(meta, nodeId) : "Выберите узел. Древо сдвигается пальцем и щипком.";
-  foot.append(p);
+  p.textContent = nodeId ? nodeTip(meta, nodeId) : "Выберите узел. Древо сдвигается пальцем и щипком. Долгое нажатие на узел показывает ту же подсказку.";
+  panel.append(p);
   if (nodeId) {
     const lv = meta.nodes[nodeId] ?? 0;
     const maxed = (nodeById(nodeId)?.max ?? 1) <= lv;
-    foot.append(btn(maxed ? "Уровень максимальный" : "Изучить", nodeTip(meta, nodeId), () => {
+    panel.append(btn(maxed ? "Уровень максимальный" : "Изучить", nodeTip(meta, nodeId), () => {
       const res = buyNode(meta, nodeId!);
       if (!res.ok) toast(res.reason);
       else save();
@@ -364,17 +440,17 @@ function paintSummary(): void {
   if (!run) return;
   const h = document.createElement("h2");
   h.textContent = run.outcome === "win" ? "Ночь удержана" : "Врата пали";
-  foot.append(h);
+  panel.append(h);
   const acts = document.createElement("div");
   acts.className = "acts";
   acts.append(btn("К карте", "Вернуться к карте ночей. Награда уже записана.", () => { run = null; endless = false; screen = "world"; brief = -1; footSig = ""; }));
   acts.append(btn("Ещё раз", "Начать эту же ночь заново. Мета не сбрасывается.", () => start(run!.mapId, run!.endless)));
   acts.append(btn("В древо", "Открыть древо и потратить добычу этой ночи.", () => { screen = "tree"; footSig = ""; }));
-  foot.append(acts);
+  panel.append(acts);
   for (const line of summaryLines(run)) {
     const p = document.createElement("p");
     p.textContent = line;
-    foot.append(p);
+    panel.append(p);
   }
 }
 
@@ -393,6 +469,9 @@ function start(id: string, end: boolean): void {
   kind = compile(meta).unlocked.spark ? "spark" : null;
   fitted = "";
   speed = 1;
+  shell.classList.add("in-battle");
+  dockEl.hidden = false;
+  resize();
   save();
   footSig = "";
 }
@@ -428,10 +507,11 @@ canvas.addEventListener("pointermove", (e) => {
   p.x = e.clientX;
   p.y = e.clientY;
   const c = cam();
+  updateHover(e.clientX, e.clientY);
   if (ptrs.size >= 2 && pinch) {
     const [a, b] = [...ptrs.values()];
     const dist = Math.max(8, Math.hypot(a.x - b.x, a.y - b.y));
-    const z = Math.max(6, Math.min(c.z * 4, pinch.z * (dist / pinch.dist)));
+    const z = clampZoom(pinch.z * (dist / pinch.dist));
     setCam({ ...c, z });
     pinch = { dist, z };
     return;
@@ -447,12 +527,48 @@ canvas.addEventListener("pointerup", (e) => {
   tap(e.clientX - rect.left, e.clientY - rect.top);
 });
 canvas.addEventListener("pointercancel", (e) => { ptrs.delete(e.pointerId); pinch = null; });
+canvas.addEventListener("pointermove", (e) => {
+  if (!ptrs.has(e.pointerId)) updateHover(e.clientX, e.clientY);
+});
+canvas.addEventListener("pointerleave", () => { hover = null; });
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const c = cam();
-  const z = Math.max(6, Math.min(160, c.z * (e.deltaY > 0 ? 0.9 : 1.1)));
-  setCam({ ...c, z });
+  setCam({ ...c, z: clampZoom(c.z * (e.deltaY > 0 ? 0.9 : 1.1)) });
 }, { passive: false });
+
+function clampZoom(z: number): number {
+  if (screen === "battle" || screen === "summary") return Math.max(battleFit * 0.92, Math.min(battleFit * 2.6, z));
+  if (screen === "tree") return Math.max(0.35, Math.min(2.2, z));
+  return Math.max(0.22, Math.min(1.8, z));
+}
+
+function updateHover(clientX: number, clientY: number): void {
+  if (screen !== "battle" || !run || !kind) { hover = null; return; }
+  const map = mapById(run.mapId);
+  if (!map) { hover = null; return; }
+  const rect = canvas.getBoundingClientRect();
+  const { w, h } = cssSize();
+  const world = toWorld(battleCam, w, h, clientX - rect.left, clientY - rect.top);
+  const x = Math.floor(world.x);
+  const y = Math.floor(world.y);
+  const ch = y >= 0 && x >= 0 && y < map.rows && x < map.cols ? map.grid[y][x] : "#";
+  const free = !run.towers.some((t) => t.x === x && t.y === y);
+  const okTile = kind === "miner" ? ch === "v" && free : ".+*~^$".includes(ch) && free;
+  const range = previewStats(kind, compile(meta)).range;
+  hover = { x, y, kind, range, ok: okTile };
+}
+
+let canvasTipTimer = 0;
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse" || screen === "battle") return;
+  window.clearTimeout(canvasTipTimer);
+  canvasTipTimer = window.setTimeout(() => showCanvasTip(e.clientX, e.clientY), 480);
+});
+canvas.addEventListener("pointerup", () => window.clearTimeout(canvasTipTimer));
+canvas.addEventListener("pointermove", (e) => {
+  if (screen === "tree" && e.pointerType === "mouse" && ptrs.size === 0) showCanvasTip(e.clientX, e.clientY, true);
+});
 
 function tap(sx: number, sy: number): void {
   const { w, h } = cssSize();
@@ -498,6 +614,29 @@ function tap(sx: number, sy: number): void {
   }
 }
 
+function showCanvasTip(clientX: number, clientY: number, hoverOnly = false): void {
+  const rect = canvas.getBoundingClientRect();
+  const { w, h } = cssSize();
+  const sx = clientX - rect.left;
+  const sy = clientY - rect.top;
+  let text = "";
+  if (screen === "tree") {
+    const id = treeHit(treeCam, w, h, sx, sy);
+    if (id) text = nodeTip(meta, id);
+  }
+  if (!text) { hideTip(); return; }
+  void hoverOnly;
+  tipEl.textContent = text;
+  tipEl.hidden = false;
+  tipEl.style.left = Math.max(8, Math.min(clientX, window.innerWidth - tipEl.offsetWidth - 8)) + "px";
+  tipEl.style.top = Math.max(8, clientY - tipEl.offsetHeight - 10) + "px";
+}
+
+document.getElementById("ew-call")?.addEventListener("click", () => {
+  if (!run) return;
+  const res = callWave(run);
+  if (!res.ok) toast(res.reason);
+});
 document.getElementById("ew-pause")?.addEventListener("click", () => { speed = speed === 0 ? 1 : 0; });
 document.getElementById("ew-x1")?.addEventListener("click", () => { speed = 1; });
 document.getElementById("ew-x2")?.addEventListener("click", () => { speed = 2; });
@@ -558,6 +697,15 @@ if (new URLSearchParams(location.search).has("shot")) {
     world: () => { endless = false; screen = "world"; brief = -1; fitted = ""; footSig = ""; },
     summary: () => { if (run) { endRun(run, meta); screen = "summary"; footSig = ""; } },
     stageHeight: () => stage.getBoundingClientRect().height,
+    zoom: () => battleCam.z,
+    stageWidth: () => stage.getBoundingClientRect().width,
+    pick: (index: number) => { brief = index; endless = false; screen = "world"; selected = 0; footSig = ""; },
+    spawn: (ek: EnemyKind, n: number, progress: number) => {
+      if (!run) return 0;
+      for (let i = 0; i < n; i++) debugSpawn(run, meta, ek, progress + (i % 7) * 0.45);
+      footSig = "";
+      return run.enemies.length;
+    },
   };
   (window as unknown as { __ew: typeof hook }).__ew = hook;
 }

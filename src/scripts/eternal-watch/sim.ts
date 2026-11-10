@@ -643,6 +643,17 @@ function flyProjs(run: Run, b: Bonuses, map: MapDef, dt: number): void {
   run.projs = next;
 }
 
+export function callWave(run: Run): Act {
+  if (run.outcome !== "play") return fail("Ночь уже кончилась.");
+  const map = mapById(run.mapId);
+  if (!map) return fail("Нет такой ночи.");
+  const goal = run.endless ? 1_000_000 : map.waves;
+  if (run.scheduled >= goal) return fail("Волны этой ночи уже вышли.");
+  if (run.queue.length) return fail("Волна ещё выходит из портала.");
+  run.nextWaveAt = run.time;
+  return ok();
+}
+
 function enqueue(run: Run, map: MapDef): void {
   const goal = run.endless ? 1_000_000 : map.waves;
   if (run.scheduled >= goal || run.time < run.nextWaveAt || run.queue.length) return;
