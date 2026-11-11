@@ -115,7 +115,7 @@ export const DS_QUIZ: QuizQ[] = [
   { q: "Как Ниро называет то, что она умеет?", options: ["Призыв", "Воскрешение", "Стазис", "Обнуление"], answer: 0, slug: "prizyv-niro", book: "book:darg-sirrom", why: "«Я призыватель. Это то, что я умею»." },
   { q: "Каким словом Велес проверяет, «дома» ли он?", options: ["Атьем", "Фэйей", "Альфа", "Икс"], answer: 0, slug: "atem-i-feyey", book: "book:darg-sirrom", why: "Для Морриса это больное слово — он фыркает." },
   { q: "Кого, по словам Ниро, она призывала раньше?", options: ["Ликёра", "Петра", "Кавегу", "Тифани"], answer: 0, slug: "likyor-vladollars", book: "book:darg-sirrom", why: "«Помню, когда я Ликёра призывала…»" },
-  { q: "Какого цвета волосы у Ниро?", options: ["Совсем белые, до самых кончиков", "Белые с фиолетовыми кончиками", "Чёрные с красной прядью", "Розовые"], answer: 0, slug: "niro-darg-sirrom", book: "book:darg-sirrom", why: "«Волосы короткие и белые, совсем белые, до самых кончиков»." },
+  { q: "Какого цвета волосы у Ниро?", options: ["Совсем белые, до самых кончиков", "Белые с фиолетовыми кончиками", "Чёрные с красной прядью", "Розовые"], answer: 0, slug: "niro", book: "book:darg-sirrom", why: "«Волосы короткие и белые, совсем белые, до самых кончиков»." },
   { q: "На какую церемонию Моррис торопит Ниро?", options: ["Призыва трёх великих детей", "Коронации", "Суда над Нофордом", "Открытия Северных врат"], answer: 0, slug: "tseremoniya-prizyva-tryokh-velikikh-detey", book: "book:darg-sirrom", why: "«Сегодня церемония призыва трёх великих детей»." },
   { q: "Чьими глазами в финале главы смотрит инквизитор?", options: ["Морриса Дэмиурга", "Ниро", "Лорин", "Вайт"], answer: 0, slug: "morris-demiurg", book: "book:darg-sirrom", why: "Белки глаз Морриса заливает чернота." },
 ];
@@ -132,9 +132,9 @@ export const QUOTES: Quote[] = [
   { text: "Я не знаю, что произошло.", who: "Велес", slug: "veles", src: "И2.9" },
   { text: "Если я тебя не отпущу, ты опять полезешь обниматься.", who: "Велес", slug: "veles", src: "И2.7" },
   { text: "Каков шанс того, что Альфы больше нет?", who: "Моррис Дэмиург", slug: "morris-demiurg", src: "летопись" },
-  { text: "Наконец-то я смогла тебя призвать!", who: "Ниро (Дарг Сирром)", slug: "niro-darg-sirrom", src: "ДС.1", book: "book:darg-sirrom" },
-  { text: "Смерть — выдумка.", who: "Ниро (Дарг Сирром)", slug: "niro-darg-sirrom", src: "ДС.1", book: "book:darg-sirrom" },
-  { text: "У каждого начала есть свой конец.", who: "Ниро (Дарг Сирром)", slug: "niro-darg-sirrom", src: "ДС.1", book: "book:darg-sirrom" },
+  { text: "Наконец-то я смогла тебя призвать!", who: "Ниро", slug: "niro", src: "ДС.1", book: "book:darg-sirrom" },
+  { text: "Смерть — выдумка.", who: "Ниро", slug: "niro", src: "ДС.1", book: "book:darg-sirrom" },
+  { text: "У каждого начала есть свой конец.", who: "Ниро", slug: "niro", src: "ДС.1", book: "book:darg-sirrom" },
   { text: "Потом поговорим. Сейчас не до этого.", who: "Моррис Дэмиург", slug: "morris-demiurg", src: "ДС.1", book: "book:darg-sirrom" },
   { text: "Я считал тебя другом.", who: "Велес", slug: "veles", src: "ДС.1 (мысль)", book: "book:darg-sirrom" },
 ];
@@ -148,7 +148,7 @@ export const EGGS: { id: string; slug: string; hint: string }[] = [
   { id: "egg-lorin", slug: "lorin-des", hint: "Капля Адского пламени" },
   { id: "egg-veles", slug: "veles", hint: "Зелёный отблеск на кончиках волос" },
   { id: "egg-morris", slug: "morris-demiurg", hint: "Он смотрит в небо" },
-  { id: "egg-niro", slug: "niro-darg-sirrom", hint: "Снежинка, которая не тает" },
+  { id: "egg-niro", slug: "niro", hint: "Снежинка, которая не тает" },
   { id: "egg-kyut", slug: "kyut", hint: "Мур?" },
   { id: "egg-letopis", slug: "letopis-obitel-smerti", hint: "Перо, которое так и не обмакнули" },
 ];

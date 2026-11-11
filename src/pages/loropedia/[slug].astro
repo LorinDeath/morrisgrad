@@ -9,8 +9,10 @@ import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
 import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
 import { bind, corpus, knownSlug, pageMode } from '../../lib/loropedia/select';
 import { EGGS } from '../../lib/loropedia/play';
+import { LAYER_REDIRECTS } from '../../lib/loropedia/layers';
 
 const slug = Astro.params.slug || '';
+if (LAYER_REDIRECTS[slug]) return Astro.redirect(`/loropedia/${LAYER_REDIRECTS[slug]}`, 301);
 const mode = pageMode(Astro.cookies);
 const protect = mode === 'closed';
 const spoil = mode === 'spoil';

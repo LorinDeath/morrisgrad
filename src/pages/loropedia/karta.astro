@@ -12,6 +12,7 @@ const protect = mode === 'closed';
 const spoil = mode === 'spoil';
 const LP = corpus(mode);
 const mm = protect ? null : mindMap(LP.articles as any, LP.categories, CAT_COLORS);
+const ALS = new Map<string, string[]>((LP.articles as any[]).map((a) => [a.slug, a.aliases || []]));
 const S = mm?.size || 1000;
 const deg = (r: number) => (r * 180) / Math.PI;
 const short = (s: string) => (s.length > 18 ? s.slice(0, 17) + '…' : s);
@@ -29,7 +30,7 @@ const curve = (x1: number, y1: number, x2: number, y2: number) => {
   return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
 };
 const json = mm ? JSON.stringify({
-  n: mm.nodes.map((n) => ({ s: n.slug, t: n.title, c: n.cat, b: n.books, e: n.ex, st: n.st, i: n.img, d: n.deg, x: Math.round(n.x), y: Math.round(n.y) })),
+  n: mm.nodes.map((n) => ({ s: n.slug, t: n.title, c: n.cat, b: n.books, e: n.ex, st: n.st, i: n.img, d: n.deg, a: (ALS.get(n.slug) || []).map((x) => x.toLowerCase()), x: Math.round(n.x), y: Math.round(n.y) })),
   l: mm.links, br: mm.branches.map((b) => ({ c: b.cat, n: b.name, x: Math.round(b.x), y: Math.round(b.y) })), size: Math.round(S),
   cats: Object.fromEntries(LP.categories.map((c) => [c.slug, c.name])), books: BOOKS.map((b) => b.short),
 }).replace(/</g, '\\u003c') : '';
@@ -132,7 +133,7 @@ const json = mm ? JSON.stringify({
   <script type="application/json" id="mm-data" set:html={json} />
 <script>
   import { load } from '../../scripts/loropedia/play';
-  type D = { n: { s: string; t: string; c: string; b: number; e: string; st: string; i: string | null; d: number; x: number; y: number }[]; l: [number, number][]; br: { c: string; n: string; x: number; y: number }[]; size: number; cats: Record<string, string>; books: string[] };
+  type D = { n: { s: string; t: string; c: string; b: number; e: string; st: string; i: string | null; d: number; a: string[]; x: number; y: number }[]; l: [number, number][]; br: { c: string; n: string; x: number; y: number }[]; size: number; cats: Record<string, string>; books: string[] };
   const ST: Record<string, string> = { canon: '✅ Канон', idea: '💡 Не канон', disputed: '⚠️ Спорно', ref: '📎 Справка' };
   function initMM() {
     const root = document.querySelector<HTMLElement>('[data-mm]'); if (!root || root.dataset.ready) return; root.dataset.ready = '1';
@@ -228,7 +229,7 @@ const json = mm ? JSON.stringify({
     root.querySelectorAll<HTMLButtonElement>('[data-mm-cat]').forEach((b) => b.addEventListener('click', () => focusCat(b.dataset.mmCat!)));
     const form = root.querySelector<HTMLFormElement>('[data-mm-search]')!;
     form.addEventListener('submit', (e) => { e.preventDefault(); const v = form.querySelector('input')!.value.trim().toLowerCase(); if (!v) return;
-      const i = D.n.findIndex((n) => n.t.toLowerCase() === v); const j = i >= 0 ? i : D.n.findIndex((n) => n.t.toLowerCase().includes(v)); if (j >= 0) select(j, true); });
+      const i = D.n.findIndex((n) => n.t.toLowerCase() === v); const k = i >= 0 ? i : D.n.findIndex((n) => n.a.includes(v)); const j = k >= 0 ? k : D.n.findIndex((n) => n.t.toLowerCase().includes(v) || n.a.some((x) => x.includes(v))); if (j >= 0) select(j, true); });
     form.querySelector('input')!.addEventListener('change', () => form.requestSubmit());
     const s = load(); nodes.forEach((n, k) => n.classList.toggle('read', !!s.read[D.n[k].s]));
     const want = new URLSearchParams(location.search).get('focus'); if (want) { const i = D.n.findIndex((n) => n.s === want); if (i >= 0) setTimeout(() => select(i, true), 60); }

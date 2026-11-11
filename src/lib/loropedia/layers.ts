@@ -7,10 +7,14 @@ export type BookLayer = {
   id: string; title: string; short: string;
   chapters: { n: number; slug: string; title: string }[];
   articles: any[]; appends: Record<string, string>; renames?: Record<string, { title?: string; aliases?: string[] }>;
+  patches?: Record<string, { prepend?: string; excerpt?: string; aliases?: string[]; fields?: { label: string; html: string }[]; role?: string }>;
+  redirects?: Record<string, string>;
   extraLinks: Record<string, string[]>; timeline: { era: string; html: string; disputed: boolean }[];
   events: { slug: string; title: string; when: string; status: string; statusLabel: string }[];
 };
 export const BOOK_LAYERS: BookLayer[] = [darg as unknown as BookLayer];
+/** Старые слаги слоёв → новый адрес (301). Например, niro-darg-sirrom → niro после слияния двух Ниро. */
+export const LAYER_REDIRECTS: Record<string, string> = Object.assign({}, ...BOOK_LAYERS.map((L) => L.redirects || {}));
 
 const tocOf = (html: string) => [...html.matchAll(/<h2 id="([^"]+)">([^<]+)<\/h2>/g)].map((m) => ({ id: m[1], text: m[2], level: 2 }));
 const STATUS: Record<string, [string, string]> = { canon: ["Канон", "✅"], idea: ["Не канон", "💡"], disputed: ["Спорно", "⚠️"], ref: ["Справка", "📎"] };
@@ -33,6 +37,18 @@ export function applyLayers<T>(baseIn: T, layers: BookLayer[] = BOOK_LAYERS): T 
       const a = by.get(slug); if (!a) continue;
       if (r.title) a.title = r.title;
       for (const al of r.aliases || []) if (!a.aliases.includes(al)) a.aliases.push(al);
+    }
+    for (const [slug, pt] of Object.entries(L.patches || {})) {
+      const a = by.get(slug); if (!a) continue;
+      if (pt.prepend) { a.html = pt.prepend + a.html; a.toc = mergeToc(a.toc, tocOf(pt.prepend), a.html); }
+      if (pt.excerpt) a.excerpt = pt.excerpt;
+      for (const al of pt.aliases || []) if (!a.aliases.includes(al)) a.aliases.push(al);
+      if (pt.fields) {
+        a.fields = [...a.fields];
+        for (const f of pt.fields) { const i = a.fields.findIndex((x: any) => x.label === f.label); if (i >= 0) a.fields[i] = f; else a.fields.push(f); }
+      }
+      if (pt.role) a.role = pt.role;
+      a.books = [...new Set([...(a.books || []), L.id])];
     }
     for (const [slug, html] of Object.entries(L.appends)) {
       const a = by.get(slug); if (!a || !html) continue;
@@ -87,7 +103,7 @@ export function applyLayers<T>(baseIn: T, layers: BookLayer[] = BOOK_LAYERS): T 
     const rows = [...base.search];
     for (const a of data.articles) {
       const r = rows.find((x: any) => x.s === a.slug);
-      if (r) { r.t = a.title; r.a = a.aliases; continue; }
+      if (r) { r.t = a.title; r.a = a.aliases; r.e = a.excerpt; continue; }
       rows.push(searchRow(a));
     }
     data.search = rows;
