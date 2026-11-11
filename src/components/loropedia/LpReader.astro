@@ -4,7 +4,7 @@ import { READER_BOOKS } from '../../lib/loropedia/guard';
 import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
 ---
 <details class="lp-reader">
-  <summary>Ход чтения</summary>
+  <summary data-tip="Отметить, что вы уже прочитали, и настроить спойлеры">Ход чтения</summary>
   <form class="lp-reader-form" data-lp-reader autocomplete="off">
     <p class="lp-muted">Читатель сам выбирает, куда идти. Маршрут не обязателен, правильного вывода нет, подсказки не навязываются. Номер части и номер главы — разные поля. Пустое поле можно оставить.</p>
     <label class="check"><input type="checkbox" data-lp-protect /> Защищённый просмотр: не показывать непроверенный текст</label>
@@ -20,7 +20,7 @@ import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
       ))}
     </div>
     <div class="row">
-      <button type="submit" class="btn">Запомнить в этом браузере</button>
+      <button type="submit" class="btn" data-tip="Сохранить номера прочитанных глав только в этом браузере. Шторки спойлеров прочитанных глав будут открываться сами">Запомнить в этом браузере</button>
     </div>
     <p class="lp-muted" data-lp-reader-note aria-live="polite">На сервер уходят только два признака: защита и явное разрешение спойлеров. Номера глав и личные заметки остаются здесь. Защита важнее разрешения: при ней длинный текст не показывается. Сохранённая глава не открывает статьи. Проверенный корпус фактов в этот выпуск не выведен.</p>
   </form>

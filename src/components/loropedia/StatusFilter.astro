@@ -4,11 +4,11 @@ interface Props { target: string }
 const { target } = Astro.props;
 ---
 <div class="lp-filter" role="group" aria-label="Фильтр по статусу" data-lp-filter={target}>
-  <button type="button" class="active" data-f="all">Все</button>
-  <button type="button" data-f="canon">✅ Канон</button>
-  <button type="button" data-f="idea">💡 Не канон</button>
-  <button type="button" data-f="disputed">⚠️ Спорно</button>
-  <button type="button" data-f="ref">📎 Справка</button>
+  <button type="button" class="active" data-f="all" data-tip="Показать все статьи">Все</button>
+  <button type="button" data-f="canon" data-tip="Только канон — то, что есть в тексте книги">✅ Канон</button>
+  <button type="button" data-f="idea" data-tip="Только не канон — замыслы и додумки">💡 Не канон</button>
+  <button type="button" data-f="disputed" data-tip="Только спорное — текст не подтверждает однозначно">⚠️ Спорно</button>
+  <button type="button" data-f="ref" data-tip="Только справочные заметки">📎 Справка</button>
 </div>
 <script>
   function initLpFilters() {

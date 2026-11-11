@@ -1,6 +1,7 @@
 // Выбор слоя страницы. Расширенный текст не подставляется вместо закрытой статьи.
 import rawExpanded from "../../data/loropedia/expanded.json";
 import { LP, type LpArticle, type LpCategory, type LpData } from "../loropedia";
+import { applyLayers } from "./layers";
 import { PROTECT_COOKIE, SPOIL_COOKIE, protectionOn, spoilOn } from "./guard";
 
 export type ExpandedData = LpData & {
@@ -9,7 +10,7 @@ export type ExpandedData = LpData & {
   search: { s: string; t: string; a: string[]; g: string[]; c: string; st: string; e: string; i: string | null }[];
 };
 
-export const EXPANDED = rawExpanded as unknown as ExpandedData;
+export const EXPANDED = applyLayers(rawExpanded as unknown as ExpandedData);
 
 type Cookies = { get(name: string): { value: string } | undefined };
 
