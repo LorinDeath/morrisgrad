@@ -26,13 +26,13 @@ const inlineSearch = spoil ? JSON.stringify(EXPANDED.search).replace(/</g, '\\u0
   {spoil && <script type="application/json" id="lp-search-inline" set:html={inlineSearch} />}
   <form class="lp-hero-search lp-search-page" action="/loropedia/poisk" method="get" role="search" data-lp-search>
     <input type="search" name="q" value={q} placeholder="Например: Лорин, Фрактал, некромант…" aria-label="Что найти" autocomplete="off" autofocus />
-    <button type="submit">Искать</button>
+    <button type="submit" data-tip="Искать по названиям, прозвищам и тексту статей">Искать</button>
   </form>
   <div class="lp-filter lp-search-filter" role="group" aria-label="Фильтр по статусу" data-lp-sfilter>
-    <button type="button" class="active" data-f="all">Все</button>
-    <button type="button" data-f="canon">✅ Канон</button>
-    <button type="button" data-f="idea">💡 Не канон</button>
-    <button type="button" data-f="disputed">⚠️ Спорно</button>
+    <button type="button" class="active" data-f="all" data-tip="Показать все статьи">Все</button>
+    <button type="button" data-f="canon" data-tip="Только канон — то, что есть в тексте книги">✅ Канон</button>
+    <button type="button" data-f="idea" data-tip="Только не канон — замыслы и додумки">💡 Не канон</button>
+    <button type="button" data-f="disputed" data-tip="Только спорное — текст не подтверждает однозначно">⚠️ Спорно</button>
   </div>
   <p class="lp-search-count lp-muted" data-lp-count aria-live="polite"></p>
   <ol class="lp-results" data-lp-results></ol>

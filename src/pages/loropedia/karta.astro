@@ -1,81 +1,239 @@
 ---
+// Ментальная карта Лоропедии: центр → разделы → статьи, поверх — связи между статьями.
+// Масштаб колесом/щипком, перетаскивание, поиск, фильтр по книгам. Адрес /loropedia/karta сохранён.
 import LpShell from '../../components/loropedia/LpShell.astro';
 import LpClosed from '../../components/loropedia/LpClosed.astro';
 import { CAT_COLORS } from '../../lib/loropedia';
 import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
 import { corpus, pageMode } from '../../lib/loropedia/select';
+import { BOOKS, mindMap } from '../../lib/loropedia/play';
 const mode = pageMode(Astro.cookies);
 const protect = mode === 'closed';
 const spoil = mode === 'spoil';
 const LP = corpus(mode);
-const g = LP.graph;
-const r = (deg: number) => Math.min(14, 3.5 + Math.sqrt(deg) * 1.6);
-const cats = LP.categories.filter((c) => g.nodes.some((n) => n.cat === c.slug));
+const mm = protect ? null : mindMap(LP.articles as any, LP.categories, CAT_COLORS);
+const S = mm?.size || 1000;
+const deg = (r: number) => (r * 180) / Math.PI;
+const short = (s: string) => (s.length > 18 ? s.slice(0, 17) + '…' : s);
+const label = (n: { x: number; y: number; r: number; ang: number }) => {
+  const right = Math.cos(n.ang) >= 0;
+  const d = n.r + 4;
+  const x = n.x + Math.cos(n.ang) * d, y = n.y + Math.sin(n.ang) * d;
+  return { x, y, anchor: right ? 'start' : 'end', rot: right ? deg(n.ang) : deg(n.ang) + 180 };
+};
+const curve = (x1: number, y1: number, x2: number, y2: number) => {
+  // мягкая ветка: контрольные точки по радиусу
+  const r1 = Math.hypot(x1, y1), r2 = Math.hypot(x2, y2);
+  const a2 = Math.atan2(y2, x2);
+  const cx = Math.cos(a2) * (r1 + (r2 - r1) * 0.45), cy = Math.sin(a2) * (r1 + (r2 - r1) * 0.45);
+  return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
+};
+const json = mm ? JSON.stringify({
+  n: mm.nodes.map((n) => ({ s: n.slug, t: n.title, c: n.cat, b: n.books, e: n.ex, st: n.st, i: n.img, d: n.deg, x: Math.round(n.x), y: Math.round(n.y) })),
+  l: mm.links, br: mm.branches.map((b) => ({ c: b.cat, n: b.name, x: Math.round(b.x), y: Math.round(b.y) })), size: Math.round(S),
+  cats: Object.fromEntries(LP.categories.map((c) => [c.slug, c.name])), books: BOOKS.map((b) => b.short),
+}).replace(/</g, '\\u003c') : '';
 ---
-{protect ? (
+{protect || !mm ? (
   <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="map" noindex>
     <LpClosed />
   </LpShell>
 ) : (
-<LpShell title="Карта связей — Лоропедия МоррисГрада" description="Карта связей Лоропедии МоррисГрада: как связаны герои, кланы, места и события летописи." active="map" crumbs={[['Карта связей', '/loropedia/karta']]} noindex={spoil}>
+<LpShell title="Ментальная карта — Лоропедия МоррисГрада" description="Ментальная карта Лоропедии МоррисГрада: герои, кланы, места, события и книги — и все связи между ними. Масштаб, поиск и фильтр по книгам." active="map" crumbs={[['Ментальная карта', '/loropedia/karta']]} noindex={spoil}>
   <header class="lp-page-head">
     <span class="lp-page-icon" aria-hidden="true">✶</span>
-    <div><h1 class="lp-page-title">Карта связей</h1><p class="lp-page-sub">{g.nodes.length} статей и {g.edges.length} связей. Наведите на точку — подсветятся соседи; нажмите — откроется статья.</p></div>
+    <div><h1 class="lp-page-title">Ментальная карта</h1>
+    <p class="lp-page-sub">{mm.nodes.length} статей в {mm.branches.length} ветвях и {mm.links.length} связей. Наведите на точку — подсветятся её связи, щелчок откроет статью. На телефоне: первое касание точки — карточка, второе — статья; щипок — масштаб, палец — сдвиг, долгое нажатие на кнопку — подсказка.</p></div>
   </header>
-  <div class="lp-map-legend" data-lp-legend>
-    {cats.map((c) => <button type="button" data-cat={c.slug} style={`--cat:${CAT_COLORS[c.slug]}`}><i></i>{c.name}</button>)}
+
+  <div class="mm" data-mm>
+    <div class="mm-bar" role="toolbar" aria-label="Управление картой">
+      <form class="mm-search" data-mm-search role="search">
+        <input type="search" list="mm-titles" placeholder="Найти на карте…" aria-label="Найти статью на карте" autocomplete="off" />
+        <button type="submit" data-tip="Найти статью на карте и приблизить её">⌕</button>
+        <datalist id="mm-titles">{mm.nodes.map((n) => <option value={n.title} />)}</datalist>
+      </form>
+      <div class="mm-btns">
+        <button type="button" data-mm-act="in" data-tip="Приблизить (колесо мыши или щипок двумя пальцами)" aria-label="Приблизить">＋</button>
+        <button type="button" data-mm-act="out" data-tip="Отдалить" aria-label="Отдалить">－</button>
+        <button type="button" data-mm-act="fit" data-tip="Показать всю карту целиком" aria-label="Вся карта">⤢</button>
+        <button type="button" data-mm-act="links" aria-pressed="false" data-tip="Показать все связи между статьями (не только ветки разделов)">◇ Связи</button>
+        <button type="button" data-mm-act="unread" aria-pressed="false" data-tip="Подсветить статьи, которые вы ещё не читали. Прочитанные отмечены золотым кольцом">◌ Непрочитанное</button>
+        <button type="button" data-mm-act="random" data-tip="Перелететь к случайной статье">🎲</button>
+        <button type="button" data-mm-act="full" aria-pressed="false" data-tip="Развернуть карту на весь экран">⛶</button>
+      </div>
+    </div>
+    <div class="mm-filters">
+      <div class="mm-chips" role="group" aria-label="Книги">
+        <span class="mm-chips-l">Книги:</span>
+        {BOOKS.map((b, i) => <button type="button" class="mm-chip" data-mm-book={i} aria-pressed="false" data-tip={`Подсветить статьи, связанные с книгой «${b.label}». Нажмите ещё раз, чтобы снять`}>{b.short}</button>)}
+      </div>
+      <div class="mm-chips" role="group" aria-label="Разделы">
+        <span class="mm-chips-l">Ветви:</span>
+        {mm.branches.map((b) => <button type="button" class="mm-chip" data-mm-cat={b.cat} style={`--cat:${b.color}`} aria-pressed="false" data-tip={`Перелететь к ветви «${b.name}» (${b.count}) и подсветить её`}><i></i>{b.name}</button>)}
+      </div>
+    </div>
+    <div class="mm-stage">
+      <svg class="mm-svg" viewBox={`${-S} ${-S} ${S * 2} ${S * 2}`} role="img" aria-label="Ментальная карта Лоропедии" data-mm-svg>
+        <defs>
+          <radialGradient id="mmGlow"><stop offset="0" stop-color="#c9a86c" stop-opacity=".35" /><stop offset="1" stop-color="#c9a86c" stop-opacity="0" /></radialGradient>
+        </defs>
+        <circle cx="0" cy="0" r={S * 0.9} class="mm-ring" />
+        <circle cx="0" cy="0" r="620" class="mm-ring" />
+        <circle cx="0" cy="0" r="300" class="mm-ring" />
+        <g class="mm-links" data-mm-links>
+          {mm.links.map(([i, j]) => { const a = mm.nodes[i], b = mm.nodes[j]; const mx = (a.x + b.x) / 2 * 0.35, my = (a.y + b.y) / 2 * 0.35;
+            return <path d={`M${a.x.toFixed(1)},${a.y.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`} data-a={i} data-b={j} />; })}
+        </g>
+        <g class="mm-tree">
+          {mm.branches.map((b) => <path d={curve(0, 0, b.x, b.y)} class="mm-trunk" style={`stroke:${b.color}`} />)}
+          {mm.nodes.map((n) => { const b = mm.branches.find((x) => x.cat === n.cat)!; return <path d={curve(b.x, b.y, n.x, n.y)} class="mm-twig" style={`stroke:${b.color}`} data-tw={n.i} />; })}
+        </g>
+        <g class="mm-root">
+          <circle cx="0" cy="0" r="120" fill="url(#mmGlow)" />
+          <polygon points="0,-46 46,0 0,46 -46,0" class="mm-root-gem" />
+          <text x="0" y="-4" text-anchor="middle" class="mm-root-t">Лоропедия</text>
+          <text x="0" y="14" text-anchor="middle" class="mm-root-s">МоррисГрада</text>
+        </g>
+        <g class="mm-branches">
+          {mm.branches.map((b) => (
+            <g class="mm-branch" data-mm-branch={b.cat} transform={`translate(${b.x.toFixed(1)},${b.y.toFixed(1)})`} style={`--cat:${b.color}`}>
+              <circle r="30" />
+              <text y="7" text-anchor="middle" class="mm-branch-i">{b.icon}</text>
+              <text y="50" text-anchor="middle" class="mm-branch-t">{b.name}</text>
+              <text y="66" text-anchor="middle" class="mm-branch-c">{b.count}</text>
+            </g>
+          ))}
+        </g>
+        <g class="mm-nodes">
+          {mm.nodes.map((n) => { const l = label(n); return (
+            <a href={`/loropedia/${n.slug}?from=map`} class="mm-node" data-i={n.i} data-cat={n.cat} data-books={n.books} data-st={n.st} data-lp-readdot={n.slug} aria-label={n.title} data-tip={`${n.title} · связей: ${n.deg}`}>
+              <circle cx={n.x.toFixed(1)} cy={n.y.toFixed(1)} r={n.r.toFixed(1)} fill={CAT_COLORS[n.cat] || '#c9a86c'} class="mm-dot" />
+              <circle cx={n.x.toFixed(1)} cy={n.y.toFixed(1)} r={(n.r + 4).toFixed(1)} class="mm-readring" />
+              <text x={l.x.toFixed(1)} y={l.y.toFixed(1)} text-anchor={l.anchor} dominant-baseline="middle" transform={`rotate(${l.rot.toFixed(1)} ${l.x.toFixed(1)} ${l.y.toFixed(1)})`}>{short(n.title)}</text>
+            </a>
+          ); })}
+        </g>
+      </svg>
+      <aside class="mm-card" data-mm-card hidden aria-live="polite">
+        <button type="button" class="mm-card-x" data-mm-close aria-label="Закрыть карточку" data-tip="Закрыть карточку">✕</button>
+        <div class="mm-card-top"><img data-mm-img alt="" hidden /><div><span class="mm-card-cat" data-mm-cat-l></span><h2 class="mm-card-t" data-mm-title></h2><span class="mm-card-st" data-mm-st></span></div></div>
+        <p class="mm-card-ex" data-mm-ex></p>
+        <p class="mm-card-meta" data-mm-meta></p>
+        <div class="mm-card-nb" data-mm-nb></div>
+        <div class="mm-card-row">
+          <a class="lp-cta mm-open" data-mm-open href="#" data-tip="Открыть статью целиком">Открыть статью →</a>
+          <button type="button" class="mm-chip" data-mm-center data-tip="Приблизить карту к этой статье">◎ К точке</button>
+        </div>
+      </aside>
+    </div>
+    <p class="mm-legend lp-muted"><span class="mm-lg-read"></span> прочитано · размер точки — число связей · золотые линии — связи выбранной статьи</p>
   </div>
-  <div class="lp-map-wrap">
-    <svg class="lp-map" viewBox={`-20 -20 ${g.w + 40} ${g.h + 40}`} role="img" aria-label="Граф связей статей Лоропедии" data-lp-map>
-      <g class="edges">
-        {g.edges.map(([s, t]) => <line x1={g.nodes[s].x} y1={g.nodes[s].y} x2={g.nodes[t].x} y2={g.nodes[t].y} data-s={s} data-t={t} />)}
-      </g>
-      <g class="nodes">
-        {g.nodes.map((n, i) => (
-          <a href={`/loropedia/${n.slug}`} data-i={i} data-cat={n.cat}>
-            <title>{n.title} — связей: {n.deg}</title>
-            <circle cx={n.x} cy={n.y} r={r(n.deg)} fill={CAT_COLORS[n.cat]} />
-            {n.deg >= 12 && <text x={n.x} y={n.y - r(n.deg) - 4} text-anchor="middle">{n.title}</text>}
-            <text class="hover-label" x={n.x} y={n.y - r(n.deg) - 4} text-anchor="middle">{n.title}</text>
-          </a>
-        ))}
-      </g>
-    </svg>
-  </div>
+  <script type="application/json" id="mm-data" set:html={json} />
 <script>
-  function initLpMap() {
-    const svg = document.querySelector<SVGSVGElement>('[data-lp-map]');
-    if (!svg || svg.dataset.ready) return; svg.dataset.ready = '1';
-    const lines = [...svg.querySelectorAll<SVGLineElement>('.edges line')];
-    const nodes = [...svg.querySelectorAll<SVGAElement>('.nodes a')];
-    const adj = new Map<string, Set<string>>();
-    lines.forEach((l) => {
-      const s = l.dataset.s!, t = l.dataset.t!;
-      (adj.get(s) || adj.set(s, new Set()).get(s)!).add(t);
-      (adj.get(t) || adj.set(t, new Set()).get(t)!).add(s);
+  import { load } from '../../scripts/loropedia/play';
+  type D = { n: { s: string; t: string; c: string; b: number; e: string; st: string; i: string | null; d: number; x: number; y: number }[]; l: [number, number][]; br: { c: string; n: string; x: number; y: number }[]; size: number; cats: Record<string, string>; books: string[] };
+  const ST: Record<string, string> = { canon: '✅ Канон', idea: '💡 Не канон', disputed: '⚠️ Спорно', ref: '📎 Справка' };
+  function initMM() {
+    const root = document.querySelector<HTMLElement>('[data-mm]'); if (!root || root.dataset.ready) return; root.dataset.ready = '1';
+    const D = JSON.parse(document.getElementById('mm-data')!.textContent!) as D;
+    const svg = root.querySelector<SVGSVGElement>('[data-mm-svg]')!; const stage = root.querySelector<HTMLElement>('.mm-stage')!;
+    const nodes = [...svg.querySelectorAll<SVGAElement>('.mm-node')]; const paths = [...svg.querySelectorAll<SVGPathElement>('[data-mm-links] path')];
+    const twigs = [...svg.querySelectorAll<SVGPathElement>('[data-tw]')];
+    const adj = D.n.map(() => new Set<number>()); D.l.forEach(([a, b]) => { adj[a].add(b); adj[b].add(a); });
+    const byPath: number[][] = D.n.map(() => []); D.l.forEach(([a, b], k) => { byPath[a].push(k); byPath[b].push(k); });
+    // --- вид (viewBox) ---
+    let vx = -D.size, vy = -D.size, vw = D.size * 2, vh = D.size * 2;
+    const aspect = () => { const r = svg.getBoundingClientRect(); return r.height / Math.max(1, r.width); };
+    const apply = () => svg.setAttribute('viewBox', `${vx.toFixed(1)} ${vy.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}`);
+    const fit = () => { const a = aspect(); const s = D.size * 2; if (a >= 1) { vw = s; vh = s * a; } else { vh = s; vw = s / a; } vx = -vw / 2; vy = -vh / 2; apply(); };
+    const toSvg = (cx: number, cy: number) => { const r = svg.getBoundingClientRect(); return { x: vx + ((cx - r.left) / r.width) * vw, y: vy + ((cy - r.top) / r.height) * vh }; };
+    const zoomAt = (f: number, px: number, py: number) => { const nw = Math.min(D.size * 3, Math.max(160, vw * f)); const k = nw / vw; vx = px - (px - vx) * k; vy = py - (py - vy) * k; vw = nw; vh = vh * k; apply(); };
+    const center = (x: number, y: number, w = 700) => { const a = aspect(); const target = { w, h: w * a }; const steps = 14; const s0 = { vx, vy, vw, vh }; let i = 0;
+      const tick = () => { i++; const t = 1 - Math.pow(1 - i / steps, 3); vw = s0.vw + (target.w - s0.vw) * t; vh = s0.vh + (target.h - s0.vh) * t; vx = s0.vx + (x - target.w / 2 - s0.vx) * t; vy = s0.vy + (y - target.h / 2 - s0.vy) * t; apply(); if (i < steps) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick); };
+    fit(); new ResizeObserver(() => { const a = aspect(); vh = vw * a; apply(); }).observe(svg);
+    svg.addEventListener('wheel', (e) => { e.preventDefault(); const p = toSvg(e.clientX, e.clientY); zoomAt(e.deltaY > 0 ? 1.15 : 1 / 1.15, p.x, p.y); }, { passive: false });
+    // --- перетаскивание и щипок ---
+    const pts = new Map<number, { x: number; y: number }>(); let moved = 0; let pinch0 = 0;
+    svg.addEventListener('pointerdown', (e) => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); } });
+    svg.addEventListener('pointermove', (e) => {
+      const p = pts.get(e.pointerId); if (!p) return;
+      const r = svg.getBoundingClientRect();
+      if (pts.size === 1) { const dx = e.clientX - p.x, dy = e.clientY - p.y; moved += Math.abs(dx) + Math.abs(dy); if (moved > 6) { svg.setPointerCapture(e.pointerId); svg.classList.add('drag'); } vx -= (dx / r.width) * vw; vy -= (dy / r.height) * vh; apply(); }
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0) { const m = toSvg((a.x + b.x) / 2, (a.y + b.y) / 2); zoomAt(pinch0 / d, m.x, m.y); } pinch0 = d; moved = 99; }
     });
-    const clear = () => { svg.classList.remove('focus'); nodes.forEach((n) => n.classList.remove('on', 'hub')); lines.forEach((l) => l.classList.remove('on')); };
-    nodes.forEach((n) => {
-      const i = n.dataset.i!;
-      const on = () => {
-        clear(); svg.classList.add('focus'); n.classList.add('on', 'hub');
-        const nb = adj.get(i) || new Set();
-        nodes.forEach((m) => { if (nb.has(m.dataset.i!)) m.classList.add('on'); });
-        lines.forEach((l) => { if (l.dataset.s === i || l.dataset.t === i) l.classList.add('on'); });
-      };
-      n.addEventListener('mouseenter', on); n.addEventListener('focus', on);
-      n.addEventListener('mouseleave', clear); n.addEventListener('blur', clear);
+    const up = (e: PointerEvent) => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0; if (!pts.size) setTimeout(() => svg.classList.remove('drag'), 0); };
+    svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+    // --- выбор точки ---
+    const card = root.querySelector<HTMLElement>('[data-mm-card]')!; let sel = -1;
+    const q = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+    const highlight = (i: number) => {
+      svg.classList.toggle('focus', i >= 0);
+      nodes.forEach((n, k) => { n.classList.toggle('hub', k === i); n.classList.toggle('on', i >= 0 && adj[i].has(k)); });
+      paths.forEach((p) => p.classList.remove('on')); if (i >= 0) byPath[i].forEach((k) => paths[k].classList.add('on'));
+      twigs.forEach((t, k) => t.classList.toggle('on', k === i));
+    };
+    const select = (i: number, fly = false) => {
+      sel = i; highlight(i); if (i < 0) { card.hidden = true; return; }
+      const n = D.n[i]; card.hidden = false;
+      q<HTMLElement>('[data-mm-title]').textContent = n.t; q<HTMLElement>('[data-mm-cat-l]').textContent = D.cats[n.c] || '';
+      q<HTMLElement>('[data-mm-st]').textContent = ST[n.st] || ''; q<HTMLElement>('[data-mm-ex]').textContent = n.e;
+      const img = q<HTMLImageElement>('[data-mm-img]'); if (n.i) { img.src = n.i; img.hidden = false; } else { img.hidden = true; img.removeAttribute('src'); }
+      const books = D.books.filter((_, k) => n.b & (1 << k));
+      q<HTMLElement>('[data-mm-meta]').textContent = `Связей: ${adj[i].size}${books.length ? ' · Книги: ' + books.join(', ') : ''}${load().read[n.s] ? ' · ✓ прочитано' : ''}`;
+      const nb = q<HTMLElement>('[data-mm-nb]'); nb.innerHTML = '';
+      [...adj[i]].sort((a, b) => D.n[b].d - D.n[a].d).slice(0, 12).forEach((k) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'mm-chip'; b.textContent = D.n[k].t; b.dataset.tip = `Перейти к «${D.n[k].t}» на карте`; b.addEventListener('click', () => select(k, true)); nb.appendChild(b); });
+      q<HTMLAnchorElement>('[data-mm-open]').href = `/loropedia/${n.s}?from=map`;
+      if (fly) center(n.x, n.y, Math.min(vw, 900));
+    };
+    nodes.forEach((a, i) => {
+      a.addEventListener('click', (e) => {
+        if (svg.classList.contains('drag') || moved > 6) { e.preventDefault(); return; }
+        const touch = matchMedia('(pointer: coarse)').matches;
+        // компьютер: щелчок сразу открывает статью; телефон: первое касание — карточка, второе — статья
+        if (touch && sel !== i) { e.preventDefault(); select(i); }
+      });
+      a.addEventListener('mouseenter', () => { if (sel < 0) highlight(i); });
+      a.addEventListener('mouseleave', () => { if (sel < 0) highlight(-1); else highlight(sel); });
+      a.addEventListener('keydown', (e) => { if (e.key === ' ') { e.preventDefault(); select(i, true); } });
     });
-    const legend = document.querySelector<HTMLElement>('[data-lp-legend]');
-    legend?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.addEventListener('click', () => {
-      const was = b.classList.contains('active');
-      legend.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
-      if (was) { svg.classList.remove('catfocus'); nodes.forEach((n) => n.classList.remove('cat-on')); return; }
-      b.classList.add('active'); svg.classList.add('catfocus');
-      nodes.forEach((n) => n.classList.toggle('cat-on', n.dataset.cat === b.dataset.cat));
+    svg.addEventListener('click', (e) => { if (!(e.target as Element).closest('.mm-node, .mm-branch') && moved < 6) select(-1); });
+    root.querySelector('[data-mm-close]')!.addEventListener('click', () => select(-1));
+    root.querySelector('[data-mm-center]')!.addEventListener('click', () => { if (sel >= 0) center(D.n[sel].x, D.n[sel].y, 600); });
+    svg.querySelectorAll<SVGGElement>('[data-mm-branch]').forEach((g) => g.addEventListener('click', () => focusCat(g.dataset.mmBranch!)));
+    // --- кнопки ---
+    const toggle = (b: HTMLButtonElement) => { const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', String(on)); return on; };
+    root.querySelectorAll<HTMLButtonElement>('[data-mm-act]').forEach((b) => b.addEventListener('click', () => {
+      const act = b.dataset.mmAct, c = { x: vx + vw / 2, y: vy + vh / 2 };
+      if (act === 'in') zoomAt(1 / 1.35, c.x, c.y); else if (act === 'out') zoomAt(1.35, c.x, c.y); else if (act === 'fit') fit();
+      else if (act === 'links') svg.classList.toggle('all-links', toggle(b));
+      else if (act === 'unread') { svg.classList.toggle('unread', toggle(b)); const s = load(); nodes.forEach((n, k) => n.classList.toggle('read', !!s.read[D.n[k].s])); }
+      else if (act === 'random') select(Math.floor(Math.random() * D.n.length), true);
+      else if (act === 'full') { const on = toggle(b); root.classList.toggle('mm-full', on); document.documentElement.classList.toggle('mm-lock', on); setTimeout(fit, 30); }
     }));
+    let book = -1; root.querySelectorAll<HTMLButtonElement>('[data-mm-book]').forEach((b) => b.addEventListener('click', () => {
+      const k = Number(b.dataset.mmBook); book = book === k ? -1 : k;
+      root.querySelectorAll<HTMLButtonElement>('[data-mm-book]').forEach((x) => x.setAttribute('aria-pressed', String(Number(x.dataset.mmBook) === book)));
+      svg.classList.toggle('bookf', book >= 0); nodes.forEach((n, i) => n.classList.toggle('inbook', book >= 0 && !!(D.n[i].b & (1 << book))));
+    }));
+    let cat = '';
+    const focusCat = (c: string) => {
+      cat = cat === c ? '' : c;
+      root.querySelectorAll<HTMLButtonElement>('[data-mm-cat]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.mmCat === cat)));
+      svg.classList.toggle('catf', !!cat); nodes.forEach((n) => n.classList.toggle('incat', n.dataset.cat === cat));
+      const br = D.br.find((x) => x.c === cat); if (br) { const k = 1.9; center(br.x * k, br.y * k, 1000); } else fit();
+    };
+    root.querySelectorAll<HTMLButtonElement>('[data-mm-cat]').forEach((b) => b.addEventListener('click', () => focusCat(b.dataset.mmCat!)));
+    const form = root.querySelector<HTMLFormElement>('[data-mm-search]')!;
+    form.addEventListener('submit', (e) => { e.preventDefault(); const v = form.querySelector('input')!.value.trim().toLowerCase(); if (!v) return;
+      const i = D.n.findIndex((n) => n.t.toLowerCase() === v); const j = i >= 0 ? i : D.n.findIndex((n) => n.t.toLowerCase().includes(v)); if (j >= 0) select(j, true); });
+    form.querySelector('input')!.addEventListener('change', () => form.requestSubmit());
+    const s = load(); nodes.forEach((n, k) => n.classList.toggle('read', !!s.read[D.n[k].s]));
+    const want = new URLSearchParams(location.search).get('focus'); if (want) { const i = D.n.findIndex((n) => n.s === want); if (i >= 0) setTimeout(() => select(i, true), 60); }
   }
-  document.addEventListener('astro:page-load', initLpMap);
+  document.addEventListener('astro:page-load', initMM);
 </script>
 </LpShell>
 )}

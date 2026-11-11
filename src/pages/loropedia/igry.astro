@@ -1,0 +1,272 @@
+---
+// «Испытания»: прогресс и ранг читателя, статья дня, достижения, квиз, «Кто сказал?», хронология глав,
+// сравнение персонажей, коллекция карточек и пасхалки. Гостевой прогресс — только localStorage.
+import LpShell from '../../components/loropedia/LpShell.astro';
+import LpClosed from '../../components/loropedia/LpClosed.astro';
+import { CAT_COLORS } from '../../lib/loropedia';
+import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
+import { corpus, pageMode } from '../../lib/loropedia/select';
+import { ACHIEVEMENTS, DS_QUIZ, EGGS, QUOTES, RANKS, quizPool, rarity, bookOfChapter } from '../../lib/loropedia/play';
+const mode = pageMode(Astro.cookies);
+const protect = mode === 'closed';
+const spoil = mode === 'spoil';
+const LP = corpus(mode);
+const has = new Set(LP.articles.map((a) => a.slug));
+const arts = LP.articles.map((a) => ({ s: a.slug, t: a.title, c: a.cat, e: a.excerpt.slice(0, 200), i: a.image?.thumb || null,
+  r: rarity(new Set([...a.links, ...a.backlinks]).size, !!a.image), st: a.invented ? 'idea' : a.status }));
+const people = LP.articles.filter((a) => a.cat === 'personazhi').map((a) => {
+  const nb = [...new Set([...a.links, ...a.backlinks])];
+  return { s: a.slug, t: a.title, i: a.image?.thumb || null, clan: a.clan || '', role: a.role || '', st: a.invented ? 'idea' : a.status, nb,
+    ch: nb.filter((x) => bookOfChapter(x) && LP.articles.find((y) => y.slug === x)?.cat === 'glavy'), al: a.aliases.slice(0, 4) };
+});
+const chapters = LP.chapters.filter((s) => bookOfChapter(s) === 'book:obitel-smerti').map((s) => ({ s, t: LP.articles.find((a) => a.slug === s)!.title }));
+const quiz = quizPool(LP.articles, LP.clans, LP.categories, DS_QUIZ.filter((q) => has.has(q.slug)));
+const quotes = QUOTES.filter((q) => has.has(q.slug));
+const data = JSON.stringify({ arts, people, chapters, quiz, quotes, ach: ACHIEVEMENTS, eggs: EGGS.filter((e) => has.has(e.slug)), ranks: RANKS,
+  cats: LP.categories.map((c) => ({ s: c.slug, n: c.name, i: c.icon, col: CAT_COLORS[c.slug] })) }).replace(/</g, '\\u003c');
+---
+{protect ? (
+  <LpShell title={CLOSED_TITLE} description={CLOSED_DESCRIPTION} active="play" noindex>
+    <LpClosed />
+  </LpShell>
+) : (
+<LpShell title="Испытания — Лоропедия МоррисГрада" description="Квиз по лору МоррисГрада, «Кто сказал?», хронология глав, сравнение персонажей, коллекция карточек, достижения и статья дня." active="play" crumbs={[['Испытания', '/loropedia/igry']]} noindex={spoil}>
+  <header class="lp-page-head">
+    <span class="lp-page-icon" aria-hidden="true">🏆</span>
+    <div><h1 class="lp-page-title">Испытания летописца</h1><p class="lp-page-sub">Читайте статьи, проходите испытания, собирайте карточки и ищите пасхалки. Прогресс хранится только в этом браузере — без регистрации.</p></div>
+  </header>
+
+  <div class="pl" data-pl>
+    <section class="pl-hero">
+      <div class="pl-rank"><span class="pl-rank-ico" aria-hidden="true">⚜</span><div><b data-pl-rank>Новичок у фонтана</b><span class="pl-rank-sub" data-pl-ranksub></span><span class="pl-bar"><i data-pl-bar></i></span></div></div>
+      <div class="pl-stats" data-pl-stats></div>
+    </section>
+
+    <nav class="pl-tabs" role="tablist" aria-label="Испытания">
+      <button type="button" role="tab" data-tab="den" data-tip="Статья дня и серия дней подряд">☀ День</button>
+      <button type="button" role="tab" data-tab="kviz" data-tip="Квиз по лору: 10 вопросов, опыт за верные ответы">❓ Квиз</button>
+      <button type="button" role="tab" data-tab="kto" data-tip="Угадайте, кто произнёс цитату">🗣 Кто сказал?</button>
+      <button type="button" role="tab" data-tab="khron" data-tip="Расставьте главы летописи по порядку">⏳ Хронология</button>
+      <button type="button" role="tab" data-tab="sravn" data-tip="Сравнить двух персонажей: кланы, связи, общие главы">⚖ Сравнение</button>
+      <button type="button" role="tab" data-tab="kollektsiya" data-tip="Карточки открываются, когда вы читаете статьи">🃏 Коллекция</button>
+      <button type="button" role="tab" data-tab="dostizheniya" data-tip="Достижения, пасхалки и прогресс по разделам">🏅 Достижения</button>
+    </nav>
+
+    <section class="pl-panel" data-panel="den">
+      <h2 class="lp-h2 small"><span>Статья дня</span></h2>
+      <div class="pl-day" data-pl-day></div>
+      <p class="lp-muted">Статья дня одна для всех и меняется в полночь. За её прочтение — +25 опыта. Заходите несколько дней подряд, чтобы держать серию.</p>
+      <div class="pl-streak" data-pl-streak></div>
+      <h2 class="lp-h2 small"><span>Спойлер-шторки</span></h2>
+      <p class="lp-muted">Сведения из новой книги «Дарг Сирром», авторские планы и теории Историка спрятаны под шторками. Шторки глав открываются сами, если в «Ходе чтения» (наверху страницы) указано, что глава прочитана. Планы будущих глав открываются только вручную.</p>
+      <div class="pl-row"><button type="button" class="pl-btn" data-pl-ds1 data-tip="Отметить в «Ходе чтения», что вы прочитали главу 1 «Дарг Сиррома»: её шторки откроются сами и в квизе появятся вопросы по ней">🜂 Я прочитал(а) «Дарг Сирром», гл. 1</button></div>
+    </section>
+
+    <section class="pl-panel" data-panel="kviz" hidden>
+      <h2 class="lp-h2 small"><span>Квиз по лору</span></h2>
+      <label class="check pl-check"><input type="checkbox" data-pl-dsq /> Включить вопросы по «Дарг Сирром» (спойлеры главы 1)</label>
+      <div class="pl-game" data-pl-quiz></div>
+    </section>
+
+    <section class="pl-panel" data-panel="kto" hidden>
+      <h2 class="lp-h2 small"><span>Кто сказал?</span></h2>
+      <p class="lp-muted">Цитаты из летописи и новой книги. Цитаты «Дарг Сиррома» появятся, если включены вопросы по ней в квизе.</p>
+      <div class="pl-game" data-pl-who></div>
+    </section>
+
+    <section class="pl-panel" data-panel="khron" hidden>
+      <h2 class="lp-h2 small"><span>Хронология: расставьте главы</span></h2>
+      <p class="lp-muted">Нажимайте на главы в том порядке, в каком они идут в летописи «Обитель смерти». Ошиблись — нажмите на главу в списке, чтобы вернуть её.</p>
+      <div class="pl-game" data-pl-tl></div>
+    </section>
+
+    <section class="pl-panel" data-panel="sravn" hidden>
+      <h2 class="lp-h2 small"><span>Сравнение персонажей</span></h2>
+      <div class="pl-cmp-pick">
+        <select data-pl-a aria-label="Первый персонаж"></select><span aria-hidden="true">⚔</span><select data-pl-b aria-label="Второй персонаж"></select>
+        <button type="button" class="pl-btn" data-pl-swap data-tip="Поменять персонажей местами">⇄</button>
+        <button type="button" class="pl-btn" data-pl-rnd data-tip="Выбрать двух случайных персонажей">🎲</button>
+      </div>
+      <div class="pl-cmp" data-pl-cmp></div>
+    </section>
+
+    <section class="pl-panel" data-panel="kollektsiya" hidden>
+      <h2 class="lp-h2 small"><span>Коллекция карточек</span></h2>
+      <p class="lp-muted">Каждая прочитанная статья открывает карточку. <b class="pl-r-legend">Легендарные</b> — самые связанные, <b class="pl-r-rare">редкие</b> — с артом или многими связями.</p>
+      <div class="lp-filter" role="group" aria-label="Фильтр карточек" data-pl-cfilter>
+        <button type="button" class="active" data-f="all" data-tip="Показать все карточки">Все</button>
+        <button type="button" data-f="open" data-tip="Только открытые карточки">Открытые</button>
+        <button type="button" data-f="legend" data-tip="Только легендарные карточки">Легендарные</button>
+        <button type="button" data-f="rare" data-tip="Только редкие карточки">Редкие</button>
+      </div>
+      <p class="pl-count" data-pl-ccount></p>
+      <div class="pl-cards" data-pl-cards></div>
+    </section>
+
+    <section class="pl-panel" data-panel="dostizheniya" id="dostizheniya" hidden>
+      <h2 class="lp-h2 small"><span>Достижения</span></h2>
+      <div class="pl-ach" data-pl-ach></div>
+      <h2 class="lp-h2 small"><span>Пасхалки</span></h2>
+      <p class="lp-muted">На некоторых страницах спрятан едва заметный знак ✦. Найдите их все. Подсказки:</p>
+      <ul class="pl-eggs" data-pl-eggs></ul>
+      <h2 class="lp-h2 small"><span>Изучено по разделам</span></h2>
+      <div class="pl-prog" data-pl-prog></div>
+      <h2 class="lp-h2 small"><span>Ранги читателя</span></h2>
+      <ol class="pl-ranks" data-pl-ranks></ol>
+      <div class="pl-row"><button type="button" class="pl-btn pl-danger" data-pl-reset data-tip="Стереть весь прогресс испытаний в этом браузере. Ход чтения и заметки не трогаются">Сбросить прогресс</button></div>
+    </section>
+  </div>
+  <script type="application/json" id="pl-data" set:html={data} />
+<script>
+  import { load, save, award, checkAch, paintChip, rankOf, today, dayPick, toast, chaptersRead, spoilAll } from '../../scripts/loropedia/play';
+  import { STORAGE_KEY, loadState, serialize, setCursor } from '../../lib/loropedia/progress';
+  type Q = { q: string; options: string[]; answer: number; slug: string; book?: string; why?: string };
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+  const shuffle = <T,>(a: T[]) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+  function initPlay() {
+    const root = document.querySelector<HTMLElement>('[data-pl]'); if (!root || root.dataset.ready) return; root.dataset.ready = '1';
+    const D = JSON.parse(document.getElementById('pl-data')!.textContent!);
+    const ctx = JSON.parse(document.getElementById('lp-play-ctx')?.textContent || '{"day":[]}');
+    let s = load();
+    const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+    const commit = () => { save(s); paintChip(s); paintHero(); };
+    const dsOn = () => s.dsQuiz || chaptersRead('book:darg-sirrom') >= 1 || spoilAll();
+    // --- вкладки ---
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+    const show = (id: string) => { tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === id))); root.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => p.hidden = p.dataset.panel !== id); if (id === 'kollektsiya') paintCards(); if (id === 'dostizheniya') paintAch(); };
+    tabs.forEach((t) => t.addEventListener('click', () => { show(t.dataset.tab!); history.replaceState(history.state, '', '#' + t.dataset.tab); }));
+    show(tabs.some((t) => t.dataset.tab === location.hash.slice(1)) ? location.hash.slice(1) : 'den');
+    // --- шапка ---
+    function paintHero() {
+      const { r, next } = rankOf(s.xp);
+      $('[data-pl-rank]').textContent = r.title;
+      $('[data-pl-ranksub]').textContent = next ? `${s.xp} опыта · до «${next.title}» ещё ${next.xp - s.xp}` : `${s.xp} опыта · высший ранг`;
+      $<HTMLElement>('[data-pl-bar]').style.width = (next ? Math.round(((s.xp - r.xp) / (next.xp - r.xp)) * 100) : 100) + '%';
+      const read = Object.keys(s.read).length;
+      $('[data-pl-stats]').innerHTML = [[read + ' / ' + D.arts.length, 'прочитано'], [Object.keys(s.ach).length + ' / ' + D.ach.length, 'достижений'], [s.eggs.length + ' / ' + D.eggs.length, 'пасхалок'], [String(s.quiz.best), 'рекорд квиза']]
+        .map(([b, t]) => `<div><b>${b}</b><span>${t}</span></div>`).join('');
+    }
+    paintHero();
+    // --- статья дня ---
+    const daySlug = dayPick(ctx.day || []); const day = D.arts.find((a: any) => a.s === daySlug);
+    if (day) $('[data-pl-day]').innerHTML = `<a class="pl-daycard" href="/loropedia/${day.s}" data-tip="Открыть статью дня">${day.i ? `<img src="${day.i}" alt="" loading="lazy">` : '<span class="pl-day-glyph" aria-hidden="true">❖</span>'}<span><b>${esc(day.t)}</b><span>${esc(day.e)}</span>${s.dayRead === today() ? '<em>✓ прочитана сегодня</em>' : '<em>+25 опыта за прочтение</em>'}</span></a>`;
+    const streak = (() => { const d = [...s.days].sort(); let cur = 0; for (let i = d.length - 1; i >= 0; i--) { const want = new Date(Date.now() - (d.length - 1 - i) * 864e5); const w = `${want.getFullYear()}-${String(want.getMonth() + 1).padStart(2, '0')}-${String(want.getDate()).padStart(2, '0')}`; if (d[i] === w) cur++; else break; } return cur; })();
+    $('[data-pl-streak]').innerHTML = `🔥 Серия: <b>${streak}</b> ${streak === 1 ? 'день' : streak < 5 ? 'дня' : 'дней'} подряд`;
+    const ds1 = $<HTMLButtonElement>('[data-pl-ds1]');
+    const paintDs1 = () => { const on = chaptersRead('book:darg-sirrom') >= 1; ds1.textContent = on ? '✓ Глава 1 «Дарг Сиррома» отмечена как прочитанная' : '🜂 Я прочитал(а) «Дарг Сирром», гл. 1'; ds1.disabled = on; };
+    paintDs1();
+    ds1.addEventListener('click', () => { const st = setCursor(loadState(localStorage.getItem(STORAGE_KEY)), 'book:darg-sirrom', { chapterNumber: 1, partNumber: null }); localStorage.setItem(STORAGE_KEY, serialize(st)); paintDs1(); toast('Шторки главы 1 теперь открываются сами'); });
+    // --- квиз ---
+    const dsq = $<HTMLInputElement>('[data-pl-dsq]'); dsq.checked = dsOn();
+    dsq.addEventListener('change', () => { s.dsQuiz = dsq.checked; save(s); quizStart(); whoNext(true); });
+    const quizBox = $('[data-pl-quiz]'); let qs: Q[] = [], qi = 0, qok = 0;
+    function quizStart() {
+      const pool = (D.quiz as Q[]).filter((q) => !q.book || dsOn());
+      const dsPart = shuffle(pool.filter((q) => q.book)).slice(0, 3); qs = shuffle([...dsPart, ...shuffle(pool.filter((q) => !q.book)).slice(0, 10 - dsPart.length)]); qi = 0; qok = 0; quizQ();
+    }
+    function quizQ() {
+      if (qi >= qs.length) {
+        s.quiz.played++; s.quiz.best = Math.max(s.quiz.best, qok); s = award(s, qok === qs.length ? 20 : 0, qok === qs.length ? 'безупречный квиз' : undefined); s = checkAch(s); commit();
+        quizBox.innerHTML = `<div class="pl-result"><b>${qok} из ${qs.length}</b><span>${qok === qs.length ? 'Безупречно! Летопись знает вас в лицо.' : qok >= 7 ? 'Отлично! Ещё немного — и в Стражи.' : 'Неплохо. Загляните в статьи и попробуйте снова.'}</span><button type="button" class="pl-btn" data-again data-tip="Новый набор из 10 вопросов">Ещё раз</button></div>`;
+        quizBox.querySelector('[data-again]')!.addEventListener('click', quizStart); return;
+      }
+      const q = qs[qi];
+      quizBox.innerHTML = `<p class="pl-qn">Вопрос ${qi + 1} из ${qs.length}${q.book ? ' · <span class="lp-pill lp-pill-disputed">Дарг Сирром</span>' : ''}</p><p class="pl-q">${esc(q.q)}</p><div class="pl-opts">${q.options.map((o, k) => `<button type="button" class="pl-opt" data-k="${k}" data-tip="Ответ: ${esc(o)}">${esc(o)}</button>`).join('')}</div><p class="pl-why" hidden></p>`;
+      quizBox.querySelectorAll<HTMLButtonElement>('.pl-opt').forEach((b) => b.addEventListener('click', () => {
+        const k = Number(b.dataset.k); const ok = k === q.answer; if (ok) { qok++; s = award(s, 5, 'верный ответ'); commit(); }
+        quizBox.querySelectorAll<HTMLButtonElement>('.pl-opt').forEach((x, j) => { x.disabled = true; x.classList.toggle('right', j === q.answer); x.classList.toggle('wrong', j === k && !ok); });
+        const why = quizBox.querySelector<HTMLElement>('.pl-why')!; why.hidden = false;
+        why.innerHTML = `${ok ? '✓ Верно.' : '✗ Неверно.'} ${esc(q.why || '')} <a class="lp-link" href="/loropedia/${q.slug}">Статья →</a> <button type="button" class="pl-btn" data-next data-tip="Следующий вопрос">Дальше</button>`;
+        why.querySelector('[data-next]')!.addEventListener('click', () => { qi++; quizQ(); });
+      }));
+    }
+    quizStart();
+    // --- кто сказал ---
+    const whoBox = $('[data-pl-who]');
+    function whoNext(reset = false) {
+      if (reset) s.who.streak = 0;
+      const pool = D.quotes.filter((q: any) => !q.book || dsOn()); const q = pool[Math.floor(Math.random() * pool.length)];
+      const names = [...new Set(D.quotes.map((x: any) => x.who))].filter((n) => n !== q.who) as string[];
+      const opts = shuffle([q.who, ...shuffle(names).slice(0, 3)]);
+      whoBox.innerHTML = `<blockquote class="pl-quote">«${esc(q.text)}»</blockquote><p class="pl-qn">Серия верных ответов: ${s.who.streak} · рекорд: ${s.who.best}</p><div class="pl-opts">${opts.map((o) => `<button type="button" class="pl-opt" data-who="${esc(o)}" data-tip="Это сказал(а): ${esc(o)}?">${esc(o)}</button>`).join('')}</div><p class="pl-why" hidden></p>`;
+      whoBox.querySelectorAll<HTMLButtonElement>('.pl-opt').forEach((b) => b.addEventListener('click', () => {
+        const ok = b.dataset.who === q.who;
+        if (ok) { s.who.streak++; s.who.best = Math.max(s.who.best, s.who.streak); s = award(s, 5, 'узнали по голосу'); } else s.who.streak = 0;
+        s = checkAch(s); commit();
+        whoBox.querySelectorAll<HTMLButtonElement>('.pl-opt').forEach((x) => { x.disabled = true; x.classList.toggle('right', x.dataset.who === q.who); x.classList.toggle('wrong', x === b && !ok); });
+        const why = whoBox.querySelector<HTMLElement>('.pl-why')!; why.hidden = false;
+        why.innerHTML = `${ok ? '✓ Верно!' : '✗ Нет.'} Это ${esc(q.who)} · ${esc(q.src)}. <a class="lp-link" href="/loropedia/${q.slug}">Статья →</a> <button type="button" class="pl-btn" data-next data-tip="Следующая цитата">Дальше</button>`;
+        why.querySelector('[data-next]')!.addEventListener('click', () => whoNext());
+      }));
+    }
+    whoNext();
+    // --- хронология ---
+    const tlBox = $('[data-pl-tl]');
+    function tlStart() {
+      const all = D.chapters as { s: string; t: string }[]; const pick = shuffle(all.map((c, i) => ({ ...c, i }))).slice(0, 5); const order = [...pick].sort((a, b) => a.i - b.i);
+      let chosen: typeof pick = [];
+      const paint = () => {
+        const left = pick.filter((p) => !chosen.includes(p));
+        tlBox.innerHTML = `<ol class="pl-tl-chosen">${chosen.map((c, k) => `<li><button type="button" class="pl-opt" data-back="${k}" data-tip="Вернуть «${esc(c.t)}» обратно">${k + 1}. ${esc(c.t)}</button></li>`).join('') || '<li class="lp-muted">Нажмите на первую по порядку главу…</li>'}</ol>
+          <div class="pl-opts">${left.map((c) => `<button type="button" class="pl-opt" data-pick="${c.s}" data-tip="Поставить «${esc(c.t)}» следующей">${esc(c.t)}</button>`).join('')}</div><p class="pl-why" hidden></p>`;
+        tlBox.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => { chosen.push(pick.find((p) => p.s === b.dataset.pick)!); if (chosen.length === pick.length) check(); else paint(); }));
+        tlBox.querySelectorAll<HTMLButtonElement>('[data-back]').forEach((b) => b.addEventListener('click', () => { chosen = chosen.slice(0, Number(b.dataset.back)); paint(); }));
+      };
+      const check = () => {
+        paint(); const ok = chosen.every((c, k) => c.s === order[k].s);
+        if (ok) { s.tl++; s = award(s, 20, 'хронология верна'); s = checkAch(s); commit(); }
+        const why = tlBox.querySelector<HTMLElement>('.pl-why')!; why.hidden = false;
+        why.innerHTML = `${ok ? '✓ Всё верно!' : '✗ Порядок другой. Верно так: ' + order.map((c) => esc(c.t)).join(' → ')} <button type="button" class="pl-btn" data-next data-tip="Новые пять глав">Ещё раз</button>`;
+        why.querySelector('[data-next]')!.addEventListener('click', tlStart);
+      };
+      paint();
+    }
+    tlStart();
+    // --- сравнение ---
+    const A = $<HTMLSelectElement>('[data-pl-a]'), B = $<HTMLSelectElement>('[data-pl-b]');
+    const P = D.people as any[]; const opt = P.map((p) => `<option value="${p.s}">${esc(p.t)}</option>`).join(''); A.innerHTML = opt; B.innerHTML = opt;
+    A.value = P.find((p) => p.s === 'lorin-des') ? 'lorin-des' : P[0].s; B.value = P.find((p) => p.s === 'veles') ? 'veles' : P[1].s;
+    const title = (sl: string) => D.arts.find((a: any) => a.s === sl)?.t || sl;
+    let cmpSeen = new Set<string>();
+    const cmp = () => {
+      const a = P.find((p) => p.s === A.value), b = P.find((p) => p.s === B.value); if (!a || !b) return;
+      const common = a.nb.filter((x: string) => b.nb.includes(x)); const commonCh = a.ch.filter((x: string) => b.ch.includes(x));
+      const linked = a.nb.includes(b.s);
+      const col = (p: any) => `<div class="pl-cmp-col">${p.i ? `<img src="${p.i}" alt="" loading="lazy">` : '<span class="pl-day-glyph" aria-hidden="true">👤</span>'}<h3><a class="lp-link" href="/loropedia/${p.s}">${esc(p.t)}</a></h3>
+        <dl><dt>Клан</dt><dd>${esc(p.clan || '—')}</dd><dt>Роль</dt><dd>${esc(p.role || '—')}</dd><dt>Связей</dt><dd>${p.nb.length}</dd><dt>Глав с появлением</dt><dd>${p.ch.length}</dd><dt>Также</dt><dd>${esc(p.al.join(', ') || '—')}</dd></dl></div>`;
+      $('[data-pl-cmp]').innerHTML = `<div class="pl-cmp-grid">${col(a)}<div class="pl-cmp-mid"><b>${linked ? 'Статьи ссылаются друг на друга' : 'Прямой ссылки нет'}</b><span>Общих связей: ${common.length}</span><span>Общих глав: ${commonCh.length}</span>
+        ${a.clan && a.clan === b.clan ? `<span>Один клан: ${esc(a.clan)}</span>` : ''}</div>${col(b)}</div>
+        ${common.length ? `<p class="pl-common"><b>Общие связи:</b> ${common.slice(0, 20).map((x: string) => `<a class="lp-chip" href="/loropedia/${x}">${esc(title(x))}</a>`).join(' ')}</p>` : ''}`;
+      const key = [a.s, b.s].sort().join('|'); if (a.s !== b.s && !cmpSeen.has(key)) { cmpSeen.add(key); s.cmp++; s = award(s, s.cmp <= 10 ? 3 : 0, s.cmp <= 10 ? 'сравнение' : undefined); s = checkAch(s); commit(); }
+    };
+    A.addEventListener('change', cmp); B.addEventListener('change', cmp);
+    $('[data-pl-swap]').addEventListener('click', () => { const t = A.value; A.value = B.value; B.value = t; cmp(); });
+    $('[data-pl-rnd]').addEventListener('click', () => { const [x, y] = shuffle(P); A.value = x.s; B.value = y.s; cmp(); });
+    cmpSeen.add([A.value, B.value].sort().join('|')); cmp();
+    // --- коллекция ---
+    let cf = 'all';
+    root.querySelectorAll<HTMLButtonElement>('[data-pl-cfilter] button').forEach((b) => b.addEventListener('click', () => { cf = b.dataset.f!; root.querySelectorAll('[data-pl-cfilter] button').forEach((x) => x.classList.toggle('active', x === b)); paintCards(); }));
+    function paintCards() {
+      const list = (D.arts as any[]).filter((a) => cf === 'all' || (cf === 'open' ? s.read[a.s] : a.r === cf));
+      const open = D.arts.filter((a: any) => s.read[a.s]).length;
+      $('[data-pl-ccount]').textContent = `Открыто ${open} из ${D.arts.length} карточек`;
+      const cat = (c: string) => D.cats.find((x: any) => x.s === c);
+      $('[data-pl-cards]').innerHTML = list.map((a: any) => s.read[a.s]
+        ? `<a class="pl-card r-${a.r}" href="/loropedia/${a.s}" style="--cat:${cat(a.c)?.col}" data-tip="${esc(a.t)} — открыть статью">${a.i ? `<img src="${a.i}" alt="" loading="lazy">` : `<span class="pl-card-ico" aria-hidden="true">${cat(a.c)?.i || '❖'}</span>`}<b>${esc(a.t)}</b><small>${esc(cat(a.c)?.n || '')}</small></a>`
+        : `<a class="pl-card locked r-${a.r}" href="/loropedia/${a.s}" data-tip="Карточка закрыта: прочитайте статью, чтобы открыть"><span class="pl-card-ico" aria-hidden="true">?</span><b>${a.r === 'legend' ? 'Легендарная' : a.r === 'rare' ? 'Редкая' : 'Карточка'}</b><small>${esc(cat(a.c)?.n || '')}</small></a>`).join('');
+    }
+    // --- достижения, пасхалки, прогресс ---
+    function paintAch() {
+      $('[data-pl-ach]').innerHTML = D.ach.map((a: any) => `<div class="pl-ach-i ${s.ach[a.id] ? 'got' : ''}" data-tip="${esc(a.desc)}${s.ach[a.id] ? ' — получено' : ''}"><span aria-hidden="true">${a.icon}</span><b>${esc(a.title)}</b><small>${esc(a.desc)}</small></div>`).join('');
+      $('[data-pl-eggs]').innerHTML = D.eggs.map((e: any) => `<li class="${s.eggs.includes(e.id) ? 'got' : ''}">${s.eggs.includes(e.id) ? '✦' : '✧'} ${esc(e.hint)}${s.eggs.includes(e.id) ? ` — <a class="lp-link" href="/loropedia/${e.slug}">найдено</a>` : ''}</li>`).join('');
+      $('[data-pl-prog]').innerHTML = D.cats.map((c: any) => { const all = D.arts.filter((a: any) => a.c === c.s); const r = all.filter((a: any) => s.read[a.s]).length; const p = all.length ? Math.round((r / all.length) * 100) : 0;
+        return `<a class="pl-prog-i" href="/loropedia/${c.s === 'khronologiya-razdel' ? 'khronologiya' : 'c/' + c.s}" style="--cat:${c.col}" data-tip="${esc(c.n)}: прочитано ${r} из ${all.length}"><span>${c.i} ${esc(c.n)}</span><span class="pl-bar"><i style="width:${p}%"></i></span><small>${r}/${all.length}</small></a>`; }).join('');
+      $('[data-pl-ranks]').innerHTML = D.ranks.map((r: any) => `<li class="${s.xp >= r.xp ? 'got' : ''}"><b>${esc(r.title)}</b> <small>от ${r.xp} опыта</small></li>`).join('');
+    }
+    $('[data-pl-reset]').addEventListener('click', () => { if (!confirm('Стереть прогресс испытаний в этом браузере?')) return; localStorage.removeItem('lp-play-v1'); s = load(); commit(); paintAch(); paintCards(); toast('Прогресс сброшен'); });
+    paintAch();
+  }
+  document.addEventListener('astro:page-load', initPlay);
+</script>
+</LpShell>
+)}

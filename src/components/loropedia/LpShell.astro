@@ -4,6 +4,8 @@ import Layout from '../../layouts/Layout.astro';
 import LpReader from './LpReader.astro';
 import { breadcrumbs } from '../../lib/seo';
 import { PROTECT_COOKIE, protectionOn } from '../../lib/loropedia/guard';
+import { LP } from '../../lib/loropedia';
+import { rarity } from '../../lib/loropedia/play';
 import '../../styles/loropedia.css';
 
 interface Props {
@@ -12,7 +14,7 @@ interface Props {
   image?: string | null;
   type?: 'website' | 'article';
   crumbs?: [string, string][]; // без «Лоропедии» — она добавляется сама
-  active?: 'home' | 'cats' | 'timeline' | 'map' | 'gallery' | 'search';
+  active?: 'home' | 'cats' | 'timeline' | 'map' | 'gallery' | 'search' | 'play';
   jsonLd?: any[];
   noindex?: boolean;
 }
@@ -23,9 +25,16 @@ const q = Astro.url.searchParams.get('q') || '';
 const nav = [
   { id: 'home', href: '/loropedia', label: 'Главная', icon: '❖' },
   { id: 'timeline', href: '/loropedia/khronologiya', label: 'Хронология', icon: '⏳' },
-  { id: 'map', href: '/loropedia/karta', label: 'Карта связей', icon: '✶' },
+  { id: 'map', href: '/loropedia/karta', label: 'Ментальная карта', icon: '✶' },
+  { id: 'play', href: '/loropedia/igry', label: 'Испытания', icon: '🏆' },
   { id: 'gallery', href: '/loropedia/galereya', label: 'Галерея', icon: '🖼' },
 ];
+const ctx = {
+  people: LP.articles.filter((a) => a.cat === 'personazhi').map((a) => a.slug),
+  ds: LP.articles.filter((a: any) => a.layer === 'book:darg-sirrom').map((a) => a.slug),
+  rare: LP.articles.filter((a) => rarity(new Set([...a.links, ...a.backlinks]).size, !!a.image) !== 'common').map((a) => a.slug),
+  day: LP.articles.filter((a) => a.cat !== 'glavy' && a.cat !== 'khronologiya-razdel' && a.excerpt.length > 60 && a.status !== 'idea' && !(a as any).historianGuess).map((a) => a.slug).sort(),
+};
 ---
 <Layout title={title} description={description} image={image} type={type} robots={noindex ? 'noindex,follow' : null}
   jsonLd={[breadcrumbs([['Главная', '/'], ...trail]), ...jsonLd]}>
@@ -40,8 +49,15 @@ const nav = [
       </nav>
       <form class="lp-search-mini" action="/loropedia/poisk" method="get" role="search">
         <input type="search" name="q" value={q} placeholder="Найти в летописи…" aria-label="Поиск по Лоропедии" autocomplete="off" />
-        <button type="submit" aria-label="Искать">⌕</button>
+        <button type="submit" aria-label="Искать" data-tip="Искать по названиям, прозвищам и тексту статей">⌕</button>
       </form>
+      {!protect && (
+        <a class="lp-xp" href="/loropedia/igry#dostizheniya" data-lp-xp data-tip="Ранг читателя и опыт. Прогресс хранится только в этом браузере.">
+          <span class="lp-xp-rank" data-rank>Новичок у фонтана</span>
+          <span class="lp-xp-bar"><i data-bar></i></span>
+          <span class="lp-xp-num"><b data-xpnum>0</b> оп.</span>
+        </a>
+      )}
     </div>
     <LpReader />
     {trail.length > 1 && (
@@ -52,9 +68,14 @@ const nav = [
       </nav>
     )}
     <slot />
+    {!protect && <script type="application/json" id="lp-play-ctx" set:html={JSON.stringify(ctx)} />}
     <div class="lp-foot">
       <div class="lp-foot-orn" aria-hidden="true"><span></span>✦ ⚜ ✦<span></span></div>
       <p>Лоропедия собрана из летописи «Обитель смерти». <span class="lp-pill lp-pill-canon">✅ Канон</span> — есть в тексте книги; <span class="lp-pill lp-pill-idea">💡 Не канон</span> — замыслы и додумки автора; <span class="lp-pill lp-pill-disputed">⚠️ Спорно</span> — текст не подтверждает однозначно.</p>
     </div>
   </div>
 </Layout>
+<script>
+  import { boot } from '../../scripts/loropedia/play';
+  document.addEventListener('astro:page-load', () => { if (document.querySelector('.lp')?.getAttribute('data-lp-protect') !== '1') boot(); });
+</script>

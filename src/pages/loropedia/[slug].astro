@@ -8,6 +8,7 @@ import { clip } from '../../lib/seo';
 import { HISTORIAN_GUESS_LABEL } from '../../lib/loropedia/contract';
 import { CLOSED_DESCRIPTION, CLOSED_TITLE } from '../../lib/loropedia/guard';
 import { bind, corpus, knownSlug, pageMode } from '../../lib/loropedia/select';
+import { EGGS } from '../../lib/loropedia/play';
 
 const slug = Astro.params.slug || '';
 const mode = pageMode(Astro.cookies);
@@ -30,7 +31,10 @@ const back = LP.categories.map((c) => ({ c, items: a.backlinks.map(article).filt
 const ci = a.order != null ? LP.chapters.indexOf(a.slug) : -1;
 const prev = ci > 0 ? article(LP.chapters[ci - 1]) : null;
 const next = ci >= 0 && ci < LP.chapters.length - 1 ? article(LP.chapters[ci + 1]) : null;
-const desc = clip(`${a.title} — ${cat.name.toLowerCase()} летописи «Обитель смерти»${nonCanon ? ' (не канон)' : ''}. ${a.excerpt}`, 190);
+const isDS = (a as any).layer === 'book:darg-sirrom';
+const egg = EGGS.find((e) => e.slug === a.slug);
+const eggPos = egg ? ['tl', 'tr', 'bl', 'br'][a.slug.length % 4] : '';
+const desc = clip(`${a.title} — ${cat.name.toLowerCase()} ${isDS ? 'книги «Дарг Сирром»' : 'летописи «Обитель смерти»'}${nonCanon ? ' (не канон)' : ''}. ${a.excerpt}`, 190);
 const crumbs: [string, string][] = isTimeline ? [['Хронология', '/loropedia/khronologiya']] : [[cat.name, `/loropedia/c/${cat.slug}`], [a.title, `/loropedia/${a.slug}`]];
 const ld = { '@context': 'https://schema.org', '@type': 'Article', headline: a.title, description: desc, inLanguage: 'ru-RU',
   url: `https://morrisgrad.com/loropedia/${a.slug}`, ...(a.image ? { image: `https://morrisgrad.com${a.image.jpg}` } : {}),
@@ -44,13 +48,14 @@ const showToc = a.toc.length >= 2 || isTimeline;
 ) : (
 <LpShell title={`${a.title} — Лоропедия МоррисГрада`} description={desc} image={a.image?.jpg} type="article" crumbs={crumbs}
   active={isTimeline ? 'timeline' : undefined} jsonLd={[ld]} noindex={spoil}>
-  <article class="lp-article" style={`--cat:${CAT_COLORS[a.cat] || '#c9a86c'}`} data-pagefind-body>
+  <article class="lp-article" style={`--cat:${CAT_COLORS[a.cat] || '#c9a86c'}`} data-pagefind-body data-lp-slug={a.slug}>
     <header class="lp-art-head">
       <a class="lp-art-cat" href={isTimeline ? '/loropedia' : `/loropedia/c/${cat.slug}`}><span aria-hidden="true">{cat.icon}</span> {cat.name}</a>
       <h1 class="lp-art-title">{a.title}</h1>
       {a.aliases.length > 0 && <p class="lp-art-aliases">Также: {a.aliases.join(' · ')}</p>}
       <div class="lp-art-badges">
         <StatusBadge status={nonCanon ? 'idea' : a.status} label={a.invented ? 'Не канон · додумано' : a.statusLabel} icon={nonCanon ? '💡' : a.statusIcon} big />
+        <span class="lp-readmark" data-lp-readmark hidden data-tip="Вы уже прочитали эту статью — она в вашей коллекции карточек">✓ Прочитано</span>
         {a.tags.map((t) => <a class="lp-tag" href={`/loropedia/tag/${LP.tags.find((x) => x.name === t)?.slug}`}>#{t}</a>)}
       </div>
     </header>
@@ -152,6 +157,7 @@ const showToc = a.toc.length >= 2 || isTimeline;
           <span class="lp-ib-corner tl" aria-hidden="true"></span><span class="lp-ib-corner tr" aria-hidden="true"></span>
           <span class="lp-ib-corner bl" aria-hidden="true"></span><span class="lp-ib-corner br" aria-hidden="true"></span>
           <div class="lp-ib-title">{a.title}</div>
+          {egg && <button type="button" class={`lp-egg lp-egg-${eggPos}`} data-egg={egg.id} aria-label={egg.hint} data-tip={`${egg.hint}…`}>✦</button>}
           {a.image && (
             <figure class="lp-ib-img">
               <a href={a.image.jpg} target="_blank" rel="noopener">

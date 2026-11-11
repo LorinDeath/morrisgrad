@@ -1,6 +1,7 @@
 // Лоропедия: данные собираются заранее скриптом tools/loropedia/import.mjs из Obsidian-летописи
 // и лежат в src/data/loropedia/data.json. Во время запроса — только чтение этого файла (без БД и игрового сервера).
 import raw from "../data/loropedia/data.json";
+import { applyLayers } from "./loropedia/layers";
 
 export interface LpImage { id: string; w: number; h: number; src: string; thumb: string; srcset: string; jpg: string; caption?: string; notes?: { slug: string; title: string; caption?: string }[] }
 export interface LpArticle {
@@ -21,7 +22,7 @@ interface LpData {
   graph: { w: number; h: number; nodes: { slug: string; title: string; cat: string; x: number; y: number; deg: number }[]; edges: [number, number][] };
   images: LpImage[]; articles: LpArticle[];
 }
-export const LP = raw as unknown as LpData;
+export const LP = applyLayers(raw as unknown as LpData);
 export const LP_BASE = "/loropedia";
 
 const bySlug = new Map(LP.articles.map((a) => [a.slug, a]));
@@ -42,7 +43,7 @@ export const CAT_COLORS: Record<string, string> = {
 export function loropediaPaths(): { path: string; priority: number }[] {
   return [
     { path: LP_BASE, priority: 0.8 },
-    ...["poisk", "karta", "galereya"].map((p) => ({ path: `${LP_BASE}/${p}`, priority: 0.5 })),
+    ...["poisk", "karta", "galereya", "igry"].map((p) => ({ path: `${LP_BASE}/${p}`, priority: 0.5 })),
     ...LP.categories.map((c) => ({ path: `${LP_BASE}/c/${c.slug}`, priority: 0.6 })),
     ...LP.tags.map((t) => ({ path: `${LP_BASE}/tag/${t.slug}`, priority: 0.3 })),
     ...LP.articles.map((a) => ({ path: `${LP_BASE}/${a.slug}`, priority: a.status === "canon" ? 0.6 : 0.4 })),

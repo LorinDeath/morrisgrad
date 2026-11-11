@@ -21,6 +21,9 @@ const nonCanon = LP.articles.filter((a) => (a.status === 'idea' || a.invented) &
 const disputed = LP.articles.filter((a) => a.status === 'disputed');
 const popular = [...LP.articles].filter((a) => a.cat !== 'glavy').sort((a, b) => b.backlinks.length - a.backlinks.length).slice(0, 8);
 const art = LP.images.filter((i) => !/^cover/.test(i.id)).slice(0, 8);
+const ds = article('darg-sirrom');
+const dayList = LP.articles.filter((a) => a.cat !== 'glavy' && a.cat !== 'khronologiya-razdel' && a.excerpt.length > 60 && a.status !== 'idea' && !a.historianGuess)
+  .map((a) => ({ s: a.slug, t: a.title, e: a.excerpt.slice(0, 180), i: a.image?.thumb || null })).sort((x, y) => (x.s < y.s ? -1 : 1));
 const desc = `Энциклопедия вселенной МоррисГрада: ${LP.stats.articles} статей о героях, кланах, локациях, магии и событиях летописи «Обитель смерти» — с хронологией, картой связей и артами.`;
 ---
 {protect ? (
@@ -39,7 +42,7 @@ const desc = `Энциклопедия вселенной МоррисГрада
     <p class="lp-hero-sub">Энциклопедия летописи «Обитель смерти»: кто есть кто, где что лежит и почему всё пошло не так.</p>
     <form class="lp-hero-search" action="/loropedia/poisk" method="get" role="search">
       <input type="search" name="q" placeholder="Лорин, Чёрная Корона, Фрактал…" aria-label="Поиск по Лоропедии" autocomplete="off" />
-      <button type="submit">Искать</button>
+      <button type="submit" data-tip="Искать по названиям, прозвищам и тексту статей">Искать</button>
     </form>
     <div class="lp-stats">
       <div><b>{LP.stats.articles}</b><span>статей</span></div>
@@ -48,6 +51,24 @@ const desc = `Энциклопедия вселенной МоррисГрада
       <div><b>{LP.stats.images}</b><span>артов</span></div>
     </div>
   </header>
+
+  <section class="lp-section lp-home-play">
+    <a class="lp-hp-card lp-hp-map" href="/loropedia/karta" data-tip="Открыть ментальную карту: все статьи и связи на одном полотне">
+      <span class="lp-hp-ico" aria-hidden="true">✶</span><b>Ментальная карта</b><span>Все герои, места, события и книги — ветвями от центра. Масштаб, поиск, фильтр по книгам.</span>
+    </a>
+    <div class="lp-hp-card lp-hp-day" data-lp-home-day>
+      <span class="lp-hp-ico" aria-hidden="true">☀</span><b>Статья дня</b><span class="lp-muted">Загрузка…</span>
+    </div>
+    <a class="lp-hp-card lp-hp-play" href="/loropedia/igry" data-tip="Квиз, «Кто сказал?», хронология, сравнение персонажей, карточки и достижения">
+      <span class="lp-hp-ico" aria-hidden="true">🏆</span><b>Испытания</b><span>Квиз по лору, «Кто сказал?», коллекция карточек, пасхалки и ранги читателя.</span>
+    </a>
+    {ds && (
+      <a class="lp-hp-card lp-hp-new" href={`/loropedia/${ds.slug}`} data-tip="Новая книга: «Дарг Сирром: Страж пятого порядка»">
+        <span class="lp-hp-ico" aria-hidden="true">🜂</span><b>Новая книга</b><span>«{ds.title}». {ds.excerpt}</span>
+      </a>
+    )}
+  </section>
+  <script type="application/json" id="lp-home-days" set:html={JSON.stringify(dayList).replace(/</g, '\\u003c')} />
 
   <section class="lp-section">
     <h2 class="lp-h2"><span>Разделы</span></h2>
@@ -151,9 +172,24 @@ const desc = `Энциклопедия вселенной МоррисГрада
     </div>
     <div class="lp-cta-row">
       <a class="lp-cta" href="/loropedia/galereya">🖼 Вся галерея</a>
-      <a class="lp-cta" href="/loropedia/karta">✶ Карта связей</a>
+      <a class="lp-cta" href="/loropedia/karta">✶ Ментальная карта</a>
+      <a class="lp-cta" href="/loropedia/igry">🏆 Испытания</a>
       <a class="lp-cta" href="/loropedia/khronologiya">⏳ Хронология</a>
     </div>
   </section>
+<script>
+  import { dayPick, load, today } from '../../scripts/loropedia/play';
+  function homeDay() {
+    const box = document.querySelector<HTMLElement>('[data-lp-home-day]'); const raw = document.getElementById('lp-home-days');
+    if (!box || !raw?.textContent || box.dataset.ready) return; box.dataset.ready = '1';
+    const list = JSON.parse(raw.textContent) as { s: string; t: string; e: string; i: string | null }[];
+    const a = list.find((x) => x.s === dayPick(list.map((y) => y.s))); if (!a) return;
+    const done = load().dayRead === today();
+    const el = document.createElement('a'); el.className = box.className; el.href = `/loropedia/${a.s}`; el.dataset.tip = `Статья дня: ${a.t}. ${done ? 'Уже прочитана сегодня' : '+25 опыта за прочтение'}`;
+    el.innerHTML = `<span class="lp-hp-ico" aria-hidden="true">☀</span><b>Статья дня: ${a.t.replace(/</g, '&lt;')}</b><span>${a.e.replace(/</g, '&lt;')}</span><em>${done ? '✓ прочитана сегодня' : '+25 опыта'}</em>`;
+    box.replaceWith(el);
+  }
+  document.addEventListener('astro:page-load', homeDay);
+</script>
 </LpShell>
 )}
