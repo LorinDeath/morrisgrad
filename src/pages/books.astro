@@ -1,11 +1,28 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import BookReader from '../components/BookReader.astro';
-import { getAllBooks } from '../utils/fb2';
+import { getAllBooks, type BookData } from '../utils/fb2';
 
 const allBooks = await getAllBooks();
-const leadBook = allBooks[0];
-const otherCycleBooks = allBooks.slice(1);
+const byId = (id: string) => allBooks.find((b) => b.id === id);
+const nachalo = byId('nachalo');
+const strazh = byId('strazh-pyatogo-poryadka');
+const obitel = byId('obitel-smerti');
+const iceLater = (['pravednye-koty', 'kill'] as const)
+  .map((id) => byId(id))
+  .filter((b): b is BookData => Boolean(b));
+
+function plain(s: string): string {
+  return s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+}
+function seriesPretty(s: string): string {
+  return s.replace(/"([^"]*)"/g, '«$1»');
+}
+function preview(s: string, n: number): string {
+  const t = plain(s);
+  if (t.length <= n) return t;
+  return `${t.slice(0, n).trimEnd()}…`;
+}
 ---
 
 <Layout title="Библиотека и Летописи | МоррисГрад">
@@ -21,17 +38,134 @@ const otherCycleBooks = allBooks.slice(1);
       <h1 class="library-title">Библиотека Обители</h1>
       <p class="library-subtitle">Священные хроники, манускрипты и летописи вселенной МоррисГрад</p>
       
-      <div class="cycle-banner-pill">
+      <div class="cycle-banner-pill library-cycles-pill">
         <span class="cycle-pill-dot"></span>
-        Серия: <strong>{leadBook.series}</strong>
+        <span class="cycles-label">Три цикла</span>
+        <strong>Чёрная корона</strong>
+        <span class="cycles-sep" aria-hidden="true">·</span>
+        <strong>Дарг Сирром</strong>
+        <span class="cycles-sep" aria-hidden="true">·</span>
+        <strong>Ледяной клинок</strong>
       </div>
     </header>
 
     <div class="shimmer-line"></div>
 
-    <!-- Книга 1 (Флагман): Летопись «Обитель смерти» -->
-    {leadBook && (
-      <section class="featured-book-section">
+    <!-- Флагман: «Начало», Моррис Град: «Чёрная корона» -->
+    {nachalo && (
+      <section class="featured-book-section" id="crown-flagship">
+        <div class="section-label-chip crown-chip">
+          <span class="chip-dot crown-chip-dot"></span> КНИГА I // ЧЁРНАЯ КОРОНА
+        </div>
+
+        <article class="featured-book-card crown-flagship">
+          <div class="crown-moon" aria-hidden="true"></div>
+          <div class="crown-ash" aria-hidden="true"></div>
+          <div class="deco-bracket br-top-left"></div>
+          <div class="deco-bracket br-top-right"></div>
+          <div class="deco-bracket br-bot-left"></div>
+          <div class="deco-bracket br-bot-right"></div>
+
+          <div class="book-cover-col">
+            <div class="book-3d-wrap crown-cover" data-open-book data-book-id={nachalo.id} data-book-mode="read" title="Нажмите, чтобы читать">
+              <img
+                src={nachalo.coverImage}
+                alt={nachalo.title}
+                class="featured-cover-img"
+                loading="lazy"
+              />
+              <div class="featured-cover-spine"></div>
+              <div class="featured-cover-frame">
+                <span class="crest-icon">♔</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="book-details-col">
+            <div class="crown-series">{seriesPretty(nachalo.series)} // Книга {nachalo.seriesNumber}</div>
+            <h2 class="crown-title">{nachalo.title}</h2>
+            <p class="crown-mark" aria-hidden="true"><i></i><i></i><i></i></p>
+            <p class="book-author">Летописец: <strong>{nachalo.author}</strong></p>
+
+            <div class="book-meta-pills">
+              <span class="pill-item">📜 {nachalo.totalChapters} глав</span>
+              <span class="pill-item">🖋 {nachalo.totalWords.toLocaleString('ru-RU')} слов</span>
+              <span class="pill-item">⏱ ~{nachalo.totalReadingTimeMinutes} минут чтения</span>
+              <span class="pill-item pill-highlight">☾ Ночь Фиолетовой Луны</span>
+            </div>
+
+            <p class="featured-annotation">
+              {plain(nachalo.annotation)}
+            </p>
+
+            <div class="featured-actions">
+              <button class="btn-primary-read" data-open-book data-book-id={nachalo.id} data-book-mode="read" data-target-chapter="0">
+                <span class="btn-icon">📖</span> Читать книгу
+              </button>
+              <button class="btn-secondary-toc" data-open-book data-book-id={nachalo.id} data-book-mode="toc">
+                <span class="btn-icon">📜</span> Содержание ({nachalo.totalChapters} глав)
+              </button>
+            </div>
+          </div>
+        </article>
+      </section>
+    )}
+
+    <div class="shimmer-line"></div>
+
+    <!-- «Страж пятого порядка», серия «Дарг Сирром» -->
+    {strazh && (
+      <section class="strazh-section" id="strazh-card">
+        <div class="section-title-wrap">
+          <h2 class="sub-heading quiet-heading">«{strazh.series}»</h2>
+          <span class="sub-caption">Книга {strazh.seriesNumber}</span>
+        </div>
+
+        <article class="cycle-book-card quiet-book">
+          <div class="deco-bracket br-top-left"></div>
+          <div class="deco-bracket br-top-right"></div>
+          <div class="deco-bracket br-bot-left"></div>
+          <div class="deco-bracket br-bot-right"></div>
+
+          <div class="cycle-cover-box" data-open-book data-book-id={strazh.id} data-book-mode="read">
+            <img src={strazh.coverImage} alt={strazh.title} class="cycle-book-img" loading="lazy" />
+            <div class="cycle-cover-spine"></div>
+            <div class="cycle-cover-sheen"></div>
+          </div>
+
+          <div class="cycle-info-box">
+            <div class="cycle-tom-chip">КНИГА {strazh.seriesNumber} // {strazh.series}</div>
+            <h3 class="cycle-book-title">{strazh.title}</h3>
+            <p class="cycle-author">Летописец: <strong>{strazh.author}</strong></p>
+
+            <div class="cycle-mini-meta">
+              <span>📜 {strazh.totalChapters} {strazh.totalChapters === 1 ? 'глава' : 'глав'}</span>
+              <span>·</span>
+              <span>⏱ ~{strazh.totalReadingTimeMinutes} мин</span>
+              <span>·</span>
+              <span>🖋 {strazh.totalWords.toLocaleString('ru-RU')} слов</span>
+            </div>
+
+            <p class="cycle-desc">{preview(strazh.annotation, 220)}</p>
+
+            <div class="cycle-btn-row">
+              <button class="btn-cycle-read" data-open-book data-book-id={strazh.id} data-book-mode="read" data-target-chapter="0">
+                <span>📖</span> Читать
+              </button>
+              <button class="btn-cycle-toc" data-open-book data-book-id={strazh.id} data-book-mode="toc">
+                <span>📜</span> Оглавление
+              </button>
+            </div>
+          </div>
+        </article>
+      </section>
+    )}
+
+    <div class="shimmer-line"></div>
+
+    <!-- Цикл «Ледяной клинок»: «Обитель смерти», затем следующие тома -->
+    {obitel && (
+      <section class="featured-book-section" id="ice-blade">
         <div class="section-label-chip">
           <span class="chip-dot"></span> ТОМ I // ОСНОВНАЯ ЛЕТОПИСЬ
         </div>
@@ -43,10 +177,10 @@ const otherCycleBooks = allBooks.slice(1);
           <div class="deco-bracket br-bot-right"></div>
 
           <div class="book-cover-col">
-            <div class="book-3d-wrap" data-open-book data-book-id={leadBook.id} data-book-mode="read" title="Нажмите, чтобы читать">
+            <div class="book-3d-wrap" data-open-book data-book-id={obitel.id} data-book-mode="read" title="Нажмите, чтобы читать">
               <img 
-                src={leadBook.coverImage} 
-                alt={leadBook.title} 
+                src={obitel.coverImage} 
+                alt={obitel.title} 
                 class="featured-cover-img" 
                 loading="lazy" 
               />
@@ -58,27 +192,27 @@ const otherCycleBooks = allBooks.slice(1);
           </div>
 
           <div class="book-details-col">
-            <div class="series-badge">✦ {leadBook.series} // Книга {leadBook.seriesNumber}</div>
-            <h2 class="featured-book-title">{leadBook.title}</h2>
-            <p class="book-author">Летописец: <strong>{leadBook.author}</strong></p>
+            <div class="series-badge">✦ {obitel.series} // Книга {obitel.seriesNumber}</div>
+            <h2 class="featured-book-title">{obitel.title}</h2>
+            <p class="book-author">Летописец: <strong>{obitel.author}</strong></p>
 
             <div class="book-meta-pills">
-              <span class="pill-item">📜 {leadBook.totalChapters} глав</span>
-              <span class="pill-item">🖋 {leadBook.totalWords.toLocaleString('ru-RU')} слов</span>
-              <span class="pill-item">⏱ ~{leadBook.totalReadingTimeMinutes} минут чтения</span>
+              <span class="pill-item">📜 {obitel.totalChapters} глав</span>
+              <span class="pill-item">🖋 {obitel.totalWords.toLocaleString('ru-RU')} слов</span>
+              <span class="pill-item">⏱ ~{obitel.totalReadingTimeMinutes} минут чтения</span>
               <span class="pill-item pill-highlight">🔥 Адское пламя</span>
             </div>
 
             <p class="featured-annotation">
-              {leadBook.annotation}
+              {obitel.annotation}
             </p>
 
             <div class="featured-actions">
-              <button class="btn-primary-read" data-open-book data-book-id={leadBook.id} data-book-mode="read" data-target-chapter="0">
+              <button class="btn-primary-read" data-open-book data-book-id={obitel.id} data-book-mode="read" data-target-chapter="0">
                 <span class="btn-icon">📖</span> Читать летопись
               </button>
-              <button class="btn-secondary-toc" data-open-book data-book-id={leadBook.id} data-book-mode="toc">
-                <span class="btn-icon">📜</span> Содержание ({leadBook.totalChapters} глав)
+              <button class="btn-secondary-toc" data-open-book data-book-id={obitel.id} data-book-mode="toc">
+                <span class="btn-icon">📜</span> Содержание ({obitel.totalChapters} глав)
               </button>
             </div>
           </div>
@@ -96,7 +230,7 @@ const otherCycleBooks = allBooks.slice(1);
       </div>
 
       <div class="cycle-books-grid">
-        {otherCycleBooks.map((item, idx) => (
+        {iceLater.map((item, idx) => (
           <article class="cycle-book-card">
             <div class="deco-bracket br-top-left"></div>
             <div class="deco-bracket br-top-right"></div>
@@ -212,6 +346,157 @@ const otherCycleBooks = allBooks.slice(1);
     border-radius: 50%;
     background: #4ade80;
     box-shadow: 0 0 8px #4ade80;
+  }
+  .library-cycles-pill {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 4px;
+  }
+  .cycles-label {
+    color: #c4b0dc;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+  }
+  .cycles-sep {
+    color: rgba(230, 211, 161, 0.7);
+  }
+
+  /* «Начало»: луна, пепел и золото с /loropedia/chernaya-korona */
+  .crown-chip {
+    color: #e6d3a1;
+    background: rgba(122, 78, 168, 0.18);
+    border-color: rgba(230, 211, 161, 0.45);
+  }
+  .crown-chip-dot {
+    background: #c4b0dc;
+    box-shadow: 0 0 8px #7a4ea8;
+  }
+  .crown-flagship {
+    overflow: hidden;
+    background:
+      radial-gradient(90% 80% at 100% 0%, rgba(122, 78, 168, 0.42), transparent 56%),
+      linear-gradient(160deg, rgba(26, 13, 22, 0.94) 0%, rgba(7, 6, 10, 0.98) 70%);
+    border-color: rgba(168, 120, 210, 0.55);
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.8), 0 0 36px rgba(120, 70, 180, 0.28);
+  }
+  .crown-moon {
+    position: absolute;
+    right: 5%;
+    top: 8%;
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #d7c4ff 0%, #7a4ea8 42%, #2a1438 70%, transparent 72%);
+    box-shadow: 0 0 70px 16px rgba(120, 70, 180, 0.45);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .crown-ash {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, rgba(230, 220, 210, 0.55) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 28% 68%, rgba(200, 190, 180, 0.4) 50%, transparent 51%),
+      radial-gradient(1px 1px at 72% 36%, rgba(220, 210, 200, 0.45) 50%, transparent 51%),
+      radial-gradient(1px 1px at 86% 78%, rgba(180, 170, 160, 0.4) 50%, transparent 51%);
+    animation: crownAsh 14s linear infinite;
+  }
+  @keyframes crownAsh {
+    from { transform: translateY(0); }
+    to { transform: translateY(28px); }
+  }
+  .crown-flagship .book-cover-col,
+  .crown-flagship .book-details-col {
+    position: relative;
+    z-index: 1;
+  }
+  .crown-cover {
+    border-color: rgba(230, 211, 161, 0.55);
+    box-shadow: -6px 8px 25px rgba(0, 0, 0, 0.9), 0 0 22px rgba(122, 78, 168, 0.45);
+  }
+  .crown-series {
+    position: relative;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    color: #c4b0dc;
+    margin-bottom: 0.45rem;
+  }
+  .crown-title {
+    position: relative;
+    font-family: Cinzel, "Times New Roman", serif;
+    font-weight: 500;
+    font-size: clamp(3rem, 6vw, 4.6rem);
+    line-height: 0.9;
+    margin: 0;
+    color: #f4ecff;
+    text-shadow: 0 10px 40px rgba(80, 20, 90, 0.65);
+  }
+  .crown-mark {
+    position: relative;
+    display: flex;
+    gap: 8px;
+    height: 26px;
+    margin: 0.7rem 0 0.35rem;
+  }
+  .crown-mark i {
+    display: block;
+    width: 0;
+    height: 0;
+    border-left: 11px solid transparent;
+    border-right: 11px solid transparent;
+    border-bottom: 18px solid #e6d3a1;
+    filter: drop-shadow(0 0 6px rgba(180, 140, 60, 0.6));
+  }
+  .crown-mark i:nth-child(2) {
+    border-bottom-width: 24px;
+    margin-top: -6px;
+  }
+  .crown-flagship .book-author strong,
+  .crown-flagship .pill-highlight {
+    color: #e6d3a1;
+  }
+  .crown-flagship .pill-highlight {
+    border-color: rgba(230, 211, 161, 0.45);
+    background: rgba(122, 78, 168, 0.28);
+  }
+  .crown-flagship .btn-primary-read {
+    background: #e6d3a1;
+    color: #1a1020;
+    box-shadow: 0 4px 18px rgba(180, 140, 60, 0.35);
+  }
+  .crown-flagship .btn-primary-read:hover {
+    background: #f4ecff;
+    box-shadow: 0 8px 22px rgba(180, 140, 60, 0.5);
+  }
+  .crown-flagship .btn-secondary-toc {
+    color: #e6d3a1;
+    background: transparent;
+    border-color: rgba(230, 211, 161, 0.55);
+  }
+
+  .strazh-section {
+    margin: 0.5rem 0 1rem;
+  }
+  .quiet-heading {
+    color: #c4b0dc;
+    font-family: Cinzel, "Times New Roman", serif;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 1.25rem;
+  }
+  .quiet-book {
+    max-width: 760px;
+    border-color: rgba(168, 120, 210, 0.22);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  }
+  .quiet-book:hover {
+    border-color: rgba(196, 176, 220, 0.5);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
   }
 
   /* Флагманская карточка книги */
@@ -616,6 +901,10 @@ const otherCycleBooks = allBooks.slice(1);
     background: rgba(50, 24, 85, 0.9);
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .crown-ash { animation: none; }
+  }
+
   @media (max-width: 900px) {
     .featured-book-card {
       flex-direction: column;
@@ -628,6 +917,15 @@ const otherCycleBooks = allBooks.slice(1);
     }
     .featured-actions {
       justify-content: center;
+    }
+    .crown-mark {
+      justify-content: center;
+    }
+    .crown-moon {
+      width: 78px;
+      height: 78px;
+      right: 4%;
+      top: 4%;
     }
     .cycle-books-grid {
       grid-template-columns: 1fr;
