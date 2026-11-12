@@ -43,7 +43,7 @@ export const CAT_COLORS: Record<string, string> = {
 export function loropediaPaths(): { path: string; priority: number }[] {
   return [
     { path: LP_BASE, priority: 0.8 },
-    ...["poisk", "karta", "galereya", "igry"].map((p) => ({ path: `${LP_BASE}/${p}`, priority: 0.5 })),
+    ...["poisk", "karta", "galereya", "igry", "chernaya-korona"].map((p) => ({ path: `${LP_BASE}/${p}`, priority: 0.5 })),
     ...LP.categories.map((c) => ({ path: `${LP_BASE}/c/${c.slug}`, priority: 0.6 })),
     ...LP.tags.map((t) => ({ path: `${LP_BASE}/tag/${t.slug}`, priority: 0.3 })),
     ...LP.articles.map((a) => ({ path: `${LP_BASE}/${a.slug}`, priority: a.status === "canon" ? 0.6 : 0.4 })),

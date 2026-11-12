@@ -658,3 +658,62 @@ html.mm-lock { overflow: hidden; }
   .pl-tabs { flex-wrap: nowrap; overflow-x: auto; } .pl-tabs button { flex: 0 0 auto; }
   .pl-rank .pl-bar { width: 160px; }
 }
+
+/* авторские мысли — не гипотеза Историка */
+.lp-author-thought { margin: 1.4rem 0; padding: .8rem 1rem; border-left: 3px solid #f59e0b; background: rgba(40, 24, 8, .35); }
+.lp-author-thought h2 { margin-top: 0; }
+.lp-pending { border-color: rgba(251, 113, 133, .55); }
+.lp-pending > summary { color: #fecdd3; }
+
+/* флагман «Чёрная корона» — только набор и пепел, без новых иллюстраций */
+.ck { position: relative; color: #efe6f4; }
+.ck-hero { position: relative; min-height: 420px; padding: 3.2rem 1.4rem 2.6rem; text-align: center;
+  background: radial-gradient(120% 80% at 50% 120%, #1a0d16 0%, #07060a 55%); border: 1px solid rgba(168, 120, 210, .35); }
+.ck-moon { position: absolute; right: 8%; top: 12%; width: 140px; height: 140px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d7c4ff 0%, #7a4ea8 42%, #2a1438 70%, transparent 72%);
+  box-shadow: 0 0 80px 20px rgba(120, 70, 180, .45); }
+.ck-ash, .ck-home-ash { position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(1px 1px at 10% 20%, rgba(230,220,210,.55) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 30% 70%, rgba(200,190,180,.4) 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 40%, rgba(220,210,200,.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 85% 80%, rgba(180,170,160,.4) 50%, transparent 51%);
+  animation: ckAsh 14s linear infinite; }
+@keyframes ckAsh { from { transform: translateY(0); } to { transform: translateY(28px); } }
+.ck-series { position: relative; letter-spacing: .42em; text-transform: uppercase; font-size: .72rem; color: #c4b0dc; margin: 0 0 .6rem; }
+.ck-title { position: relative; font-family: Cinzel, "Times New Roman", serif; font-weight: 500; font-size: clamp(4.2rem, 12vw, 8rem); line-height: .9; margin: 0; color: #f4ecff; text-shadow: 0 10px 40px rgba(80, 20, 90, .65); }
+.ck-crown { position: relative; display: flex; justify-content: center; gap: 10px; height: 28px; margin: 1rem 0 .4rem; }
+.ck-crown i { display: block; width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 22px solid #e6d3a1; filter: drop-shadow(0 0 6px rgba(180, 140, 60, .6)); }
+.ck-crown i:nth-child(2) { border-bottom-width: 30px; margin-top: -8px; }
+.ck-by { position: relative; color: #b9a8c8; letter-spacing: .18em; text-transform: uppercase; font-size: .78rem; }
+.ck-ann { position: relative; max-width: 38rem; margin: 1rem auto 0; color: #ddd0e6; line-height: 1.55; }
+.ck-actions { position: relative; display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; margin-top: 1.4rem; }
+.ck-btn { display: inline-flex; align-items: center; min-height: 42px; padding: .45rem 1rem; text-decoration: none; color: #1a1020; background: #e6d3a1; letter-spacing: .06em; }
+.ck-btn-ghost { color: #e6d3a1; background: transparent; border: 1px solid rgba(230, 211, 161, .55); }
+.ck-night, .ck-path, .ck-after { margin-top: 1.6rem; padding: 1.2rem 1rem 1.4rem; background: rgba(10, 8, 14, .72); border-top: 1px solid rgba(168, 120, 210, .25); }
+.ck h2 { font-family: Cinzel, "Times New Roman", serif; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: #e6d3a1; font-size: 1.15rem; }
+.ck-safe { color: #cbbfd4; max-width: 46rem; }
+.ck-parts { list-style: none; margin: 0; padding: 0 0 0 .2rem; border-left: 1px solid rgba(230, 211, 161, .35); }
+.ck-part { display: grid; grid-template-columns: 3.2rem 1fr; gap: .8rem; padding: 1rem 0 1rem .8rem; }
+.ck-num { font-family: Cinzel, serif; color: #a88bc4; font-size: 1.3rem; }
+.ck-part h3 { margin: 0 0 .2rem; font-size: 1.25rem; }
+.ck-part h3 a { color: #f4ecff; text-decoration: none; }
+.ck-part h3 a:hover { color: #e6d3a1; }
+.ck-range { margin: 0; color: #a88bc4; font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; }
+.ck-chapters { display: flex; flex-wrap: wrap; gap: .35rem .5rem; list-style: none; padding: 0; margin: .6rem 0 0; }
+.ck-chapters a, .ck-gap { display: inline-block; padding: .2rem .45rem; border: 1px solid rgba(168, 120, 210, .35); color: #ddd0e6; text-decoration: none; font-size: .82rem; }
+.ck-chapters a:hover { border-color: #e6d3a1; color: #fff; }
+.ck-gap { opacity: .55; }
+.ck-home { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: .35rem; padding: 1.4rem 1.2rem; text-decoration: none;
+  background: radial-gradient(90% 140% at 100% 0%, rgba(122, 78, 168, .55), transparent 55%), #120c16; border: 1px solid rgba(168, 120, 210, .55); }
+.ck-home-moon { position: absolute; right: 1.2rem; top: .8rem; width: 72px; height: 72px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d7c4ff, #7a4ea8 60%, transparent 62%); }
+.ck-home-crown { font-size: 1.4rem; color: #e6d3a1; }
+.ck-home-kicker { letter-spacing: .28em; text-transform: uppercase; font-size: .72rem; color: #c4b0dc; }
+.ck-home strong { font-family: Cinzel, "Times New Roman", serif; font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 500; color: #f4ecff; line-height: .95; }
+.ck-home span:last-child { max-width: 36rem; color: #cbbfd4; }
+@media (max-width: 720px) {
+  .ck-hero { min-height: 0; padding: 2.2rem 1rem 1.6rem; }
+  .ck-moon { width: 84px; height: 84px; right: 4%; }
+  .ck-part { grid-template-columns: 2.2rem 1fr; }
+  .ck-title { letter-spacing: 0; }
+}

@@ -11,12 +11,13 @@ export function spoilOn(value: string | undefined | null): boolean {
   return value === "1";
 }
 
-/** Книги для хода чтения (последняя — новая, «Дарг Сирром»). Это не список глав и не разметка фактов. */
+/** Книги для хода чтения. У каждой свой номер главы. Это не список глав и не разметка фактов. */
 export const READER_BOOKS = [
   { id: "book:obitel-smerti", label: "Летопись «Обитель смерти»" },
   { id: "book:pravednye-koty", label: "Праведные коты" },
   { id: "book:kill", label: "KILL" },
   { id: "book:darg-sirrom", label: "Дарг Сирром: Страж пятого порядка" },
+  { id: "book:chernaya-korona", label: "Моррис Град: Чёрная корона — Начало" },
 ] as const;
 
 export const CLOSED_TITLE = "Лоропедия — защищённый просмотр";

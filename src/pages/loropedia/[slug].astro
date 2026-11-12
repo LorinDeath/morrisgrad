@@ -36,7 +36,9 @@ const next = ci >= 0 && ci < LP.chapters.length - 1 ? article(LP.chapters[ci + 1
 const isDS = (a as any).layer === 'book:darg-sirrom';
 const egg = EGGS.find((e) => e.slug === a.slug);
 const eggPos = egg ? ['tl', 'tr', 'bl', 'br'][a.slug.length % 4] : '';
-const desc = clip(`${a.title} — ${cat.name.toLowerCase()} ${isDS ? 'книги «Дарг Сирром»' : 'летописи «Обитель смерти»'}${nonCanon ? ' (не канон)' : ''}. ${a.excerpt}`, 190);
+const isCrown = a.slug.startsWith('chk-') || a.slug === 'chernaya-korona-kniga' || a.slug === 'chernaya-korona-khronologiya';
+const bookBit = isCrown ? 'книги «Начало»' : isDS ? 'книги «Дарг Сирром»' : 'летописи «Обитель смерти»';
+const desc = clip(`${a.title} — ${cat.name.toLowerCase()} ${bookBit}${nonCanon ? ' (не канон)' : ''}. ${a.excerpt}`, 190);
 const crumbs: [string, string][] = isTimeline ? [['Хронология', '/loropedia/khronologiya']] : [[cat.name, `/loropedia/c/${cat.slug}`], [a.title, `/loropedia/${a.slug}`]];
 const ld = { '@context': 'https://schema.org', '@type': 'Article', headline: a.title, description: desc, inLanguage: 'ru-RU',
   url: `https://morrisgrad.com/loropedia/${a.slug}`, ...(a.image ? { image: `https://morrisgrad.com${a.image.jpg}` } : {}),
@@ -93,7 +95,10 @@ const showToc = a.toc.length >= 2 || isTimeline;
 
         {isTimeline ? (
           <>
-            <p class="lp-lead">Порядок относительный: точных дат в летописи почти нет. Пункты с ⚠️ — спорные.</p>
+            <p class="lp-lead">Порядок относительный: точных дат в летописи почти нет. Пункты с ⚠️ — спорные. Пункты «не канон» ещё не подтверждены как факт.</p>
+            {a.slug === 'khronologiya' && (
+              <p class="lp-lead"><a class="lp-link" href="/loropedia/chernaya-korona" data-tip="Открыть книгу «Начало»: путь по частям, спойлеры закрыты.">Чёрная корона — «Начало»</a> ведёт свою хронологию. <a class="lp-link" href="/loropedia/chernaya-korona-khronologiya" data-tip="Открыть хронологию приквела. Поздние события под спойлером.">Хронология приквела</a>.</p>
+            )}
             <div class="lp-timeline">
               {(() => { let n = 0; return LP.timeline.map((era) => (
                 <section class="lp-era">

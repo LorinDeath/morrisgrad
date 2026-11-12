@@ -14,7 +14,7 @@ interface Props {
   image?: string | null;
   type?: 'website' | 'article';
   crumbs?: [string, string][]; // без «Лоропедии» — она добавляется сама
-  active?: 'home' | 'cats' | 'timeline' | 'map' | 'gallery' | 'search' | 'play';
+  active?: 'home' | 'cats' | 'timeline' | 'map' | 'gallery' | 'search' | 'play' | 'crown';
   jsonLd?: any[];
   noindex?: boolean;
 }
@@ -24,6 +24,7 @@ const trail: [string, string][] = [['Лоропедия', '/loropedia'], ...crum
 const q = Astro.url.searchParams.get('q') || '';
 const nav = [
   { id: 'home', href: '/loropedia', label: 'Главная', icon: '❖' },
+  { id: 'crown', href: '/loropedia/chernaya-korona', label: 'Чёрная корона', icon: '♔' },
   { id: 'timeline', href: '/loropedia/khronologiya', label: 'Хронология', icon: '⏳' },
   { id: 'map', href: '/loropedia/karta', label: 'Ментальная карта', icon: '✶' },
   { id: 'play', href: '/loropedia/igry', label: 'Испытания', icon: '🏆' },
@@ -45,7 +46,7 @@ const ctx = {
         <span class="lp-brand-text">Лоропедия <small>МоррисГрада</small></span>
       </a>
       <nav class="lp-nav" aria-label="Разделы Лоропедии">
-        {nav.map((n) => <a href={n.href} class:list={['lp-nav-link', { active: active === n.id }]}><span aria-hidden="true">{n.icon}</span> {n.label}</a>)}
+        {nav.map((n) => <a href={n.href} class:list={['lp-nav-link', { active: active === n.id }]} data-tip={n.id === 'crown' ? 'Флагман: «Моррис Град: Чёрная корона», книга «Начало». Путь по частям, спойлеры закрыты.' : undefined}><span aria-hidden="true">{n.icon}</span> {n.label}</a>)}
       </nav>
       <form class="lp-search-mini" action="/loropedia/poisk" method="get" role="search">
         <input type="search" name="q" value={q} placeholder="Найти в летописи…" aria-label="Поиск по Лоропедии" autocomplete="off" />
