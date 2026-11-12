@@ -55,7 +55,7 @@ function tidy(s: string) {
             <div>
               <h3>{part.published ? <a href={`/loropedia/${part.slug}`} data-tip={`Открыть обзор «${part.title}». Канва части под спойлером.`}>{part.title}</a> : part.title}</h3>
               <p class="ck-range">{part.range}</p>
-              <p class="ck-safe">{tidy(part.blurb)}</p>
+              {part.blurb.trim() && <p class="ck-safe">{tidy(part.blurb)}</p>}
               <ul class="ck-chapters">
                 {part.chapters.map((ch) => (
                   <li>
