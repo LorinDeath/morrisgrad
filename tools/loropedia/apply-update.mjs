@@ -87,9 +87,19 @@ function parseBlocks(body) {
     if (l.startsWith('>')) {
       const buf = [];
       while (i < lines.length && lines[i].startsWith('>')) buf.push(lines[i++].replace(/^>\s?/, ''));
-      const co = buf[0].match(/^\[!(\w+)\][-+]?\s*(.*)$/);
-      if (co) blocks.push({ t: 'callout', kind: co[1].toLowerCase(), title: co[2], lines: buf.slice(1) });
-      else blocks.push({ t: 'quote', lines: buf });
+      // Соседние callout внутри одного блока цитат (вторая гипотеза под спойлером)
+      // после снятия «>» начинаются с «[!…]» и не должны склеиваться в первый.
+      const chunks = []; let cur = [];
+      for (const line of buf) {
+        if (cur.length && /^\[!\w+\]/.test(line)) { chunks.push(cur); cur = []; }
+        cur.push(line);
+      }
+      if (cur.length) chunks.push(cur);
+      for (const chunk of chunks) {
+        const co = chunk[0].match(/^\[!(\w+)\][-+]?\s*(.*)$/);
+        if (co) blocks.push({ t: 'callout', kind: co[1].toLowerCase(), title: co[2], lines: chunk.slice(1) });
+        else blocks.push({ t: 'quote', lines: chunk });
+      }
       continue;
     }
     const img = l.match(/^!\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/);
@@ -162,7 +172,16 @@ function redactBlocks(blocks, stat) {
     if (b.t === 'callout') {
       if (b.kind === 'info') continue;
       count(b.title); b.title = redactText(b.title, stat);
-      b.lines = b.lines.map((l) => { count(l); return redactText(l, stat); }).filter((l) => l.trim());
+      b.lines = b.lines.map((l) => {
+        count(l);
+        const bare = l.replace(/^(?:>\s*)+/, '');
+        const redacted = redactText(l, stat);
+        // Пункт внутри callout режется по предложениям раньше, чем становится списком.
+        // Если в пункте есть скрытая тема, не оставляем обрывок «Ограничение» без тезиса.
+        // Долю текста считаем как раньше, чтобы заметка не снималась целиком из-за этого.
+        if (/^\s*(?:[-*+]|\d+[a-z]?\.)\s+/.test(bare) && hidden(bare)) return '';
+        return redacted;
+      }).filter((l) => l.trim());
       if ((b.title || b.lines.length) && !hidden(b.title)) out.push(b);
       continue;
     }
@@ -207,6 +226,9 @@ const layerSlugs = new Set((layer.articles || []).map((a) => a.slug));
 
 const publicData = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/loropedia/data.json'), 'utf8'));
 const expanded = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/loropedia/expanded.json'), 'utf8'));
+const publicSlugSet = new Set(publicData.articles.map((a) => a.slug));
+// Статьи только расширенного слоя (И2.9 и свод гипотез) не выводим в открытую энциклопедию.
+const expandedOnly = new Set(expanded.articles.map((a) => a.slug).filter((s) => !publicSlugSet.has(s)));
 const keyOf = (s) => String(s).trim().toLowerCase().replace(/ё/g, 'е');
 
 const notes = [];
@@ -376,6 +398,7 @@ function renderCallout(b, ctx) {
   const innerBlocks = parseBlocks(b.lines.join('\n'));
   const inner = renderInner(innerBlocks, ctx);
   if (b.kind === 'spoiler') {
+    if (!stripMd(inner)) return '';
     const meta = spoilerMeta(b.title);
     const labelLow = stripMd(b.title).toLowerCase().replace(/ё/g, 'е');
     if (ctx.note?.dropDarg && /дарг сирром/.test(labelLow) && !/черн/.test(labelLow)) return '';
@@ -394,24 +417,52 @@ function renderCallout(b, ctx) {
   if (!inner && !b.title) return '';
   return `<aside class="lp-callout lp-callout-${esc(b.kind)}">${b.title ? `<div class="lp-callout-title">${renderInline(b.title, ctx)}</div>` : ''}${inner ? `<div>${inner}</div>` : ''}</aside>`;
 }
+function guessHasBody(html) {
+  const text = String(html).replace(/<[^>]+>/g, ' ');
+  const stripped = text
+    .split(GUESS_H).join('')
+    .replace(/Гипотезы Историка, не факты книги и не замысел Алекс\.?/g, '')
+    .replace(/Пока нет\.?/g, '')
+    .replace(/Отдельной гипотезы по этой статье Историк не записал\.?/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+  return stripped.length > 0;
+}
 function renderNote(n) {
   const ctx = { links: new Set(), note: n, region: 'body' };
   const html = []; const toc = []; const ids = new Set();
   let region = 'body';
+  let guessChunks = null;
   const close = () => {
-    if (region === 'guess') html.push('</aside>');
+    if (region === 'guess') {
+      const body = (guessChunks || []).join('\n');
+      if (guessHasBody(body)) {
+        html.push(`<aside class="lp-guess" data-lp-guess="1"><p class="lp-guess-label" id="predpolozheniya-istorika-ne-kanon">${GUESS_H}</p>`);
+        if (body.trim()) html.push(body);
+        html.push('</aside>');
+      } else {
+        const i = toc.findIndex((t) => t.id === 'predpolozheniya-istorika-ne-kanon');
+        if (i >= 0) toc.splice(i, 1);
+      }
+      guessChunks = null;
+    }
     if (region === 'author') html.push('</section>');
     if (region === 'mention') html.push('</details>');
     region = 'body'; ctx.region = 'body';
+  };
+  const emit = (chunk) => {
+    if (!chunk) return;
+    if (region === 'guess') guessChunks.push(chunk);
+    else html.push(chunk);
   };
   for (const b of n.blocks) {
     if (b.t === 'h') {
       const plain = stripMd(b.text);
       if (plain === GUESS_H) {
         close();
-        html.push(`<aside class="lp-guess" data-lp-guess="1"><p class="lp-guess-label" id="predpolozheniya-istorika-ne-kanon">${GUESS_H}</p>`);
         toc.push({ id: 'predpolozheniya-istorika-ne-kanon', text: GUESS_H, level: 2 });
-        region = 'guess'; ctx.region = 'guess'; continue;
+        region = 'guess'; ctx.region = 'guess';
+        guessChunks = [];
+        continue;
       }
       if (plain === AUTHOR_H) {
         close();
@@ -428,7 +479,7 @@ function renderNote(n) {
       const level = Math.min(Math.max(b.level, 2), 4);
       let id = slugify(plain); let k = 2; while (ids.has(id)) id = `${slugify(plain)}-${k++}`; ids.add(id);
       if (level <= 3) toc.push({ id, text: plain, level });
-      html.push(`<h${level} id="${id}">${renderInline(b.text, ctx)}</h${level}>`);
+      emit(`<h${level} id="${id}">${renderInline(b.text, ctx)}</h${level}>`);
       continue;
     }
     if (b.t === 'img' || b.t === 'code') continue;
@@ -436,14 +487,14 @@ function renderNote(n) {
       const plain = stripMd(b.lines.join(' '));
       if (region === 'author' && /^Не текст книги и не догадка Историка/.test(plain)) continue;
       const inner = b.lines.map((l) => renderInline(l, ctx)).join('<br>');
-      if (inner.trim()) html.push(`<p>${inner}</p>`);
+      if (inner.trim()) emit(`<p>${inner}</p>`);
       continue;
     }
-    if (b.t === 'quote') { html.push(`<blockquote>${b.lines.map((l) => renderInline(l, ctx)).join('<br>')}</blockquote>`); continue; }
-    if (b.t === 'callout') { const h = renderCallout(b, ctx); if (h) html.push(h); continue; }
-    if (b.t === 'list') { html.push(renderList(b.items, ctx, /^Появления/.test(toc.at(-1)?.text || '') ? ' class="lp-chips"' : '')); continue; }
-    if (b.t === 'table') { html.push(renderTable(b, ctx)); continue; }
-    if (b.t === 'hr') html.push('<div class="lp-hr" aria-hidden="true">✦ ⚜ ✦</div>');
+    if (b.t === 'quote') { emit(`<blockquote>${b.lines.map((l) => renderInline(l, ctx)).join('<br>')}</blockquote>`); continue; }
+    if (b.t === 'callout') { const h = renderCallout(b, ctx); if (h) emit(h); continue; }
+    if (b.t === 'list') { emit(renderList(b.items, ctx, /^Появления/.test(toc.at(-1)?.text || '') ? ' class="lp-chips"' : '')); continue; }
+    if (b.t === 'table') { emit(renderTable(b, ctx)); continue; }
+    if (b.t === 'hr') emit('<div class="lp-hr" aria-hidden="true">✦ ⚜ ✦</div>');
   }
   close();
   const stop = n.blocks.findIndex((b) => b.t === 'h' && [GUESS_H, AUTHOR_H].includes(stripMd(b.text)) || (b.t === 'h' && /^Справочно:|^Появления/.test(stripMd(b.text))));
@@ -513,7 +564,7 @@ for (const n of notes) {
     clan: /^[—-]?$/.test(stripMd(n.fm['клан'] || '')) ? '' : stripMd(n.fm['клан'] || ''),
     role: stripMd(n.fm['роль'] || ''), when: n.fm['когда'] || '', order: Number.isFinite(order) ? order : null,
     redacted: !!n.redaction, books: [...books],
-    publicOk: n.slug !== 'predpolozheniya-istorika',
+    publicOk: !expandedOnly.has(n.slug),
     rel: n.rel,
   });
   report.published.push(n.slug);
@@ -530,9 +581,12 @@ function articleOf(row, old) {
   if (row.historianGuess) a.historianGuess = true;
   return a;
 }
-const filler = `<aside class="lp-guess" data-lp-guess="1"><p class="lp-guess-label" id="predpolozheniya-istorika-ne-kanon">${GUESS_H}</p><p>Отдельной гипотезы по этой статье Историк не записал.</p></aside>`;
-function withGuess(html) {
-  return html.includes('lp-guess-label') ? html : html + filler;
+function dropEmptyGuess(a) {
+  if (!a || typeof a.html !== 'string') return;
+  a.html = a.html.replace(/<aside class="lp-guess" data-lp-guess="1"><p class="lp-guess-label" id="predpolozheniya-istorika-ne-kanon">Предположения Историка — не канон<\/p>(?:<p>Отдельной гипотезы по этой статье Историк не записал\.<\/p>|<p>Пока нет\.<\/p>)?\s*<\/aside>/g, '');
+  if (!a.html.includes('lp-guess-label') && Array.isArray(a.toc)) {
+    a.toc = a.toc.filter((t) => t.text !== GUESS_H && t.id !== 'predpolozheniya-istorika-ne-kanon');
+  }
 }
 
 function mergeInto(data, { expandedMode }) {
@@ -546,7 +600,6 @@ function mergeInto(data, { expandedMode }) {
     const old = by.get(row.slug);
     if (!old && row.slug && report.thinKept.find((x) => x.slug === row.slug)) continue;
     const a = articleOf(row, old);
-    if (expandedMode) a.html = withGuess(a.html);
     if (old) {
       const i = data.articles.findIndex((x) => x.slug === row.slug);
       a.backlinks = old.backlinks;
@@ -555,7 +608,7 @@ function mergeInto(data, { expandedMode }) {
   }
   // тихая страница летописи — только если её ещё нет
   if (!by.has('letopis-kniga') && !data.articles.some((a) => a.slug === 'letopis-kniga')) {
-    data.articles.push(letopisArticle(data, expandedMode));
+    data.articles.push(letopisArticle(data));
   }
   const known = new Set(data.articles.map((a) => a.slug));
   for (const a of data.articles) a.links = [...new Set(a.links)].filter((s) => known.has(s) && s !== a.slug && !hidden(s));
@@ -604,6 +657,7 @@ function mergeInto(data, { expandedMode }) {
     }
     if (timeline.some((e) => e.items.length)) data.timeline = timeline.filter((e) => e.items.length);
   }
+  for (const a of data.articles) dropEmptyGuess(a);
   data.stats = { ...data.stats, articles: data.articles.length, links: data.articles.reduce((s, a) => s + a.links.length, 0) };
   data.generatedAt = new Date().toISOString();
   if (Array.isArray(data.search)) {
@@ -621,7 +675,7 @@ function mergeInto(data, { expandedMode }) {
   return data;
 }
 
-function letopisArticle(data, expandedMode) {
+function letopisArticle(data) {
   const chapters = data.articles.filter((a) => data.chapters.includes(a.slug));
   const items = chapters.map((a) => `<li><a class="lp-link" href="${BASE}/${a.slug}">${esc(a.title)}</a></li>`).join('');
   const html = [
@@ -639,7 +693,7 @@ function letopisArticle(data, expandedMode) {
     slug: 'letopis-kniga', title: 'Летопись «Обитель смерти» (книга)', cat: 'glavy', type: 'раздел', status: 'canon', statusLabel: 'Канон', statusIcon: '✅',
     invented: false, aliases: ['Обитель смерти (книга)', 'Ледяной клинок'], tags: ['книга', 'раздел'],
     fields: [{ label: 'Тип', html: 'Книга' }, { label: 'Серия', html: 'Моррис Град: Ледяной клинок' }, { label: 'Автор', html: 'Lorin Death' }],
-    image: null, gallery: [], html: expandedMode ? withGuess(fixed) : fixed,
+    image: null, gallery: [], html: fixed,
     toc: [{ id: 'glavy', text: 'Главы', level: 2 }, { id: 'v-knige', text: 'В файле книги', level: 2 }],
     excerpt: 'Первая книга серии «Моррис Град: Ледяной клинок». Главы летописи по порядку чтения, без пересказа закрытых сцен.',
     links, backlinks: [], clan: '', role: '', when: '', order: null, redacted: false, books: ['book:obitel-smerti'],
@@ -685,6 +739,10 @@ function blurb(slug, fallback) {
   const t = a?.excerpt || fallback;
   return hidden(t) ? fallback : t;
 }
+function leadSentence(text, fallback) {
+  const t = String(text || '').replace(/\s*Рассказчик:.*$/u, '').replace(/\s*Книга:.*$/u, '').replace(/\s+/g, ' ').trim();
+  return t && !hidden(t) ? t : fallback;
+}
 const pro = bySlug.get('chk-00-prolog-noch-fioletovoy-luny');
 const shutter = pro?.html.match(/<details class="lp-shutter"[\s\S]*?<\/details>/)?.[0] || '';
 const crown = {
@@ -694,11 +752,11 @@ const crown = {
   bookSlug: 'chernaya-korona-kniga',
   chronoSlug: bySlug.has('chernaya-korona-khronologiya') ? 'chernaya-korona-khronologiya' : null,
   annotation: blurb('chernaya-korona-kniga', 'Приквел к летописи «Обитель смерти»: как Лорелин стала Лорин.'),
-  prologue: { n: 0, slug: pro ? pro.slug : null, title: pro ? pro.title : 'Пролог', blurb: blurb('chk-00-prolog-noch-fioletovoy-luny', 'Ночь, с которой начинается книга.'), shutter },
+  prologue: { n: 0, slug: pro ? pro.slug : null, title: pro ? pro.title : 'Пролог', blurb: leadSentence(pro?.excerpt, 'Ночь, с которой начинается книга.'), shutter },
   parts: partDefs.map((p) => ({
     ...p,
     published: bySlug.has(p.slug),
-    blurb: blurb(p.slug, p.range),
+    blurb: '',
     chapters: crownChapters.filter((c) => c.n >= p.from && c.n <= p.to),
   })),
   after: crownChapters.filter((c) => c.n >= 65),

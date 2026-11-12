@@ -36,10 +36,15 @@ ok(i29?.order === 21 && i29.aliases.includes("Дорога назад") && i29.t
 ok(g2?.order === 9 && g2.title === "Гл.2 Тёплый вечер", "глобальный №9 остаётся у Тёплого вечера");
 ok(!exp.articles.some((a) => a.order === 21 && a.slug !== i29.slug), "порядок 21 только у И2.9");
 
+const PLACEHOLDER = "Отдельной гипотезы по этой статье Историк не записал";
 for (const a of exp.articles) {
+  ok(!a.html.includes(PLACEHOLDER) && !a.excerpt.includes(PLACEHOLDER), a.slug + " заглушка пустой гипотезы");
+  ok(!/<aside class="lp-guess"[^>]*>\s*<p class="lp-guess-label"[^>]*>[^<]*<\/p>\s*<\/aside>/.test(a.html), a.slug + " пустой блок гипотез");
   const label = a.html.match(/class="lp-guess-label"[^>]*>([^<]+)/);
-  ok(label?.[1] === HISTORIAN_GUESS_LABEL, a.slug + " без плашки");
-  ok(!a.html.slice(a.html.indexOf("lp-guess-label"), a.html.indexOf("lp-guess-label") + 180).includes(FORBIDDEN_GUESS_LABEL), a.slug + " плашка подписана запретной меткой");
+  if (label) {
+    ok(label[1] === HISTORIAN_GUESS_LABEL, a.slug + " чужая плашка");
+    ok(!a.html.slice(a.html.indexOf("lp-guess-label"), a.html.indexOf("lp-guess-label") + 180).includes(FORBIDDEN_GUESS_LABEL), a.slug + " плашка подписана запретной меткой");
+  }
   ok(!/Основание:|Ограничение:/.test(a.excerpt), a.slug + " выдержка берёт гипотезу");
   ok(!a.html.includes('<details class="lp-mentions" open'), a.slug + " указатель раскрыт");
 }

@@ -4,6 +4,7 @@ import { HIDDEN_TERMS } from "../loropedia/config.mjs";
 import rawPublic from "../../src/data/loropedia/data.json";
 import rawExpanded from "../../src/data/loropedia/expanded.json";
 import layer from "../../src/data/loropedia/books/darg-sirrom.json";
+import crown from "../../src/data/loropedia/crown.json";
 import { applyLayers } from "../../src/lib/loropedia/layers";
 import { mindMap, quizPool, DS_QUIZ, QUOTES, EGGS, ACHIEVEMENTS } from "../../src/lib/loropedia/play";
 
@@ -73,5 +74,19 @@ for (const f of ["src/pages/loropedia/karta.astro", "src/pages/loropedia/igry.as
 }
 const banned = /Pixel Art Atlas|Hugging ?Face|Krea|сюрприз/i;
 ok(!banned.test(JSON.stringify(layer)) && !["karta", "igry", "index"].some((p) => banned.test(fs.readFileSync(`src/pages/loropedia/${p}.astro`, "utf8"))), "запрещённые слова в тексте сайта");
+const PLACEHOLDER = "Отдельной гипотезы по этой статье Историк не записал";
+ok(!JSON.stringify(rawPublic).includes(PLACEHOLDER) && !JSON.stringify(rawExpanded).includes(PLACEHOLDER), "заглушка пустой гипотезы не публикуется");
+const crownParts = (crown as { parts: { blurb: string }[] }).parts;
+ok(crownParts.every((p) => p.blurb === "") && !JSON.stringify(crown).includes("книги Чёрная корона (книга): гл."), "у частей «Начала» пустая подпись, без повторного диапазона");
+const html = (s: string) => by(pub, s)?.html || "";
+ok(html("gl-3-s-menya-khvatit").includes('class="lp-guess-label"') && html("gl-3-s-menya-khvatit").includes("из-за пистолетов") && html("gl-3-s-menya-khvatit").includes("там её не было"), "Гл.3: гипотеза про пистолеты, не про Дэстри");
+ok(!html("silvana").includes("Сильвана знала Лорелин") && html("silvana").includes("жадности"), "Сильвана: прежняя гипотеза снята");
+ok(html("chk-38-peschanye-zemli").includes("держа Корону") && html("chk-38-peschanye-zemli").includes("Давно не виделись, Лорелин") && !html("chk-38-peschanye-zemli").includes("Сильвана знала"), "ЧК.38: реплику говорит Король с Короной");
+ok(html("chk-chast-pyataya-ten-korony").includes("держа Корону") && html("chk-chast-pyataya-ten-korony").includes("Давно не виделись, Лорелин"), "Часть пятая повторяет ту же реплику");
+ok(html("chk-37-shakhmaty").includes("края Чёрного леса") && html("chyornye-pistolety").includes("Лордов тьмы") && html("chyornye-pistolety").includes("Лорелин в Дэстри не было") && !html("chyornye-pistolety").includes("через Фрактал"), "пистолеты найдены у леса и связаны сезоном, не Фракталом");
+ok(html("grinpoys").includes("Стэн") && html("grinpoys").includes("Симон") && html("grinpoys").includes("Сталкер") && html("grinpoys").includes("против Стэна"), "Гринпойс: Стэн, Симон, Сталкер, Лист против Стэна");
+ok(html("chk-58-els").includes("Алзор оставил Короля жить") && !html("chk-58-els").includes("носитель") && html("els").includes("Алзор оставил его в живых"), "ЧК.58: носитель снят, Короля оставил Алзор");
+ok(html("chk-chast-sedmaya-den-poyavleniya").includes("сорок двух увозят в крепость") && !by(pub, "chk-54-kupol"), "сорок два ребёнка в крепости видны в части; статья главы 54 со скрытой темой не выведена");
+ok(html("niro").includes("не описаны") && html("niro").includes("глаза чёрные") && !/Ниро[^<]{0,80}слеп/.test(html("niro")), "Ниро: в «Страже» чёрные глаза, слепоту в текст книги не добавляем");
 if (failed) { console.error(`loropedia layers: ${failed} fail`); process.exit(1); }
 console.log("loropedia layers: проверки прошли");
