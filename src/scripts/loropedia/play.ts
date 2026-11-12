@@ -56,7 +56,10 @@ export function toast(text: string, big = false) {
 
 /** Сколько глав книги отмечено в «Ходе чтения» (хранится тем же браузером). */
 export function chaptersRead(book: string): number {
-  try { return loadState(localStorage.getItem(READER_KEY)).books[book]?.chapterNumber ?? 0; } catch { return 0; }
+  try {
+    const cur = loadState(localStorage.getItem(READER_KEY)).books[book];
+    return cur && cur.chapterNumber != null ? cur.chapterNumber : -1;
+  } catch { return -1; }
 }
 export const spoilAll = () => document.cookie.split(";").some((p) => p.trim() === "lp_spoil=1");
 

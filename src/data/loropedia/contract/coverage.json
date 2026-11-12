@@ -1,6 +1,6 @@
 {
   "contractVersion": "1.0.0",
-  "liveArticles": 161,
+  "liveArticles": 328,
   "annotatedFacts": 0,
   "annotatedFragments": 0,
   "status": "blocked-no-provenance",
@@ -17,9 +17,23 @@
     "whyInactive": "Нет безопасного способа показать проекцию: номера глав остаются в браузере, а полный корпус в клиенте открыл бы поздние цитаты."
   },
   "surfaces": [
-    "title", "aliases", "body", "infobox", "excerpts", "links", "images", "alt",
-    "search", "snippets", "tags", "counts", "chronology", "graph", "previews",
-    "sourceTitles", "metadata"
+    "title",
+    "aliases",
+    "body",
+    "infobox",
+    "excerpts",
+    "links",
+    "images",
+    "alt",
+    "search",
+    "snippets",
+    "tags",
+    "counts",
+    "chronology",
+    "graph",
+    "previews",
+    "sourceTitles",
+    "metadata"
   ],
   "protectedBehavior": "При cookie lp_protect=1 эти поверхности не попадают в HTML. Ни прежние, ни расширенные статьи не подставляются. Курсор чтения их не открывает.",
   "openBehavior": "Без cookie страницы, URL, ар-деко, data.json, search.json и картинки прежние.",

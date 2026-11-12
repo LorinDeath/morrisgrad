@@ -94,14 +94,14 @@ ok(legacy.open && legacy.html.includes("SECRETHTML") && !legacyClosed.open && le
 ok(!renderView(project(corpus, early)).includes("</script") && renderView(project({ ...corpus, facts: corpus.facts.map((f) => f.id === "fact:example.early" ? { ...f, text: "</script><script>alert(1)</script>" } : f) }, early)).includes("&lt;/script&gt;"), "проекция экранирует HTML");
 
 ok(coverage.status === "blocked-no-provenance" && coverage.annotatedFacts === 0 && coverage.liveArticles === (rawData as { stats: { articles: number } }).stats.articles && coverage.surfaces.length === SURFACE_KEYS.length, "покрытие 161 статей закрыто: разметки фактов нет");
-ok(new Set(READER_BOOKS.map((b) => b.id)).size === 4 && READER_BOOKS.every((b) => b.id.startsWith("book:")) && READER_BOOKS.some((b) => b.id === "book:darg-sirrom"), "четыре книги (с «Дарг Сирром») ведут отдельный прогресс");
+ok(new Set(READER_BOOKS.map((b) => b.id)).size === 5 && READER_BOOKS.every((b) => b.id.startsWith("book:")) && READER_BOOKS.some((b) => b.id === "book:darg-sirrom") && READER_BOOKS.some((b) => b.id === "book:chernaya-korona"), "пять книг ведут отдельный прогресс");
 
 const pages = [
   "src/pages/loropedia/index.astro",
   "src/pages/loropedia/[slug].astro",
   "src/pages/loropedia/poisk.astro",
   "src/pages/loropedia/karta.astro",
-  "src/pages/loropedia/galereya.astro",
+  "src/pages/loropedia/chernaya-korona.astro",
   "src/pages/loropedia/c/[cat].astro",
   "src/pages/loropedia/tag/[tag].astro",
 ];

@@ -22,6 +22,7 @@ const disputed = LP.articles.filter((a) => a.status === 'disputed');
 const popular = [...LP.articles].filter((a) => a.cat !== 'glavy').sort((a, b) => b.backlinks.length - a.backlinks.length).slice(0, 8);
 const art = LP.images.filter((i) => !/^cover/.test(i.id)).slice(0, 8);
 const ds = article('darg-sirrom');
+const letopisBook = article('letopis-kniga');
 const dayList = LP.articles.filter((a) => a.cat !== 'glavy' && a.cat !== 'khronologiya-razdel' && a.excerpt.length > 60 && a.status !== 'idea' && !a.historianGuess)
   .map((a) => ({ s: a.slug, t: a.title, e: a.excerpt.slice(0, 180), i: a.image?.thumb || null })).sort((x, y) => (x.s < y.s ? -1 : 1));
 const desc = `Энциклопедия вселенной МоррисГрада: ${LP.stats.articles} статей о героях, кланах, локациях, магии и событиях летописи «Обитель смерти» — с хронологией, картой связей и артами.`;
@@ -52,6 +53,17 @@ const desc = `Энциклопедия вселенной МоррисГрада
     </div>
   </header>
 
+  <section class="lp-section">
+    <a class="ck-home" href="/loropedia/chernaya-korona" data-tip="Открыть флагман «Моррис Град: Чёрная корона». Книга «Начало»: ночь Фиолетовой Луны, путь по частям, спойлеры закрыты.">
+      <span class="ck-home-moon" aria-hidden="true"></span>
+      <span class="ck-home-ash" aria-hidden="true"></span>
+      <span class="ck-home-crown" aria-hidden="true">♔</span>
+      <span class="ck-home-kicker">Моррис Град: Чёрная корона</span>
+      <strong>Начало</strong>
+      <span>Приквел летописи. Ночь Фиолетовой Луны, пепел и корона — путь по частям. Спойлеры закрыты, пока вы сами их не откроете.</span>
+    </a>
+  </section>
+
   <section class="lp-section lp-home-play">
     <a class="lp-hp-card lp-hp-map" href="/loropedia/karta" data-tip="Открыть ментальную карту: все статьи и связи на одном полотне">
       <span class="lp-hp-ico" aria-hidden="true">✶</span><b>Ментальная карта</b><span>Все герои, места, события и книги — ветвями от центра. Масштаб, поиск, фильтр по книгам.</span>
@@ -63,8 +75,13 @@ const desc = `Энциклопедия вселенной МоррисГрада
       <span class="lp-hp-ico" aria-hidden="true">🏆</span><b>Испытания</b><span>Квиз по лору, «Кто сказал?», коллекция карточек, пасхалки и ранги читателя.</span>
     </a>
     {ds && (
-      <a class="lp-hp-card lp-hp-new" href={`/loropedia/${ds.slug}`} data-tip="Новая книга: «Дарг Сирром: Страж пятого порядка»">
-        <span class="lp-hp-ico" aria-hidden="true">🜂</span><b>Новая книга</b><span>«{ds.title}». {ds.excerpt}</span>
+      <a class="lp-hp-card" href={`/loropedia/${ds.slug}`} data-tip="Книга «Дарг Сирром: Страж пятого порядка». Тихая страница книги, первая глава.">
+        <span class="lp-hp-ico" aria-hidden="true">🜂</span><b>Дарг Сирром</b><span>Страж пятого порядка. Первая глава уже в энциклопедии.</span>
+      </a>
+    )}
+    {letopisBook && (
+      <a class="lp-hp-card" href={`/loropedia/${letopisBook.slug}`} data-tip="Книга «Летопись Обитель смерти»: главы по порядку, без отдельного оформления.">
+        <span class="lp-hp-ico" aria-hidden="true">📜</span><b>Летопись</b><span>«Обитель смерти», серия «Ледяной клинок». Главы по порядку чтения.</span>
       </a>
     )}
   </section>

@@ -67,7 +67,7 @@ ok(pool.length >= 40 && pool.every((q) => q.options.length >= 3 && q.options[q.a
 ok(![...QUOTES, ...EGGS, ...DS_QUIZ].some((x: any) => x.slug === "niro-darg-sirrom"), "квиз, цитаты, пасхалки — без старого слага");
 ok(QUOTES.every((q) => by(pub, q.slug)) && EGGS.every((e) => by(pub, e.slug)) && ACHIEVEMENTS.length >= 10, "цитаты, пасхалки, достижения ссылаются на живые статьи");
 // у каждой кнопки есть подсказка
-for (const f of ["src/pages/loropedia/karta.astro", "src/pages/loropedia/igry.astro", "src/pages/loropedia/[slug].astro", "src/components/loropedia/LpShell.astro"]) {
+for (const f of ["src/pages/loropedia/karta.astro", "src/pages/loropedia/igry.astro", "src/pages/loropedia/[slug].astro", "src/components/loropedia/LpShell.astro", "src/pages/loropedia/chernaya-korona.astro"]) {
   const src = fs.readFileSync(f, "utf8"); const btns = src.match(/<button\b[^>]*>/g) || [];
   ok(btns.every((b) => /data-tip=/.test(b)), f + ": кнопка без подсказки");
 }

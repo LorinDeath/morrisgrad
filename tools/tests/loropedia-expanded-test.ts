@@ -24,7 +24,7 @@ const ok = (c: unknown, m: string) => { if (!c) { failed++; console.error("FAIL 
 const pubSlugs = new Set(pub.articles.map((a) => a.slug));
 const expBy = new Map(exp.articles.map((a) => [a.slug, a]));
 
-ok(exp.articles.length === 169, "статей " + exp.articles.length);
+ok(exp.articles.length === pub.articles.length + NEW.length, "статей " + exp.articles.length);
 ok(exp.factMarkup === false, "слой не размечен фактами");
 ok([...pubSlugs].every((s) => expBy.has(s)), "прежние адреса сохранены");
 ok(NEW.every((s) => expBy.has(s)), "восемь новых адресов");

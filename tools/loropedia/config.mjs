@@ -73,11 +73,11 @@ export const CATEGORIES = [
   { folder: 'Предметы и артефакты', slug: 'predmety', icon: '🗝', desc: 'Оружие, реликвии и странные механизмы' },
   { folder: 'Магия и механики системы', slug: 'magiya', icon: '✨', desc: 'Магия, баги и правила симуляции' },
   { folder: 'События', slug: 'sobytiya', icon: '⚡', desc: 'Битвы, казни, катастрофы и пробуждения' },
-  { folder: 'Части и главы', slug: 'glavy', icon: '📖', desc: 'Главы и части летописи «Обитель смерти»' },
+  { folder: 'Части и главы', slug: 'glavy', icon: '📖', desc: 'Главы и части книг МоррисГрада' },
   { folder: 'Хронология', slug: 'khronologiya-razdel', icon: '⏳', desc: 'Порядок событий' },
   { folder: 'Язык и термины', slug: 'yazyk', icon: '🔤', desc: 'Слова, обращения и игровой сленг' },
   { folder: 'Справка', slug: 'spravka', icon: '📎', desc: 'Справочные заметки и замыслы автора' },
 ];
 
 /** Зарезервированные адреса /loropedia/<…>, которые не может занять статья. */
-export const RESERVED_SLUGS = ['c', 'tag', 'poisk', 'karta', 'galereya', 'oglavlenie-razdelov', 'search.json', 'img'];
+export const RESERVED_SLUGS = ['c', 'tag', 'poisk', 'karta', 'galereya', 'oglavlenie-razdelov', 'chernaya-korona', 'search.json', 'img'];

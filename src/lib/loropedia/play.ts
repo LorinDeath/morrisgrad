@@ -7,6 +7,7 @@ export const BOOKS = [
   { id: "book:pravednye-koty", short: "Праведные коты", label: "Праведные коты" },
   { id: "book:kill", short: "KILL", label: "KILL" },
   { id: "book:darg-sirrom", short: "Дарг Сирром", label: "Дарг Сирром: Страж пятого порядка" },
+  { id: "book:chernaya-korona", short: "Чёрная корона", label: "Моррис Град: Чёрная корона — Начало" },
 ] as const;
 
 /** Книга главы по слагу (главы летописи, отдельные тексты, новая книга). */
@@ -15,6 +16,8 @@ export function bookOfChapter(slug: string): string | null {
   if (slug.startsWith("pravednye-koty-probuzhdenie")) return "book:pravednye-koty";
   if (slug.startsWith("kill-glava")) return "book:kill";
   if (slug.startsWith("ds-") || slug === "darg-sirrom") return "book:darg-sirrom";
+  if (slug.startsWith("chk-") || slug === "chernaya-korona-kniga" || slug === "chernaya-korona-khronologiya") return "book:chernaya-korona";
+  if (slug === "letopis-kniga") return "book:obitel-smerti";
   return null;
 }
 
