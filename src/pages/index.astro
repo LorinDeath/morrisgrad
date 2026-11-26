@@ -168,6 +168,54 @@ const activities = [
     <!-- Разделительная руническая линия -->
     <div class="shimmer-line"></div>
 
+    <!-- ПРОМО-БЛОК КНИГИ: «Моррис Град. Чёрная корона» (Ridero) -->
+    <section class="flagship-section flagship-section--book" aria-labelledby="book-release-title">
+      <div class="flagship-card flagship-card--book">
+        <div class="flagship-corners top-l"></div>
+        <div class="flagship-corners top-r"></div>
+        <div class="flagship-corners bot-l"></div>
+        <div class="flagship-corners bot-r"></div>
+        <div class="flagship-aura"></div>
+
+        <div class="book-release-head">
+          <div class="flagship-content">
+            <div class="flagship-badge">
+              <span class="badge-dot"></span> КНИГА // УЖЕ В МАГАЗИНАХ
+            </div>
+            <h2 id="book-release-title" class="flagship-title book-release-title">Книга вышла: Моррис Град. Чёрная корона</h2>
+            <p class="flagship-desc">
+              Автор Lorin Death. Книга уже вышла на Ridero и появляется в интернет-магазинах.
+            </p>
+          </div>
+          <div class="flagship-cta">
+            <a
+              class="btn-play"
+              href="https://ridero.ru/books/morris_grad_chyornaya_korona/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Открыть страницу книги «Моррис Град. Чёрная корона» на Ridero"
+            >
+              <span class="btn-text">ОТКРЫТЬ НА RIDERO</span>
+              <span class="btn-arrow">→</span>
+            </a>
+            <span class="cta-hint">Печатная и электронная версия</span>
+          </div>
+        </div>
+
+        <div class="book-widget">
+          <iframe
+            width="100%"
+            height="700"
+            src="https://ridero.ru/books/widget/morris_grad_chyornaya_korona/?book3d=true"
+            frameborder="0"
+            loading="lazy"
+            title="3D-обложка книги «Моррис Град. Чёрная корона» на Ridero"
+            referrerpolicy="strict-origin-when-cross-origin"
+          ></iframe>
+        </div>
+      </div>
+    </section>
+
     <!-- ФЛАГМАНСКИЙ БЛОК: «ПРОКЛЯТЫЕ» -->
     <section class="flagship-section">
       <a href="/MorrisCurse" class="flagship-card" title="Запустить игру ПРОКЛЯТЫЕ">
@@ -1057,6 +1105,64 @@ const activities = [
   }
 
   /* Лоропедия: та же флагманская карточка, но «книжная» палитра — бирюза и золото */
+
+  /* Промо книги «Чёрная корона» на Ridero: тот же тёмный флагманский каркас, виджет снизу */
+  .flagship-section--book { margin-top: 2.5rem; }
+  .flagship-card--book {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.6rem;
+    cursor: default;
+  }
+  .flagship-card--book:hover {
+    transform: none;
+  }
+  .book-release-head {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 30px;
+    z-index: 1;
+    width: 100%;
+  }
+  .book-release-title {
+    font-size: 2.1rem;
+    line-height: 1.2;
+    letter-spacing: 1px;
+  }
+  .book-widget {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #0a0512;
+    border: 1px solid rgba(245, 208, 97, 0.28);
+    box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.45);
+  }
+  .book-widget iframe {
+    display: block;
+    width: 100%;
+    height: 700px;
+    border: 0;
+    max-width: 100%;
+    background: #0a0512;
+  }
+  .flagship-card--book .btn-play {
+    text-decoration: none;
+    color: #0c0617;
+  }
+  .flagship-card--book .btn-play:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 35px rgba(245, 208, 97, 0.75);
+    background: linear-gradient(135deg, #fff176 0%, #ffd700 100%);
+  }
+  .flagship-card--book .btn-play:hover .btn-arrow {
+    transform: translateX(4px);
+  }
+
   .flagship-section--lore { margin-top: -1rem; }
   .flagship-card--lore {
     background: linear-gradient(135deg, rgba(10, 38, 44, 0.9) 0%, rgba(12, 14, 30, 0.95) 60%, rgba(8, 6, 16, 0.98) 100%);
@@ -1520,6 +1626,19 @@ const activities = [
     .flagship-title {
       font-size: 2rem;
     }
+    .book-release-head {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .book-release-title {
+      font-size: 1.55rem;
+    }
+    .flagship-card--book {
+      padding: 1.4rem 1rem;
+    }
+    .book-widget iframe {
+      height: 520px;
+    }
     .konkurs-quest-banner {
       padding: 1.6rem 1.4rem;
     }
@@ -1536,6 +1655,12 @@ const activities = [
   }
 
   @media (max-width: 600px) {
+    .book-widget iframe {
+      height: 480px;
+    }
+    .flagship-card--book {
+      padding: 1.25rem 0.7rem;
+    }
     .activities-grid {
       grid-template-columns: 1fr;
     }

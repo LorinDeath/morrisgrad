@@ -29,6 +29,7 @@ export function cspPolicy(nonce: string): string {
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'self'",
+    "frame-src 'self' https://ridero.ru https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com https://cherta-kupola.alexseylyou.workers.dev https://*.clerk.accounts.dev https://clerk.morrisgrad.com https://accounts.morrisgrad.com https://challenges.cloudflare.com",
     "form-action 'self' https://*.clerk.accounts.dev https://clerk.morrisgrad.com https://accounts.morrisgrad.com",
     "report-uri /api/csp-report",
   ].join("; ");
